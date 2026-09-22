@@ -28,7 +28,10 @@ import {
   Percent,
   X,
   Sparkles,
-  Info
+  Info,
+  BarChart3,
+  PieChart as PieChartIcon,
+  Table as TableIcon
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -36,6 +39,8 @@ import {
   Bar,
   LineChart,
   Line,
+  AreaChart,
+  Area,
   PieChart,
   Pie,
   Cell,
@@ -43,7 +48,8 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend
+  Legend,
+  ReferenceLine
 } from 'recharts';
 import { backendFetch } from '../../../lib/backendFetch';
 
@@ -90,16 +96,28 @@ export const PlantHeadDashboard = () => {
   const router = useRouter();
 
   // State
+  const [hasMounted, setHasMounted] = useState(false);
   const [filter, setFilter] = useState('This Month');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [showCustomModal, setShowCustomModal] = useState(false);
+
+  // Breakdown Card View Modes ('chart' | 'table')
+  const [productViewMode, setProductViewMode] = useState('chart');
+  const [sizeViewMode, setSizeViewMode] = useState('chart');
+  const [capacityViewMode, setCapacityViewMode] = useState('chart');
+  const [customerViewMode, setCustomerViewMode] = useState('chart');
+  const [qcViewMode, setQcViewMode] = useState('details');
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
   const [lastUpdatedTime, setLastUpdatedTime] = useState('');
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   // Fetch Dashboard Data from Backend Aggregation Endpoint
   const fetchDashboard = useCallback(async (isRefresh = false) => {
@@ -182,6 +200,59 @@ export const PlantHeadDashboard = () => {
       { name: 'Delayed', value: f.delayed?.count || 0, pcs: f.delayed?.pcs || 0, percent: f.delayed?.percent || 0, color: FULFILLMENT_COLORS.delayed },
     ].filter(item => item.value > 0);
   }, [ord]);
+
+  // Quality inspection donut data
+  const qcDonutData = useMemo(() => {
+    const acc = Number(qc?.accepted || 0);
+    const rej = Number(qc?.rejected || 0);
+    const rew = Number(qc?.rework || 0);
+    const total = acc + rej + rew;
+    if (total === 0) return [];
+    return [
+      { name: 'Accepted', value: acc, color: PALETTE.emerald, percent: Number(((acc / total) * 100).toFixed(1)) },
+      { name: 'Rejected', value: rej, color: PALETTE.crimson, percent: Number(((rej / total) * 100).toFixed(1)) },
+      { name: 'Rework', value: rew, color: PALETTE.orange, percent: Number(((rew / total) * 100).toFixed(1)) },
+    ].filter(item => item.value > 0);
+  }, [qc]);
+
+  // Calculated daily benchmark averages
+  const avgDailyProd = useMemo(() => {
+    const active = (prod?.dailyVsTarget || []).filter(d => Number(d.actualPcs || 0) > 0);
+    return active.length ? Math.round(Number(prod?.totalPcs || 0) / active.length) : 0;
+  }, [prod]);
+
+  const avgDailyDisp = useMemo(() => {
+    const active = (disp?.dailyVsTarget || []).filter(d => Number(d.actualPcs || 0) > 0);
+    return active.length ? Math.round(Number(disp?.totalPcs || 0) / active.length) : 0;
+  }, [disp]);
+
+  // Safe zero-blank responsive chart container with hydration guard
+  const SafeChartBox = ({ children, height = 220, isEmpty = false, emptyText = 'No data recorded for this timeframe' }) => {
+    if (!hasMounted) {
+      return (
+        <div style={{ width: '100%', height: `${height}px`, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC', borderRadius: '6px' }}>
+          <div style={{ width: '28px', height: '28px', border: '3px solid #E2E8F0', borderTopColor: PALETTE.navy, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+        </div>
+      );
+    }
+
+    if (isEmpty) {
+      return (
+        <div style={{ width: '100%', height: `${height}px`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC', borderRadius: '6px', border: '1px dashed #CBD5E1', padding: '16px', boxSizing: 'border-box' }}>
+          <BarChart3 size={24} color="#94A3B8" style={{ marginBottom: '6px' }} />
+          <span style={{ fontSize: '12px', fontWeight: 600, color: PALETTE.slateMuted }}>{emptyText}</span>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ width: '100%', minWidth: 0, height: `${height}px`, position: 'relative' }}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          {children}
+        </ResponsiveContainer>
+      </div>
+    );
+  };
 
   // Render Skeleton Loader
   if (loading && !dashboardData) {
@@ -605,21 +676,47 @@ export const PlantHeadDashboard = () => {
                 </h3>
                 <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Actual Output (PCS) across period</span>
               </div>
-              <span style={{ fontSize: '10px', background: '#F1F5F9', color: PALETTE.slateMuted, padding: '3px 8px', borderRadius: '4px', fontWeight: 600 }}>
-                TARGET NOT CONFIGURED
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {avgDailyProd > 0 && (
+                  <span style={{ fontSize: '10px', background: '#FEF3C7', color: '#B45309', padding: '3px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                    Avg: {fmt(avgDailyProd)} PCS/day
+                  </span>
+                )}
+                <span style={{ fontSize: '10px', background: '#F1F5F9', color: PALETTE.slateMuted, padding: '3px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                  TARGET NOT CONFIGURED
+                </span>
+              </div>
             </div>
-            <div style={{ width: '100%', height: '220px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={prod.dailyVsTarget || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                  <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="#94A3B8" />
-                  <YAxis tick={{ fontSize: 10 }} stroke="#94A3B8" />
-                  <Tooltip formatter={(value) => [`${fmt(value)} PCS`, 'Actual Production']} />
-                  <Bar dataKey="actualPcs" name="Actual (PCS)" fill={PALETTE.navy} radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <SafeChartBox height={220} isEmpty={!prod.dailyVsTarget?.length || prod.totalPcs === 0} emptyText="No production recorded for this timeframe">
+              <BarChart data={prod.dailyVsTarget || []} margin={{ top: 10, right: 12, left: -16, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="phProdGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0B5FA5" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#073B63" stopOpacity={0.9} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 10, fill: '#94A3B8' }}
+                  stroke="#CBD5E1"
+                  interval={(prod.dailyVsTarget?.length || 0) > 15 ? 'preserveStartEnd' : 0}
+                />
+                <YAxis tick={{ fontSize: 10, fill: '#94A3B8' }} stroke="#CBD5E1" />
+                <Tooltip
+                  formatter={(value) => [`${fmt(value)} PCS`, 'Actual Production']}
+                  labelFormatter={(lbl, items) => {
+                    const row = items?.[0]?.payload;
+                    return row?.date || lbl;
+                  }}
+                  contentStyle={{ background: '#0F172A', color: '#FFF', borderRadius: '6px', fontSize: '12px', border: 'none' }}
+                />
+                {avgDailyProd > 0 && (
+                  <ReferenceLine y={avgDailyProd} stroke="#F59E0B" strokeDasharray="3 3" strokeWidth={1.5} label={{ value: `Avg ${fmt(avgDailyProd)}`, position: 'insideTopRight', fill: '#D97706', fontSize: 10, fontWeight: 700 }} />
+                )}
+                <Bar dataKey="actualPcs" name="Actual (PCS)" fill="url(#phProdGrad)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </SafeChartBox>
           </div>
 
           {/* WIDGET 2: DISPATCH VS TARGET (DAILY) (PCS) */}
@@ -631,21 +728,47 @@ export const PlantHeadDashboard = () => {
                 </h3>
                 <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Outbound Deliveries (PCS)</span>
               </div>
-              <span style={{ fontSize: '10px', background: '#F1F5F9', color: PALETTE.slateMuted, padding: '3px 8px', borderRadius: '4px', fontWeight: 600 }}>
-                TARGET NOT CONFIGURED
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {avgDailyDisp > 0 && (
+                  <span style={{ fontSize: '10px', background: '#DBEAFE', color: '#1D4ED8', padding: '3px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                    Avg: {fmt(avgDailyDisp)} PCS/day
+                  </span>
+                )}
+                <span style={{ fontSize: '10px', background: '#F1F5F9', color: PALETTE.slateMuted, padding: '3px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                  TARGET NOT CONFIGURED
+                </span>
+              </div>
             </div>
-            <div style={{ width: '100%', height: '220px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={disp.dailyVsTarget || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                  <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="#94A3B8" />
-                  <YAxis tick={{ fontSize: 10 }} stroke="#94A3B8" />
-                  <Tooltip formatter={(value) => [`${fmt(value)} PCS`, 'Actual Dispatch']} />
-                  <Bar dataKey="actualPcs" name="Actual (PCS)" fill={PALETTE.blue} radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <SafeChartBox height={220} isEmpty={!disp.dailyVsTarget?.length || disp.totalPcs === 0} emptyText="No dispatch recorded for this timeframe">
+              <BarChart data={disp.dailyVsTarget || []} margin={{ top: 10, right: 12, left: -16, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="phDispGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3B82F6" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#1D4ED8" stopOpacity={0.9} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 10, fill: '#94A3B8' }}
+                  stroke="#CBD5E1"
+                  interval={(disp.dailyVsTarget?.length || 0) > 15 ? 'preserveStartEnd' : 0}
+                />
+                <YAxis tick={{ fontSize: 10, fill: '#94A3B8' }} stroke="#CBD5E1" />
+                <Tooltip
+                  formatter={(value) => [`${fmt(value)} PCS`, 'Actual Dispatch']}
+                  labelFormatter={(lbl, items) => {
+                    const row = items?.[0]?.payload;
+                    return row?.date || lbl;
+                  }}
+                  contentStyle={{ background: '#0F172A', color: '#FFF', borderRadius: '6px', fontSize: '12px', border: 'none' }}
+                />
+                {avgDailyDisp > 0 && (
+                  <ReferenceLine y={avgDailyDisp} stroke="#2563EB" strokeDasharray="3 3" strokeWidth={1.5} label={{ value: `Avg ${fmt(avgDailyDisp)}`, position: 'insideTopRight', fill: '#1D4ED8', fontSize: 10, fontWeight: 700 }} />
+                )}
+                <Bar dataKey="actualPcs" name="Actual (PCS)" fill="url(#phDispGrad)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </SafeChartBox>
           </div>
 
           {/* WIDGET 3: MONTHLY TREND (PCS) */}
@@ -658,19 +781,30 @@ export const PlantHeadDashboard = () => {
                 <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Production (PCS) vs Dispatch (PCS)</span>
               </div>
             </div>
-            <div style={{ width: '100%', height: '220px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={dashboardData?.monthlyTrend || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                  <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="#94A3B8" />
-                  <YAxis tick={{ fontSize: 10 }} stroke="#94A3B8" />
-                  <Tooltip formatter={(val, name) => [`${fmt(val)} PCS`, name]} />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
-                  <Line type="monotone" dataKey="productionPcs" name="Production (PCS)" stroke={PALETTE.navy} strokeWidth={2.5} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="dispatchPcs" name="Dispatch (PCS)" stroke={PALETTE.emerald} strokeWidth={2.5} dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            <SafeChartBox height={220} isEmpty={!dashboardData?.monthlyTrend?.length} emptyText="No trend data available">
+              <AreaChart data={dashboardData?.monthlyTrend || []} margin={{ top: 10, right: 12, left: -16, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="areaProdGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#073B63" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#073B63" stopOpacity={0.0} />
+                  </linearGradient>
+                  <linearGradient id="areaDispGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#159447" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#159447" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94A3B8' }} stroke="#CBD5E1" />
+                <YAxis tick={{ fontSize: 10, fill: '#94A3B8' }} stroke="#CBD5E1" />
+                <Tooltip
+                  formatter={(val, name) => [`${fmt(val)} PCS`, name]}
+                  contentStyle={{ background: '#0F172A', color: '#FFF', borderRadius: '6px', fontSize: '12px', border: 'none' }}
+                />
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
+                <Area type="monotone" dataKey="productionPcs" name="Production (PCS)" stroke={PALETTE.navy} fill="url(#areaProdGrad)" strokeWidth={2.5} dot={{ r: 3, fill: PALETTE.navy }} />
+                <Area type="monotone" dataKey="dispatchPcs" name="Dispatch (PCS)" stroke={PALETTE.emerald} fill="url(#areaDispGrad)" strokeWidth={2.5} dot={{ r: 3, fill: PALETTE.emerald }} />
+              </AreaChart>
+            </SafeChartBox>
           </div>
 
           {/* WIDGET 4: ORDER FULFILLMENT STATUS (Donut) */}
@@ -684,27 +818,40 @@ export const PlantHeadDashboard = () => {
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', height: '220px', gap: '8px' }}>
-              <div style={{ width: '50%', height: '100%', position: 'relative' }}>
-                <ResponsiveContainer width="100%" height="100%">
+            <div style={{ display: 'flex', alignItems: 'center', height: '220px', gap: '12px' }}>
+              <div style={{ flex: '1 1 50%', minWidth: 0, height: '100%', position: 'relative' }}>
+                <SafeChartBox height={220} isEmpty={false}>
                   <PieChart>
                     <Pie
-                      data={fulfillmentDonutData}
+                      data={fulfillmentDonutData.length ? fulfillmentDonutData : [{ name: 'No Orders', value: 1, color: '#CBD5E1' }]}
                       dataKey="value"
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={45}
-                      outerRadius={75}
+                      innerRadius={48}
+                      outerRadius={76}
                       paddingAngle={2}
                     >
-                      {fulfillmentDonutData.map((entry, idx) => (
+                      {(fulfillmentDonutData.length ? fulfillmentDonutData : [{ name: 'No Orders', value: 1, color: '#CBD5E1' }]).map((entry, idx) => (
                         <Cell key={`cell-${idx}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(val, name, entry) => [`${val} orders (${entry.payload.percent}%)`, name]} />
+                    {fulfillmentDonutData.length > 0 && (
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const d = payload[0].payload;
+                          return (
+                            <div style={{ background: '#0F172A', color: '#FFF', padding: '6px 10px', borderRadius: '6px', fontSize: '11px' }}>
+                              <span style={{ color: d.color, fontWeight: 700 }}>{d.name}</span>: {d.value} orders ({d.percent}%)
+                              <div style={{ fontSize: '10px', color: '#94A3B8' }}>{fmt(d.pcs)} PCS</div>
+                            </div>
+                          );
+                        }}
+                      />
+                    )}
                   </PieChart>
-                </ResponsiveContainer>
+                </SafeChartBox>
                 <div style={{
                   position: 'absolute',
                   top: '50%',
@@ -713,29 +860,29 @@ export const PlantHeadDashboard = () => {
                   textAlign: 'center',
                   pointerEvents: 'none'
                 }}>
-                  <div style={{ fontSize: '16px', fontWeight: 800, color: PALETTE.slateDark }}>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: PALETTE.slateDark, lineHeight: 1 }}>
                     {ord?.fulfillment?.totalOrders || 0}
                   </div>
-                  <div style={{ fontSize: '9px', fontWeight: 600, color: PALETTE.slateMuted, textTransform: 'uppercase' }}>
+                  <div style={{ fontSize: '9px', fontWeight: 700, color: PALETTE.slateMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '3px' }}>
                     Orders
                   </div>
                 </div>
               </div>
 
               {/* Legend with exact count and PCS */}
-              <div style={{ width: '50%', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px' }}>
+              <div style={{ flex: '1 1 50%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px' }}>
                 {[
                   { label: 'Completed', stats: ord?.fulfillment?.completed, color: FULFILLMENT_COLORS.completed },
                   { label: 'In Production', stats: ord?.fulfillment?.inProduction, color: FULFILLMENT_COLORS.inProduction },
                   { label: 'Not Started', stats: ord?.fulfillment?.notStarted, color: FULFILLMENT_COLORS.notStarted },
                   { label: 'Delayed', stats: ord?.fulfillment?.delayed, color: FULFILLMENT_COLORS.delayed },
                 ].map((item) => (
-                  <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: item.color }} />
-                      <span style={{ color: PALETTE.slate }}>{item.label}</span>
+                  <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: item.color, flexShrink: 0 }} />
+                      <span style={{ color: PALETTE.slate, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
                     </div>
-                    <span style={{ fontWeight: 700, color: PALETTE.slateDark }}>
+                    <span style={{ fontWeight: 700, color: PALETTE.slateDark, flexShrink: 0 }}>
                       {item.stats?.percent || 0}% ({item.stats?.count || 0})
                     </span>
                   </div>
@@ -743,150 +890,362 @@ export const PlantHeadDashboard = () => {
               </div>
             </div>
           </div>
-
         </div>
 
-        {/* ── 5. ROW 3: PRODUCTION & DISPATCH ANALYSIS (Tables & Trend in PCS) ── */}
+        {/* ── 5. ROW 3: PRODUCTION & DISPATCH ANALYSIS (Charts & Tables in PCS) ── */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
           gap: '16px',
           marginBottom: '20px'
         }}>
 
-          {/* TABLE 1: PRODUCT-WISE PRODUCTION (PCS) */}
+          {/* CARD 1: PRODUCT-WISE PRODUCTION (PCS) - CHART & TABLE */}
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
             <div style={{ background: PALETTE.navy, color: '#FFFFFF', padding: '10px 14px', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Product-Wise Production (PCS)</span>
-              <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
-                {prod.productWise?.length || 0} Products
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Product-Wise Output</span>
+                <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+                  {prod.productWise?.length || 0} Products
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.2)', padding: '2px', borderRadius: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setProductViewMode('chart')}
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '3px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: productViewMode === 'chart' ? '#FFFFFF' : 'transparent',
+                    color: productViewMode === 'chart' ? PALETTE.navy : '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px'
+                  }}
+                >
+                  <BarChart3 size={11} /> Chart
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProductViewMode('table')}
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '3px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: productViewMode === 'table' ? '#FFFFFF' : 'transparent',
+                    color: productViewMode === 'table' ? PALETTE.navy : '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px'
+                  }}
+                >
+                  <TableIcon size={11} /> Table
+                </button>
+              </div>
             </div>
-            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: PALETTE.slateMuted, fontSize: '11px', textTransform: 'uppercase' }}>
-                    <th style={{ padding: '8px 12px' }}>Product</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>PCS</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>% Share</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(prod.productWise || []).slice(0, 7).map((item, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <td style={{ padding: '8px 12px', fontWeight: 500, color: PALETTE.slateDark }}>{item.product}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>{fmt(item.pcs)}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.slateMuted }}>{item.sharePercent}%</td>
+
+            {productViewMode === 'chart' ? (
+              <div style={{ padding: '12px' }}>
+                <SafeChartBox height={240} isEmpty={!prod.productWise?.length} emptyText="No product production records">
+                  <BarChart
+                    layout="vertical"
+                    data={(prod.productWise || []).slice(0, 5).map(p => ({
+                      ...p,
+                      shortName: p.product.length > 18 ? p.product.slice(0, 18) + '…' : p.product
+                    }))}
+                    margin={{ top: 8, right: 28, left: 10, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F1F5F9" />
+                    <XAxis type="number" tick={{ fontSize: 9, fill: '#94A3B8' }} />
+                    <YAxis dataKey="shortName" type="category" width={110} tick={{ fontSize: 10, fill: PALETTE.slateDark, fontWeight: 600 }} />
+                    <Tooltip
+                      formatter={(val, name, entry) => [`${fmt(val)} PCS (${entry.payload.sharePercent}%)`, entry.payload.product]}
+                      contentStyle={{ background: '#0F172A', color: '#FFF', borderRadius: '6px', fontSize: '11px', border: 'none' }}
+                    />
+                    <Bar dataKey="pcs" radius={[0, 4, 4, 0]}>
+                      {(prod.productWise || []).slice(0, 5).map((_, i) => (
+                        <Cell key={i} fill={['#073B63', '#0B5FA5', '#159447', '#D97706', '#6A3DB8'][i % 5]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </SafeChartBox>
+              </div>
+            ) : (
+              <div style={{ maxHeight: '254px', overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: PALETTE.slateMuted, fontSize: '11px', textTransform: 'uppercase' }}>
+                      <th style={{ padding: '8px 12px' }}>Product</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>PCS</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>% Share</th>
                     </tr>
-                  ))}
-                  {(!prod.productWise || prod.productWise.length === 0) && (
-                    <tr>
-                      <td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: PALETTE.slateMuted }}>
-                        No production records for selected period
-                      </td>
+                  </thead>
+                  <tbody>
+                    {(prod.productWise || []).slice(0, 7).map((item, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 500, color: PALETTE.slateDark }}>{item.product}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>{fmt(item.pcs)}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.slateMuted }}>{item.sharePercent}%</td>
+                      </tr>
+                    ))}
+                    {(!prod.productWise || prod.productWise.length === 0) && (
+                      <tr>
+                        <td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: PALETTE.slateMuted }}>
+                          No production records for selected period
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: PALETTE.blueLight, fontWeight: 800, borderTop: '2px solid #CBD5E1' }}>
+                      <td style={{ padding: '8px 12px', color: PALETTE.navy }}>Total</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>{fmt(prod.totalPcs)}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>100%</td>
                     </tr>
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr style={{ background: PALETTE.blueLight, fontWeight: 800, borderTop: '2px solid #CBD5E1' }}>
-                    <td style={{ padding: '8px 12px', color: PALETTE.navy }}>Total</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>{fmt(prod.totalPcs)}</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>100%</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
 
-          {/* TABLE 2: SIZE-WISE PRODUCTION (PCS) */}
+          {/* CARD 2: SIZE-WISE PRODUCTION (PCS) - CHART & TABLE */}
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
             <div style={{ background: PALETTE.navy, color: '#FFFFFF', padding: '10px 14px', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Size-Wise Production (PCS)</span>
-              <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
-                {prod.sizeWise?.length || 0} Sizes
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Size-Wise Output</span>
+                <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+                  {prod.sizeWise?.length || 0} Sizes
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.2)', padding: '2px', borderRadius: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setSizeViewMode('chart')}
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '3px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: sizeViewMode === 'chart' ? '#FFFFFF' : 'transparent',
+                    color: sizeViewMode === 'chart' ? PALETTE.navy : '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px'
+                  }}
+                >
+                  <BarChart3 size={11} /> Chart
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSizeViewMode('table')}
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '3px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: sizeViewMode === 'table' ? '#FFFFFF' : 'transparent',
+                    color: sizeViewMode === 'table' ? PALETTE.navy : '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px'
+                  }}
+                >
+                  <TableIcon size={11} /> Table
+                </button>
+              </div>
             </div>
-            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: PALETTE.slateMuted, fontSize: '11px', textTransform: 'uppercase' }}>
-                    <th style={{ padding: '8px 12px' }}>Size</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>PCS</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>% Share</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(prod.sizeWise || []).slice(0, 7).map((item, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <td style={{ padding: '8px 12px', fontWeight: 500, color: PALETTE.slateDark }}>{item.size}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>{fmt(item.pcs)}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.slateMuted }}>{item.sharePercent}%</td>
+
+            {sizeViewMode === 'chart' ? (
+              <div style={{ padding: '12px' }}>
+                <SafeChartBox height={240} isEmpty={!prod.sizeWise?.length} emptyText="No size production records">
+                  <BarChart
+                    layout="vertical"
+                    data={(prod.sizeWise || []).slice(0, 5).map(s => ({
+                      ...s,
+                      shortName: s.size.length > 16 ? s.size.slice(0, 16) + '…' : s.size
+                    }))}
+                    margin={{ top: 8, right: 28, left: 10, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F1F5F9" />
+                    <XAxis type="number" tick={{ fontSize: 9, fill: '#94A3B8' }} />
+                    <YAxis dataKey="shortName" type="category" width={100} tick={{ fontSize: 10, fill: PALETTE.slateDark, fontWeight: 600 }} />
+                    <Tooltip
+                      formatter={(val, name, entry) => [`${fmt(val)} PCS (${entry.payload.sharePercent}%)`, entry.payload.size]}
+                      contentStyle={{ background: '#0F172A', color: '#FFF', borderRadius: '6px', fontSize: '11px', border: 'none' }}
+                    />
+                    <Bar dataKey="pcs" radius={[0, 4, 4, 0]}>
+                      {(prod.sizeWise || []).slice(0, 5).map((_, i) => (
+                        <Cell key={i} fill={['#0B5FA5', '#159447', '#D97706', '#6A3DB8', '#073B63'][i % 5]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </SafeChartBox>
+              </div>
+            ) : (
+              <div style={{ maxHeight: '254px', overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: PALETTE.slateMuted, fontSize: '11px', textTransform: 'uppercase' }}>
+                      <th style={{ padding: '8px 12px' }}>Size</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>PCS</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>% Share</th>
                     </tr>
-                  ))}
-                  {(!prod.sizeWise || prod.sizeWise.length === 0) && (
-                    <tr>
-                      <td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: PALETTE.slateMuted }}>
-                        No size data for selected period
-                      </td>
+                  </thead>
+                  <tbody>
+                    {(prod.sizeWise || []).slice(0, 7).map((item, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 500, color: PALETTE.slateDark }}>{item.size}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>{fmt(item.pcs)}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.slateMuted }}>{item.sharePercent}%</td>
+                      </tr>
+                    ))}
+                    {(!prod.sizeWise || prod.sizeWise.length === 0) && (
+                      <tr>
+                        <td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: PALETTE.slateMuted }}>
+                          No size data for selected period
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: PALETTE.blueLight, fontWeight: 800, borderTop: '2px solid #CBD5E1' }}>
+                      <td style={{ padding: '8px 12px', color: PALETTE.navy }}>Total</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>{fmt(prod.totalPcs)}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>100%</td>
                     </tr>
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr style={{ background: PALETTE.blueLight, fontWeight: 800, borderTop: '2px solid #CBD5E1' }}>
-                    <td style={{ padding: '8px 12px', color: PALETTE.navy }}>Total</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>{fmt(prod.totalPcs)}</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>100%</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
 
-          {/* TABLE 3: LOAD CAPACITY-WISE (PCS) */}
+          {/* CARD 3: LOAD CAPACITY-WISE (PCS) - CHART & TABLE */}
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
             <div style={{ background: PALETTE.navy, color: '#FFFFFF', padding: '10px 14px', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Load Capacity-Wise (PCS)</span>
-              <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
-                {prod.capacityWise?.length || 0} Ratings
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Capacity-Wise Output</span>
+                <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+                  {prod.capacityWise?.length || 0} Ratings
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.2)', padding: '2px', borderRadius: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setCapacityViewMode('chart')}
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '3px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: capacityViewMode === 'chart' ? '#FFFFFF' : 'transparent',
+                    color: capacityViewMode === 'chart' ? PALETTE.navy : '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px'
+                  }}
+                >
+                  <PieChartIcon size={11} /> Chart
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCapacityViewMode('table')}
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '3px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: capacityViewMode === 'table' ? '#FFFFFF' : 'transparent',
+                    color: capacityViewMode === 'table' ? PALETTE.navy : '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px'
+                  }}
+                >
+                  <TableIcon size={11} /> Table
+                </button>
+              </div>
             </div>
-            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: PALETTE.slateMuted, fontSize: '11px', textTransform: 'uppercase' }}>
-                    <th style={{ padding: '8px 12px' }}>Capacity</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>PCS</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>% Share</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(prod.capacityWise || []).map((item, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <td style={{ padding: '8px 12px', fontWeight: 600, color: PALETTE.slateDark }}>{item.capacity}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>{fmt(item.pcs)}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.slateMuted }}>{item.sharePercent}%</td>
+
+            {capacityViewMode === 'chart' ? (
+              <div style={{ padding: '12px', display: 'flex', alignItems: 'center', height: '240px' }}>
+                <SafeChartBox height={240} isEmpty={!prod.capacityWise?.length} emptyText="No capacity data">
+                  <PieChart>
+                    <Pie
+                      data={prod.capacityWise || []}
+                      dataKey="pcs"
+                      nameKey="capacity"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={46}
+                      outerRadius={74}
+                      paddingAngle={2}
+                    >
+                      {(prod.capacityWise || []).map((_, i) => (
+                        <Cell key={i} fill={['#073B63', '#0B5FA5', '#159447', '#D97706', '#6A3DB8', '#DC2626', '#0284C7', '#475569'][i % 8]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(val, name, entry) => [`${fmt(val)} PCS (${entry.payload.sharePercent}%)`, entry.payload.capacity]}
+                      contentStyle={{ background: '#0F172A', color: '#FFF', borderRadius: '6px', fontSize: '11px', border: 'none' }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '10px' }} />
+                  </PieChart>
+                </SafeChartBox>
+              </div>
+            ) : (
+              <div style={{ maxHeight: '254px', overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: PALETTE.slateMuted, fontSize: '11px', textTransform: 'uppercase' }}>
+                      <th style={{ padding: '8px 12px' }}>Capacity</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>PCS</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>% Share</th>
                     </tr>
-                  ))}
-                  {(!prod.capacityWise || prod.capacityWise.length === 0) && (
-                    <tr>
-                      <td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: PALETTE.slateMuted }}>
-                        No capacity data for selected period
-                      </td>
+                  </thead>
+                  <tbody>
+                    {(prod.capacityWise || []).map((item, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 600, color: PALETTE.slateDark }}>{item.capacity}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>{fmt(item.pcs)}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.slateMuted }}>{item.sharePercent}%</td>
+                      </tr>
+                    ))}
+                    {(!prod.capacityWise || prod.capacityWise.length === 0) && (
+                      <tr>
+                        <td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: PALETTE.slateMuted }}>
+                          No capacity data for selected period
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: PALETTE.blueLight, fontWeight: 800, borderTop: '2px solid #CBD5E1' }}>
+                      <td style={{ padding: '8px 12px', color: PALETTE.navy }}>Total</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>{fmt(prod.totalPcs)}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>100%</td>
                     </tr>
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr style={{ background: PALETTE.blueLight, fontWeight: 800, borderTop: '2px solid #CBD5E1' }}>
-                    <td style={{ padding: '8px 12px', color: PALETTE.navy }}>Total</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>{fmt(prod.totalPcs)}</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>100%</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
 
-          {/* CHART 5: DISPATCH TREND (PCS) */}
+          {/* CARD 4: DISPATCH TREND (PCS) */}
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <div>
@@ -895,69 +1254,156 @@ export const PlantHeadDashboard = () => {
                 </h3>
                 <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Daily Dispatched Volume</span>
               </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: PALETTE.blue }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: PALETTE.blue, background: '#EFF6FF', padding: '3px 8px', borderRadius: '4px' }}>
                 {fmt(disp.totalPcs)} Total PCS
               </span>
             </div>
-            <div style={{ width: '100%', height: '200px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={disp.trend || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                  <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="#94A3B8" />
-                  <YAxis tick={{ fontSize: 10 }} stroke="#94A3B8" />
-                  <Tooltip formatter={(val) => [`${fmt(val)} PCS`, 'Dispatched Volume']} />
-                  <Line type="monotone" dataKey="pcs" stroke={PALETTE.blue} strokeWidth={2.5} dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            <SafeChartBox height={220} isEmpty={!disp.trend?.length || disp.totalPcs === 0} emptyText="No dispatch activity in selected period">
+              <AreaChart data={disp.trend || []} margin={{ top: 10, right: 12, left: -16, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="dispTrendGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0B5FA5" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#0B5FA5" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 10, fill: '#94A3B8' }}
+                  stroke="#CBD5E1"
+                  interval={(disp.trend?.length || 0) > 15 ? 'preserveStartEnd' : 0}
+                />
+                <YAxis tick={{ fontSize: 10, fill: '#94A3B8' }} stroke="#CBD5E1" />
+                <Tooltip
+                  formatter={(val) => [`${fmt(val)} PCS`, 'Dispatched Volume']}
+                  labelFormatter={(lbl, items) => {
+                    const row = items?.[0]?.payload;
+                    return row?.date || lbl;
+                  }}
+                  contentStyle={{ background: '#0F172A', color: '#FFF', borderRadius: '6px', fontSize: '12px', border: 'none' }}
+                />
+                <Area type="monotone" dataKey="pcs" stroke={PALETTE.blue} fill="url(#dispTrendGrad)" strokeWidth={2.5} dot={{ r: 3, fill: PALETTE.blue }} />
+              </AreaChart>
+            </SafeChartBox>
           </div>
 
-          {/* TABLE 4: TOP 5 CUSTOMERS (BY PCS) */}
+          {/* CARD 5: TOP 5 CUSTOMERS (BY PCS) - CHART & TABLE */}
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
             <div style={{ background: PALETTE.navy, color: '#FFFFFF', padding: '10px 14px', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Top 5 Customers (By PCS)</span>
-              <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
-                Dispatched
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Top 5 Clients</span>
+                <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+                  Dispatched
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.2)', padding: '2px', borderRadius: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setCustomerViewMode('chart')}
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '3px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: customerViewMode === 'chart' ? '#FFFFFF' : 'transparent',
+                    color: customerViewMode === 'chart' ? PALETTE.navy : '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px'
+                  }}
+                >
+                  <BarChart3 size={11} /> Chart
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomerViewMode('table')}
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '3px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: customerViewMode === 'table' ? '#FFFFFF' : 'transparent',
+                    color: customerViewMode === 'table' ? PALETTE.navy : '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px'
+                  }}
+                >
+                  <TableIcon size={11} /> Table
+                </button>
+              </div>
             </div>
-            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: PALETTE.slateMuted, fontSize: '11px', textTransform: 'uppercase' }}>
-                    <th style={{ padding: '8px 12px', width: '28px' }}>#</th>
-                    <th style={{ padding: '8px 12px' }}>Customer</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>PCS</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>% Share</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(disp.topCustomers || []).map((c) => (
-                    <tr key={c.rank} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <td style={{ padding: '8px 12px', color: PALETTE.slateMuted, fontWeight: 700 }}>{c.rank}</td>
-                      <td style={{ padding: '8px 12px', fontWeight: 500, color: PALETTE.slateDark }}>{c.customer}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>{fmt(c.pcs)}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.slateMuted }}>{c.sharePercent}%</td>
+
+            {customerViewMode === 'chart' ? (
+              <div style={{ padding: '12px' }}>
+                <SafeChartBox height={240} isEmpty={!disp.topCustomers?.length} emptyText="No dispatch customer records">
+                  <BarChart
+                    layout="vertical"
+                    data={(disp.topCustomers || []).map(c => ({
+                      ...c,
+                      shortName: c.customer.length > 18 ? c.customer.slice(0, 18) + '…' : c.customer
+                    }))}
+                    margin={{ top: 8, right: 28, left: 10, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F1F5F9" />
+                    <XAxis type="number" tick={{ fontSize: 9, fill: '#94A3B8' }} />
+                    <YAxis dataKey="shortName" type="category" width={110} tick={{ fontSize: 10, fill: PALETTE.slateDark, fontWeight: 600 }} />
+                    <Tooltip
+                      formatter={(val, name, entry) => [`${fmt(val)} PCS (${entry.payload.sharePercent}%)`, entry.payload.customer]}
+                      contentStyle={{ background: '#0F172A', color: '#FFF', borderRadius: '6px', fontSize: '11px', border: 'none' }}
+                    />
+                    <Bar dataKey="pcs" radius={[0, 4, 4, 0]}>
+                      {(disp.topCustomers || []).map((_, i) => (
+                        <Cell key={i} fill={['#073B63', '#0B5FA5', '#159447', '#D97706', '#6A3DB8'][i % 5]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </SafeChartBox>
+              </div>
+            ) : (
+              <div style={{ maxHeight: '254px', overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: PALETTE.slateMuted, fontSize: '11px', textTransform: 'uppercase' }}>
+                      <th style={{ padding: '8px 12px', width: '28px' }}>#</th>
+                      <th style={{ padding: '8px 12px' }}>Customer</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>PCS</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>% Share</th>
                     </tr>
-                  ))}
-                  {(!disp.topCustomers || disp.topCustomers.length === 0) && (
-                    <tr>
-                      <td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: PALETTE.slateMuted }}>
-                        No dispatch records for selected period
+                  </thead>
+                  <tbody>
+                    {(disp.topCustomers || []).map((c) => (
+                      <tr key={c.rank} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                        <td style={{ padding: '8px 12px', color: PALETTE.slateMuted, fontWeight: 700 }}>{c.rank}</td>
+                        <td style={{ padding: '8px 12px', fontWeight: 500, color: PALETTE.slateDark }}>{c.customer}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>{fmt(c.pcs)}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.slateMuted }}>{c.sharePercent}%</td>
+                      </tr>
+                    ))}
+                    {(!disp.topCustomers || disp.topCustomers.length === 0) && (
+                      <tr>
+                        <td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: PALETTE.slateMuted }}>
+                          No dispatch records for selected period
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: PALETTE.blueLight, fontWeight: 800, borderTop: '2px solid #CBD5E1' }}>
+                      <td colSpan={2} style={{ padding: '8px 12px', color: PALETTE.navy }}>Top 5 Total</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>{fmt(disp.top5TotalPcs)}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>
+                        {disp.totalPcs > 0 ? `${Number(((disp.top5TotalPcs / disp.totalPcs) * 100).toFixed(1))}%` : '0%'}
                       </td>
                     </tr>
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr style={{ background: PALETTE.blueLight, fontWeight: 800, borderTop: '2px solid #CBD5E1' }}>
-                    <td colSpan={2} style={{ padding: '8px 12px', color: PALETTE.navy }}>Top 5 Total</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>{fmt(disp.top5TotalPcs)}</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>
-                      {disp.totalPcs > 0 ? `${Number(((disp.top5TotalPcs / disp.totalPcs) * 100).toFixed(1))}%` : '0%'}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
 
         </div>
@@ -1055,35 +1501,106 @@ export const PlantHeadDashboard = () => {
           {/* CARD 3: QUALITY CONTROL */}
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
             <div style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase' }}>Quality Control</span>
-              <ShieldCheck size={16} color={PALETTE.emerald} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase' }}>Quality Control</span>
+                <ShieldCheck size={16} color={PALETTE.emerald} />
+              </div>
+              <div style={{ display: 'flex', gap: '4px', background: '#F1F5F9', padding: '2px', borderRadius: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setQcViewMode('details')}
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '3px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: qcViewMode === 'details' ? '#FFFFFF' : 'transparent',
+                    color: qcViewMode === 'details' ? PALETTE.navy : PALETTE.slateMuted,
+                    boxShadow: qcViewMode === 'details' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
+                  }}
+                >
+                  Details
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQcViewMode('chart')}
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '3px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: qcViewMode === 'chart' ? '#FFFFFF' : 'transparent',
+                    color: qcViewMode === 'chart' ? PALETTE.navy : PALETTE.slateMuted,
+                    boxShadow: qcViewMode === 'chart' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px'
+                  }}
+                >
+                  <PieChartIcon size={11} /> Chart
+                </button>
+              </div>
             </div>
-            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Total Inspected</span>
-                <span style={{ fontWeight: 700 }}>{fmt(qc.totalInspected)} Units</span>
+
+            {qcViewMode === 'chart' ? (
+              <div style={{ padding: '12px', height: '210px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <SafeChartBox height={190} isEmpty={!qcDonutData.length} emptyText="No inspection records">
+                  <PieChart>
+                    <Pie
+                      data={qcDonutData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="46%"
+                      innerRadius={36}
+                      outerRadius={58}
+                      paddingAngle={3}
+                    >
+                      {qcDonutData.map((entry, i) => (
+                        <Cell key={i} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(val, name, entry) => [`${fmt(val)} (${entry.payload.percent}%)`, entry.payload.name]}
+                      contentStyle={{ background: '#0F172A', color: '#FFF', borderRadius: '6px', fontSize: '11px', border: 'none' }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '10px' }} />
+                  </PieChart>
+                </SafeChartBox>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Accepted</span>
-                <span style={{ fontWeight: 700, color: PALETTE.emerald }}>{fmt(qc.accepted)}</span>
+            ) : (
+              <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px', minHeight: '210px', justifyContent: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: PALETTE.slateMuted }}>Total Inspected</span>
+                  <span style={{ fontWeight: 700 }}>{fmt(qc.totalInspected)} Units</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: PALETTE.slateMuted }}>Accepted</span>
+                  <span style={{ fontWeight: 700, color: PALETTE.emerald }}>{fmt(qc.accepted)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: PALETTE.slateMuted }}>Rejected</span>
+                  <span style={{ fontWeight: 700, color: qc.rejected > 0 ? PALETTE.crimson : PALETTE.slateDark }}>{fmt(qc.rejected)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: PALETTE.slateMuted }}>Rejection Rate</span>
+                  <span style={{ fontWeight: 700, color: qc.rejectionPercent > 0 ? PALETTE.crimson : PALETTE.emerald }}>{qc.rejectionPercent}%</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: PALETTE.slateMuted }}>Rework Orders</span>
+                  <span style={{ fontWeight: 700 }}>{qc.rework || 0}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: PALETTE.slateMuted }}>First Pass Yield (FPY)</span>
+                  <span style={{ fontWeight: 700, color: PALETTE.emerald }}>{qc.firstPassYield}%</span>
+                </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Rejected</span>
-                <span style={{ fontWeight: 700, color: qc.rejected > 0 ? PALETTE.crimson : PALETTE.slateDark }}>{fmt(qc.rejected)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Rejection Rate</span>
-                <span style={{ fontWeight: 700, color: qc.rejectionPercent > 0 ? PALETTE.crimson : PALETTE.emerald }}>{qc.rejectionPercent}%</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Rework Orders</span>
-                <span style={{ fontWeight: 700 }}>{qc.rework || 0}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>First Pass Yield (FPY)</span>
-                <span style={{ fontWeight: 700, color: PALETTE.emerald }}>{qc.firstPassYield}%</span>
-              </div>
-            </div>
+            )}
+
             <div style={{ borderTop: '1px solid #F1F5F9', padding: '8px 14px', background: '#FAFAFA' }}>
               <button
                 onClick={() => router.push('/plant-head/qc-failures')}

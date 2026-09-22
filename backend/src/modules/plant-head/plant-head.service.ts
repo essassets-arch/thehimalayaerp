@@ -263,7 +263,18 @@ export class PlantHeadService {
       sizeMap.set(pSize, (sizeMap.get(pSize) || 0) + qty);
       capacityMap.set(pCap, (capacityMap.get(pCap) || 0) + qty);
 
-      const dt = wo.completedAt || wo.createdAt;
+      let dt: Date | null = wo.completedAt || wo.createdAt;
+      if (startDate && endDate) {
+        const cTime = wo.completedAt ? new Date(wo.completedAt).getTime() : 0;
+        const crTime = wo.createdAt ? new Date(wo.createdAt).getTime() : 0;
+        const sTime = startDate.getTime();
+        const eTime = endDate.getTime();
+        if (cTime >= sTime && cTime <= eTime && wo.completedAt) {
+          dt = wo.completedAt;
+        } else if (crTime >= sTime && crTime <= eTime && wo.createdAt) {
+          dt = wo.createdAt;
+        }
+      }
       if (dt) {
         const dStr = formatIstIsoDay(dt);
         dailyProdMap.set(dStr, (dailyProdMap.get(dStr) || 0) + qty);
@@ -306,7 +317,18 @@ export class PlantHeadService {
       totalDispatchPcs += dPcs;
       customerMap.set(custName, (customerMap.get(custName) || 0) + dPcs);
 
-      const dt = d.dispatchedAt || d.createdAt;
+      let dt: Date | null = d.dispatchedAt || d.createdAt;
+      if (startDate && endDate) {
+        const dpTime = d.dispatchedAt ? new Date(d.dispatchedAt).getTime() : 0;
+        const crTime = d.createdAt ? new Date(d.createdAt).getTime() : 0;
+        const sTime = startDate.getTime();
+        const eTime = endDate.getTime();
+        if (dpTime >= sTime && dpTime <= eTime && d.dispatchedAt) {
+          dt = d.dispatchedAt;
+        } else if (crTime >= sTime && crTime <= eTime && d.createdAt) {
+          dt = d.createdAt;
+        }
+      }
       if (dt) {
         const dStr = formatIstIsoDay(dt);
         dailyDispatchMap.set(dStr, (dailyDispatchMap.get(dStr) || 0) + dPcs);
@@ -542,10 +564,20 @@ export class PlantHeadService {
 
     const top5TotalPcs = top5Customers.reduce((s, c) => s + c.pcs, 0);
 
+    // 8. 12-Month Trend (Jan–Dec of targetYear in PCS)
+    const monthShortNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const formatDayLabel = (isoStr: string, fallbackIdx: number): string => {
+      if (!isoStr || isoStr.length < 10) return `Day ${fallbackIdx}`;
+      const dNum = parseInt(isoStr.slice(8, 10), 10);
+      const mNum = parseInt(isoStr.slice(5, 7), 10);
+      const mName = monthShortNames[mNum - 1] || '';
+      return `${dNum} ${mName}`.trim();
+    };
+
     // Daily Production vs Target (PCS) & Daily Dispatch vs Target (PCS)
-    const dailyProdVsTarget: Array<{ day: number; date: string; actualPcs: number; targetPcs: number | null }> = [];
-    const dailyDispVsTarget: Array<{ day: number; date: string; actualPcs: number; targetPcs: number | null }> = [];
-    const dispatchTrend: Array<{ date: string; day: number; pcs: number }> = [];
+    const dailyProdVsTarget: Array<{ day: number; date: string; label: string; actualPcs: number; targetPcs: number | null }> = [];
+    const dailyDispVsTarget: Array<{ day: number; date: string; label: string; actualPcs: number; targetPcs: number | null }> = [];
+    const dispatchTrend: Array<{ date: string; day: number; label: string; pcs: number }> = [];
 
     const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000);
     if (isAllTime || durationDays > 35) {
@@ -556,10 +588,12 @@ export class PlantHeadService {
       allActiveDates.forEach((isoStr, idx) => {
         const prodVal = dailyProdMap.get(isoStr) || 0;
         const dispVal = dailyDispatchMap.get(isoStr) || 0;
+        const lbl = formatDayLabel(isoStr, idx + 1);
 
         dailyProdVsTarget.push({
           day: idx + 1,
           date: isoStr,
+          label: lbl,
           actualPcs: prodVal,
           targetPcs: null,
         });
@@ -567,6 +601,7 @@ export class PlantHeadService {
         dailyDispVsTarget.push({
           day: idx + 1,
           date: isoStr,
+          label: lbl,
           actualPcs: dispVal,
           targetPcs: null,
         });
@@ -574,6 +609,7 @@ export class PlantHeadService {
         dispatchTrend.push({
           date: isoStr,
           day: idx + 1,
+          label: lbl,
           pcs: dispVal,
         });
       });
@@ -584,10 +620,12 @@ export class PlantHeadService {
         const isoStr = formatIstIsoDay(iterDate);
         const prodVal = dailyProdMap.get(isoStr) || 0;
         const dispVal = dailyDispatchMap.get(isoStr) || 0;
+        const lbl = formatDayLabel(isoStr, dayIndex);
 
         dailyProdVsTarget.push({
           day: dayIndex,
           date: isoStr,
+          label: lbl,
           actualPcs: prodVal,
           targetPcs: null,
         });
@@ -595,6 +633,7 @@ export class PlantHeadService {
         dailyDispVsTarget.push({
           day: dayIndex,
           date: isoStr,
+          label: lbl,
           actualPcs: dispVal,
           targetPcs: null,
         });
@@ -602,6 +641,7 @@ export class PlantHeadService {
         dispatchTrend.push({
           date: isoStr,
           day: dayIndex,
+          label: lbl,
           pcs: dispVal,
         });
 
@@ -609,9 +649,6 @@ export class PlantHeadService {
         dayIndex++;
       }
     }
-
-    // 8. 12-Month Trend (Jan–Dec of targetYear in PCS)
-    const monthShortNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const monthlyTrend: Array<{ month: string; monthNum: number; productionPcs: number; dispatchPcs: number }> = [];
 
     const yearStart = new Date(Date.UTC(targetYear, 0, 1, 0, 0, 0));

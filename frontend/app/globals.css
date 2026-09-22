@@ -7422,8 +7422,7 @@ body.notification-open {
     gap: 14px !important;
   }
 
-  .chart-wrapper,
-  .recharts-wrapper {
+  .chart-wrapper {
     width: 100% !important;
     min-width: 0 !important;
     overflow: hidden !important;
@@ -7862,10 +7861,12 @@ body, #root, .app-container {
 }
 
 /* ── Charts overflow guard ── */
-.recharts-responsive-container,
-.recharts-wrapper {
+.recharts-responsive-container {
   max-width: 100% !important;
   overflow: hidden !important;
+}
+.recharts-wrapper {
+  max-width: none !important;
 }
 
 /* ── Sales analytics bottom chart height on mobile ── */
@@ -15930,8 +15931,7 @@ body, #root, .app-container {
 
   .plant-head-dashboard-root .recharts-wrapper,
   .plant-head-portal-root .recharts-wrapper {
-    max-width: 100% !important;
-    overflow: hidden !important;
+    max-width: none !important;
   }
 }
 

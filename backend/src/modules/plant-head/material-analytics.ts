@@ -192,6 +192,47 @@ export function resolveAnalyticsPeriod(
     };
   }
 
+  if (cleanFilter === 'Quarter' || cleanFilter === 'This Quarter') {
+    const qIdx = Math.floor((targetMonthNum - 1) / 3);
+    const qStartMonth = qIdx * 3 + 1;
+    const qEndMonth = qStartMonth + 2;
+    const qEndDays = new Date(Date.UTC(targetYear, qEndMonth, 0)).getUTCDate();
+    const smStr = String(qStartMonth).padStart(2, '0');
+    const emStr = String(qEndMonth).padStart(2, '0');
+    const edStr = String(qEndDays).padStart(2, '0');
+    return {
+      startDate: new Date(`${targetYear}-${smStr}-01T00:00:00.000+05:30`),
+      endDate: new Date(`${targetYear}-${emStr}-${edStr}T23:59:59.999+05:30`),
+      periodLabel: `Q${qIdx + 1} ${targetYear} (${MONTH_SHORT_NAMES[qStartMonth - 1]} - ${MONTH_SHORT_NAMES[qEndMonth - 1]})`,
+      isAllTime: false,
+      targetYear,
+      targetMonthNum,
+    };
+  }
+
+  if (cleanFilter === 'Year' || cleanFilter === 'This Year') {
+    return {
+      startDate: new Date(`${targetYear}-01-01T00:00:00.000+05:30`),
+      endDate: new Date(`${targetYear}-12-31T23:59:59.999+05:30`),
+      periodLabel: `FULL YEAR ${targetYear}`,
+      isAllTime: false,
+      targetYear,
+      targetMonthNum,
+    };
+  }
+
+  if (cleanFilter === 'Last Year') {
+    const ly = targetYear - 1;
+    return {
+      startDate: new Date(`${ly}-01-01T00:00:00.000+05:30`),
+      endDate: new Date(`${ly}-12-31T23:59:59.999+05:30`),
+      periodLabel: `FULL YEAR ${ly}`,
+      isAllTime: false,
+      targetYear: ly,
+      targetMonthNum,
+    };
+  }
+
   // 4. Default: Specific Month in Year (or This Month)
   const mm = String(targetMonthNum).padStart(2, '0');
   const daysInMonth = new Date(Date.UTC(targetYear, targetMonthNum, 0)).getUTCDate();
