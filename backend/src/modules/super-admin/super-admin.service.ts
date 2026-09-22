@@ -1,10 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { parseDeliveryLocation } from '../plant-head/plant-head.service';
 
 @Injectable()
-export class SuperAdminService {
+export class SuperAdminService implements OnApplicationBootstrap {
   constructor(private prisma: PrismaService) {}
+
+  async onApplicationBootstrap() {
+    try {
+      await this.reconcileMismatchedCustomers();
+    } catch (err: any) {
+      console.error('[SuperAdminService] Customer reconciliation error:', err?.message || err);
+    }
+  }
 
   async getDashboardStats(query: any = {}) {
     const toNumber = (val: any) =>
@@ -10233,5 +10241,130 @@ export class SuperAdminService {
   async exportCentralizedReportsCsv(query: any, companyId: string) {
     const report = await this.getCentralizedReports(query, companyId);
     return this.buildCentralizedReportCsv(report, query?.department);
+  }
+
+  async reconcileMismatchedCustomers() {
+    const shyamId = '90bd7a39-245a-480e-a91c-e1e8df9b3ab9';
+
+    // Find all sales orders linked to Shyam Soham Realty
+    const mismatchedOrders = await this.prisma.salesOrder.findMany({
+      where: {
+        customerId: shyamId,
+      },
+      include: {
+        customer: true,
+        quotation: {
+          include: {
+            lead: true,
+          },
+        },
+        sourceQuotation: {
+          include: {
+            lead: true,
+          },
+        },
+      },
+    });
+
+    let unmergedCount = 0;
+
+    for (const order of mismatchedOrders) {
+      const lead = order.quotation?.lead || order.sourceQuotation?.lead;
+      if (!lead || !lead.companyName) continue;
+
+      const leadComp = String(lead.companyName).trim();
+      const normLead = leadComp.toLowerCase();
+      // If the lead is actually Shyam Soham Realty, keep it legitimately linked
+      if (normLead.includes('shyam soham')) continue;
+
+      const companyId = lead.companyId || order.customer?.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+      const cleanGstin = lead.gstNumber?.trim() || null;
+
+      // Check if a customer already exists for this lead's companyName or GSTIN
+      let targetCustomer = await this.prisma.customer.findFirst({
+        where: {
+          companyId,
+          deletedAt: null,
+          OR: [
+            cleanGstin ? { gstin: cleanGstin } : undefined,
+            {
+              companyName: {
+                equals: leadComp,
+                mode: 'insensitive',
+              },
+            },
+          ].filter(Boolean) as any,
+        },
+      });
+
+      if (!targetCustomer) {
+        let finalGstin = cleanGstin;
+        if (finalGstin) {
+          const gstinExists = await this.prisma.customer.findFirst({
+            where: { companyId, gstin: finalGstin },
+          });
+          if (gstinExists) finalGstin = null;
+        }
+
+        const customerCode = `CUST-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+
+        targetCustomer = await this.prisma.customer.create({
+          data: {
+            companyId,
+            customerCode,
+            companyName: leadComp,
+            contactPerson: lead.contactPerson || null,
+            email: lead.email || null,
+            phone: lead.phone || null,
+            gstin: finalGstin,
+            billingAddress: (lead.address as any) || undefined,
+            shippingAddress: (lead.address as any) || undefined,
+            status: 'ACTIVE',
+            createdById: lead.createdById || '5e19df6a-8d46-469a-bbe6-98cc0fde47c2',
+          },
+        });
+      }
+
+      // Re-link the SalesOrder to this true customer
+      await this.prisma.salesOrder.update({
+        where: { id: order.id },
+        data: {
+          customerId: targetCustomer.id,
+          billingAddress: (lead.address as any) || undefined,
+          shippingAddress: (lead.address as any) || undefined,
+        },
+      });
+
+      // Update lead
+      await this.prisma.lead.update({
+        where: { id: lead.id },
+        data: {
+          convertedCustomerId: targetCustomer.id,
+          customerId: targetCustomer.id,
+        },
+      });
+
+      // Update quotation if present
+      if (order.quotationId) {
+        await this.prisma.quotation.update({
+          where: { id: order.quotationId },
+          data: { customerId: targetCustomer.id },
+        });
+      }
+      if (order.sourceQuotationId) {
+        await this.prisma.quotation.update({
+          where: { id: order.sourceQuotationId },
+          data: { customerId: targetCustomer.id },
+        });
+      }
+
+      unmergedCount++;
+    }
+
+    if (unmergedCount > 0) {
+      console.log(`[SuperAdminService] Successfully unmerged ${unmergedCount} sales orders from SHYAM SOHAM REALTY to their true customers.`);
+    }
+
+    return { success: true, unmergedCount };
   }
 }

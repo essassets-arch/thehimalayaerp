@@ -189,8 +189,55 @@ function isValidCustomerName(name?: any): boolean {
   return true;
 }
 
+function isProjectRedundant(projectName?: string | null, customerName?: string | null): boolean {
+  if (!projectName) return true;
+  const p = String(projectName).trim();
+  if (!p || p === "—" || p === "N/A" || p === "null" || p === "undefined") return true;
+  if (!customerName) return false;
+  const c = String(customerName).trim();
+  if (p.toLowerCase() === c.toLowerCase()) return true;
+
+  const normP = normalizeKey(p);
+  const normC = normalizeKey(c);
+  if (!normP || normP === normC) return true;
+  if (normP.includes(normC) || normC.includes(normP)) return true;
+
+  return false;
+}
+
 function resolveCustomerName(entity?: any, ...fallbackEntities: any[]): string {
   const allEntities = [entity, ...fallbackEntities].filter(Boolean);
+
+  // 0. Check if any entity has an authoritative Lead companyName that was incorrectly merged with SHYAM SOHAM REALTY
+  for (const obj of allEntities) {
+    if (!obj || typeof obj !== "object") continue;
+    const leadComp =
+      obj.quotation?.lead?.companyName ||
+      obj.sourceQuotation?.lead?.companyName ||
+      obj.lead?.companyName ||
+      obj.productionPlan?.salesOrder?.quotation?.lead?.companyName ||
+      obj.productionPlan?.salesOrder?.sourceQuotation?.lead?.companyName ||
+      obj.productionPlan?.salesOrder?.lead?.companyName ||
+      obj.salesOrder?.quotation?.lead?.companyName ||
+      obj.salesOrder?.sourceQuotation?.lead?.companyName ||
+      obj.salesOrder?.lead?.companyName ||
+      obj.workOrder?.productionPlan?.salesOrder?.quotation?.lead?.companyName;
+
+    if (isValidCustomerName(leadComp)) {
+      const custComp = String(
+        obj.customer?.companyName ||
+        obj.salesOrder?.customer?.companyName ||
+        obj.productionPlan?.salesOrder?.customer?.companyName ||
+        ""
+      ).trim();
+      const normLead = String(leadComp).trim().toLowerCase();
+      const normCust = custComp.toLowerCase();
+      // If customer is SHYAM SOHAM REALTY but the lead is a different company, authoritative lead company wins!
+      if (normCust.includes("shyam soham") && !normLead.includes("shyam soham")) {
+        return String(leadComp).trim();
+      }
+    }
+  }
 
   for (const obj of allEntities) {
     if (!obj) continue;
@@ -535,6 +582,15 @@ function formatAddressValue(value?: any): string {
 }
 
 function formatAddress(salesOrder?: any, customer?: any, workOrder?: any, fallbackSo?: any): string {
+  const leadComp = String(
+    salesOrder?.quotation?.lead?.companyName ||
+    salesOrder?.sourceQuotation?.lead?.companyName ||
+    salesOrder?.lead?.companyName ||
+    workOrder?.productionPlan?.salesOrder?.quotation?.lead?.companyName ||
+    ""
+  ).toLowerCase();
+  const isMismatchedShyam = !leadComp.includes("shyam soham") && leadComp.length > 2;
+
   const candidates = [
     // 1. Explicit shipping/delivery address on Sales Order (added by sales)
     salesOrder?.shippingAddress,
@@ -542,54 +598,50 @@ function formatAddress(salesOrder?: any, customer?: any, workOrder?: any, fallba
     salesOrder?.siteAddress,
     salesOrder?.deliveryLocation,
     salesOrder?.destination,
-    salesOrder?.billingAddress,
 
-    // 2. Fallback SO if available
+    // 2. Authoritative lead addresses (added by salesperson during quote / order creation)
+    salesOrder?.sourceQuotation?.lead?.deliveryAddress,
+    salesOrder?.sourceQuotation?.lead?.address,
+    salesOrder?.sourceQuotation?.lead?.siteAddress,
+    salesOrder?.sourceQuotation?.lead?.shippingAddress,
+    salesOrder?.quotation?.lead?.deliveryAddress,
+    salesOrder?.quotation?.lead?.address,
+    salesOrder?.quotation?.lead?.siteAddress,
+    salesOrder?.quotation?.lead?.shippingAddress,
+    salesOrder?.lead?.deliveryAddress,
+    salesOrder?.lead?.address,
+    salesOrder?.lead?.siteAddress,
+    salesOrder?.lead?.shippingAddress,
+    customer?.lead?.deliveryAddress,
+    customer?.lead?.address,
+    customer?.lead?.shippingAddress,
+
+    // 3. Fallback SO if available
     fallbackSo?.shippingAddress,
     fallbackSo?.deliveryAddress,
     fallbackSo?.siteAddress,
-    fallbackSo?.billingAddress,
 
-    // 3. Customer shipping address
-    customer?.shippingAddress,
-    customer?.siteAddress,
-    customer?.deliveryAddress,
-    customer?.deliveryLocation,
-
-    // 4. Customer billing / registered / office address (added by sales/master)
-    customer?.billingAddress,
-    customer?.address,
-    customer?.officeAddress,
-    customer?.registeredAddress,
-    customer?.factoryAddress,
-
-    // 5. Source Quotation addresses (added by salesperson during quote)
+    // 4. Source Quotation addresses
     salesOrder?.sourceQuotation?.shippingAddress,
     salesOrder?.sourceQuotation?.customerAddress,
     salesOrder?.sourceQuotation?.deliveryAddress,
     salesOrder?.sourceQuotation?.siteAddress,
-    salesOrder?.sourceQuotation?.billingAddress,
-    salesOrder?.sourceQuotation?.deliveryLocation,
     salesOrder?.quotation?.shippingAddress,
     salesOrder?.quotation?.customerAddress,
     salesOrder?.quotation?.deliveryAddress,
-    salesOrder?.quotation?.billingAddress,
 
-    // 6. Lead addresses (added by salesperson during lead creation)
-    salesOrder?.sourceQuotation?.lead?.shippingAddress,
-    salesOrder?.sourceQuotation?.lead?.billingAddress,
-    salesOrder?.sourceQuotation?.lead?.address,
-    salesOrder?.sourceQuotation?.lead?.siteAddress,
-    salesOrder?.sourceQuotation?.lead?.deliveryAddress,
-    salesOrder?.quotation?.lead?.shippingAddress,
-    salesOrder?.quotation?.lead?.billingAddress,
-    salesOrder?.quotation?.lead?.address,
-    salesOrder?.lead?.shippingAddress,
-    salesOrder?.lead?.billingAddress,
-    salesOrder?.lead?.address,
-    customer?.lead?.shippingAddress,
-    customer?.lead?.billingAddress,
-    customer?.lead?.address,
+    // 5. Customer shipping address (skip if mismatched Shyam Soham address)
+    isMismatchedShyam ? null : customer?.shippingAddress,
+    isMismatchedShyam ? null : customer?.siteAddress,
+    isMismatchedShyam ? null : customer?.deliveryAddress,
+    isMismatchedShyam ? null : customer?.deliveryLocation,
+
+    // 6. Customer billing / registered / office address
+    isMismatchedShyam ? null : customer?.billingAddress,
+    isMismatchedShyam ? null : customer?.address,
+    isMismatchedShyam ? null : customer?.officeAddress,
+    isMismatchedShyam ? null : customer?.registeredAddress,
+    isMismatchedShyam ? null : customer?.factoryAddress,
 
     // 7. Direct work order customer or plan info
     workOrder?.deliveryAddress,
@@ -598,8 +650,9 @@ function formatAddress(salesOrder?: any, customer?: any, workOrder?: any, fallba
     workOrder?.customer?.address,
 
     // 8. City / State / Pincode components if present
-    customer ? { city: customer.city, state: customer.state, pincode: customer.pincode, country: customer.country } : null,
     salesOrder?.sourceQuotation?.lead ? { city: salesOrder.sourceQuotation.lead.city, state: salesOrder.sourceQuotation.lead.state, pincode: salesOrder.sourceQuotation.lead.pincode, country: salesOrder.sourceQuotation.lead.country } : null,
+    salesOrder?.quotation?.lead ? { city: salesOrder.quotation.lead.city, state: salesOrder.quotation.lead.state, pincode: salesOrder.quotation.lead.pincode, country: salesOrder.quotation.lead.country } : null,
+    customer && !isMismatchedShyam ? { city: customer.city, state: customer.state, pincode: customer.pincode, country: customer.country } : null,
   ];
 
   for (const c of candidates) {
@@ -1141,32 +1194,33 @@ export default function DispatchOrdersPage() {
       });
 
       const resolveSalesOrderForWo = (wo: any): any => {
-        if (wo.productionPlan?.salesOrder) return wo.productionPlan.salesOrder;
-        if (wo.salesOrder) return wo.salesOrder;
-        if (wo.salesOrderItem?.salesOrder) return wo.salesOrderItem.salesOrder;
+        let baseSo: any = null;
+        if (wo.productionPlan?.salesOrder) baseSo = wo.productionPlan.salesOrder;
+        else if (wo.salesOrder) baseSo = wo.salesOrder;
+        else if (wo.salesOrderItem?.salesOrder) baseSo = wo.salesOrderItem.salesOrder;
 
         const itemId = wo.salesOrderItemId || wo.salesOrderItem?.id;
-        if (itemId && salesOrdersByItemId.has(String(itemId).toLowerCase())) {
-          return salesOrdersByItemId.get(String(itemId).toLowerCase());
+        if (!baseSo && itemId && salesOrdersByItemId.has(String(itemId).toLowerCase())) {
+          baseSo = salesOrdersByItemId.get(String(itemId).toLowerCase());
         }
 
-        if (wo.id && salesOrdersByWoId.has(String(wo.id).toLowerCase())) {
-          return salesOrdersByWoId.get(String(wo.id).toLowerCase());
+        if (!baseSo && wo.id && salesOrdersByWoId.has(String(wo.id).toLowerCase())) {
+          baseSo = salesOrdersByWoId.get(String(wo.id).toLowerCase());
         }
 
-        if (wo.workOrderNumber) {
+        if (!baseSo && wo.workOrderNumber) {
           const k1 = String(wo.workOrderNumber).toLowerCase();
           const k2 = normalizeKey(wo.workOrderNumber);
-          if (salesOrdersByWoNumber.has(k1)) return salesOrdersByWoNumber.get(k1);
-          if (salesOrdersByWoNumber.has(k2)) return salesOrdersByWoNumber.get(k2);
+          if (salesOrdersByWoNumber.has(k1)) baseSo = salesOrdersByWoNumber.get(k1);
+          else if (salesOrdersByWoNumber.has(k2)) baseSo = salesOrdersByWoNumber.get(k2);
         }
 
         const ppId = wo.productionPlanId || wo.productionPlan?.id;
-        if (ppId && salesOrdersMap.has(String(ppId).toLowerCase())) {
-          return salesOrdersMap.get(String(ppId).toLowerCase());
+        if (!baseSo && ppId && salesOrdersMap.has(String(ppId).toLowerCase())) {
+          baseSo = salesOrdersMap.get(String(ppId).toLowerCase());
         }
 
-        const soKey = wo.salesOrderId || wo.salesOrderNumber;
+        const soKey = wo.salesOrderId || wo.salesOrderNumber || baseSo?.orderNumber || baseSo?.id;
         if (soKey) {
           const k1 = String(soKey).toLowerCase();
           const k2 = normalizeKey(soKey);
@@ -1174,7 +1228,7 @@ export default function DispatchOrdersPage() {
           if (salesOrdersMap.has(k2)) return salesOrdersMap.get(k2);
         }
 
-        return null;
+        return baseSo;
       };
 
       const unifiedDirectDispatches: UnifiedPendingDispatchItem[] = [];
@@ -1640,17 +1694,35 @@ export default function DispatchOrdersPage() {
           existing.orderNumber = item.orderNumber;
         }
         if (!existing.salesOrderId && item.salesOrderId) existing.salesOrderId = item.salesOrderId;
-        if (!isValidCustomerName(existing.customerName) && isValidCustomerName(item.customerName)) {
-          existing.customerName = item.customerName;
+
+        const isMismatchedShyam = (name?: string) =>
+          name && String(name).trim().toUpperCase() === "SHYAM SOHAM REALTY";
+
+        if (isValidCustomerName(item.customerName)) {
+          if (!isValidCustomerName(existing.customerName) || existing.customerName === "Consignee Client") {
+            existing.customerName = item.customerName;
+          } else if (isMismatchedShyam(existing.customerName) && !isMismatchedShyam(item.customerName)) {
+            existing.customerName = item.customerName;
+          } else if (item.itemType === "TRADING_SALES_ORDER" && item.customerName && !isMismatchedShyam(item.customerName)) {
+            existing.customerName = item.customerName;
+          }
         }
+
         if ((!existing.salesPersonName || !isValidSalesPersonName(existing.salesPersonName)) && isValidSalesPersonName(item.salesPersonName)) {
           existing.salesPersonName = item.salesPersonName;
         }
-        if (!existing.projectName && item.projectName) {
+
+        if ((!existing.projectName || isProjectRedundant(existing.projectName, existing.customerName)) && item.projectName && !isProjectRedundant(item.projectName, item.customerName)) {
           existing.projectName = item.projectName;
         }
-        if ((!existing.deliveryAddress || existing.deliveryAddress === "—" || existing.deliveryAddress === "N/A") && item.deliveryAddress && item.deliveryAddress !== "—" && item.deliveryAddress !== "N/A") {
-          existing.deliveryAddress = item.deliveryAddress;
+
+        const hasSpecificAddress = (addr?: string) =>
+          addr && addr !== "N/A" && addr !== "Factory Staging Area" && addr !== "—" && addr.trim().length > 3 && !addr.includes("SCIENCE CITY ROAD");
+
+        if (hasSpecificAddress(item.deliveryAddress)) {
+          if (!hasSpecificAddress(existing.deliveryAddress) || isMismatchedShyam(existing.customerName)) {
+            existing.deliveryAddress = item.deliveryAddress;
+          }
         }
 
         // Deduplicate items inside group: if an item with this workOrderId or salesOrderItemId or id is already in the group, merge them!
@@ -2168,7 +2240,7 @@ export default function DispatchOrdersPage() {
                             <span className={styles.customerName}>
                               {group.customerName}
                             </span>
-                            {group.projectName && group.projectName !== group.customerName && (
+                            {!isProjectRedundant(group.projectName, group.customerName) && (
                               <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>
                                 Project: {group.projectName}
                               </span>
@@ -2455,7 +2527,7 @@ export default function DispatchOrdersPage() {
                             <span className={styles.customerName}>
                               {group.customerName}
                             </span>
-                            {group.projectName && group.projectName !== group.customerName && (
+                            {!isProjectRedundant(group.projectName, group.customerName) && (
                               <span style={{ fontSize: "11px", color: "#b45309", fontWeight: 600 }}>
                                 Project: {group.projectName}
                               </span>

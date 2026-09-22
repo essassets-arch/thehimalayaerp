@@ -402,24 +402,58 @@ export class LeadsService {
         const cleanGstin = lead.gstNumber?.trim()
           ? lead.gstNumber.trim()
           : null;
-        const duplicateFilters = [
-          ...(lead.email ? [{ email: lead.email }] : []),
-          ...(lead.phone ? [{ phone: lead.phone }] : []),
-          ...(cleanGstin ? [{ gstin: cleanGstin }] : []),
-          {
-            companyName: {
-              equals: lead.companyName,
-              mode: 'insensitive' as const,
+        const isGenericEmail = (email?: string | null) => {
+          if (!email) return true;
+          const lower = email.trim().toLowerCase();
+          return (
+            lower === 'info@thehimalaya.co.in' ||
+            lower.endsWith('@thehimalaya.co.in') ||
+            lower.endsWith('@himalayaerp.com') ||
+            lower.startsWith('info@') ||
+            lower.startsWith('sales@') ||
+            lower.startsWith('support@') ||
+            lower.startsWith('admin@') ||
+            lower.startsWith('contact@')
+          );
+        };
+
+        let existingCustomer: any = null;
+
+        // 1. Strict match by GSTIN if valid
+        if (cleanGstin && cleanGstin.length >= 10) {
+          existingCustomer = await tx.customer.findFirst({
+            where: {
+              companyId,
+              deletedAt: null,
+              gstin: cleanGstin,
             },
-          },
-        ];
-        const existingCustomer = await tx.customer.findFirst({
-          where: {
-            companyId,
-            deletedAt: null,
-            OR: duplicateFilters,
-          },
-        });
+          });
+        }
+
+        // 2. Strict match by Company Name (case-insensitive)
+        if (!existingCustomer && lead.companyName?.trim()) {
+          existingCustomer = await tx.customer.findFirst({
+            where: {
+              companyId,
+              deletedAt: null,
+              companyName: {
+                equals: lead.companyName.trim(),
+                mode: 'insensitive' as const,
+              },
+            },
+          });
+        }
+
+        // 3. Match by specific non-generic email only
+        if (!existingCustomer && lead.email && !isGenericEmail(lead.email)) {
+          existingCustomer = await tx.customer.findFirst({
+            where: {
+              companyId,
+              deletedAt: null,
+              email: lead.email.trim().toLowerCase(),
+            },
+          });
+        }
 
         if (existingCustomer) {
           customerId = existingCustomer.id;

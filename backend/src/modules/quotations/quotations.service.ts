@@ -1211,29 +1211,59 @@ export class QuotationsService {
           : null;
         const companyId =
           quotation.companyId || quotation.lead.companyId || undefined;
-        const duplicateConditions: any[] = [];
-        if (quotation.lead.email)
-          duplicateConditions.push({ email: quotation.lead.email });
-        if (quotation.lead.phone)
-          duplicateConditions.push({ phone: quotation.lead.phone });
-        if (cleanGstin) duplicateConditions.push({ gstin: cleanGstin });
-        if (quotation.lead.companyName) {
-          duplicateConditions.push({
-            companyName: {
-              equals: quotation.lead.companyName,
-              mode: 'insensitive' as const,
+
+        const isGenericEmail = (email?: string | null) => {
+          if (!email) return true;
+          const lower = email.trim().toLowerCase();
+          return (
+            lower === 'info@thehimalaya.co.in' ||
+            lower.endsWith('@thehimalaya.co.in') ||
+            lower.endsWith('@himalayaerp.com') ||
+            lower.startsWith('info@') ||
+            lower.startsWith('sales@') ||
+            lower.startsWith('support@') ||
+            lower.startsWith('admin@') ||
+            lower.startsWith('contact@')
+          );
+        };
+
+        let existingCustomer: any = null;
+
+        // 1. Strict match by GSTIN if valid
+        if (cleanGstin && cleanGstin.length >= 10) {
+          existingCustomer = await tx.customer.findFirst({
+            where: {
+              companyId,
+              deletedAt: null,
+              gstin: cleanGstin,
             },
           });
         }
 
-        const existingCustomer = await tx.customer.findFirst({
-          where: {
-            companyId,
-            deletedAt: null,
-            OR:
-              duplicateConditions.length > 0 ? duplicateConditions : undefined,
-          },
-        });
+        // 2. Strict match by Company Name (case-insensitive)
+        if (!existingCustomer && quotation.lead.companyName?.trim()) {
+          existingCustomer = await tx.customer.findFirst({
+            where: {
+              companyId,
+              deletedAt: null,
+              companyName: {
+                equals: quotation.lead.companyName.trim(),
+                mode: 'insensitive' as const,
+              },
+            },
+          });
+        }
+
+        // 3. Match by specific non-generic email only
+        if (!existingCustomer && quotation.lead.email && !isGenericEmail(quotation.lead.email)) {
+          existingCustomer = await tx.customer.findFirst({
+            where: {
+              companyId,
+              deletedAt: null,
+              email: quotation.lead.email.trim().toLowerCase(),
+            },
+          });
+        }
         if (existingCustomer) {
           customerId = existingCustomer.id;
         } else {
@@ -1302,6 +1332,12 @@ export class QuotationsService {
         await tx.quotation.update({ where: { id }, data: { customerId } });
       }
 
+      if (!customerId) {
+        throw new BadRequestException(
+          'A valid Customer is required to create a Sales Order.',
+        );
+      }
+
       const soInitialState = await tx.workflowState.findFirst({
         where: { workflow: { code: 'SALES_ORDER' }, isInitial: true },
       });
@@ -1347,9 +1383,11 @@ export class QuotationsService {
       const salesOrder = await tx.salesOrder.create({
         data: {
           orderNumber,
-          customerId,
+          customerId: customerId as string,
           quotationId: id,
           sourceQuotationId: id,
+          shippingAddress: quotation.lead?.address || (quotation as any).shippingAddress || undefined,
+          billingAddress: quotation.lead?.address || (quotation as any).billingAddress || undefined,
           salesExecutiveId:
             quotation.salesExecutiveId ||
             quotation.createdById ||

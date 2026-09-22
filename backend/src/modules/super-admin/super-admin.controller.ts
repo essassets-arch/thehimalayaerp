@@ -308,4 +308,9 @@ export class SuperAdminController {
   async getEmployees() {
     return this.superAdminService.getEmployees();
   }
+
+  @Post('reconcile-merged-customers')
+  async reconcileMergedCustomers() {
+    return this.superAdminService.reconcileMismatchedCustomers();
+  }
 }

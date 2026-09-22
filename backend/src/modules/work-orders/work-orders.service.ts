@@ -96,7 +96,8 @@ export class WorkOrdersService {
               include: {
                 customer: true,
                 items: { include: { product: true } },
-                sourceQuotation: true,
+                sourceQuotation: { include: { lead: true } },
+                quotation: { include: { lead: true } },
               },
             },
           },
@@ -125,7 +126,8 @@ export class WorkOrdersService {
               include: {
                 customer: true,
                 items: { include: { product: true } },
-                sourceQuotation: true,
+                sourceQuotation: { include: { lead: true } },
+                quotation: { include: { lead: true } },
               },
             },
           },
