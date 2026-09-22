@@ -21,6 +21,29 @@ import { SubmitFulfillmentPlanDto } from './dto/fulfillment-plan.dto';
 export class PlantHeadController {
   constructor(private readonly plantHeadService: PlantHeadService) {}
 
+  private resolveCompanyId(req: Request): string {
+    const user = (req as any).user;
+    const isSuperAdmin =
+      user?.role === 'SUPER_ADMIN' ||
+      (typeof user?.role === 'object' && user?.role?.code === 'SUPER_ADMIN') ||
+      (Array.isArray(user?.roles) && user.roles.includes('SUPER_ADMIN'));
+
+    // Authenticated non-superadmin users (e.g. PLANT_HEAD) are strictly locked to their JWT companyId.
+    // Client-provided x-company-id headers MUST NOT override this tenant scope.
+    if (!isSuperAdmin && user?.companyId) {
+      return user.companyId;
+    }
+
+    // If Super Admin, allow header x-company-id or query companyId override for multi-tenant switching
+    if (isSuperAdmin) {
+      const headerCompanyId = req.headers['x-company-id'] as string;
+      const queryCompanyId = (req.query as any)?.companyId as string;
+      return headerCompanyId || queryCompanyId || user?.companyId || '';
+    }
+
+    return user?.companyId || (req.headers['x-company-id'] as string) || '';
+  }
+
   @RequirePermissions(
     'admin.planthead.read',
     'planthead.read',
@@ -29,9 +52,7 @@ export class PlantHeadController {
   )
   @Get('incoming-orders')
   async getIncomingOrders(@Req() req: Request) {
-    const companyId =
-      (req.headers['x-company-id'] as string) ||
-      (req as any).user?.['companyId'];
+    const companyId = this.resolveCompanyId(req);
     return this.plantHeadService.getIncomingOrders(companyId);
   }
 
@@ -43,9 +64,7 @@ export class PlantHeadController {
   )
   @Get('planning-orders')
   async getPlanningOrdersAlias(@Req() req: Request) {
-    const companyId =
-      (req.headers['x-company-id'] as string) ||
-      (req as any).user?.['companyId'];
+    const companyId = this.resolveCompanyId(req);
     return this.plantHeadService.getIncomingOrders(companyId);
   }
 
@@ -57,9 +76,7 @@ export class PlantHeadController {
   )
   @Get('planning')
   async getPlanningOrders(@Req() req: Request) {
-    const companyId =
-      (req as any).user?.['companyId'] ||
-      (req.headers['x-company-id'] as string);
+    const companyId = this.resolveCompanyId(req);
     return this.plantHeadService.getPlanningOrders(companyId);
   }
 
@@ -71,11 +88,33 @@ export class PlantHeadController {
   )
   @Get('daily-summary')
   async getDailySummary(@Req() req: Request, @Query('date') date?: string) {
-    const companyId =
-      (req as any).user?.['companyId'] ||
-      (req.headers['x-company-id'] as string);
+    const companyId = this.resolveCompanyId(req);
     const currentUser = (req as any).user;
     return this.plantHeadService.getDailySummary(companyId, date, currentUser);
+  }
+
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.dashboard.read',
+  )
+  @Get('dashboard')
+  async getManufacturingDashboard(
+    @Req() req: Request,
+    @Query('filter') filter?: string,
+    @Query('customStart') customStart?: string,
+    @Query('customEnd') customEnd?: string,
+    @Query('year') year?: string,
+  ) {
+    const companyId = this.resolveCompanyId(req);
+    return this.plantHeadService.getManufacturingDashboard(
+      companyId,
+      filter,
+      customStart,
+      customEnd,
+      year,
+    );
   }
 
   @RequirePermissions(
@@ -90,15 +129,15 @@ export class PlantHeadController {
     @Query('filter') filter?: string,
     @Query('customStart') customStart?: string,
     @Query('customEnd') customEnd?: string,
+    @Query('year') year?: string,
   ) {
-    const companyId =
-      (req.headers['x-company-id'] as string) ||
-      (req as any).user?.['companyId'];
-    return this.plantHeadService.getDashboardData(
+    const companyId = this.resolveCompanyId(req);
+    return this.plantHeadService.getManufacturingDashboard(
       companyId,
       filter,
       customStart,
       customEnd,
+      year,
     );
   }
 
@@ -115,9 +154,7 @@ export class PlantHeadController {
     @Query('customStart') customStart?: string,
     @Query('customEnd') customEnd?: string,
   ) {
-    const companyId =
-      (req.headers['x-company-id'] as string) ||
-      (req as any).user?.['companyId'];
+    const companyId = this.resolveCompanyId(req);
     return this.plantHeadService.getProductionAnalytics(
       companyId,
       filter,
@@ -140,9 +177,7 @@ export class PlantHeadController {
     @Query('status') status?: string,
     @Query('machineId') machineId?: string,
   ) {
-    const companyId =
-      (req.headers['x-company-id'] as string) ||
-      (req as any).user?.['companyId'];
+    const companyId = this.resolveCompanyId(req);
     return this.plantHeadService.getMonthlyProductionReport(
       companyId,
       filter,
@@ -323,9 +358,7 @@ export class PlantHeadController {
   )
   @Get('overview/departments')
   async getDepartmentOverview(@Req() req: Request) {
-    const companyId =
-      (req.headers['x-company-id'] as string) ||
-      (req as any).user?.['companyId'];
+    const companyId = this.resolveCompanyId(req);
     return this.plantHeadService.getDepartmentOverview(companyId);
   }
 
@@ -337,9 +370,7 @@ export class PlantHeadController {
     @Body('customStart') customStart?: string,
     @Body('customEnd') customEnd?: string,
   ) {
-    const companyId =
-      (req.headers['x-company-id'] as string) ||
-      (req as any).user?.['companyId'];
+    const companyId = this.resolveCompanyId(req);
     return this.plantHeadService.generateAiReport(
       companyId,
       filter,
@@ -356,10 +387,7 @@ export class PlantHeadController {
     items: { salesOrderItemId: string; productId: string; quantity: number }[],
     @Req() req: Request,
   ) {
-    const companyId =
-      (req.headers['x-company-id'] as string) ||
-      (req as any).user?.['companyId'] ||
-      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = this.resolveCompanyId(req);
     const userId =
       (req as any).user?.['sub'] || (req as any).user?.['id'] || 'system';
     return this.plantHeadService.directDispatch(
@@ -380,9 +408,7 @@ export class PlantHeadController {
     @Param('orderId') orderId: string,
     @Req() req: Request,
   ) {
-    const companyId =
-      (req.headers['x-company-id'] as string) ||
-      (req as any).user?.['companyId'];
+    const companyId = this.resolveCompanyId(req);
     return this.plantHeadService.getFulfillmentPlan(orderId, companyId);
   }
 
@@ -393,10 +419,7 @@ export class PlantHeadController {
     @Body() planDto: SubmitFulfillmentPlanDto,
     @Req() req: Request,
   ) {
-    const companyId =
-      (req.headers['x-company-id'] as string) ||
-      (req as any).user?.['companyId'] ||
-      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = this.resolveCompanyId(req);
     const userId =
       (req as any).user?.['sub'] || (req as any).user?.['id'] || 'system';
     return this.plantHeadService.submitFulfillmentPlan(
@@ -419,10 +442,7 @@ export class PlantHeadController {
     @Body('targetDate') targetDate: string,
     @Req() req: Request,
   ) {
-    const companyId =
-      (req.headers['x-company-id'] as string) ||
-      (req as any).user?.['companyId'] ||
-      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = this.resolveCompanyId(req);
     const userId =
       (req as any).user?.['sub'] || (req as any).user?.['id'] || 'system';
     return this.plantHeadService.updateOrderTargetDate(
@@ -445,10 +465,7 @@ export class PlantHeadController {
     @Body('targetDate') targetDate: string,
     @Req() req: Request,
   ) {
-    const companyId =
-      (req.headers['x-company-id'] as string) ||
-      (req as any).user?.['companyId'] ||
-      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = this.resolveCompanyId(req);
     const userId =
       (req as any).user?.['sub'] || (req as any).user?.['id'] || 'system';
     return this.plantHeadService.updateOrderTargetDate(

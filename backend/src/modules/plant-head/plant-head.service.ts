@@ -3,7 +3,10 @@ import {
   readMaterialWiseAnalytics,
   readMaterialHistory,
   readTransactionAudit,
+  resolveAnalyticsPeriod,
+  formatIstIsoDay,
 } from './material-analytics';
+import { loadRawMaterialCatalog, rawBalances } from '../inventory/raw-material-read-model';
 import { dispatchAnalyticsPeriod, dispatchDay, recordedDispatchLocation } from './dispatch-analytics-period';
 import {
   Injectable,
@@ -194,6 +197,724 @@ export class PlantHeadService {
       }
     }
     return { startDate, endDate };
+  }
+
+  async getManufacturingDashboard(
+    companyId?: string,
+    filter?: string,
+    customStart?: string,
+    customEnd?: string,
+    year?: string,
+  ) {
+    // 1. Resolve period in IST (+05:30)
+    let periodInfo;
+    try {
+      periodInfo = resolveAnalyticsPeriod(filter, customStart, customEnd, undefined, year);
+    } catch {
+      periodInfo = resolveAnalyticsPeriod('This Month');
+    }
+    const { startDate, endDate, periodLabel, isAllTime, targetYear } = periodInfo;
+
+    const tenantFilter = (typeof companyId === 'string' && companyId.trim().length > 0 && companyId !== 'all')
+      ? companyId.trim()
+      : undefined;
+
+    // 2. Query Work Orders for Production (in PCS)
+    const workOrders = await this.prisma.workOrder.findMany({
+      where: {
+        ...(isAllTime
+          ? {}
+          : {
+              OR: [
+                { completedAt: { gte: startDate, lte: endDate } },
+                { createdAt: { gte: startDate, lte: endDate } },
+              ],
+            }),
+        ...(tenantFilter
+          ? { productionPlan: { salesOrder: { customer: { companyId: tenantFilter } } } }
+          : {}),
+      },
+      include: {
+        salesOrderItem: { include: { product: true } },
+        productionPlan: {
+          include: { salesOrder: { include: { customer: true } } },
+        },
+        qcInspections: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    let totalProductionPcs = 0;
+    const productMap = new Map<string, number>();
+    const sizeMap = new Map<string, number>();
+    const capacityMap = new Map<string, number>();
+    const dailyProdMap = new Map<string, number>();
+
+    for (const wo of workOrders) {
+      const qty = Number(wo.quantity || 0);
+      totalProductionPcs += qty;
+
+      const p = wo.salesOrderItem?.product;
+      const pName = p?.name || wo.salesOrderItem?.productNameSnapshot || 'FRP Heavy Duty Composite';
+      const pSize = p?.size || (pName.match(/\b\d{2,4}\s*[xX]\s*\d{2,4}\b/)?.[0] || 'Standard Size').toUpperCase();
+      const pCap = p?.capacity || (pName.match(/\b(C250|B125|D400|A15|F900|ELD|MD10|HD20|\d+T)\b/i)?.[0] || 'Standard').toUpperCase();
+
+      productMap.set(pName, (productMap.get(pName) || 0) + qty);
+      sizeMap.set(pSize, (sizeMap.get(pSize) || 0) + qty);
+      capacityMap.set(pCap, (capacityMap.get(pCap) || 0) + qty);
+
+      const dt = wo.completedAt || wo.createdAt;
+      if (dt) {
+        const dStr = formatIstIsoDay(dt);
+        dailyProdMap.set(dStr, (dailyProdMap.get(dStr) || 0) + qty);
+      }
+    }
+
+    // 3. Query Dispatches for Dispatch (in PCS)
+    const dispatches = await this.prisma.dispatch.findMany({
+      where: {
+        ...(isAllTime
+          ? {}
+          : {
+              OR: [
+                { dispatchedAt: { gte: startDate, lte: endDate } },
+                { createdAt: { gte: startDate, lte: endDate } },
+              ],
+            }),
+        ...(tenantFilter ? { salesOrder: { customer: { companyId: tenantFilter } } } : {}),
+      },
+      include: {
+        items: { include: { salesOrderItem: { include: { product: true } } } },
+        salesOrder: { include: { customer: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    let totalDispatchPcs = 0;
+    const customerMap = new Map<string, number>();
+    const dailyDispatchMap = new Map<string, number>();
+    let onTimeDispatchesCount = 0;
+
+    for (const d of dispatches) {
+      const dItems = d.items || [];
+      const custName = d.salesOrder?.customer?.companyName || 'Valued Client';
+
+      let dPcs = 0;
+      for (const it of dItems) {
+        dPcs += Number(it.quantity || 0);
+      }
+      totalDispatchPcs += dPcs;
+      customerMap.set(custName, (customerMap.get(custName) || 0) + dPcs);
+
+      const dt = d.dispatchedAt || d.createdAt;
+      if (dt) {
+        const dStr = formatIstIsoDay(dt);
+        dailyDispatchMap.set(dStr, (dailyDispatchMap.get(dStr) || 0) + dPcs);
+
+        const reqDate = d.salesOrder?.requestedDeliveryDate || d.salesOrder?.paymentDueDate;
+        if (reqDate) {
+          if (dt.getTime() <= reqDate.getTime() + 86400000) {
+            onTimeDispatchesCount++;
+          }
+        } else {
+          onTimeDispatchesCount++;
+        }
+      }
+    }
+
+    const onTimeDeliveryRate = dispatches.length > 0
+      ? Number(((onTimeDispatchesCount / dispatches.length) * 100).toFixed(1))
+      : null;
+
+    // 4. Query Sales Orders for Order Fulfillment & Pending (in PCS)
+    const allSalesOrders = await this.prisma.salesOrder.findMany({
+      where: {
+        ...(tenantFilter ? { customer: { companyId: tenantFilter } } : {}),
+      },
+      include: {
+        customer: true,
+        items: true,
+        dispatches: { include: { items: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const nowTime = new Date().getTime();
+    let completedOrdersCount = 0;
+    let inProdOrdersCount = 0;
+    let notStartedOrdersCount = 0;
+    let delayedOrdersCount = 0;
+
+    let completedOrdersPcs = 0;
+    let inProdOrdersPcs = 0;
+    let notStartedOrdersPcs = 0;
+    let delayedOrdersPcs = 0;
+
+    let totalPendingPcs = 0;
+    const pendingList: Array<{ id: string; orderNumber: string; customer: string; pendingPcs: number; dueDate: string }> = [];
+
+    for (const so of allSalesOrders) {
+      const orderedPcs = (so.items || []).reduce((sum, it) => sum + Number(it.orderedQuantity || 0), 0);
+      const dispatchedPcs = (so.dispatches || []).flatMap(d => d.items || []).reduce((sum, it) => sum + Number(it.quantity || 0), 0);
+      const pendingPcs = Math.max(0, orderedPcs - dispatchedPcs);
+
+      const st = String(so.status || '').toUpperCase();
+      const isCompleted = ['COMPLETED', 'DELIVERED', 'CLOSED'].includes(st);
+      const isInProd = ['IN_PRODUCTION', 'PLANT_APPROVED', 'READY_FOR_DISPATCH'].includes(st);
+      const isDelayed = !isCompleted && so.requestedDeliveryDate && new Date(so.requestedDeliveryDate).getTime() < nowTime;
+
+      if (isCompleted) {
+        completedOrdersCount++;
+        completedOrdersPcs += orderedPcs;
+      } else if (isDelayed) {
+        delayedOrdersCount++;
+        delayedOrdersPcs += orderedPcs;
+      } else if (isInProd) {
+        inProdOrdersCount++;
+        inProdOrdersPcs += orderedPcs;
+      } else {
+        notStartedOrdersCount++;
+        notStartedOrdersPcs += orderedPcs;
+      }
+
+      if (['READY_FOR_DISPATCH', 'PLANT_APPROVED', 'IN_PRODUCTION', 'SENT_TO_PLANT_HEAD'].includes(st) && pendingPcs > 0) {
+        totalPendingPcs += pendingPcs;
+        const dueStr = so.requestedDeliveryDate
+          ? so.requestedDeliveryDate.toISOString().slice(0, 10)
+          : (so.paymentDueDate ? so.paymentDueDate.toISOString().slice(0, 10) : 'Standard SLA');
+        pendingList.push({
+          id: so.id,
+          orderNumber: so.orderNumber,
+          customer: so.customer?.companyName || 'Client Account',
+          pendingPcs,
+          dueDate: dueStr,
+        });
+      }
+    }
+
+    pendingList.sort((a, b) => b.pendingPcs - a.pendingPcs);
+    const top5PendingOrders = pendingList.slice(0, 5).map((p, i) => ({ rank: i + 1, ...p }));
+    const totalOrdersCount = allSalesOrders.length;
+
+    // 5. Query QC Inspections
+    const qcInspections = await this.prisma.qCInspection.findMany({
+      where: isAllTime
+        ? {}
+        : {
+            OR: [
+              { approvedAt: { gte: startDate, lte: endDate } },
+              { createdAt: { gte: startDate, lte: endDate } },
+            ],
+          },
+      include: { workOrder: true },
+    });
+
+    let totalInspected = 0;
+    let totalAccepted = 0;
+    let totalRejected = 0;
+    let reworkCount = 0;
+    let firstPassAccepted = 0;
+
+    for (const qc of qcInspections) {
+      const app = Number(qc.approvedQuantity || 0);
+      const rej = Number(qc.rejectedQuantity || 0);
+      totalAccepted += app;
+      totalRejected += rej;
+      totalInspected += (app + rej);
+
+      const reworks = Number(qc.workOrder?.reworkCount || 0);
+      if (reworks > 0) {
+        reworkCount++;
+      } else if (app > 0) {
+        firstPassAccepted += app;
+      }
+    }
+
+    const rejectionPercent = totalInspected > 0 ? Number(((totalRejected / totalInspected) * 100).toFixed(1)) : 0;
+    const acceptedPercent = totalInspected > 0 ? Number(((totalAccepted / totalInspected) * 100).toFixed(1)) : 100;
+    const firstPassYield = totalInspected > 0 ? Number(((firstPassAccepted / totalInspected) * 100).toFixed(1)) : 100;
+
+    // 6. Operational Summaries
+    let rawCatalog: any[] = [];
+    let inventoryBalances: Map<string, any> = new Map();
+    try {
+      rawCatalog = await loadRawMaterialCatalog(this.prisma as any, tenantFilter || 'all');
+      inventoryBalances = await rawBalances(this.prisma as any, tenantFilter || 'all', rawCatalog);
+    } catch {
+      rawCatalog = await this.prisma.rawMaterial.findMany({ where: { isActive: true } });
+    }
+
+    let totalRawStock = 0;
+    let lowStockCount = 0;
+    let outOfStockCount = 0;
+
+    for (const m of rawCatalog) {
+      const stock = (inventoryBalances.get(m.id) || 0) / 100;
+      if (stock > 0) totalRawStock += stock;
+      const minStock = Number(m.minimumStock || 0);
+      if (stock <= 0) outOfStockCount++;
+      else if (minStock > 0 && stock <= minStock) lowStockCount++;
+    }
+
+    const grnReceivedAgg = await this.prisma.goodsReceiptNoteItem.aggregate({
+      where: isAllTime ? {} : { goodsReceiptNote: { receivedAt: { gte: startDate, lte: endDate } } },
+      _sum: { receivedQuantity: true },
+    });
+    const receivedThisMonth = Number(grnReceivedAgg._sum.receivedQuantity || 0);
+
+    const txIssuedAgg = await this.prisma.inventoryTransaction.aggregate({
+      where: {
+        type: { in: ['OUT', 'ISSUE_TO_PRODUCTION', 'QUICK_STOCK_OUT'] },
+        ...(isAllTime ? {} : { createdAt: { gte: startDate, lte: endDate } }),
+      },
+      _sum: { quantity: true },
+    });
+    const issuedThisMonth = Number(txIssuedAgg._sum.quantity || 0);
+
+    // Purchase
+    const totalPOs = await this.prisma.purchaseOrder.count({
+      where: tenantFilter ? { companyId: tenantFilter } : {},
+    });
+    const openPOs = await this.prisma.purchaseOrder.count({
+      where: {
+        ...(tenantFilter ? { companyId: tenantFilter } : {}),
+        status: { notIn: ['COMPLETED', 'CLOSED', 'CANCELLED'] },
+      },
+    });
+    const overduePOs = await this.prisma.purchaseOrder.count({
+      where: {
+        ...(tenantFilter ? { companyId: tenantFilter } : {}),
+        status: { notIn: ['COMPLETED', 'CLOSED', 'CANCELLED'] },
+        expectedDeliveryDate: { lt: new Date() },
+      },
+    });
+    const pendingDelivery = await this.prisma.purchaseOrder.count({
+      where: {
+        ...(tenantFilter ? { companyId: tenantFilter } : {}),
+        status: { in: ['ORDERED', 'APPROVED'] },
+      },
+    });
+    const grnCount = await this.prisma.goodsReceiptNote.count({
+      where: isAllTime ? {} : { receivedAt: { gte: startDate, lte: endDate } },
+    });
+
+    // Machines (fleet)
+    const totalMachines = await this.prisma.machine.count();
+
+    // HR & Workforce
+    const totalEmployees = await this.prisma.employee.count({ where: { status: 'ACTIVE' } });
+    const shiftPoliciesCount = await this.prisma.shiftPolicy.count();
+
+    // 7. Breakdowns (in PCS)
+    const productWise = Array.from(productMap.entries())
+      .map(([product, pcs]) => ({
+        product,
+        pcs,
+        sharePercent: totalProductionPcs > 0 ? Number(((pcs / totalProductionPcs) * 100).toFixed(1)) : 0,
+      }))
+      .sort((a, b) => b.pcs - a.pcs);
+
+    const sizeWise = Array.from(sizeMap.entries())
+      .map(([size, pcs]) => ({
+        size,
+        pcs,
+        sharePercent: totalProductionPcs > 0 ? Number(((pcs / totalProductionPcs) * 100).toFixed(1)) : 0,
+      }))
+      .sort((a, b) => b.pcs - a.pcs);
+
+    const capacityWise = Array.from(capacityMap.entries())
+      .map(([capacity, pcs]) => ({
+        capacity,
+        pcs,
+        sharePercent: totalProductionPcs > 0 ? Number(((pcs / totalProductionPcs) * 100).toFixed(1)) : 0,
+      }))
+      .sort((a, b) => b.pcs - a.pcs);
+
+    const top5Customers = Array.from(customerMap.entries())
+      .map(([customer, pcs]) => ({
+        customer,
+        pcs,
+        sharePercent: totalDispatchPcs > 0 ? Number(((pcs / totalDispatchPcs) * 100).toFixed(1)) : 0,
+      }))
+      .sort((a, b) => b.pcs - a.pcs)
+      .slice(0, 5)
+      .map((c, i) => ({ rank: i + 1, ...c }));
+
+    const top5TotalPcs = top5Customers.reduce((s, c) => s + c.pcs, 0);
+
+    // Daily Production vs Target (PCS) & Daily Dispatch vs Target (PCS)
+    const dailyProdVsTarget: Array<{ day: number; date: string; actualPcs: number; targetPcs: number | null }> = [];
+    const dailyDispVsTarget: Array<{ day: number; date: string; actualPcs: number; targetPcs: number | null }> = [];
+    const dispatchTrend: Array<{ date: string; day: number; pcs: number }> = [];
+
+    const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000);
+    if (isAllTime || durationDays > 35) {
+      const allActiveDates = Array.from(
+        new Set([...dailyProdMap.keys(), ...dailyDispatchMap.keys()]),
+      ).sort();
+
+      allActiveDates.forEach((isoStr, idx) => {
+        const prodVal = dailyProdMap.get(isoStr) || 0;
+        const dispVal = dailyDispatchMap.get(isoStr) || 0;
+
+        dailyProdVsTarget.push({
+          day: idx + 1,
+          date: isoStr,
+          actualPcs: prodVal,
+          targetPcs: null,
+        });
+
+        dailyDispVsTarget.push({
+          day: idx + 1,
+          date: isoStr,
+          actualPcs: dispVal,
+          targetPcs: null,
+        });
+
+        dispatchTrend.push({
+          date: isoStr,
+          day: idx + 1,
+          pcs: dispVal,
+        });
+      });
+    } else {
+      let iterDate = new Date(startDate);
+      let dayIndex = 1;
+      while (iterDate <= endDate) {
+        const isoStr = formatIstIsoDay(iterDate);
+        const prodVal = dailyProdMap.get(isoStr) || 0;
+        const dispVal = dailyDispatchMap.get(isoStr) || 0;
+
+        dailyProdVsTarget.push({
+          day: dayIndex,
+          date: isoStr,
+          actualPcs: prodVal,
+          targetPcs: null,
+        });
+
+        dailyDispVsTarget.push({
+          day: dayIndex,
+          date: isoStr,
+          actualPcs: dispVal,
+          targetPcs: null,
+        });
+
+        dispatchTrend.push({
+          date: isoStr,
+          day: dayIndex,
+          pcs: dispVal,
+        });
+
+        iterDate = new Date(iterDate.getTime() + 86400000);
+        dayIndex++;
+      }
+    }
+
+    // 8. 12-Month Trend (Jan–Dec of targetYear in PCS)
+    const monthShortNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyTrend: Array<{ month: string; monthNum: number; productionPcs: number; dispatchPcs: number }> = [];
+
+    const yearStart = new Date(Date.UTC(targetYear, 0, 1, 0, 0, 0));
+    const yearEnd = new Date(Date.UTC(targetYear, 11, 31, 23, 59, 59, 999));
+
+    const [allYearWOs, allYearDispatches] = await Promise.all([
+      this.prisma.workOrder.findMany({
+        where: {
+          OR: [
+            { completedAt: { gte: yearStart, lte: yearEnd } },
+            { createdAt: { gte: yearStart, lte: yearEnd } },
+          ],
+          ...(tenantFilter ? { productionPlan: { salesOrder: { customer: { companyId: tenantFilter } } } } : {}),
+        },
+        select: { quantity: true, completedAt: true, createdAt: true },
+      }),
+      this.prisma.dispatch.findMany({
+        where: {
+          OR: [
+            { dispatchedAt: { gte: yearStart, lte: yearEnd } },
+            { createdAt: { gte: yearStart, lte: yearEnd } },
+          ],
+          ...(tenantFilter ? { salesOrder: { customer: { companyId: tenantFilter } } } : {}),
+        },
+        select: {
+          dispatchedAt: true,
+          createdAt: true,
+          items: { select: { quantity: true } },
+        },
+      }),
+    ]);
+
+    const yearProdByMonth = new Array(12).fill(0);
+    for (const w of allYearWOs) {
+      const dt = w.completedAt || w.createdAt;
+      if (dt) {
+        const m = new Date(dt.getTime() + 330 * 60 * 1000).getUTCMonth();
+        if (m >= 0 && m < 12) yearProdByMonth[m] += Number(w.quantity || 0);
+      }
+    }
+
+    const yearDispByMonth = new Array(12).fill(0);
+    for (const d of allYearDispatches) {
+      const dt = d.dispatchedAt || d.createdAt;
+      if (dt) {
+        const m = new Date(dt.getTime() + 330 * 60 * 1000).getUTCMonth();
+        const dQty = (d.items || []).reduce((s, it) => s + Number(it.quantity || 0), 0);
+        if (m >= 0 && m < 12) yearDispByMonth[m] += dQty;
+      }
+    }
+
+    for (let m = 0; m < 12; m++) {
+      monthlyTrend.push({
+        month: monthShortNames[m],
+        monthNum: m + 1,
+        productionPcs: yearProdByMonth[m],
+        dispatchPcs: yearDispByMonth[m],
+      });
+    }
+
+    // 9. Dynamic Insights
+    const dynamicInsights: string[] = [];
+    if (totalProductionPcs > 0 && productWise.length > 0) {
+      dynamicInsights.push(
+        `Top product "${productWise[0].product}" represents ${productWise[0].sharePercent}% of total production output (${productWise[0].pcs.toLocaleString('en-IN')} PCS).`,
+      );
+    }
+    if (totalDispatchPcs > 0 && top5Customers.length > 0) {
+      dynamicInsights.push(
+        `Lead client "${top5Customers[0].customer}" accounts for ${top5Customers[0].sharePercent}% of total dispatched volume (${top5Customers[0].pcs.toLocaleString('en-IN')} PCS).`,
+      );
+    }
+    if (totalOrdersCount > 0) {
+      const fulfillmentRate = Number(((completedOrdersCount / totalOrdersCount) * 100).toFixed(1));
+      dynamicInsights.push(
+        `Order fulfillment rate is ${fulfillmentRate}% (${completedOrdersCount}/${totalOrdersCount} orders fulfilled, ${inProdOrdersCount} currently in active production).`,
+      );
+    }
+    if (totalInspected > 0) {
+      dynamicInsights.push(
+        `Quality inspection acceptance is ${acceptedPercent}% with a First Pass Yield (FPY) of ${firstPassYield}% across ${totalInspected.toLocaleString('en-IN')} inspected units.`,
+      );
+    } else {
+      dynamicInsights.push(`No quality rejection incidents recorded in the active database for the selected period.`);
+    }
+
+    // 10. Actionable Alerts
+    const alerts: Array<{ category: string; severity: 'warning' | 'critical' | 'info'; message: string; link: string }> = [];
+    if (lowStockCount > 0) {
+      alerts.push({
+        category: 'Inventory',
+        severity: 'warning',
+        message: `${lowStockCount} raw material${lowStockCount > 1 ? 's are' : ' is'} below configured safety reorder level.`,
+        link: '/plant-head/raw-inventory',
+      });
+    }
+    if (outOfStockCount > 0) {
+      alerts.push({
+        category: 'Inventory',
+        severity: 'critical',
+        message: `${outOfStockCount} raw material item${outOfStockCount > 1 ? 's have' : ' has'} zero stock balance.`,
+        link: '/plant-head/raw-inventory',
+      });
+    }
+    if (overduePOs > 0) {
+      alerts.push({
+        category: 'Purchase',
+        severity: 'warning',
+        message: `${overduePOs} purchase order${overduePOs > 1 ? 's are' : ' is'} past expected delivery date.`,
+        link: '/procurement/purchase-orders',
+      });
+    }
+    if (delayedOrdersCount > 0) {
+      alerts.push({
+        category: 'Dispatch',
+        severity: 'warning',
+        message: `${delayedOrdersCount} sales order${delayedOrdersCount > 1 ? 's are' : ' is'} delayed beyond target delivery date.`,
+        link: '/plant-head/incoming-orders',
+      });
+    }
+    if (totalRejected > 0) {
+      alerts.push({
+        category: 'Quality',
+        severity: 'critical',
+        message: `${totalRejected} pieces failed QC inspection and require review.`,
+        link: '/plant-head/qc-failures',
+      });
+    }
+
+    // 11. Final Structured Response
+    return {
+      period: {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        label: periodLabel,
+        filter: filter || 'This Month',
+        targetYear,
+        isAllTime,
+      },
+      kpis: {
+        totalProduction: {
+          pcs: totalProductionPcs,
+          targetPcs: null,
+          targetPercent: null,
+          targetConfigured: false,
+        },
+        totalDispatch: {
+          pcs: totalDispatchPcs,
+          targetPcs: null,
+          targetPercent: null,
+          targetConfigured: false,
+        },
+        pendingOrders: {
+          pcs: totalPendingPcs,
+          ordersCount: pendingList.length,
+        },
+        rawMaterialStock: {
+          stock: Math.round(totalRawStock),
+          itemsCount: rawCatalog.length,
+          unit: 'KG',
+        },
+        qualityRejection: {
+          rejectionPercent,
+          acceptedPercent,
+          totalInspected,
+          hasInspections: totalInspected > 0,
+        },
+        machineAvailability: {
+          percent: null,
+          configured: false,
+          totalMachines,
+          statusText: totalMachines > 0 ? 'NOT CONFIGURED' : 'NO MACHINE DATA',
+        },
+        onTimeDelivery: {
+          percent: onTimeDeliveryRate,
+          totalDelivered: dispatches.length,
+          onTimeCount: onTimeDispatchesCount,
+          statusText: onTimeDeliveryRate != null ? `${onTimeDeliveryRate}%` : 'N/A',
+        },
+        productivity: {
+          value: null,
+          configured: false,
+          statusText: 'NOT CONFIGURED',
+        },
+      },
+      production: {
+        dailyVsTarget: dailyProdVsTarget,
+        productWise,
+        sizeWise,
+        capacityWise,
+        totalPcs: totalProductionPcs,
+        targetAchievement: null,
+      },
+      dispatch: {
+        dailyVsTarget: dailyDispVsTarget,
+        trend: dispatchTrend,
+        topCustomers: top5Customers,
+        top5TotalPcs,
+        totalPcs: totalDispatchPcs,
+        targetAchievement: null,
+      },
+      monthlyTrend,
+      orders: {
+        fulfillment: {
+          totalOrders: totalOrdersCount,
+          completed: {
+            count: completedOrdersCount,
+            pcs: completedOrdersPcs,
+            percent: totalOrdersCount > 0 ? Number(((completedOrdersCount / totalOrdersCount) * 100).toFixed(1)) : 0,
+          },
+          inProduction: {
+            count: inProdOrdersCount,
+            pcs: inProdOrdersPcs,
+            percent: totalOrdersCount > 0 ? Number(((inProdOrdersCount / totalOrdersCount) * 100).toFixed(1)) : 0,
+          },
+          notStarted: {
+            count: notStartedOrdersCount,
+            pcs: notStartedOrdersPcs,
+            percent: totalOrdersCount > 0 ? Number(((notStartedOrdersCount / totalOrdersCount) * 100).toFixed(1)) : 0,
+          },
+          delayed: {
+            count: delayedOrdersCount,
+            pcs: delayedOrdersPcs,
+            percent: totalOrdersCount > 0 ? Number(((delayedOrdersCount / totalOrdersCount) * 100).toFixed(1)) : 0,
+          },
+        },
+        pendingTop5: top5PendingOrders,
+        totalPendingPcs,
+      },
+      inventory: {
+        totalItems: rawCatalog.length,
+        totalStock: Math.round(totalRawStock),
+        unit: 'KG',
+        receivedThisMonth,
+        issuedThisMonth,
+        lowStockItems: lowStockCount,
+        outOfStockItems: outOfStockCount,
+      },
+      purchase: {
+        totalPOs,
+        openPOs,
+        receivedThisMonth: grnCount,
+        pendingDelivery,
+        overduePOs,
+      },
+      quality: {
+        totalInspected,
+        accepted: totalAccepted,
+        rejected: totalRejected,
+        rejectionPercent,
+        rework: reworkCount,
+        firstPassYield,
+      },
+      maintenance: {
+        totalMachines,
+        running: 0,
+        breakdown: 0,
+        availability: null,
+        totalDowntime: '0 hrs',
+        mttr: 'N/A',
+        nextPmDue: 'Not scheduled',
+        configured: false,
+      },
+      hr: {
+        totalEmployees,
+        presentToday: null,
+        absentToday: null,
+        attendancePercent: null,
+        shiftsRunning: shiftPoliciesCount,
+        productivity: 'NOT CONFIGURED',
+        manpowerRequirement: `${totalEmployees} authorized`,
+        configured: false,
+      },
+      costing: {
+        materialCostPerKg: 'N/A',
+        labourCostPerKg: 'N/A',
+        mfgCostPerKg: 'N/A',
+        costPriceAvg: 'N/A',
+        sellingPricePerPieceAvg: 'N/A',
+        grossMargin: 'N/A',
+        configured: false,
+      },
+      materials: {
+        consumptionVsStandard: [],
+        configured: false,
+      },
+      safety: {
+        incidents: 'N/A',
+        nearMiss: 'N/A',
+        safetyTraining: 'N/A',
+        ppeCompliance: 'N/A',
+        fireEquipment: 'N/A',
+        housekeepingScore: 'N/A',
+        environmentalCompliance: 'N/A',
+        configured: false,
+      },
+      insights: dynamicInsights,
+      alerts,
+      notes: {
+        content: null,
+        lastUpdated: null,
+      },
+    };
   }
 
   async getDashboardData(

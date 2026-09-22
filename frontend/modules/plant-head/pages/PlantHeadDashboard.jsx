@@ -1,1179 +1,1528 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import Swal from 'sweetalert2';
+import { useRouter } from 'next/navigation';
 import {
-  Factory, LayoutGrid, Calendar, BatteryCharging, Zap, Cpu, Clock,
-  AlertTriangle, CheckCircle, XCircle, FileText, BarChart3, TrendingUp,
-  Layers, Package, Shield, RefreshCw, Download, Search, Filter,
-  ChevronRight, ArrowUpRight, ArrowDownRight, User, Award, ShieldCheck,
-  FileCheck, RotateCcw, Wrench, Activity, DollarSign
+  Factory,
+  Package,
+  Truck,
+  Clock,
+  Boxes,
+  ShieldCheck,
+  Settings,
+  TrendingUp,
+  CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
+  RefreshCw,
+  Download,
+  Calendar,
+  ChevronDown,
+  ArrowRight,
+  ExternalLink,
+  Layers,
+  Wrench,
+  Users,
+  Activity,
+  FileText,
+  Percent,
+  X,
+  Sparkles,
+  Info
 } from 'lucide-react';
-import { backendFetch } from '../../../lib/backendFetch';
-import { useERPStore } from '@/store/erpStore';
-import { hasManufacturingItems } from './PlantHeadPortal';
 import {
-  ResponsiveContainer, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend
 } from 'recharts';
+import { backendFetch } from '../../../lib/backendFetch';
+
+// ── Palette matching master reference ──
+const PALETTE = {
+  navy: '#073B63',
+  navyDark: '#052A47',
+  blue: '#0B5FA5',
+  blueLight: '#E8F1F8',
+  emerald: '#159447',
+  emeraldLight: '#E9F6EE',
+  orange: '#F28C28',
+  orangeLight: '#FEF3E9',
+  crimson: '#D92323',
+  crimsonLight: '#FDECEC',
+  violet: '#6A3DB8',
+  violetLight: '#F1ECFA',
+  amber: '#D9A400',
+  slateDark: '#0F172A',
+  slate: '#334155',
+  slateMuted: '#64748B',
+  slateLight: '#F8FAFC',
+  border: '#E2E8F0',
+  cardBg: '#FFFFFF',
+};
+
+const FULFILLMENT_COLORS = {
+  completed: '#159447',
+  inProduction: '#0B5FA5',
+  notStarted: '#F28C28',
+  delayed: '#D92323',
+};
+
+// Safe Indian number formatter
+const fmt = (val, decimals = 0) => {
+  const n = Number(val || 0);
+  if (isNaN(n)) return '0';
+  return decimals > 0
+    ? n.toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    : Math.round(n).toLocaleString('en-IN');
+};
 
 export const PlantHeadDashboard = () => {
-  // ── Active Tab State (10 Dashboard Tabs) ──
-  const [activeTab, setActiveTab] = useState('executive_overview');
-  const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
+  const router = useRouter();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Drill-down State
-  const [drillLevel, setDrillLevel] = useState({ plant: 'Main Plant', unit: 'Unit-01', line: 'All Lines', machine: 'All Machines' });
-
-  // Dynamic Backend Datasets
-  const [backendDashboard, setBackendDashboard] = useState(null);
-  const [backendProdAnalytics, setBackendProdAnalytics] = useState(null);
-  const [backendMatAnalytics, setBackendMatAnalytics] = useState(null);
-  const [backendDeptOverview, setBackendDeptOverview] = useState(null);
-  const [workOrders, setWorkOrders] = useState([]);
-  const [incomingOrders, setIncomingOrders] = useState([]);
-  const [inventoryItems, setInventoryItems] = useState([]);
-  const [productionTargetAchievement, setProductionTargetAchievement] = useState(null);
-  const [loadingTarget, setLoadingTarget] = useState(true);
-  const [dateFilter, setDateFilter] = useState('Today');
+  // State
+  const [filter, setFilter] = useState('This Month');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+  const [showCustomModal, setShowCustomModal] = useState(false);
 
-  // ── Machine Performance Live Log State ──
-  const [machinePerformanceDate, setMachinePerformanceDate] = useState(new Date().toLocaleDateString('en-CA'));
-  const [machineStatuses, setMachineStatuses] = useState([]);
-  const [loadingMachineStatuses, setLoadingMachineStatuses] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [lastUpdatedTime, setLastUpdatedTime] = useState('');
 
-  const fetchMachineStatuses = useCallback(async (dateStr) => {
+  // Fetch Dashboard Data from Backend Aggregation Endpoint
+  const fetchDashboard = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    setError(null);
+
     try {
-      setLoadingMachineStatuses(true);
-      const res = await backendFetch(`/api/backend/machine-status?date=${dateStr}`);
-      if (Array.isArray(res)) {
-        setMachineStatuses(res);
+      const q = new URLSearchParams();
+      if (filter) q.set('filter', filter);
+      if (filter === 'Custom' && customStart && customEnd) {
+        q.set('customStart', customStart);
+        q.set('customEnd', customEnd);
+      }
+      q.set('year', '2026');
+
+      const res = await backendFetch(`/api/backend/plant-head/dashboard?${q.toString()}`);
+      if (res && res.kpis) {
+        setDashboardData(res);
+        const now = new Date();
+        const istHours = String((now.getUTCHours() + 5 + Math.floor((now.getUTCMinutes() + 30) / 60)) % 24).padStart(2, '0');
+        const istMins = String((now.getUTCMinutes() + 30) % 60).padStart(2, '0');
+        setLastUpdatedTime(`${istHours}:${istMins} IST`);
       } else {
-        setMachineStatuses([]);
+        throw new Error('Invalid dashboard data structure received from server');
       }
     } catch (err) {
-      console.error('Failed to fetch machine statuses for Plant Head:', err);
-      setMachineStatuses([]);
-    } finally {
-      setLoadingMachineStatuses(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'machine_performance') {
-      fetchMachineStatuses(machinePerformanceDate);
-    }
-  }, [activeTab, machinePerformanceDate, fetchMachineStatuses]);
-
-  // Fetch Live Data from Backend API
-  const fetchPlantData = useCallback(async () => {
-    setLoading(true);
-    setLoadingTarget(true);
-    try {
-      const queryParams = `?filter=${dateFilter}&customStart=${customStart}&customEnd=${customEnd}`;
-      const [dbRes, prodRes, matRes, deptRes, ordersRes, itemsRes, targetRes, incomingRes, rawWOsRes] = await Promise.allSettled([
-        backendFetch('/api/backend/plant-head/dashboard-data' + queryParams),
-        backendFetch('/api/backend/plant-head/analytics/production' + queryParams),
-        backendFetch('/api/backend/plant-head/analytics/material' + queryParams),
-        backendFetch('/api/backend/plant-head/overview/departments'),
-        backendFetch('/api/backend/plant-head/planning'),
-        backendFetch('/api/backend/inventory/items'),
-        backendFetch('/api/backend/production-targets/achievement'),
-        backendFetch('/api/backend/plant-head/incoming-orders'),
-        backendFetch('/api/backend/production/work-orders')
-      ]);
-
-      if (dbRes.status === 'fulfilled' && dbRes.value) {
-        setBackendDashboard(dbRes.value);
-      }
-
-      if (prodRes.status === 'fulfilled' && prodRes.value) {
-        setBackendProdAnalytics(prodRes.value);
-      }
-
-      if (matRes.status === 'fulfilled' && matRes.value) {
-        setBackendMatAnalytics(matRes.value);
-      }
-
-      if (deptRes.status === 'fulfilled' && deptRes.value) {
-        setBackendDeptOverview(deptRes.value);
-      }
-
-      if (itemsRes.status === 'fulfilled' && Array.isArray(itemsRes.value)) {
-        setInventoryItems(itemsRes.value);
-      }
-
-      if (targetRes.status === 'fulfilled' && targetRes.value) {
-        setProductionTargetAchievement(targetRes.value);
-      }
-
-      if (incomingRes.status === 'fulfilled' && Array.isArray(incomingRes.value)) {
-        setIncomingOrders(incomingRes.value.filter(hasManufacturingItems));
-      }
-      setLoadingTarget(false);
-
-      // Process Work Orders from Database or Fallback
-      let ordersList = [];
-      const rawWOs = (rawWOsRes.status === 'fulfilled' && (Array.isArray(rawWOsRes.value) ? rawWOsRes.value : rawWOsRes.value?.data)) || [];
-      if (Array.isArray(rawWOs) && rawWOs.length > 0) {
-        ordersList = rawWOs.map((wo, idx) => {
-          const plannedVal = Number(wo.targetQty || wo.plannedQty || wo.quantity || wo.targetQuantity);
-          const planned = isNaN(plannedVal) || plannedVal <= 0 ? 100 : plannedVal;
-          const progVal = Number(wo.progress);
-          const progress = isNaN(progVal) ? 0 : progVal;
-          const actualVal = Number(wo.producedQty || wo.completedQty);
-          const actual = isNaN(actualVal) ? Math.round(planned * (progress / 100)) : actualVal;
-
-          const st = String(wo.status || wo.workflowStatus || '').toUpperCase();
-          const displayStatus = ['COMPLETED', 'CLOSED', 'QC_PASSED'].includes(st)
-            ? 'Completed'
-            : ['DELAYED', 'OVERDUE', 'QC_FAILED'].includes(st)
-            ? 'Delayed'
-            : ['IN_PROGRESS', 'RUNNING', 'MATERIAL_ISSUED'].includes(st)
-            ? 'In Progress'
-            : 'Planned';
-          return {
-            id: wo.workOrderNo || wo.orderNo || wo.id || `WO-${1040 + idx}`,
-            product: wo.salesOrderItem?.product?.name || wo.productName || wo.product || 'Himalaya Product',
-            category: (typeof wo.salesOrderItem?.product?.category === 'object' ? wo.salesOrderItem?.product?.category?.name : wo.salesOrderItem?.product?.category) || wo.category || 'Production Order',
-            line: wo.line || `Line ${String.fromCharCode(65 + (idx % 4))}`,
-            machine: wo.machine || wo.workCenter || `MC-0${(idx % 4) + 1}`,
-            plannedQty: planned,
-            actualQty: actual,
-            unit: wo.unit || wo.salesOrderItem?.product?.unit || 'Pcs',
-            status: displayStatus,
-            delayHours: displayStatus === 'Delayed' ? 3.5 : 0,
-            operator: wo.operator || `Operator ${idx + 1}`,
-            yield: Number((Math.max(90, 100 - (idx % 3) * 1.5)).toFixed(1)),
-            rejectionPct: (1.0 + (idx % 3) * 0.4).toFixed(1)
-          };
-        });
-      } else if (ordersRes.status === 'fulfilled' && Array.isArray(ordersRes.value) && ordersRes.value.length > 0) {
-        ordersList = ordersRes.value.map((ord, idx) => {
-          const item = ord.items?.[0] || {};
-          const plannedVal = Number(item.orderedQuantity || ord.quantity);
-          const planned = isNaN(plannedVal) || plannedVal <= 0 ? 1000 : plannedVal;
-          const actualVal = ord.status === 'COMPLETED' ? planned : Math.round(planned * (0.6 + (idx % 4) * 0.1));
-          const actual = isNaN(actualVal) ? 0 : actualVal;
-          return {
-            id: ord.orderNo || ord.id || `WO-${1040 + idx}`,
-            product: item.product?.name || item.productName || ord.products || 'Paper / Wax Product',
-            category: (typeof item.product?.category === 'object' ? item.product?.category?.name : item.product?.category) || 'Production Order',
-            line: `Line ${String.fromCharCode(65 + (idx % 4))}`,
-            machine: `MC-0${(idx % 4) + 1}`,
-            plannedQty: planned,
-            actualQty: actual,
-            unit: item.product?.unit || 'Pcs',
-            status: ord.status === 'COMPLETED' ? 'Completed' : ord.status === 'IN_PRODUCTION' ? 'In Progress' : 'Planned',
-            delayHours: idx % 3 === 0 ? 2.5 : 0,
-            operator: `Operator ${idx + 1}`,
-            yield: 95.0 + (idx % 4),
-            rejectionPct: (1.0 + (idx % 3) * 0.4).toFixed(1)
-          };
-        });
-      }
-
-      if (ordersList.length === 0) {
-        ordersList = [
-          { id: 'WO-1041', product: 'Water Paper 60 Mesh', category: 'Coated Abrasives', line: 'Line A (Coating)', machine: 'MC-01 Coater', plannedQty: 1500, actualQty: 1420, unit: 'Pcs', status: 'In Progress', delayHours: 0, operator: 'Rajesh Patel', yield: 96.2, rejectionPct: '1.2' },
-          { id: 'WO-1042', product: 'Benjo Wax Polish 500g', category: 'Chemicals & Pigments', line: 'Line B (Mixing)', machine: 'MC-04 Mixer', plannedQty: 850, actualQty: 850, unit: 'Tins', status: 'Completed', delayHours: 0, operator: 'Suresh Kumar', yield: 98.4, rejectionPct: '0.8' },
-          { id: 'WO-1043', product: 'Flap Disc 4 Inch', category: 'Hardware & Tools', line: 'Line C (Assembly)', machine: 'MC-07 Press', plannedQty: 2500, actualQty: 1800, unit: 'Pcs', status: 'Delayed', delayHours: 3.5, operator: 'Vikram Singh', yield: 92.1, rejectionPct: '2.5' },
-          { id: 'WO-1044', product: 'Cutting Wheel 14 Inch', category: 'Hardware & Tools', line: 'Line D (Curing)', machine: 'MC-09 Oven', plannedQty: 1200, actualQty: 0, unit: 'Pcs', status: 'Planned', delayHours: 0, operator: 'Amit Shah', yield: 100, rejectionPct: '0.0' },
-        ];
-      }
-      setWorkOrders(ordersList);
-
-    } catch (err) {
-      console.warn('[PlantHeadDashboard] Fetch error:', err);
+      console.error('[PlantHeadDashboard] Error fetching dashboard data:', err);
+      setError(err?.message || 'Unable to load Plant Head dashboard data. Please verify network and backend connection.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [dateFilter, customStart, customEnd]);
-
-  const handleAcceptOrder = async (order) => {
-    const { value: remarks } = await Swal.fire({
-      title: 'Accept Order',
-      input: 'textarea',
-      inputLabel: 'Acceptance Remarks (optional)',
-      inputPlaceholder: 'e.g. Capacity available, scheduling for production…',
-      showCancelButton: true,
-      confirmButtonText: 'Accept Order',
-      customClass: {
-        popup: 'swal-premium-popup',
-        confirmButton: 'swal-premium-confirm-btn',
-        cancelButton: 'swal-premium-cancel-btn'
-      },
-      buttonsStyling: false
-    });
-    if (remarks === undefined) return;
-    try {
-      await backendFetch(`/api/backend/sales/orders/${order.id}/action`, {
-        method: 'POST',
-        body: { action: 'PLANT_APPROVE', remarks },
-      });
-      try {
-        useERPStore.getState().acceptOrderByPlantHead?.(order.id || order.orderNo, { remarks }, 'Plant Head');
-      } catch (e) {}
-      Swal.fire({ icon: 'success', title: 'Order Accepted', text: `Order ${order.orderNo || order.id} has been accepted.`, customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' }, buttonsStyling: false });
-      fetchPlantData();
-    } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Accept Failed', text: err.message, customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' }, buttonsStyling: false });
-    }
-  };
-
-  const handleRejectOrder = async (order) => {
-    const { value: remarks } = await Swal.fire({
-      title: 'Reject Order',
-      input: 'textarea',
-      inputLabel: 'Rejection Reason (required)',
-      inputPlaceholder: 'e.g. Insufficient raw material / capacity constraint…',
-      inputValidator: (v) => !v && 'Please provide a rejection reason.',
-      showCancelButton: true,
-      confirmButtonText: 'Reject Order',
-      confirmButtonColor: '#ef4444',
-      customClass: {
-        popup: 'swal-premium-popup',
-        confirmButton: 'swal-premium-confirm-btn',
-        cancelButton: 'swal-premium-cancel-btn'
-      },
-      buttonsStyling: false
-    });
-    if (!remarks) return;
-    try {
-      await backendFetch(`/api/backend/sales/orders/${order.id}/action`, {
-        method: 'POST',
-        body: { action: 'PLANT_REJECT', remarks },
-      });
-      Swal.fire({ icon: 'success', title: 'Order Rejected', text: `Order ${order.orderNo || order.id} has been rejected.`, customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' }, buttonsStyling: false });
-      fetchPlantData();
-    } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Reject Failed', text: err.message, customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' }, buttonsStyling: false });
-    }
-  };
+  }, [filter, customStart, customEnd]);
 
   useEffect(() => {
-    fetchPlantData();
-  }, [fetchPlantData]);
+    fetchDashboard();
+  }, [fetchDashboard]);
 
-  // ── Standardized Machines Performance Data ──
-  const machineData = useMemo(() => {
-    if (machineStatuses.length > 0) {
-      return machineStatuses.map((m, idx) => {
-        const st = m.status === 'USE' ? 'Running' : m.status === 'NOT_USE' ? 'Idle' : 'Breakdown';
-        const isRun = st === 'Running';
-        return {
-          id: m.machineId || `HM00${idx + 1}`,
-          name: m.machineName || `Hydraulic Machine ${idx + 1}`,
-          line: `Line ${String.fromCharCode(65 + (idx % 4))}`,
-          status: st,
-          runtime: isRun ? '7.8 hrs' : '0.0 hrs',
-          utilization: isRun ? 91 : 0,
-          oee: isRun ? 96 : 0,
-          output: isRun ? '2,450 Pcs' : '0 Pcs',
-          rejectionPct: isRun ? '2.1%' : '—',
-          downtime: isRun ? '0.7 hrs' : '8.0 hrs'
-        };
-      });
+  // Date Filter Switcher
+  const handleFilterClick = (preset) => {
+    if (preset === 'Custom') {
+      setShowCustomModal(true);
+    } else {
+      setFilter(preset);
     }
-    return [];
-  }, [machineStatuses]);
-
-  // ── Executive 10 KPI Calculations (100% Dynamic) ──
-  const kpis = useMemo(() => {
-    const plannedTotal = workOrders.reduce((sum, w) => sum + (Number(w.plannedQty) || 0), 0);
-    const actualTotal = workOrders.reduce((sum, w) => sum + (Number(w.actualQty) || 0), 0);
-    const dailyAchPct = plannedTotal ? Number(((actualTotal / plannedTotal) * 100).toFixed(1)) : 0;
-
-    const prodData = backendDashboard?.production || {};
-    const qcData = backendDashboard?.qc || {};
-
-    const runningWOs = workOrders.filter(w => ['In Progress', 'IN_PROGRESS', 'RUNNING'].includes(w.status)).length;
-    const completedWOs = workOrders.filter(w => ['Completed', 'COMPLETED', 'QC_PASSED', 'CLOSED'].includes(w.status)).length;
-    const delayedCount = workOrders.filter(w => ['Delayed', 'DELAYED', 'OVERDUE', 'QC_FAILED'].includes(w.status)).length;
-
-    const oeeVal = prodData.efficiency || (workOrders.length > 0 ? Number(((actualTotal / (plannedTotal || 1)) * 98).toFixed(1)) : 0);
-    const capacityUtilVal = workOrders.length > 0 ? Number((((runningWOs + completedWOs) / (workOrders.length || 1)) * 100).toFixed(1)) : 0;
-    const machineUtilVal = workOrders.length > 0 ? Number(((runningWOs / (workOrders.length || 1) * 100)).toFixed(1)) : 0;
-    const onTimeProdVal = qcData.passRate || (workOrders.length > 0 ? Math.max(0, Number((100 - (delayedCount / workOrders.length * 100)).toFixed(1))) : 100);
-
-    const invValNum = inventoryItems.reduce((s, item) => s + (Number(item.balance || item.currentStock || item.stock || 450) * Number(item.price || item.unitPrice || item.rate || 140)), 0);
-    const inventoryValue = invValNum > 0 ? `₹ ${(invValNum / 10000000).toFixed(2)} Cr` : (inventoryItems.length > 0 ? `₹ 1.28 Cr` : '₹ 0.00 Cr');
-
-    const rejectionRateVal = qcData.failed > 0 ? Number((100 - (qcData.passRate || 98.6)).toFixed(1)) : 0;
-
-    return {
-      todayProd: `${actualTotal.toLocaleString()} / ${plannedTotal.toLocaleString()} Pcs`,
-      dailyAchPct,
-      oeeVal,
-      capacityUtilVal,
-      machineUtilVal,
-      onTimeProdVal,
-      delayCount: `${delayedCount} Order${delayedCount !== 1 ? 's' : ''}`,
-      inventoryValue,
-      rejectionRateVal
-    };
-  }, [workOrders, backendDashboard, inventoryItems]);
-
-  // ── Dynamic Critical Management Alerts ──
-  const criticalIssues = useMemo(() => {
-    const alerts = [];
-    const breakdownMachines = machineData.filter(m => m.status === 'Breakdown');
-    breakdownMachines.forEach(m => {
-      alerts.push({ level: '🔴', text: `<strong>${m.id} (${m.name}) Down</strong> — Maintenance team action required (${m.downtime} downtime)` });
-    });
-    const delayedWOs = workOrders.filter(w => w.status === 'Delayed');
-    delayedWOs.forEach(w => {
-      alerts.push({ level: '🟠', text: `<strong>Work Order ${w.id} Delayed</strong> — Material / Machine bottleneck` });
-    });
-    if (kpis.dailyAchPct > 0 && kpis.dailyAchPct < 85.0) {
-      alerts.push({ level: '🟡', text: `<strong>Daily Plan Achievement at ${kpis.dailyAchPct}%</strong> — Below 85.0% plant target` });
-    }
-    return alerts;
-  }, [machineData, kpis, workOrders]);
-
-  // ── Category-wise Production Data ──
-  const categoryProductionData = useMemo(() => {
-    if (workOrders.length > 0) {
-      const catMap = {};
-      const colors = ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
-      workOrders.forEach((wo) => {
-        const cat = wo.category || 'Production Order';
-        if (!catMap[cat]) catMap[cat] = { category: cat, planned: 0, actual: 0 };
-        const plannedVal = Number(wo.plannedQty);
-        const actualVal = Number(wo.actualQty);
-        catMap[cat].planned += isNaN(plannedVal) ? 0 : plannedVal;
-        catMap[cat].actual += isNaN(actualVal) ? 0 : actualVal;
-      });
-      const result = Object.values(catMap).map((item, idx) => ({
-        ...item,
-        fill: colors[idx % colors.length]
-      }));
-      if (result.length > 0) return result;
-    }
-    if (backendProdAnalytics?.categories && Array.isArray(backendProdAnalytics.categories) && backendProdAnalytics.categories.length > 0) {
-      return backendProdAnalytics.categories.map((c, i) => {
-        const vol = Number(c.volume);
-        const volumeVal = isNaN(vol) ? 0 : vol;
-        return {
-          category: c.category,
-          planned: Math.round(volumeVal * 1.15),
-          actual: volumeVal,
-          fill: ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6'][i % 4]
-        };
-      });
-    }
-    return [
-      { category: 'Coated Abrasives', planned: 2500, actual: 2350, fill: '#0284c7' },
-      { category: 'Chemicals & Pigments', planned: 1800, actual: 1720, fill: '#10b981' },
-      { category: 'Hardware & Tools', planned: 3700, actual: 3200, fill: '#f59e0b' },
-      { category: 'Packaging Goods', planned: 1200, actual: 1150, fill: '#8b5cf6' },
-    ];
-  }, [workOrders, backendProdAnalytics]);
-
-  // ── Product-wise Production Donut Data ──
-  const productProductionData = useMemo(() => {
-    if (workOrders.length > 0) {
-      const prodMap = {};
-      const colors = ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#6366f1'];
-      workOrders.forEach((wo) => {
-        const prod = wo.product || 'Standard Product';
-        if (!prodMap[prod]) prodMap[prod] = 0;
-        const val = Number(wo.actualQty || wo.plannedQty || 10);
-        prodMap[prod] += isNaN(val) ? 10 : val;
-      });
-      const result = Object.entries(prodMap).map(([name, value], idx) => ({
-        name,
-        value,
-        color: colors[idx % colors.length]
-      }));
-      if (result.length > 0) return result;
-    }
-    return [
-      { name: 'Water Paper 60 Mesh', value: 1420, color: '#0284c7' },
-      { name: 'Benjo Wax Polish 500g', value: 850, color: '#10b981' },
-      { name: 'Flap Disc 4 Inch', value: 1800, color: '#f59e0b' },
-      { name: 'Cutting Wheel 14 Inch', value: 1200, color: '#8b5cf6' },
-      { name: 'Steel Coils 3mm', value: 950, color: '#ec4899' },
-    ];
-  }, [workOrders]);
-
-  // ── Export Report CSV Handler ──
-  const handleExportCSV = () => {
-    const headers = ['Work Order ID,Product,Category,Line,Machine,Planned Qty,Actual Qty,Unit,Status,Delay Hours,Operator,Yield %,Rejection %'];
-    const rows = workOrders.map(w => [
-      w.id, `"${w.product}"`, `"${w.category}"`, `"${w.line}"`, `"${w.machine}"`, w.plannedQty, w.actualQty, `"${w.unit}"`, `"${w.status}"`, w.delayHours, `"${w.operator}"`, w.yield, w.rejectionPct
-    ].join(','));
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Plant_Head_Executive_Report_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
+  const applyCustomFilter = (e) => {
+    e.preventDefault();
+    if (!customStart || !customEnd) return;
+    setFilter('Custom');
+    setShowCustomModal(false);
+  };
+
+  // Safe Extraction
+  const p = dashboardData?.period || {};
+  const k = dashboardData?.kpis || {};
+  const prod = dashboardData?.production || {};
+  const disp = dashboardData?.dispatch || {};
+  const ord = dashboardData?.orders || {};
+  const inv = dashboardData?.inventory || {};
+  const pur = dashboardData?.purchase || {};
+  const qc = dashboardData?.quality || {};
+  const maint = dashboardData?.maintenance || {};
+  const hr = dashboardData?.hr || {};
+  const costing = dashboardData?.costing || {};
+  const safety = dashboardData?.safety || {};
+  const insights = dashboardData?.insights || [];
+  const alerts = dashboardData?.alerts || [];
+
+  // Order fulfillment donut data
+  const fulfillmentDonutData = useMemo(() => {
+    const f = ord?.fulfillment;
+    if (!f || f.totalOrders === 0) return [];
+    return [
+      { name: 'Completed', value: f.completed?.count || 0, pcs: f.completed?.pcs || 0, percent: f.completed?.percent || 0, color: FULFILLMENT_COLORS.completed },
+      { name: 'In Production', value: f.inProduction?.count || 0, pcs: f.inProduction?.pcs || 0, percent: f.inProduction?.percent || 0, color: FULFILLMENT_COLORS.inProduction },
+      { name: 'Not Started', value: f.notStarted?.count || 0, pcs: f.notStarted?.pcs || 0, percent: f.notStarted?.percent || 0, color: FULFILLMENT_COLORS.notStarted },
+      { name: 'Delayed', value: f.delayed?.count || 0, pcs: f.delayed?.pcs || 0, percent: f.delayed?.percent || 0, color: FULFILLMENT_COLORS.delayed },
+    ].filter(item => item.value > 0);
+  }, [ord]);
+
+  // Render Skeleton Loader
+  if (loading && !dashboardData) {
+    return (
+      <div style={{ padding: '24px', background: PALETTE.slateLight, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        <div style={{ height: '70px', background: '#E2E8F0', borderRadius: '8px', marginBottom: '20px', animation: 'pulse 1.5s infinite' }} />
+        <div style={{ height: '44px', background: '#E2E8F0', borderRadius: '8px', marginBottom: '20px' }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+          {[...Array(8)].map((_, i) => (
+            <div key={i} style={{ height: '110px', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px' }}>
+              <div style={{ height: '16px', width: '60%', background: '#F1F5F9', borderRadius: '4px', marginBottom: '12px' }} />
+              <div style={{ height: '28px', width: '80%', background: '#E2E8F0', borderRadius: '4px' }} />
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+          {[...Array(4)].map((_, i) => (
+            <div key={i} style={{ height: '300px', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px' }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Render Error State with Retry
+  if (error && !dashboardData) {
+    return (
+      <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', background: PALETTE.slateLight }}>
+        <div style={{ maxWidth: '520px', width: '100%', background: '#FFFFFF', border: `1px solid ${PALETTE.crimson}`, borderRadius: '12px', padding: '32px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+          <AlertCircle size={48} color={PALETTE.crimson} style={{ margin: '0 auto 16px' }} />
+          <h2 style={{ fontSize: '20px', fontWeight: 700, color: PALETTE.slateDark, marginBottom: '8px' }}>Dashboard Data Unavailable</h2>
+          <p style={{ fontSize: '14px', color: PALETTE.slateMuted, lineHeight: 1.5, marginBottom: '24px' }}>{error}</p>
+          <button
+            onClick={() => fetchDashboard(false)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 24px', background: PALETTE.navy, color: '#FFFFFF', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}
+          >
+            <RefreshCw size={16} /> Retry Connection
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="plant-head-dashboard-root" style={{ padding: 'clamp(12px, 3vw, 24px)', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#1e293b', width: '100%', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
-
-      {/* ── Page Header ── */}
-      <div className="plant-head-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', padding: '10px', borderRadius: '12px', color: '#fff', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)', flexShrink: 0 }}>
-              <Factory size={24} />
+    <div style={{ minHeight: '100vh', background: '#F4F6F9', color: PALETTE.slateDark, fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
+      
+      {/* ── 1. HEADER (Command Center Header) ── */}
+      <header style={{
+        background: `linear-gradient(135deg, ${PALETTE.navyDark} 0%, ${PALETTE.navy} 100%)`,
+        color: '#FFFFFF',
+        padding: '16px 24px',
+        borderBottom: '2px solid rgba(255,255,255,0.1)',
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '16px'
+      }}>
+        {/* Left: Branding */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{
+            width: '42px',
+            height: '42px',
+            background: 'rgba(255,255,255,0.12)',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '1px solid rgba(255,255,255,0.2)'
+          }}>
+            <Factory size={24} color="#FFFFFF" />
+          </div>
+          <div>
+            <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#93C5FD', fontWeight: 700 }}>
+              Himalaya Composites Pvt. Ltd.
             </div>
-            <div>
-              <h1 className="plant-head-header-title" style={{ fontSize: 'clamp(18px, 4vw, 24px)', fontWeight: '900', color: '#0f172a', margin: 0, letterSpacing: '-0.02em', wordBreak: 'break-word' }}>
-                Plant Head | Executive Production &amp; Operational Dashboard
-              </h1>
-              <p className="plant-head-header-subtitle" style={{ fontSize: '13px', color: '#64748b', margin: '2px 0 0 0' }}>
-                Real-time plant capacity utilization, OEE metrics, production planning, machine performance, delay analysis &amp; material analytics
-              </p>
+            <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.01em', color: '#FFFFFF', lineHeight: 1.2 }}>
+              Plant Head Manufacturing Command Center
             </div>
           </div>
         </div>
 
-        {/* Date Filter & Action Buttons */}
-        <div className="plant-head-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          
-          {/* Date Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ffffff', border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}>
-            <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b' }}>Period:</span>
-            <select
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              style={{ border: 'none', background: 'transparent', fontSize: '13px', fontWeight: '800', color: '#0f172a', outline: 'none', cursor: 'pointer' }}
-            >
-              <option value="Today">Today</option>
-              <option value="This Week">This Week</option>
-              <option value="This Month">This Month</option>
-              <option value="Annually">Annually</option>
-              <option value="Custom">Custom Range</option>
-            </select>
-          </div>
-
-          {/* Custom Date Inputs */}
-          {dateFilter === 'Custom' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ffffff', border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}>
-              <input
-                type="date"
-                value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
-                style={{ border: 'none', outline: 'none', fontSize: '12px', color: '#334155', fontWeight: '600' }}
-              />
-              <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700' }}>to</span>
-              <input
-                type="date"
-                value={customEnd}
-                onChange={(e) => setCustomEnd(e.target.value)}
-                style={{ border: 'none', outline: 'none', fontSize: '12px', color: '#334155', fontWeight: '600' }}
-              />
-            </div>
-          )}
-
-          <button
-            onClick={fetchPlantData}
-            disabled={loading}
-            style={{ background: '#ffffff', color: '#0284c7', border: '1.5px solid #cbd5e1', padding: '9px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}
-          >
-            <RefreshCw size={15} className={loading ? 'spin' : ''} /> {loading ? 'Syncing...' : 'Live Sync'}
-          </button>
-          <button
-            onClick={handleExportCSV}
-            style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#ffffff', border: 'none', padding: '9px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)' }}
-          >
-            <Download size={16} /> Export Executive Report
-          </button>
-        </div>
-      </div>
-
-      {/* ── Executive 10 KPI Cards (Top Section with Explicit 4 / 2 / 2 / 1 Grid Hierarchy) ── */}
-      <div className="erp-kpi-grid" style={{ marginBottom: '20px' }}>
-
-        {/* 1. Daily Production Output */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #0284c7' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>🏭 Today's Production Output</div>
-          <div style={{ fontSize: '18px', fontWeight: '900', color: '#0284c7', margin: '4px 0' }}>{kpis.todayProd}</div>
-          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Daily Planned vs Actual Output</div>
-        </div>
-
-        {/* 2. Daily Plan Achievement % */}
+        {/* Center: Pillar Tagline */}
         <div style={{
-          background: '#ffffff',
-          borderRadius: '12px',
-          padding: '16px',
-          border: '1px solid #e2e8f0',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-          borderLeft: `4px solid ${kpis.dailyAchPct >= 95 ? '#10b981' : kpis.dailyAchPct >= 85 ? '#f59e0b' : '#ef4444'}`
+          fontSize: '11px',
+          fontWeight: 700,
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+          padding: '6px 14px',
+          background: 'rgba(255,255,255,0.08)',
+          borderRadius: '20px',
+          border: '1px solid rgba(255,255,255,0.12)',
+          color: '#E2E8F0',
+          display: 'flex',
+          gap: '8px',
+          alignItems: 'center'
         }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>📈 Daily Plan Achievement</div>
-          <div style={{ fontSize: '22px', fontWeight: '900', color: kpis.dailyAchPct >= 95 ? '#10b981' : kpis.dailyAchPct >= 85 ? '#d97706' : '#ef4444', margin: '4px 0' }}>
-            {kpis.dailyAchPct}%
+          <span>Manufacturing</span>
+          <span style={{ opacity: 0.4 }}>|</span>
+          <span>Quality</span>
+          <span style={{ opacity: 0.4 }}>|</span>
+          <span>People</span>
+          <span style={{ opacity: 0.4 }}>|</span>
+          <span>Profitability</span>
+        </div>
+
+        {/* Right: Dynamic Period Badge & Refresh */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{
+            background: 'rgba(0,0,0,0.25)',
+            border: '1px solid rgba(255,255,255,0.15)',
+            borderRadius: '6px',
+            padding: '6px 12px',
+            textAlign: 'right'
+          }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#F1F5F9', textTransform: 'uppercase' }}>
+              REPORTING PERIOD: {p.label || 'CURRENT PERIOD'}
+            </div>
+            <div style={{ fontSize: '10px', color: '#94A3B8' }}>
+              {lastUpdatedTime ? `Synced: ${lastUpdatedTime}` : 'Live PostgreSQL'}
+            </div>
           </div>
-          <div style={{ fontSize: '11px', color: kpis.dailyAchPct >= 90 ? '#10b981' : '#ef4444', fontWeight: '700' }}>
-            {kpis.dailyAchPct >= 90 ? '🟢 On Target (≥90%)' : '🔴 Below 90% Target'}
-          </div>
+
+          <button
+            onClick={() => fetchDashboard(true)}
+            disabled={refreshing}
+            title="Refresh Live Data"
+            style={{
+              background: 'rgba(255,255,255,0.15)',
+              border: '1px solid rgba(255,255,255,0.25)',
+              borderRadius: '6px',
+              color: '#FFFFFF',
+              padding: '8px 12px',
+              cursor: refreshing ? 'not-allowed' : 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '12px',
+              fontWeight: 600,
+              transition: 'background 0.2s'
+            }}
+          >
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
+        </div>
+      </header>
+
+      {/* ── 2. GLOBAL DATE FILTER BAR ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderBottom: '1px solid #E2E8F0',
+        padding: '10px 24px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.slateMuted, textTransform: 'uppercase', marginRight: '4px' }}>
+            Date Range:
+          </span>
+          {['Today', 'Yesterday', 'This Week', 'This Month', 'Last Month', 'Quarter', 'Year', 'Custom'].map((preset) => {
+            const isActive = filter === preset;
+            return (
+              <button
+                key={preset}
+                onClick={() => handleFilterClick(preset)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: isActive ? 700 : 500,
+                  border: isActive ? `1px solid ${PALETTE.navy}` : '1px solid #E2E8F0',
+                  background: isActive ? PALETTE.navy : '#FFFFFF',
+                  color: isActive ? '#FFFFFF' : PALETTE.slate,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
+                }}
+              >
+                {preset}
+              </button>
+            );
+          })}
         </div>
 
-        {/* 3. Monthly Target Allocation */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #10b981', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>🎯 Monthly Target Allocation</div>
-          {loadingTarget ? (
-            <div style={{ fontSize: '14px', color: '#64748b', margin: '8px 0' }}>Loading...</div>
-          ) : !productionTargetAchievement || !productionTargetAchievement.hasTarget ? (
-            <>
-              <div style={{ fontSize: '16px', fontWeight: '900', color: '#ea580c', margin: '4px 0' }}>No Active Target</div>
-              <div style={{ fontSize: '11px', color: '#94a3b8' }}>Assign target from Super Admin</div>
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize: '20px', fontWeight: '900', color: '#10b981', margin: '2px 0' }}>
-                {productionTargetAchievement.achievement}% Target Achieved
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11px', color: '#475569', borderTop: '1px dashed #e2e8f0', paddingTop: '4px', marginTop: '2px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Monthly Target:</span>
-                  <strong>{Number(productionTargetAchievement.target).toLocaleString()} Units</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>MTD Achieved:</span>
-                  <strong style={{ color: '#10b981' }}>{Number(productionTargetAchievement.achieved).toLocaleString()} Units</strong>
-                </div>
-              </div>
-            </>
-          )}
+        <div style={{ fontSize: '12px', color: PALETTE.slateMuted, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#10B981' }} />
+          <span>All production & dispatch metrics displayed in <strong>PCS</strong></span>
         </div>
-
-        {/* 4. OEE (Overall Efficiency) with 3 Components */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #8b5cf6' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>⚡ OEE Efficiency</span>
-            <span style={{ fontSize: '10.5px', background: '#f3e8ff', color: '#7c3aed', padding: '2px 6px', borderRadius: '4px', fontWeight: '800' }}>+3.1% ↑</span>
-          </div>
-          <div style={{ fontSize: '22px', fontWeight: '900', color: '#7c3aed', margin: '2px 0' }}>{kpis.oeeVal}%</div>
-          <div style={{ fontSize: '10.5px', color: '#64748b', borderTop: '1px dashed #e2e8f0', paddingTop: '4px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '2px', textAlign: 'center' }}>
-            <div><small style={{ display: 'block', color: '#94a3b8' }}>Avail</small><strong>97%</strong></div>
-            <div><small style={{ display: 'block', color: '#94a3b8' }}>Perf</small><strong>98%</strong></div>
-            <div><small style={{ display: 'block', color: '#94a3b8' }}>Qual</small><strong>99%</strong></div>
-          </div>
-        </div>
-
-        {/* 5. Capacity Utilization % */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #06b6d4' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>🔋 Capacity Utilization</div>
-          <div style={{ fontSize: '22px', fontWeight: '900', color: '#0891b2', margin: '4px 0' }}>{kpis.capacityUtilVal}%</div>
-          <div style={{ fontSize: '11px', color: '#0891b2', fontWeight: '700' }}>🟢 Capacity Available (1,200h)</div>
-        </div>
-
-        {/* 6. Machine Utilization % */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #f59e0b' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>⚙️ Machine Utilization</div>
-          <div style={{ fontSize: '22px', fontWeight: '900', color: '#b45309', margin: '4px 0' }}>{kpis.machineUtilVal}%</div>
-          <div style={{ fontSize: '11px', color: '#b45309', fontWeight: '700' }}>🟡 Runtime vs Idle/Down</div>
-        </div>
-
-        {/* 7. On-Time Production % */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #10b981' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>⏱️ On-Time Dispatch SLA</div>
-          <div style={{ fontSize: '22px', fontWeight: '900', color: '#059669', margin: '4px 0' }}>{kpis.onTimeProdVal}%</div>
-          <div style={{ fontSize: '11px', color: '#059669', fontWeight: '600' }}>Dispatch SLA Clearance</div>
-        </div>
-
-        {/* 8. Delay Count */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #ef4444' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>⚠️ Delay Count</div>
-          <div style={{ fontSize: '22px', fontWeight: '900', color: '#ef4444', margin: '4px 0' }}>{kpis.delayCount}</div>
-          <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: '700' }}>Work orders needing attention</div>
-        </div>
-
-        {/* 9. Inventory Valuation */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: '4px solid #0284c7' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>💰 Inventory Valuation</div>
-          <div style={{ fontSize: '22px', fontWeight: '900', color: '#0284c7', margin: '4px 0' }}>{kpis.inventoryValue}</div>
-          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>
-            {inventoryItems.length > 0 ? `${inventoryItems.length} Master Stock Items` : '211 Raw + WIP + FG Items'}
-          </div>
-        </div>
-
-        {/* 10. Rejection Rate */}
-        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', borderLeft: `4px solid ${kpis.rejectionRateVal <= 2 ? '#10b981' : '#ef4444'}` }}>
-          <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>❌ QC Rejection Rate</div>
-          <div style={{ fontSize: '22px', fontWeight: '900', color: kpis.rejectionRateVal <= 2 ? '#10b981' : '#dc2626', margin: '4px 0' }}>
-            {kpis.rejectionRateVal}%
-          </div>
-          <div style={{ fontSize: '11px', color: kpis.rejectionRateVal <= 2 ? '#10b981' : '#dc2626', fontWeight: '700' }}>
-            {kpis.rejectionRateVal <= 2 ? '🟢 Below 2% Target' : '🔴 Exceeds 2.0% SLA Target'}
-          </div>
-        </div>
-
       </div>
 
-      {/* ── 🚨 MANAGEMENT ACTION REQUIRED BANNER (DYNAMIC) ── */}
-      {criticalIssues.length > 0 && (
-        <div style={{ background: '#fff1f2', border: '1.5px solid #fecdd3', borderRadius: '14px', padding: '18px', marginBottom: '24px', boxShadow: '0 4px 14px rgba(225,29,72,0.08)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: '900', color: '#be123c', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <AlertTriangle size={18} color="#e11d48" /> 🚨 Management Action Required (Executive Alert Center)
-            </h3>
-            <span style={{ fontSize: '11px', background: '#ffe4e6', color: '#9f1239', padding: '3px 10px', borderRadius: '12px', fontWeight: '800' }}>
-              {criticalIssues.length} Critical Action{criticalIssues.length > 1 ? 's' : ''} Pending
-            </span>
+      {/* Main Dashboard Container */}
+      <main style={{ padding: '20px 24px', maxWidth: '1680px', margin: '0 auto' }}>
+
+        {/* ── 3. ROW 1: 8 LARGE KPI CARDS (PCS-First) ── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: '12px',
+          marginBottom: '20px'
+        }}>
+
+          {/* CARD 1: TOTAL PRODUCTION */}
+          <div
+            onClick={() => router.push('/plant-head/planning')}
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderTop: `4px solid ${PALETTE.navy}`,
+              borderRadius: '8px',
+              padding: '14px 16px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              cursor: 'pointer'
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 700, color: PALETTE.slateMuted, textTransform: 'uppercase', marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Total Production</span>
+              <Factory size={16} color={PALETTE.navy} />
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: PALETTE.slateDark, lineHeight: 1.2 }}>
+              {fmt(k.totalProduction?.pcs)} <span style={{ fontSize: '13px', fontWeight: 600, color: PALETTE.navy }}>PCS</span>
+            </div>
+            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ background: '#F1F5F9', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, color: PALETTE.slate }}>
+                TARGET NOT CONFIGURED
+              </span>
+            </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px' }}>
-            {criticalIssues.map((alert, idx) => (
-              <div key={idx} style={{ background: '#ffffff', border: '1px solid #fecdd3', borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '14px' }}>{alert.level}</span>
-                <div style={{ fontSize: '12px', color: '#1e293b' }} dangerouslySetInnerHTML={{ __html: alert.text }} />
-              </div>
-            ))}
+
+          {/* CARD 2: TOTAL DISPATCH */}
+          <div
+            onClick={() => router.push('/dispatch/orders')}
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderTop: `4px solid ${PALETTE.blue}`,
+              borderRadius: '8px',
+              padding: '14px 16px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              cursor: 'pointer'
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 700, color: PALETTE.slateMuted, textTransform: 'uppercase', marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Total Dispatch</span>
+              <Truck size={16} color={PALETTE.blue} />
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: PALETTE.slateDark, lineHeight: 1.2 }}>
+              {fmt(k.totalDispatch?.pcs)} <span style={{ fontSize: '13px', fontWeight: 600, color: PALETTE.blue }}>PCS</span>
+            </div>
+            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ background: '#F1F5F9', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, color: PALETTE.slate }}>
+                TARGET NOT CONFIGURED
+              </span>
+            </div>
           </div>
+
+          {/* CARD 3: PENDING ORDERS */}
+          <div
+            onClick={() => router.push('/plant-head/incoming-orders')}
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderTop: `4px solid ${PALETTE.orange}`,
+              borderRadius: '8px',
+              padding: '14px 16px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              cursor: 'pointer'
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 700, color: PALETTE.slateMuted, textTransform: 'uppercase', marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Pending Orders</span>
+              <Clock size={16} color={PALETTE.orange} />
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: PALETTE.slateDark, lineHeight: 1.2 }}>
+              {fmt(k.pendingOrders?.pcs)} <span style={{ fontSize: '13px', fontWeight: 600, color: PALETTE.orange }}>PCS</span>
+            </div>
+            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
+              <span style={{ fontWeight: 700, color: PALETTE.slateDark }}>{fmt(k.pendingOrders?.ordersCount)}</span> Active Orders
+            </div>
+          </div>
+
+          {/* CARD 4: RAW MATERIAL STOCK (Native Store Unit) */}
+          <div
+            onClick={() => router.push('/plant-head/raw-inventory')}
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderTop: `4px solid ${PALETTE.emerald}`,
+              borderRadius: '8px',
+              padding: '14px 16px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              cursor: 'pointer'
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 700, color: PALETTE.slateMuted, textTransform: 'uppercase', marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Raw Material Stock</span>
+              <Boxes size={16} color={PALETTE.emerald} />
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: PALETTE.slateDark, lineHeight: 1.2 }}>
+              {fmt(k.rawMaterialStock?.stock)} <span style={{ fontSize: '13px', fontWeight: 600, color: PALETTE.emerald }}>{k.rawMaterialStock?.unit || 'KG'}</span>
+            </div>
+            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
+              <span style={{ fontWeight: 700, color: PALETTE.slateDark }}>{k.rawMaterialStock?.itemsCount || 0}</span> Active Inventory Items
+            </div>
+          </div>
+
+          {/* CARD 5: QUALITY REJECTION */}
+          <div
+            onClick={() => router.push('/plant-head/qc-failures')}
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderTop: `4px solid ${k.qualityRejection?.rejectionPercent > 0 ? PALETTE.crimson : PALETTE.emerald}`,
+              borderRadius: '8px',
+              padding: '14px 16px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              cursor: 'pointer'
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 700, color: PALETTE.slateMuted, textTransform: 'uppercase', marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Quality Rejection</span>
+              <ShieldCheck size={16} color={k.qualityRejection?.rejectionPercent > 0 ? PALETTE.crimson : PALETTE.emerald} />
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: k.qualityRejection?.rejectionPercent > 0 ? PALETTE.crimson : PALETTE.emerald, lineHeight: 1.2 }}>
+              {Number(k.qualityRejection?.rejectionPercent || 0).toFixed(1)}%
+            </div>
+            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
+              Accepted: <span style={{ fontWeight: 700, color: PALETTE.emerald }}>{k.qualityRejection?.acceptedPercent || 100}%</span>
+            </div>
+          </div>
+
+          {/* CARD 6: MACHINE AVAILABILITY */}
+          <div
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderTop: `4px solid ${PALETTE.slateMuted}`,
+              borderRadius: '8px',
+              padding: '14px 16px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 700, color: PALETTE.slateMuted, textTransform: 'uppercase', marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Machine Availability</span>
+              <Settings size={16} color={PALETTE.slateMuted} />
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: PALETTE.slateMuted, lineHeight: 1.4 }}>
+              {k.machineAvailability?.statusText || 'NOT CONFIGURED'}
+            </div>
+            <div style={{ marginTop: '8px', fontSize: '11px', color: PALETTE.slateMuted }}>
+              <span style={{ fontWeight: 700, color: PALETTE.slateDark }}>{k.machineAvailability?.totalMachines || 6}</span> Configured Machines
+            </div>
+          </div>
+
+          {/* CARD 7: ON-TIME DELIVERY */}
+          <div
+            onClick={() => router.push('/plant-head/dispatch-analytics')}
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderTop: `4px solid ${PALETTE.emerald}`,
+              borderRadius: '8px',
+              padding: '14px 16px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              cursor: 'pointer'
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 700, color: PALETTE.slateMuted, textTransform: 'uppercase', marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
+              <span>On-Time Delivery</span>
+              <CheckCircle2 size={16} color={PALETTE.emerald} />
+            </div>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: PALETTE.slateDark, lineHeight: 1.2 }}>
+              {k.onTimeDelivery?.percent != null ? `${k.onTimeDelivery?.percent}%` : 'N/A'}
+            </div>
+            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
+              Delivered: <span style={{ fontWeight: 700, color: PALETTE.slateDark }}>{k.onTimeDelivery?.totalDelivered || 0}</span> shipments
+            </div>
+          </div>
+
+          {/* CARD 8: PRODUCTIVITY (PCS/Man/Day) */}
+          <div
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderTop: `4px solid ${PALETTE.violet}`,
+              borderRadius: '8px',
+              padding: '14px 16px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 700, color: PALETTE.slateMuted, textTransform: 'uppercase', marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Productivity</span>
+              <TrendingUp size={16} color={PALETTE.violet} />
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: PALETTE.slateMuted, lineHeight: 1.4 }}>
+              {k.productivity?.statusText || 'NOT CONFIGURED'}
+            </div>
+            <div style={{ marginTop: '8px', fontSize: '11px', color: PALETTE.slateMuted }}>
+              Target: PCS / Man / Day
+            </div>
+          </div>
+
         </div>
-      )}
 
-      {/* ── 10 Dashboard Tabs Bar (Horizontally swipeable on mobile) ── */}
-      <div className="plant-head-tabs erp-tab-scroll-bar" style={{ background: '#ffffff', borderRadius: '14px', padding: '12px', marginBottom: '24px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', flexWrap: 'nowrap', gap: '8px', overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-        {[
-          { id: 'executive_overview', label: '📊 Executive Overview' },
-          { id: 'planning_calendar', label: '📅 Production Planning' },
-          { id: 'capacity_planning', label: '🔋 Capacity Planning' },
-          { id: 'approval_rate', label: '⚡ Approval Rate' },
-          { id: 'machine_performance', label: '⚙️ Machine Performance' },
-          { id: 'delay_analysis', label: '⏳ Delay & Bottleneck' },
-          { id: 'material_analytics', label: '📦 Material Analytics' },
-          { id: 'production_analytics', label: '📈 Production Analytics' },
-          { id: 'approvals_history', label: '📋 Approval History' },
-          { id: 'reports_trends', label: '📑 Reports & Trends' },
-        ].map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                flexShrink: 0,
-                background: isActive ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#f8fafc',
-                color: isActive ? '#ffffff' : '#475569',
-                border: isActive ? 'none' : '1px solid #cbd5e1',
-                padding: '10px 16px',
-                borderRadius: '10px',
-                fontSize: '12.5px',
-                fontWeight: '800',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                boxShadow: isActive ? '0 4px 10px rgba(2, 132, 199, 0.25)' : 'none',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+        {/* ── 4. ROW 2: ANALYTICS ROW (4 WIDGETS) ── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+          gap: '16px',
+          marginBottom: '20px'
+        }}>
 
-      {/* ── TAB 1: EXECUTIVE OVERVIEW ── */}
-      {activeTab === 'executive_overview' && (
-        <div>
-          {/* Charts Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 460px), 1fr))', gap: '20px', marginBottom: '24px' }}>
+          {/* WIDGET 1: PRODUCTION VS TARGET (DAILY) (PCS) */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div>
+                <h3 style={{ fontSize: '13px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase', margin: 0 }}>
+                  Production vs Target (Daily)
+                </h3>
+                <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Actual Output (PCS) across period</span>
+              </div>
+              <span style={{ fontSize: '10px', background: '#F1F5F9', color: PALETTE.slateMuted, padding: '3px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                TARGET NOT CONFIGURED
+              </span>
+            </div>
+            <div style={{ width: '100%', height: '220px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={prod.dailyVsTarget || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                  <YAxis tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                  <Tooltip formatter={(value) => [`${fmt(value)} PCS`, 'Actual Production']} />
+                  <Bar dataKey="actualPcs" name="Actual (PCS)" fill={PALETTE.navy} radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
 
-            {/* Category-wise Production Chart */}
-            <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0, overflow: 'hidden' }}>
-              <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <BarChart3 size={18} color="#0284c7" /> Category-Wise Production (Planned vs Actual)
-              </h3>
-              <div style={{ width: '100%', height: '250px', minHeight: '250px' }}>
-                {mounted && (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={categoryProductionData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="category" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
-                      <Tooltip />
-                      <Legend wrapperStyle={{ fontSize: '12px' }} />
-                      <Bar dataKey="planned" fill="#cbd5e1" name="Planned Output (Pcs)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
-                      <Bar dataKey="actual" fill="#0284c7" name="Actual Achieved (Pcs)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
+          {/* WIDGET 2: DISPATCH VS TARGET (DAILY) (PCS) */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div>
+                <h3 style={{ fontSize: '13px', fontWeight: 700, color: PALETTE.blue, textTransform: 'uppercase', margin: 0 }}>
+                  Dispatch vs Target (Daily)
+                </h3>
+                <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Outbound Deliveries (PCS)</span>
+              </div>
+              <span style={{ fontSize: '10px', background: '#F1F5F9', color: PALETTE.slateMuted, padding: '3px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                TARGET NOT CONFIGURED
+              </span>
+            </div>
+            <div style={{ width: '100%', height: '220px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={disp.dailyVsTarget || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                  <YAxis tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                  <Tooltip formatter={(value) => [`${fmt(value)} PCS`, 'Actual Dispatch']} />
+                  <Bar dataKey="actualPcs" name="Actual (PCS)" fill={PALETTE.blue} radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* WIDGET 3: MONTHLY TREND (PCS) */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div>
+                <h3 style={{ fontSize: '13px', fontWeight: 700, color: PALETTE.slateDark, textTransform: 'uppercase', margin: 0 }}>
+                  Monthly Trend ({p.targetYear || 2026})
+                </h3>
+                <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Production (PCS) vs Dispatch (PCS)</span>
+              </div>
+            </div>
+            <div style={{ width: '100%', height: '220px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={dashboardData?.monthlyTrend || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                  <YAxis tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                  <Tooltip formatter={(val, name) => [`${fmt(val)} PCS`, name]} />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
+                  <Line type="monotone" dataKey="productionPcs" name="Production (PCS)" stroke={PALETTE.navy} strokeWidth={2.5} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="dispatchPcs" name="Dispatch (PCS)" stroke={PALETTE.emerald} strokeWidth={2.5} dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* WIDGET 4: ORDER FULFILLMENT STATUS (Donut) */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <div>
+                <h3 style={{ fontSize: '13px', fontWeight: 700, color: PALETTE.slateDark, textTransform: 'uppercase', margin: 0 }}>
+                  Order Fulfillment Status
+                </h3>
+                <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Distribution of {ord?.fulfillment?.totalOrders || 0} Total Orders</span>
               </div>
             </div>
 
-            {/* Product-wise Production Donut Chart */}
-            <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', minWidth: 0 }}>
-              <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Package size={18} color="#10b981" /> Product-Wise Production Output Distribution
-              </h3>
-              <div style={{ width: '100%', height: '250px', minHeight: '250px' }}>
-                {mounted && (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
-                      <Pie data={productProductionData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} label={({ name, value }) => `${name}: ${value}`} isAnimationActive={false}>
-                        {productProductionData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
+            <div style={{ display: 'flex', alignItems: 'center', height: '220px', gap: '8px' }}>
+              <div style={{ width: '50%', height: '100%', position: 'relative' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={fulfillmentDonutData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={75}
+                      paddingAngle={2}
+                    >
+                      {fulfillmentDonutData.map((entry, idx) => (
+                        <Cell key={`cell-${idx}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(val, name, entry) => [`${val} orders (${entry.payload.percent}%)`, name]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  textAlign: 'center',
+                  pointerEvents: 'none'
+                }}>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: PALETTE.slateDark }}>
+                    {ord?.fulfillment?.totalOrders || 0}
+                  </div>
+                  <div style={{ fontSize: '9px', fontWeight: 600, color: PALETTE.slateMuted, textTransform: 'uppercase' }}>
+                    Orders
+                  </div>
+                </div>
+              </div>
+
+              {/* Legend with exact count and PCS */}
+              <div style={{ width: '50%', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px' }}>
+                {[
+                  { label: 'Completed', stats: ord?.fulfillment?.completed, color: FULFILLMENT_COLORS.completed },
+                  { label: 'In Production', stats: ord?.fulfillment?.inProduction, color: FULFILLMENT_COLORS.inProduction },
+                  { label: 'Not Started', stats: ord?.fulfillment?.notStarted, color: FULFILLMENT_COLORS.notStarted },
+                  { label: 'Delayed', stats: ord?.fulfillment?.delayed, color: FULFILLMENT_COLORS.delayed },
+                ].map((item) => (
+                  <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: item.color }} />
+                      <span style={{ color: PALETTE.slate }}>{item.label}</span>
+                    </div>
+                    <span style={{ fontWeight: 700, color: PALETTE.slateDark }}>
+                      {item.stats?.percent || 0}% ({item.stats?.count || 0})
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
-
           </div>
 
-          {/* Plant Work Orders Overview Table */}
-          <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: '0 0 14px 0' }}>
-              Live Production Work Orders &amp; Operator Assignments
-            </h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+        </div>
+
+        {/* ── 5. ROW 3: PRODUCTION & DISPATCH ANALYSIS (Tables & Trend in PCS) ── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '16px',
+          marginBottom: '20px'
+        }}>
+
+          {/* TABLE 1: PRODUCT-WISE PRODUCTION (PCS) */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: PALETTE.navy, color: '#FFFFFF', padding: '10px 14px', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Product-Wise Production (PCS)</span>
+              <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+                {prod.productWise?.length || 0} Products
+              </span>
+            </div>
+            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
                 <thead>
-                  <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase' }}>
-                    <th style={{ padding: '10px 12px' }}>WO ID</th>
-                    <th style={{ padding: '10px 12px' }}>Product Name</th>
-                    <th style={{ padding: '10px 12px' }}>Category</th>
-                    <th style={{ padding: '10px 12px' }}>Line &amp; Machine</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right' }}>Planned</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right' }}>Actual Output</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>Yield %</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>Rejection %</th>
-                    <th style={{ padding: '10px 12px' }}>Operator</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>Status</th>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: PALETTE.slateMuted, fontSize: '11px', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '8px 12px' }}>Product</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>PCS</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>% Share</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {workOrders.filter(wo => ['In Progress', 'Delayed'].includes(wo.status)).map((wo, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '10px 12px', fontWeight: '800', fontFamily: 'monospace', color: '#0284c7' }}>{wo.id}</td>
-                      <td style={{ padding: '10px 12px', fontWeight: '700', color: '#0f172a' }}>{wo.product}</td>
-                      <td style={{ padding: '10px 12px', color: '#64748b' }}>{wo.category}</td>
-                      <td style={{ padding: '10px 12px', fontWeight: '600', color: '#334155' }}>{wo.line} - {wo.machine}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b' }}>{wo.plannedQty.toLocaleString()} {wo.unit}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#10b981' }}>{wo.actualQty.toLocaleString()} {wo.unit}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '700', color: '#0284c7' }}>{wo.yield}%</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '700', color: '#dc2626' }}>{wo.rejectionPct}%</td>
-                      <td style={{ padding: '10px 12px', color: '#475569' }}>{wo.operator}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                        <span style={{
-                          background: wo.status === 'Completed' ? '#dcfce7' : wo.status === 'Delayed' ? '#fee2e2' : '#e0f2fe',
-                          color: wo.status === 'Completed' ? '#15803d' : wo.status === 'Delayed' ? '#b91c1c' : '#0369a1',
-                          padding: '3px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '800'
-                        }}>
-                          {wo.status}
-                        </span>
-                      </td>
+                  {(prod.productWise || []).slice(0, 7).map((item, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '8px 12px', fontWeight: 500, color: PALETTE.slateDark }}>{item.product}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>{fmt(item.pcs)}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.slateMuted }}>{item.sharePercent}%</td>
                     </tr>
                   ))}
+                  {(!prod.productWise || prod.productWise.length === 0) && (
+                    <tr>
+                      <td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: PALETTE.slateMuted }}>
+                        No production records for selected period
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
+                <tfoot>
+                  <tr style={{ background: PALETTE.blueLight, fontWeight: 800, borderTop: '2px solid #CBD5E1' }}>
+                    <td style={{ padding: '8px 12px', color: PALETTE.navy }}>Total</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>{fmt(prod.totalPcs)}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>100%</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* ── TAB 2: PRODUCTION PLANNING CALENDAR ── */}
-      {activeTab === 'planning_calendar' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Machine Allocation Cards */}
-          <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Calendar size={18} color="#0284c7" /> 1. Production Planning Calendar &amp; Machine Allocation
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-              {workOrders.map((wo, i) => (
-                <div key={i} style={{ border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '16px', background: '#f8fafc' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: '900', color: '#0284c7', fontFamily: 'monospace' }}>{wo.id}</span>
-                    <span style={{ fontSize: '11px', fontWeight: '800', background: wo.status === 'Delayed' ? '#fee2e2' : wo.status === 'Completed' ? '#dcfce7' : wo.status === 'Planned' ? '#f1f5f9' : '#e0f2fe', color: wo.status === 'Delayed' ? '#b91c1c' : wo.status === 'Completed' ? '#15803d' : wo.status === 'Planned' ? '#475569' : '#0369a1', padding: '2px 8px', borderRadius: '4px' }}>{wo.status}</span>
-                  </div>
-                  <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', marginBottom: '6px' }}>{wo.product}</div>
-                  <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Allocation: <strong>{wo.machine}</strong> ({wo.line})</div>
-                  <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Operator: <strong>{wo.operator}</strong></div>
-                  <div style={{ fontSize: '12px', color: '#059669', fontWeight: '700', marginTop: '8px' }}>Output: {wo.actualQty} / {wo.plannedQty} {wo.unit}</div>
-                </div>
-              ))}
+          {/* TABLE 2: SIZE-WISE PRODUCTION (PCS) */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: PALETTE.navy, color: '#FFFFFF', padding: '10px 14px', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Size-Wise Production (PCS)</span>
+              <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+                {prod.sizeWise?.length || 0} Sizes
+              </span>
             </div>
-          </div>
-
-          {/* Incoming Orders Queue */}
-          <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <FileText size={18} color="#f59e0b" /> Incoming Production Demand Queue
-            </h3>
-            <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 16px 0' }}>
-              Accept or reject incoming order releases waiting to be scheduled on the plant floor.
-            </p>
-
-            {incomingOrders.length === 0 ? (
-              <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '13px', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
-                No pending incoming orders at this time.
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase' }}>
-                      <th style={{ padding: '10px 12px' }}>Order No</th>
-                      <th style={{ padding: '10px 12px' }}>Customer</th>
-                      <th style={{ padding: '10px 12px' }}>Product Items</th>
-                      <th style={{ padding: '10px 12px' }}>Status</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>Actions</th>
+            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: PALETTE.slateMuted, fontSize: '11px', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '8px 12px' }}>Size</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>PCS</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>% Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(prod.sizeWise || []).slice(0, 7).map((item, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '8px 12px', fontWeight: 500, color: PALETTE.slateDark }}>{item.size}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>{fmt(item.pcs)}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.slateMuted }}>{item.sharePercent}%</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {incomingOrders.map((ord, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '10px 12px', fontWeight: '800', fontFamily: 'monospace', color: '#0284c7' }}>{ord.orderNo || ord.id}</td>
-                        <td style={{ padding: '10px 12px', fontWeight: '700', color: '#0f172a' }}>{ord.customerName || ord.customer?.name || '—'}</td>
-                        <td style={{ padding: '10px 12px', color: '#475569' }}>{ord.products || (ord.items && ord.items.map(i => `${i.product?.name || i.productName} (${i.orderedQuantity})`).join(', ')) || '—'}</td>
-                        <td style={{ padding: '10px 12px' }}>
-                          <span style={{ background: '#fef3c7', color: '#d97706', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '800' }}>
-                            Pending
-                          </span>
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                            <button
-                              onClick={() => handleAcceptOrder(ord)}
-                              style={{ padding: '6px 12px', background: '#10b981', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}
-                            >
-                              Accept
-                            </button>
-                            <button
-                              onClick={() => handleRejectOrder(ord)}
-                              style={{ padding: '6px 12px', background: '#ef4444', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                  ))}
+                  {(!prod.sizeWise || prod.sizeWise.length === 0) && (
+                    <tr>
+                      <td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: PALETTE.slateMuted }}>
+                        No size data for selected period
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: PALETTE.blueLight, fontWeight: 800, borderTop: '2px solid #CBD5E1' }}>
+                    <td style={{ padding: '8px 12px', color: PALETTE.navy }}>Total</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>{fmt(prod.totalPcs)}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>100%</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
+
+          {/* TABLE 3: LOAD CAPACITY-WISE (PCS) */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: PALETTE.navy, color: '#FFFFFF', padding: '10px 14px', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Load Capacity-Wise (PCS)</span>
+              <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+                {prod.capacityWise?.length || 0} Ratings
+              </span>
+            </div>
+            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: PALETTE.slateMuted, fontSize: '11px', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '8px 12px' }}>Capacity</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>PCS</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>% Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(prod.capacityWise || []).map((item, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '8px 12px', fontWeight: 600, color: PALETTE.slateDark }}>{item.capacity}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>{fmt(item.pcs)}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.slateMuted }}>{item.sharePercent}%</td>
+                    </tr>
+                  ))}
+                  {(!prod.capacityWise || prod.capacityWise.length === 0) && (
+                    <tr>
+                      <td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: PALETTE.slateMuted }}>
+                        No capacity data for selected period
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: PALETTE.blueLight, fontWeight: 800, borderTop: '2px solid #CBD5E1' }}>
+                    <td style={{ padding: '8px 12px', color: PALETTE.navy }}>Total</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>{fmt(prod.totalPcs)}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>100%</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* CHART 5: DISPATCH TREND (PCS) */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <div>
+                <h3 style={{ fontSize: '13px', fontWeight: 700, color: PALETTE.blue, textTransform: 'uppercase', margin: 0 }}>
+                  Dispatch Trend (PCS)
+                </h3>
+                <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Daily Dispatched Volume</span>
+              </div>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: PALETTE.blue }}>
+                {fmt(disp.totalPcs)} Total PCS
+              </span>
+            </div>
+            <div style={{ width: '100%', height: '200px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={disp.trend || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                  <YAxis tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                  <Tooltip formatter={(val) => [`${fmt(val)} PCS`, 'Dispatched Volume']} />
+                  <Line type="monotone" dataKey="pcs" stroke={PALETTE.blue} strokeWidth={2.5} dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* TABLE 4: TOP 5 CUSTOMERS (BY PCS) */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: PALETTE.navy, color: '#FFFFFF', padding: '10px 14px', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Top 5 Customers (By PCS)</span>
+              <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+                Dispatched
+              </span>
+            </div>
+            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: PALETTE.slateMuted, fontSize: '11px', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '8px 12px', width: '28px' }}>#</th>
+                    <th style={{ padding: '8px 12px' }}>Customer</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>PCS</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>% Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(disp.topCustomers || []).map((c) => (
+                    <tr key={c.rank} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '8px 12px', color: PALETTE.slateMuted, fontWeight: 700 }}>{c.rank}</td>
+                      <td style={{ padding: '8px 12px', fontWeight: 500, color: PALETTE.slateDark }}>{c.customer}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>{fmt(c.pcs)}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.slateMuted }}>{c.sharePercent}%</td>
+                    </tr>
+                  ))}
+                  {(!disp.topCustomers || disp.topCustomers.length === 0) && (
+                    <tr>
+                      <td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: PALETTE.slateMuted }}>
+                        No dispatch records for selected period
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: PALETTE.blueLight, fontWeight: 800, borderTop: '2px solid #CBD5E1' }}>
+                    <td colSpan={2} style={{ padding: '8px 12px', color: PALETTE.navy }}>Top 5 Total</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>{fmt(disp.top5TotalPcs)}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>
+                      {disp.totalPcs > 0 ? `${Number(((disp.top5TotalPcs / disp.totalPcs) * 100).toFixed(1))}%` : '0%'}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
         </div>
-      )}
 
-      {/* ── TAB 3: CAPACITY PLANNING ── */}
-      {activeTab === 'capacity_planning' && (
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BatteryCharging size={18} color="#0891b2" /> 2. Capacity Planning &amp; Bottleneck Machines
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
-            <div style={{ background: '#f0f9ff', padding: '16px', borderRadius: '12px', border: '1px solid #bae6fd' }}>
-              <div style={{ fontSize: '12px', fontWeight: '700', color: '#0369a1' }}>Available Capacity (Hours)</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#0284c7' }}>480.0 Hrs</div>
-            </div>
-            <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
-              <div style={{ fontSize: '12px', fontWeight: '700', color: '#15803d' }}>Utilized Capacity</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#16a34a' }}>423.4 Hrs (88.2%)</div>
-            </div>
-            <div style={{ background: '#fefce8', padding: '16px', borderRadius: '12px', border: '1px solid #fef08a' }}>
-              <div style={{ fontSize: '12px', fontWeight: '700', color: '#a16207' }}>Remaining Capacity</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#ca8a04' }}>56.6 Hrs</div>
-            </div>
-            <div style={{ background: '#fef2f2', padding: '16px', borderRadius: '12px', border: '1px solid #fecaca' }}>
-              <div style={{ fontSize: '12px', fontWeight: '700', color: '#991b1b' }}>Bottleneck Machine</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#dc2626' }}>MC-07 Press (96%)</div>
-            </div>
-          </div>
-        </div>
-      )}
+        {/* ── 6. ROW 4: OPERATIONAL SUMMARY (5 COMPACT CARDS) ── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gap: '14px',
+          marginBottom: '20px'
+        }}>
 
-      {/* ── TAB 4: APPROVAL RATE ── */}
-      {activeTab === 'approval_rate' && (() => {
-        const approvalStats = backendDashboard?.approvalStats || { totalOrders: 0, acceptedOrders: 0, approvalRate: 0 };
-        return (
-          <div style={{ background: '#ffffff', borderRadius: '14px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ShieldCheck size={18} color="#0284c7" /> Plant Order Approval Rate Analysis
-            </h3>
-            <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 20px 0' }}>
-              Real-time tracker measuring the percentage of sales orders approved and scheduled for production by the Plant Head.
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-              {/* Main Gauge Card */}
-              <div style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', justifyContent: 'center' }}>
-                <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#475569' }}>Overall Approval Rate</span>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                  <span style={{ fontSize: '36px', fontWeight: '900', color: '#0284c7' }}>{approvalStats.approvalRate}%</span>
-                  <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>Target: 85.0%</span>
-                </div>
-
-                {/* Progress Bar */}
-                <div style={{ width: '100%', height: '8px', background: '#cbd5e1', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: `${approvalStats.approvalRate}%`, height: '100%', background: '#0284c7', borderRadius: '4px', transition: 'width 0.5s ease-out' }} />
-                </div>
+          {/* CARD 1: STORE & INVENTORY */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase' }}>Store & Inventory</span>
+              <Boxes size={16} color={PALETTE.emerald} />
+            </div>
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Total Catalog Items</span>
+                <span style={{ fontWeight: 700 }}>{inv.totalItems || 0}</span>
               </div>
-
-              {/* Status Breakdowns */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                  <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', marginBottom: '4px' }}>Accepted Orders</span>
-                  <span style={{ fontSize: '24px', fontWeight: '900', color: '#10b981' }}>{approvalStats.acceptedOrders}</span>
-                  <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Clearance approved</span>
-                </div>
-                <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                  <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', marginBottom: '4px' }}>Total Orders</span>
-                  <span style={{ fontSize: '24px', fontWeight: '900', color: '#475569' }}>{approvalStats.totalOrders}</span>
-                  <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Total pipeline volume</span>
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Total Raw Stock</span>
+                <span style={{ fontWeight: 700 }}>{fmt(inv.totalStock)} {inv.unit || 'KG'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Received (GRN)</span>
+                <span style={{ fontWeight: 700, color: PALETTE.emerald }}>{fmt(inv.receivedThisMonth)} {inv.unit || 'KG'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Issued to Production</span>
+                <span style={{ fontWeight: 700, color: PALETTE.blue }}>{fmt(inv.issuedThisMonth)} {inv.unit || 'KG'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Low Stock Items</span>
+                <span style={{ fontWeight: 700, color: inv.lowStockItems > 0 ? PALETTE.orange : PALETTE.slateDark }}>{inv.lowStockItems || 0}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Out of Stock Items</span>
+                <span style={{ fontWeight: 700, color: inv.outOfStockItems > 0 ? PALETTE.crimson : PALETTE.slateDark }}>{inv.outOfStockItems || 0}</span>
               </div>
             </div>
-
-            {/* Explanation box */}
-            <div style={{ marginTop: '20px', padding: '14px 16px', background: 'rgba(2,132,199,0.04)', borderLeft: '4px solid #0284c7', borderRadius: '0 8px 8px 0', fontSize: '12px', color: '#0369a1', lineHeight: '1.5' }}>
-              <strong>Formula:</strong> (Accepted Orders / Total Orders) × 100. Toggling an order to approved adds it to plant scheduling lists and dynamically advances this acceptance KPI.
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ── TAB 5: MACHINE PERFORMANCE ── */}
-      {activeTab === 'machine_performance' && (
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', flexWrap: 'wrap', gap: '12px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Cpu size={18} color="#7c3aed" /> Machine Performance status
-            </h3>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <label style={{ fontSize: '13px', fontWeight: '700', color: '#475569' }}>Select Date:</label>
-              <input
-                type="date"
-                value={machinePerformanceDate}
-                onChange={(e) => setMachinePerformanceDate(e.target.value)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #e2e8f0',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  outline: 'none'
-                }}
-              />
+            <div style={{ borderTop: '1px solid #F1F5F9', padding: '8px 14px', background: '#FAFAFA' }}>
               <button
-                type="button"
-                onClick={() => fetchMachineStatuses(machinePerformanceDate)}
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '8px',
-                  border: '1px solid #e2e8f0',
-                  background: '#ffffff',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'background 0.2s'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}
-                title="Refresh Statuses"
+                onClick={() => router.push('/plant-head/raw-inventory')}
+                style={{ fontSize: '11px', fontWeight: 600, color: PALETTE.blue, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: 0 }}
               >
-                <RefreshCw size={14} color="#475569" className={loadingMachineStatuses ? "animate-spin" : ""} />
+                <span>View Store Inventory</span>
+                <ArrowRight size={12} />
               </button>
             </div>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase' }}>
-                  <th style={{ padding: '12px' }}>Machine ID</th>
-                  <th style={{ padding: '12px' }}>Machine Name</th>
-                  <th style={{ padding: '12px', textAlign: 'center' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {machineData.map((m) => {
-                  const statusStyle = m.status === 'Running'
-                    ? { bg: '#dcfce7', color: '#15803d', icon: '🟢', label: 'Running' }
-                    : m.status === 'Idle'
-                    ? { bg: '#fef3c7', color: '#b45309', icon: '🟡', label: 'Idle' }
-                    : m.status === 'Breakdown'
-                    ? { bg: '#fee2e2', color: '#b91c1c', icon: '🔴', label: 'Breakdown' }
-                    : m.status === 'Planned Maintenance'
-                    ? { bg: '#dbeafe', color: '#1d4ed8', icon: '🔵', label: 'Planned Maint' }
-                    : { bg: '#f1f5f9', color: '#64748b', icon: '⚪', label: 'Not Scheduled' };
+          {/* CARD 2: PURCHASE */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase' }}>Purchase</span>
+              <Package size={16} color={PALETTE.blue} />
+            </div>
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Total Purchase Orders</span>
+                <span style={{ fontWeight: 700 }}>{pur.totalPOs || 0}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Open POs</span>
+                <span style={{ fontWeight: 700, color: PALETTE.blue }}>{pur.openPOs || 0}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Received (GRNs)</span>
+                <span style={{ fontWeight: 700, color: PALETTE.emerald }}>{pur.receivedThisMonth || 0}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Pending Delivery</span>
+                <span style={{ fontWeight: 700 }}>{pur.pendingDelivery || 0}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Overdue POs</span>
+                <span style={{ fontWeight: 700, color: pur.overduePOs > 0 ? PALETTE.crimson : PALETTE.slateDark }}>{pur.overduePOs || 0}</span>
+              </div>
+            </div>
+            <div style={{ borderTop: '1px solid #F1F5F9', padding: '8px 14px', background: '#FAFAFA' }}>
+              <button
+                onClick={() => router.push('/procurement/purchase-orders')}
+                style={{ fontSize: '11px', fontWeight: 600, color: PALETTE.blue, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: 0 }}
+              >
+                <span>View Purchase Orders</span>
+                <ArrowRight size={12} />
+              </button>
+            </div>
+          </div>
 
-                  return (
-                    <tr key={m.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '12px', fontWeight: '800', fontFamily: 'monospace', color: '#7c3aed' }}>{m.id}</td>
-                      <td style={{ padding: '12px', fontWeight: '700', color: '#0f172a' }}>{m.name}</td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <span style={{ background: statusStyle.bg, color: statusStyle.color, padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <span>{statusStyle.icon}</span> {statusStyle.label}
-                        </span>
+          {/* CARD 3: QUALITY CONTROL */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase' }}>Quality Control</span>
+              <ShieldCheck size={16} color={PALETTE.emerald} />
+            </div>
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Total Inspected</span>
+                <span style={{ fontWeight: 700 }}>{fmt(qc.totalInspected)} Units</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Accepted</span>
+                <span style={{ fontWeight: 700, color: PALETTE.emerald }}>{fmt(qc.accepted)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Rejected</span>
+                <span style={{ fontWeight: 700, color: qc.rejected > 0 ? PALETTE.crimson : PALETTE.slateDark }}>{fmt(qc.rejected)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Rejection Rate</span>
+                <span style={{ fontWeight: 700, color: qc.rejectionPercent > 0 ? PALETTE.crimson : PALETTE.emerald }}>{qc.rejectionPercent}%</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Rework Orders</span>
+                <span style={{ fontWeight: 700 }}>{qc.rework || 0}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>First Pass Yield (FPY)</span>
+                <span style={{ fontWeight: 700, color: PALETTE.emerald }}>{qc.firstPassYield}%</span>
+              </div>
+            </div>
+            <div style={{ borderTop: '1px solid #F1F5F9', padding: '8px 14px', background: '#FAFAFA' }}>
+              <button
+                onClick={() => router.push('/plant-head/qc-failures')}
+                style={{ fontSize: '11px', fontWeight: 600, color: PALETTE.blue, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: 0 }}
+              >
+                <span>View QC Reports</span>
+                <ArrowRight size={12} />
+              </button>
+            </div>
+          </div>
+
+          {/* CARD 4: MAINTENANCE */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase' }}>Maintenance</span>
+              <Wrench size={16} color={PALETTE.slateMuted} />
+            </div>
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Total Machines</span>
+                <span style={{ fontWeight: 700 }}>{maint.totalMachines || 6} Configured</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Running Fleet</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT CONFIGURED</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Breakdowns</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>0</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Availability</span>
+                <span style={{ fontWeight: 700, color: PALETTE.slateMuted }}>NOT CONFIGURED</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Total Downtime</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>{maint.totalDowntime || '0 hrs'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>MTTR (Avg.)</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>{maint.mttr || 'N/A'}</span>
+              </div>
+            </div>
+            <div style={{ borderTop: '1px solid #F1F5F9', padding: '8px 14px', background: '#FAFAFA' }}>
+              <span style={{ fontSize: '10px', color: PALETTE.slateMuted }}>Daily status logging not initialized</span>
+            </div>
+          </div>
+
+          {/* CARD 5: HR & LABOUR */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase' }}>HR & Labour</span>
+              <Users size={16} color={PALETTE.violet} />
+            </div>
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Active Employees</span>
+                <span style={{ fontWeight: 700 }}>{hr.totalEmployees || 45}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Present Today</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT RECORDED</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Absent Today</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT RECORDED</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Attendance %</span>
+                <span style={{ fontWeight: 700, color: PALETTE.slateMuted }}>NOT RECORDED</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Shifts Running</span>
+                <span style={{ fontWeight: 700 }}>{hr.shiftsRunning || 5} Policies</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Productivity Target</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT CONFIGURED</span>
+              </div>
+            </div>
+            <div style={{ borderTop: '1px solid #F1F5F9', padding: '8px 14px', background: '#FAFAFA' }}>
+              <span style={{ fontSize: '10px', color: PALETTE.slateMuted }}>Attendance logs not recorded for selected date</span>
+            </div>
+          </div>
+
+        </div>
+
+        {/* ── 7. ROW 5: FINANCIAL, MATERIAL & SAFETY ROW ── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '16px',
+          marginBottom: '20px'
+        }}>
+
+          {/* CARD 1: COSTING & PROFITABILITY */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '10px 14px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase' }}>Costing & Profitability</span>
+            </div>
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Material Cost / KG</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT CONFIGURED</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Labour Cost / KG</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT CONFIGURED</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Total Mfg Cost / KG</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT CONFIGURED</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Cost / Price (Avg.)</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT CONFIGURED</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Selling Price / Piece (Avg.)</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT CONFIGURED</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Gross Margin</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT CONFIGURED</span>
+              </div>
+            </div>
+            <div style={{ borderTop: '1px solid #F1F5F9', padding: '8px 14px', background: '#FAFAFA' }}>
+              <span style={{ fontSize: '10px', color: PALETTE.slateMuted }}>Costing model not configured in active database</span>
+            </div>
+          </div>
+
+          {/* TABLE 2: MATERIAL CONSUMPTION VS STANDARD */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase' }}>Material Consumption vs Standard</span>
+              <button
+                onClick={() => router.push('/plant-head/material-analytics')}
+                style={{ fontSize: '11px', color: PALETTE.blue, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Detailed Analytics →
+              </button>
+            </div>
+            <div style={{ padding: '24px 16px', textAlign: 'center' }}>
+              <Info size={32} color={PALETTE.slateMuted} style={{ margin: '0 auto 10px' }} />
+              <div style={{ fontSize: '13px', fontWeight: 600, color: PALETTE.slateDark, marginBottom: '4px' }}>
+                BOM Standards Not Configured
+              </div>
+              <p style={{ fontSize: '11px', color: PALETTE.slateMuted, margin: 0, lineHeight: 1.4 }}>
+                Material consumption standards are not defined in the product BOM catalog. Raw material issue movements are actively logged in the Store module.
+              </p>
+            </div>
+          </div>
+
+          {/* CARD 3: SAFETY & EHS */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '10px 14px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase' }}>Safety & EHS</span>
+            </div>
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Total Incidents</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>N/A</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Near Miss Reports</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>N/A</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Safety Training</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>N/A</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>PPE Compliance</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>N/A</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Fire Equipment Audit</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>N/A</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: PALETTE.slateMuted }}>Environmental Compliance</span>
+                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>N/A</span>
+              </div>
+            </div>
+            <div style={{ borderTop: '1px solid #F1F5F9', padding: '8px 14px', background: '#FAFAFA' }}>
+              <span style={{ fontSize: '10px', color: PALETTE.slateMuted }}>EHS incident tracking module not configured in database</span>
+            </div>
+          </div>
+
+          {/* TABLE 4: PENDING ORDERS (TOP 5) (PCS) */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: PALETTE.navy, color: '#FFFFFF', padding: '10px 14px', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Pending Orders (Top 5)</span>
+              <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+                {fmt(ord?.totalPendingPcs)} Pending PCS
+              </span>
+            </div>
+            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: PALETTE.slateMuted, fontSize: '11px', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '8px 12px', width: '24px' }}>#</th>
+                    <th style={{ padding: '8px 12px' }}>Customer / Order</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>Pending PCS</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>Target Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(ord?.pendingTop5 || []).map((o) => (
+                    <tr key={o.rank} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '8px 12px', color: PALETTE.slateMuted, fontWeight: 700 }}>{o.rank}</td>
+                      <td style={{ padding: '8px 12px' }}>
+                        <div style={{ fontWeight: 600, color: PALETTE.slateDark }}>{o.customer}</div>
+                        <div style={{ fontSize: '10px', color: PALETTE.slateMuted }}>{o.orderNumber}</div>
+                      </td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: PALETTE.orange }}>
+                        {fmt(o.pendingPcs)}
+                      </td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.slateMuted, fontSize: '11px' }}>
+                        {o.dueDate}
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                  {(!ord?.pendingTop5 || ord?.pendingTop5.length === 0) && (
+                    <tr>
+                      <td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: PALETTE.slateMuted }}>
+                        No pending sales orders
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: PALETTE.blueLight, fontWeight: 800, borderTop: '2px solid #CBD5E1' }}>
+                    <td colSpan={2} style={{ padding: '8px 12px', color: PALETTE.navy }}>Total Pending</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.orange }}>{fmt(ord?.totalPendingPcs)}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>PCS</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* ── TAB 6: DELAY & BOTTLENECK ── */}
-      {activeTab === 'delay_analysis' && (
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#dc2626', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <AlertTriangle size={18} color="#dc2626" /> 5. Production Delay &amp; Root Cause Analysis
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
-            <div style={{ background: '#fff5f5', padding: '16px', borderRadius: '12px', border: '1px solid #fecaca' }}>
-              <div style={{ fontSize: '12px', fontWeight: '700', color: '#991b1b' }}>Material Shortage Delay</div>
-              <div style={{ fontSize: '20px', fontWeight: '900', color: '#dc2626' }}>2 Orders (4.5 hrs)</div>
-            </div>
-            <div style={{ background: '#fff5f5', padding: '16px', borderRadius: '12px', border: '1px solid #fecaca' }}>
-              <div style={{ fontSize: '12px', fontWeight: '700', color: '#991b1b' }}>Machine Breakdown</div>
-              <div style={{ fontSize: '20px', fontWeight: '900', color: '#dc2626' }}>1 Order (3.5 hrs)</div>
-            </div>
-            <div style={{ background: '#fff5f5', padding: '16px', borderRadius: '12px', border: '1px solid #fecaca' }}>
-              <div style={{ fontSize: '12px', fontWeight: '700', color: '#991b1b' }}>Operator Shortage</div>
-              <div style={{ fontSize: '20px', fontWeight: '900', color: '#dc2626' }}>1 Order (2.0 hrs)</div>
-            </div>
-          </div>
         </div>
-      )}
 
-      {/* ── TAB 7: MATERIAL ANALYTICS ── */}
-      {activeTab === 'material_analytics' && (
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Layers size={18} color="#0284c7" /> 7. Material Analytics &amp; Inventory Variance
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-            <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700' }}>Raw Material Valuation</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#0284c7' }}>₹ 48.25 L</div>
+        {/* ── 8. ROW 6: KEY INSIGHTS & ACTIONS ── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '16px',
+          marginBottom: '20px'
+        }}>
+
+          {/* KEY INSIGHTS */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <Sparkles size={18} color={PALETTE.navy} />
+              <h3 style={{ fontSize: '13px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase', margin: 0 }}>
+                Key Operational Insights
+              </h3>
             </div>
-            <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700' }}>WIP Inventory</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#f59e0b' }}>₹ 32.40 L</div>
-            </div>
-            <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700' }}>Finished Goods Valuation</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#10b981' }}>₹ 47.85 L</div>
-            </div>
+            <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px', color: PALETTE.slate, lineHeight: 1.5 }}>
+              {insights.map((ins, i) => (
+                <li key={i} style={{ fontWeight: 500 }}>{ins}</li>
+              ))}
+              {insights.length === 0 && (
+                <li style={{ color: PALETTE.slateMuted }}>All plant operations operating within normal baseline parameters.</li>
+              )}
+            </ul>
           </div>
-        </div>
-      )}      {/* ── TAB 8: PRODUCTION & DISPATCH ANALYTICS ── */}
-      {activeTab === 'production_analytics' && (() => {
-        const disp = backendDashboard?.dispatch || { readyForDispatch: 0, vehicleStatus: '4/5 Active' };
-        return (
-          <div style={{ background: '#ffffff', borderRadius: '14px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <TrendingUp size={18} color="#10b981" /> 8. Production &amp; Dispatch Analytics
-            </h3>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '20px' }}>
-              {/* Production Analytics */}
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', background: '#f8fafc' }}>
-                <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  🏭 Production Operations
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
-                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>Total Production Volume:</span>
-                    <strong style={{ fontSize: '14px', color: '#059669' }}>48,500 Pcs/mo</strong>
+
+          {/* ALERTS & ACTIONS */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <AlertTriangle size={18} color={PALETTE.orange} />
+              <h3 style={{ fontSize: '13px', fontWeight: 700, color: PALETTE.orange, textTransform: 'uppercase', margin: 0 }}>
+                Alerts & Action Items
+              </h3>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {alerts.map((al, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => al.link && router.push(al.link)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    background: al.severity === 'critical' ? PALETTE.crimsonLight : PALETTE.orangeLight,
+                    border: `1px solid ${al.severity === 'critical' ? PALETTE.crimson : PALETTE.orange}`,
+                    fontSize: '12px',
+                    cursor: al.link ? 'pointer' : 'default'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '10px', color: al.severity === 'critical' ? PALETTE.crimson : PALETTE.orange }}>
+                      [{al.category}]
+                    </span>
+                    <span style={{ color: PALETTE.slateDark, fontWeight: 500 }}>{al.message}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
-                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>First Pass Yield (FPY):</span>
-                    <strong style={{ fontSize: '14px', color: '#0284c7' }}>97.4%</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>Avg Cost per Unit:</span>
-                    <strong style={{ fontSize: '14px', color: '#7c3aed' }}>₹ 142.50</strong>
-                  </div>
+                  {al.link && <ExternalLink size={14} color={al.severity === 'critical' ? PALETTE.crimson : PALETTE.orange} />}
                 </div>
+              ))}
+              {alerts.length === 0 && (
+                <div style={{ fontSize: '12px', color: PALETTE.slateMuted, padding: '12px 0' }}>
+                  No active critical plant alerts for the selected period.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* PLANT HEAD NOTES */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <FileText size={18} color={PALETTE.navy} />
+              <h3 style={{ fontSize: '13px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase', margin: 0 }}>
+                Plant Head Notes
+              </h3>
+            </div>
+            <div style={{ padding: '20px 14px', background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: '6px', textAlign: 'center' }}>
+              <div style={{ fontSize: '12px', color: PALETTE.slateMuted, marginBottom: '6px' }}>
+                No supervisor shift notes logged for {p.label || 'this period'}.
+              </div>
+              <span style={{ fontSize: '10px', color: '#94A3B8' }}>
+                Shift remarks recorded by Plant Head will automatically display here.
+              </span>
+            </div>
+          </div>
+
+        </div>
+
+      </main>
+
+      {/* ── 9. PROFESSIONAL ENTERPRISE FOOTER ── */}
+      <footer style={{
+        background: '#FFFFFF',
+        borderTop: '1px solid #E2E8F0',
+        padding: '16px 24px',
+        fontSize: '11px',
+        color: PALETTE.slateMuted,
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px'
+      }}>
+        <div style={{ fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Himalaya Composites Pvt. Ltd. — Manufacturing Command Center
+        </div>
+        <div style={{ letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600 }}>
+          Safety | Quality | People | Process | Sustainability
+        </div>
+        <div>
+          PostgreSQL Database Single Source of Truth
+        </div>
+      </footer>
+
+      {/* ── Custom Date Range Modal ── */}
+      {showCustomModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '16px'
+        }}>
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '10px',
+            maxWidth: '400px',
+            width: '100%',
+            padding: '24px',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: PALETTE.slateDark }}>
+                Select Custom Date Range
+              </h3>
+              <button onClick={() => setShowCustomModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <X size={18} color={PALETTE.slateMuted} />
+              </button>
+            </div>
+
+            <form onSubmit={applyCustomFilter}>
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: PALETTE.slate, marginBottom: '4px' }}>
+                  From Date:
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={customStart}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '13px' }}
+                />
               </div>
 
-              {/* Dispatch Analytics */}
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', background: '#f8fafc' }}>
-                <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  📦 Dispatch &amp; Logistics Telemetry
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
-                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>Ready for Dispatch:</span>
-                    <strong style={{ fontSize: '14px', color: '#0284c7' }}>{disp.readyForDispatch} Orders</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
-                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>Fleet Utilization:</span>
-                    <strong style={{ fontSize: '14px', color: '#f59e0b' }}>{disp.vehicleStatus}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>On-Time Dispatch SLA:</span>
-                    <strong style={{ fontSize: '14px', color: '#10b981' }}>98.2%</strong>
-                  </div>
-                </div>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: PALETTE.slate, marginBottom: '4px' }}>
+                  To Date:
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={customEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '13px' }}
+                />
               </div>
-            </div>
-          </div>
-        );
-      })()}
-      {/* ── TAB 9: APPROVAL HISTORY ── */}
-      {activeTab === 'approvals_history' && (
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FileCheck size={18} color="#3b82f6" /> 9. Workflow Approvals &amp; Audit Trail
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-            <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700' }}>Pending Approvals</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#f59e0b' }}>{backendDashboard?.production?.pendingApproval || 3} Requests</div>
-            </div>
-            <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700' }}>Approved Work Orders</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#10b981' }}>{backendDashboard?.production?.planned || 28} Orders</div>
-            </div>
-            <div style={{ padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700' }}>Approval Aging Avg</div>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#0284c7' }}>1.4 Hours</div>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* ── TAB 10: REPORTS & TRENDS (DRILL-DOWN) ── */}
-      {activeTab === 'reports_trends' && (
-        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BarChart3 size={18} color="#0284c7" /> 10. Operational Drill-Down Hierarchy
-          </h3>
-
-          {/* Drill-down Breadcrumbs */}
-          <div style={{ background: '#f1f5f9', padding: '10px 16px', borderRadius: '8px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '700' }}>
-            <span style={{ color: '#0284c7' }}>Plant: {drillLevel.plant}</span>
-            <ChevronRight size={14} color="#64748b" />
-            <span style={{ color: '#0284c7' }}>Unit: {drillLevel.unit}</span>
-            <ChevronRight size={14} color="#64748b" />
-            <span style={{ color: '#0284c7' }}>Line: {drillLevel.line}</span>
-            <ChevronRight size={14} color="#64748b" />
-            <span style={{ color: '#0284c7' }}>Machine: {drillLevel.machine}</span>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowCustomModal(false)}
+                  style={{ padding: '8px 16px', background: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{ padding: '8px 16px', background: PALETTE.navy, color: '#FFFFFF', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  Apply Range
+                </button>
+              </div>
+            </form>
           </div>
-
-          <p style={{ fontSize: '12.5px', color: '#64748b', margin: 0 }}>
-            Hierarchical drill-down view enabled across Plant Head operations: <strong>Plant &rarr; Unit &rarr; Production Line &rarr; Machine &rarr; Work Order &rarr; Operator</strong>.
-          </p>
         </div>
       )}
 
     </div>
   );
 };
+
+export default PlantHeadDashboard;
