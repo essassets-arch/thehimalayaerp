@@ -1,11 +1,5 @@
-'use client';
-import dynamic from 'next/dynamic';
-
-const BrandAnalysisPage = dynamic(
-  () => import('../../../../modules/super-admin/pages/BrandAnalysisPage'),
-  { ssr: false }
-);
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return <BrandAnalysisPage />;
+  redirect('/super-admin/dashboard');
 }

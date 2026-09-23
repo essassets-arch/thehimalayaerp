@@ -69,7 +69,6 @@ const financeMenu = {
     "partial-delivery",
     "history-ledger",
     "history",
-    "brand-analysis",
     "rejection-management",
     "salary",
     "profile"
@@ -99,7 +98,6 @@ const financeMenu = {
     "partial-delivery",
     "history-ledger",
     "history",
-    "brand-analysis",
     "rejection-management",
     "salary",
     "profile"
@@ -139,7 +137,6 @@ const financeMenu = {
     "verify-close",
     "history-ledger",
     "history",
-    "brand-analysis",
     "rejection-management",
     "salary",
     "profile"
@@ -4164,7 +4161,6 @@ export default function FinancePortal({ initialView, forceView }) {
       {view === 'create-po' && <div data-testid="finance-create-po-view" className="sales-portal-view"><CreatePurchaseOrder /></div>}
       {view === 'delivery-audit' && <div data-testid="finance-delivery-audit-view" className="sales-portal-view"><DeliveryAudit /></div>}
       {view === 'rejection-management' && <div data-testid="finance-rejection-management-view" className="sales-portal-view"><RejectionManagement /></div>}
-      {view === 'brand-analysis' && <div data-testid="finance-brand-analysis-view" className="sales-portal-view"><FinanceBrandAnalysis /></div>}
 
       {/* Shared Payments Subviews */}
       {view === 'payment-verification' && <div data-testid="finance-payment-verification-view" className="sales-portal-view"><FinanceSalesConfirmationView /></div>}

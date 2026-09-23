@@ -280,7 +280,6 @@ export const navigationConfig = {
   'Finance': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/finance/dashboard' },
     { id: 'daily-tasks', label: 'Daily Tasks', icon: ClipboardList, path: '/finance/daily-tasks' },
-    { id: 'brand-analysis', label: 'Brand Analysis', icon: ClipboardCheck, path: '/finance/brand-analysis' },
     {
       id: 'payment-verification',
       label: 'Payment Verification',
@@ -402,7 +401,6 @@ export const navigationConfig = {
     { type: 'badge', label: 'APPROVALS' },
     { id: 'backoffice-report', label: 'Back Office Reports', icon: FileText, path: '/super-admin/backoffice-report' },
     { id: 'daily-reports', label: 'Daily Production Reports', icon: FileText, path: '/super-admin/daily-reports' },
-    { id: 'brand-analysis', label: 'Brand Analysis Requests', icon: ShieldCheck, path: '/super-admin/brand-analysis' },
     { id: 'purchase-indents', label: 'Purchase Order Approvals', icon: ClipboardCheck, path: '/super-admin/purchase-indents' },
     { id: 'salary-approval', label: 'Salary Approvals', icon: CreditCard, path: '/super-admin/salary-approval' },
     { id: 'exit-clearance', label: 'Exit Clearance (Read-Only)', icon: PackageCheck, path: '/super-admin/exit-clearance' },

@@ -1626,39 +1626,6 @@ export default function FinanceManagerDashboardView({
                 {dynamicMetrics.pendingVendorsCount} Open POs
               </span>
             </div>
-
-            {/* Item 3: Brand Analysis Sign-offs */}
-            <div
-              onClick={() => router.push('/finance/brand-analysis')}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                background: '#F8FAFC',
-                border: '1px solid #E2E8F0',
-                padding: '12px 16px',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ background: '#F3E8FF', padding: '8px', borderRadius: '8px', color: PALETTE.purple }}>
-                  <Layers size={18} />
-                </div>
-                <div>
-                  <span style={{ fontSize: '13px', fontWeight: '800', color: PALETTE.slate, display: 'block' }}>
-                    Brand Analysis Reviews
-                  </span>
-                  <span style={{ fontSize: '11.5px', color: PALETTE.slateMuted }}>
-                    Store and procurement brand authorization indents
-                  </span>
-                </div>
-              </div>
-              <span style={{ background: PALETTE.purple, color: '#FFFFFF', padding: '4px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: '800' }}>
-                Ready
-              </span>
-            </div>
           </div>
         </div>
 

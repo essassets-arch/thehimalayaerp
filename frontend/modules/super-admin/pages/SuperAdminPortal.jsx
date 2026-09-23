@@ -7775,7 +7775,6 @@ export default function SuperAdminPortal() {
         return <PurchaseIndentsView />;
       case 'daily-reports':
         return <DailyReportHistoryView roleMode="SUPER_ADMIN" />;
-      case 'brand-analysis':
       case 'analysis-requests':
         return <BrandAnalysisPage />;
       case 'customer-complaints':

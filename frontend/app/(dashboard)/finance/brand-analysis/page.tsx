@@ -1,11 +1,5 @@
-'use client';
-import dynamic from 'next/dynamic';
-
-const FinanceBrandAnalysis = dynamic(
-  () => import('../../../../modules/finance/pages/FinanceBrandAnalysis'),
-  { ssr: false }
-);
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return <FinanceBrandAnalysis />;
+  redirect('/finance/dashboard');
 }

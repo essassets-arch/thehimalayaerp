@@ -1,6 +1,5 @@
-import React from 'react';
-import BrandAnalysisPage from '../../../../modules/super-admin/pages/BrandAnalysisPage';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return <BrandAnalysisPage />;
+  redirect('/super-admin/dashboard');
 }
