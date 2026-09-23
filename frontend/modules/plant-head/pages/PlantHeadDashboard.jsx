@@ -2031,11 +2031,7 @@ export const PlantHeadDashboard = () => {
               </div>
               <Users size={16} color={PALETTE.violet} />
             </div>
-            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Active Employees</span>
-                <span style={{ fontWeight: 700, color: PALETTE.slateDark }}>{hr.totalEmployees ?? 32}</span>
-              </div>
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: PALETTE.slateMuted }}>
                   {hr.dateLabel && hr.dateLabel !== 'Today' ? `Present (${hr.dateLabel})` : 'Present Today'}
@@ -2052,21 +2048,14 @@ export const PlantHeadDashboard = () => {
                   {hr.hasLogs ? `${hr.absentToday} Staff` : (hr.absentToday != null && hr.absentToday > 0 ? `${hr.absentToday} Staff` : 'NOT RECORDED')}
                 </span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Attendance %</span>
-                <span style={{
-                  fontWeight: 700,
-                  color: hr.hasLogs && hr.attendancePercent != null
-                    ? (hr.attendancePercent >= 80 ? PALETTE.emerald : hr.attendancePercent >= 50 ? PALETTE.orange : PALETTE.crimson)
-                    : PALETTE.slateMuted,
-                }}>
-                  {hr.hasLogs && hr.attendancePercent != null ? `${hr.attendancePercent}%` : (hr.attendancePercent != null && hr.attendancePercent > 0 ? `${hr.attendancePercent}%` : 'NOT RECORDED')}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Shifts Running</span>
-                <span style={{ fontWeight: 700, color: PALETTE.slateDark }}>{hr.shiftsRunning || 5} Policies</span>
-              </div>
+              {hr.onLeave != null && hr.onLeave > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: PALETTE.slateMuted }}>On Leave</span>
+                  <span style={{ fontWeight: 600, color: PALETTE.amber }}>
+                    {hr.onLeave} Staff
+                  </span>
+                </div>
+              )}
             </div>
             <div style={{ borderTop: '1px solid #F1F5F9', padding: '8px 14px', background: '#FAFAFA', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <button
