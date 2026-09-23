@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Target, TrendingUp, DollarSign, Award, Users, AlertTriangle,
   Plus, Search, RefreshCw, Eye, Edit2, Trash2, Calendar, CheckCircle2,
@@ -669,7 +669,7 @@ export default function SalesTargetManagementView({
         }
         showToast(res.data?.message || 'Revenue target allocated successfully.', 'success');
         if (setSalesTargets && res.data?.data) {
-          const repMatch = allReps.find(u => String(u.id) === String(formData.salespersonId));
+          const repMatch = salesPersonnelData.all.find(u => String(u.id) === String(formData.salespersonId));
           const newTarget = {
             ...res.data.data,
             salespersonName: formData.salespersonName || repMatch?.name || 'Sales Representative',

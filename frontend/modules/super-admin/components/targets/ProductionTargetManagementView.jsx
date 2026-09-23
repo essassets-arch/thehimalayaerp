@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Factory, Target, TrendingUp, CheckCircle2, AlertTriangle,
   Plus, Search, RefreshCw, Eye, Edit2, Trash2, XCircle,
