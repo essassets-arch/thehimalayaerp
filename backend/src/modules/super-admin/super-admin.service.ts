@@ -1,6 +1,7 @@
-import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import { hrPeriod, hrDay, hrTime, hrCelebrations, attendanceCounts, employedStatuses } from './hr-analytics';
+import { BadRequestException, Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { parseDeliveryLocation } from '../plant-head/plant-head.service';
+import { dispatchAnalyticsPeriod, dispatchDay, recordedDispatchLocation } from '../plant-head/dispatch-analytics-period';
 
 @Injectable()
 export class SuperAdminService implements OnApplicationBootstrap {
@@ -2990,100 +2991,13 @@ export class SuperAdminService implements OnApplicationBootstrap {
   }
 
   async getHrAnalytics(query: any, companyId: string) {
-    const toNumber = (val: any) => Number(val ?? 0);
-    const formatNumber = (val: number) => Math.round(val);
+    if (!companyId || companyId === 'null' || companyId === 'undefined') throw new BadRequestException('Company context is required');
     const now = new Date();
-    const end = query?.to ? new Date(`${query.to}T23:59:59.999Z`) : now;
-    const start = query?.from
-      ? new Date(`${query.from}T00:00:00.000Z`)
-      : new Date(end.getFullYear(), end.getMonth(), 1);
-    const dateRange = { gte: start, lte: end };
-
-    const isCompanyScoped =
-      companyId && companyId !== 'null' && companyId !== 'undefined';
-
-    // 1. Resolve filter parameters and fetch matching employees
-    if (companyId) {
-      const targetDepts = [
-        { name: 'General', code: 'GENERAL' },
-        { name: 'Sales', code: 'SALES' },
-        { name: 'Plant Head', code: 'PLANT_HEAD' },
-        { name: 'Production', code: 'PRODUCTION' },
-        { name: 'Store', code: 'STORE' },
-        { name: 'HR', code: 'HR' },
-      ];
-
-      for (const td of targetDepts) {
-        const dept = await this.prisma.department.findFirst({
-          where: { companyId, code: td.code },
-        });
-        if (!dept) {
-          await this.prisma.department.create({
-            data: { companyId, name: td.name, code: td.code },
-          });
-        }
-      }
-
-      // Distribute the default 4 employees to have representative metrics in each department
-      const allEmployees = await this.prisma.employee.findMany({
-        where: { companyId },
-      });
-      const generalDept = await this.prisma.department.findFirst({
-        where: { companyId, code: 'GENERAL' },
-      });
-      if (
-        generalDept &&
-        allEmployees.length > 0 &&
-        allEmployees.every((e) => e.departmentId === generalDept.id)
-      ) {
-        const hrDept = await this.prisma.department.findFirst({
-          where: { companyId, code: 'HR' },
-        });
-        const prodDept = await this.prisma.department.findFirst({
-          where: { companyId, code: 'PRODUCTION' },
-        });
-        const salesDept = await this.prisma.department.findFirst({
-          where: { companyId, code: 'SALES' },
-        });
-        const storeDept = await this.prisma.department.findFirst({
-          where: { companyId, code: 'STORE' },
-        });
-
-        const empHR = allEmployees.find((e) => e.fullName === 'HR');
-        if (empHR && hrDept) {
-          await this.prisma.employee.update({
-            where: { id: empHR.id },
-            data: { departmentId: hrDept.id },
-          });
-        }
-
-        const empAccounts = allEmployees.find((e) =>
-          e.fullName.includes('Accounts'),
-        );
-        if (empAccounts && salesDept) {
-          await this.prisma.employee.update({
-            where: { id: empAccounts.id },
-            data: { departmentId: salesDept.id },
-          });
-        }
-
-        const otherEmps = allEmployees.filter(
-          (e) => e.id !== empHR?.id && e.id !== empAccounts?.id,
-        );
-        if (otherEmps[0] && prodDept) {
-          await this.prisma.employee.update({
-            where: { id: otherEmps[0].id },
-            data: { departmentId: prodDept.id },
-          });
-        }
-        if (otherEmps[1] && storeDept) {
-          await this.prisma.employee.update({
-            where: { id: otherEmps[1].id },
-            data: { departmentId: storeDept.id },
-          });
-        }
-      }
-    }
+    const { start, end, allTime, today: targetDateStr, todayStart, todayEnd } = hrPeriod(query, now);
+    const dateRange = allTime ? undefined : { gte: start, lte: end };
+    const isCompanyScoped = true;
+    const hasEmployeeFilter = ['departmentId', 'location', 'employmentType', 'employeeId'].some(key => query?.[key] && query[key] !== 'All');
+    // Analytics is read-only. Never seed departments or modify employee assignments.
 
     const employeeWhere: any = {};
     if (isCompanyScoped) {
@@ -3107,80 +3021,16 @@ export class SuperAdminService implements OnApplicationBootstrap {
       include: {
         department: true,
         workLocation: true,
-        user: {
-          include: { role: true },
-        },
         reportingManager: true,
       },
     });
     const employeeIds = employees.map((e) => e.id);
 
-    // Calculate celebrations (birthdays and work anniversaries in selected period)
-    const birthdaysList: any[] = [];
-    const anniversariesList: any[] = [];
-
-    const startMonth = start.getMonth();
-    const startDay = start.getDate();
-    const endMonth = end.getMonth();
-    const endDay = end.getDate();
-
-    for (const emp of employees) {
-      if (emp.dateOfBirth) {
-        const dob = new Date(emp.dateOfBirth);
-        const m = dob.getMonth();
-        const d = dob.getDate();
-
-        let matches = false;
-        if (startMonth === endMonth) {
-          matches = m === startMonth && d >= startDay && d <= endDay;
-        } else {
-          if (m === startMonth && d >= startDay) matches = true;
-          else if (m === endMonth && d <= endDay) matches = true;
-          else if (m > startMonth && m < endMonth) matches = true;
-        }
-
-        if (matches) {
-          birthdaysList.push({
-            name: emp.fullName,
-            date: dob.toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-            }),
-            department: emp.department?.name || 'Unassigned',
-          });
-        }
-      }
-
-      if (emp.joiningDate) {
-        const jd = new Date(emp.joiningDate);
-        const m = jd.getMonth();
-        const d = jd.getDate();
-
-        let matches = false;
-        if (startMonth === endMonth) {
-          matches = m === startMonth && d >= startDay && d <= endDay;
-        } else {
-          if (m === startMonth && d >= startDay) matches = true;
-          else if (m === endMonth && d <= endDay) matches = true;
-          else if (m > startMonth && m < endMonth) matches = true;
-        }
-
-        if (matches) {
-          const years = now.getFullYear() - jd.getFullYear();
-          if (years > 0) {
-            anniversariesList.push({
-              name: emp.fullName,
-              date: jd.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-              }),
-              years,
-              department: emp.department?.name || 'Unassigned',
-            });
-          }
-        }
-      }
-    }
+    const filterEmployees = await this.prisma.employee.findMany({
+      where: { companyId },
+      select: { id: true, fullName: true, employmentType: true, workLocation: { select: { id: true, name: true } } },
+    });
+    const { birthdays: birthdaysList, anniversaries: anniversariesList } = hrCelebrations(employees, start, end, allTime, now);
 
     // 2. Fetch related data scoped to matched employees or date range
     // Attendance
@@ -3190,16 +3040,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
     if (isCompanyScoped) {
       attendanceWhere.companyId = companyId;
     }
-    if (employeeIds.length > 0) {
-      attendanceWhere.employeeId = { in: employeeIds };
-    } else if (
-      query?.departmentId ||
-      query?.location ||
-      query?.employmentType ||
-      query?.employeeId
-    ) {
-      attendanceWhere.employeeId = 'none';
-    }
+    attendanceWhere.employeeId = { in: employeeIds };
     const attendances = await this.prisma.attendance.findMany({
       where: attendanceWhere,
       include: {
@@ -3209,24 +3050,23 @@ export class SuperAdminService implements OnApplicationBootstrap {
       },
     });
 
+    const todayAttendance = await this.prisma.attendance.findMany({
+      where: { companyId, employeeId: { in: employeeIds }, attendanceDate: { gte: todayStart, lte: todayEnd } },
+      include: { employee: { include: { department: true } } },
+    });
+    const manualRequests = await this.prisma.manualAttendanceRequest.findMany({
+      where: { employee: { companyId }, employeeId: { in: employeeIds }, date: dateRange },
+      include: { employee: { select: { fullName: true } } },
+    });
+
     // Leave Requests
     const leaveWhere: any = {
-      fromDate: { lte: end },
-      toDate: { gte: start },
+      ...(allTime ? {} : { fromDate: { lte: end }, toDate: { gte: start } }),
     };
     if (isCompanyScoped) {
       leaveWhere.companyId = companyId;
     }
-    if (employeeIds.length > 0) {
-      leaveWhere.employeeId = { in: employeeIds };
-    } else if (
-      query?.departmentId ||
-      query?.location ||
-      query?.employmentType ||
-      query?.employeeId
-    ) {
-      leaveWhere.employeeId = 'none';
-    }
+    leaveWhere.employeeId = { in: employeeIds };
     const leaveRequests = await this.prisma.leaveRequest.findMany({
       where: leaveWhere,
       include: {
@@ -3242,13 +3082,12 @@ export class SuperAdminService implements OnApplicationBootstrap {
       recruitmentWhere.companyId = companyId;
     }
     if (query?.departmentId && query.departmentId !== 'All') {
-      const dept = await this.prisma.department.findUnique({
-        where: { id: query.departmentId },
+      const dept = await this.prisma.department.findFirst({
+        where: { id: query.departmentId, companyId },
       });
-      if (dept) {
-        recruitmentWhere.department = dept.name;
-      }
+      recruitmentWhere.department = dept?.name || '__no_matching_department__';
     }
+    if (query?.employmentType && query.employmentType !== 'All') recruitmentWhere.employmentType = query.employmentType;
     const recruitmentRequests = await this.prisma.recruitmentRequest.findMany({
       where: recruitmentWhere,
       include: {
@@ -3257,7 +3096,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
     });
 
     // Payroll Period & Records
-    const activePayrollPeriodWhere: any = {};
+    const activePayrollPeriodWhere: any = allTime ? {} : { startDate: { lte: end }, endDate: { gte: start } };
     if (isCompanyScoped) {
       activePayrollPeriodWhere.companyId = companyId;
     }
@@ -3265,10 +3104,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
       where: activePayrollPeriodWhere,
       include: {
         payrollRecords: {
-          where:
-            employeeIds.length > 0
-              ? { employeeId: { in: employeeIds } }
-              : undefined,
+          where: { companyId, employeeId: { in: employeeIds }, status: { notIn: ['CANCELLED', 'REJECTED'] } },
           include: {
             employee: {
               include: { department: true },
@@ -3282,24 +3118,15 @@ export class SuperAdminService implements OnApplicationBootstrap {
       (p) => p.payrollRecords,
     );
 
-    // Expenses (Expense does not have direct relation mapping in prisma schema, query directly by employeeId)
+    // Current expense-claim workflow, scoped to the selected employees.
     const expenseWhere: any = {
       expenseDate: dateRange,
     };
     if (isCompanyScoped) {
       expenseWhere.companyId = companyId;
     }
-    if (employeeIds.length > 0) {
-      expenseWhere.employeeId = { in: employeeIds };
-    } else if (
-      query?.departmentId ||
-      query?.location ||
-      query?.employmentType ||
-      query?.employeeId
-    ) {
-      expenseWhere.employeeId = 'none';
-    }
-    const expenses = await this.prisma.expense.findMany({
+    expenseWhere.employeeId = { in: employeeIds };
+    const expenses = await this.prisma.expenseClaim.findMany({
       where: expenseWhere,
     });
 
@@ -3308,6 +3135,8 @@ export class SuperAdminService implements OnApplicationBootstrap {
     if (isCompanyScoped) {
       userWhere.companyId = companyId;
     }
+    if (hasEmployeeFilter) userWhere.employee = { id: { in: employeeIds } };
+    userWhere.deletedAt = null;
     const usersList = await this.prisma.user.findMany({
       where: userWhere,
       include: {
@@ -3328,7 +3157,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
           ? 'Locked'
           : 'Active'
         : 'Inactive',
-      lastLogin: '—',
+      lastLogin: null,
     }));
 
     // Notifications
@@ -3336,13 +3165,14 @@ export class SuperAdminService implements OnApplicationBootstrap {
       where: {
         companyId: isCompanyScoped ? companyId : undefined,
         route: { startsWith: '/hr/' },
+        createdAt: dateRange,
       },
       orderBy: { createdAt: 'desc' },
-      take: 20,
+
     });
 
     const importantNotifications = notifications.map((n) => ({
-      time: n.createdAt.toISOString().slice(11, 16),
+      time: hrTime(n.createdAt),
       type: n.type,
       message: n.message,
       status: n.isRead ? 'Read' : 'Unread',
@@ -3408,7 +3238,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
           department: emp.department?.name || 'Unassigned',
           missingFields,
           joined: emp.joiningDate
-            ? emp.joiningDate.toISOString().slice(0, 10)
+            ? hrDay(emp.joiningDate)
             : '',
         });
       }
@@ -3420,158 +3250,44 @@ export class SuperAdminService implements OnApplicationBootstrap {
             ((employees.length - incompleteRecordsCount) / employees.length) *
               100,
           )
-        : 100;
+        : null;
 
-    // 3. Process Attendance Summary and stats
-    let todayAttendance = attendances.filter((a) => {
-      const d = new Date(a.attendanceDate);
-      return d.toDateString() === now.toDateString();
-    });
-
-    const todayStart = new Date(end);
-    todayStart.setUTCHours(0, 0, 0, 0);
-
-    let targetDateStr = now.toISOString().slice(0, 10);
-    if (todayAttendance.length === 0 && attendances.length > 0) {
-      const sorted = [...attendances].sort(
-        (a, b) => b.attendanceDate.getTime() - a.attendanceDate.getTime(),
-      );
-      const latestDate = sorted[0].attendanceDate;
-      const lStart = new Date(latestDate);
-      lStart.setUTCHours(0, 0, 0, 0);
-      const lEnd = new Date(latestDate);
-      lEnd.setUTCHours(23, 59, 59, 999);
-      todayAttendance = attendances.filter(
-        (a) => a.attendanceDate >= lStart && a.attendanceDate <= lEnd,
-      );
-      targetDateStr = latestDate.toISOString().slice(0, 10);
+    // Today is independent of the selected historical period; no substitution of old records.
+    const expectedStaff = employees.filter(e => employedStatuses.includes(e.status) && e.joiningDate <= todayEnd).length;
+    const todayCounts = attendanceCounts(todayAttendance);
+    const presentTodayCount = todayCounts.present;
+    const onLeaveTodayCount = todayCounts.leave;
+    const absentTodayCount = todayCounts.absent;
+    const lateTodayCount = todayCounts.late;
+    const earlyExitTodayCount = todayAttendance.filter(a => a.earlyExitMinutes > 0).length;
+    const clockedInCount = todayAttendance.filter(a => a.punchInAt && !a.punchOutAt).length;
+    const completedShiftCount = todayAttendance.filter(a => a.punchOutAt).length;
+    const attendanceRateToday = todayCounts.rate;
+    const trendsMap = new Map<string, any[]>();
+    for (const record of attendances) {
+      const day = hrDay(record.attendanceDate);
+      if (!trendsMap.has(day)) trendsMap.set(day, []);
+      trendsMap.get(day)!.push(record);
     }
-
-    const expectedStaff = employees.filter((e) => e.status === 'ACTIVE').length;
-    const presentTodayCount = todayAttendance.filter(
-      (a) =>
-        a.status === 'PRESENT' ||
-        a.status === 'PUNCHED_IN' ||
-        a.status === 'HALF_DAY',
-    ).length;
-    const onLeaveTodayCount = todayAttendance.filter(
-      (a) => a.status === 'PAID_LEAVE' || a.status === 'UNPAID_LEAVE',
-    ).length;
-    const absentTodayCount = Math.max(
-      0,
-      expectedStaff - presentTodayCount - onLeaveTodayCount,
-    );
-    const lateTodayCount = todayAttendance.filter(
-      (a) => a.lateMinutes > 0,
-    ).length;
-    const earlyExitTodayCount = todayAttendance.filter(
-      (a) => a.earlyExitMinutes > 0,
-    ).length;
-    const clockedInCount = todayAttendance.filter(
-      (a) => a.punchInAt !== null && a.punchOutAt === null,
-    ).length;
-    const completedShiftCount = todayAttendance.filter(
-      (a) => a.punchOutAt !== null,
-    ).length;
-    const attendanceRateToday =
-      expectedStaff > 0 ? (presentTodayCount / expectedStaff) * 100 : 100;
-
-    // Daily trends map
-    const trendsMap = new Map<string, any>();
-    const curr = new Date(start);
-    while (curr <= end) {
-      const dateStr = curr.toISOString().slice(0, 10);
-      trendsMap.set(dateStr, {
-        present: 0,
-        absent: 0,
-        leave: 0,
-        late: 0,
-        expected: expectedStaff,
-      });
-      curr.setDate(curr.getDate() + 1);
-    }
-
-    for (const att of attendances) {
-      const dateStr = att.attendanceDate.toISOString().slice(0, 10);
-      if (!trendsMap.has(dateStr)) continue;
-      const day = trendsMap.get(dateStr);
-      if (
-        att.status === 'PRESENT' ||
-        att.status === 'PUNCHED_IN' ||
-        att.status === 'HALF_DAY'
-      ) {
-        day.present++;
-      } else if (att.status === 'PAID_LEAVE' || att.status === 'UNPAID_LEAVE') {
-        day.leave++;
-      } else if (att.status === 'ABSENT') {
-        day.absent++;
-      }
-      if (att.lateMinutes > 0) {
-        day.late++;
-      }
-    }
-
-    const trends = Array.from(trendsMap.entries()).map(([date, day]) => {
-      const calculatedAbsent = Math.max(
-        0,
-        day.expected - day.present - day.leave,
-      );
-      const rate =
-        day.expected > 0
-          ? Number(((day.present / day.expected) * 100).toFixed(1))
-          : 100;
-      return {
-        date,
-        present: day.present,
-        absent: calculatedAbsent,
-        leave: day.leave,
-        late: day.late,
-        rate,
-      };
-    });
-
-    // Department-wise headcounts and present rates
-    const departments = await this.prisma.department.findMany();
-    const departmentWiseAttendance = departments.map((d) => {
-      const deptEmployees = employees.filter((e) => e.departmentId === d.id);
-      const deptExpected = deptEmployees.length;
-      const deptTodayRecords = todayAttendance.filter(
-        (a) => a.employee?.departmentId === d.id,
-      );
-      const deptPresent = deptTodayRecords.filter(
-        (a) =>
-          a.status === 'PRESENT' ||
-          a.status === 'PUNCHED_IN' ||
-          a.status === 'HALF_DAY',
-      ).length;
-      const deptLeave = deptTodayRecords.filter(
-        (a) => a.status === 'PAID_LEAVE' || a.status === 'UNPAID_LEAVE',
-      ).length;
-      const deptAbsent = deptExpected - deptPresent - deptLeave;
-      const deptLate = deptTodayRecords.filter((a) => a.lateMinutes > 0).length;
-      const rate =
-        deptExpected > 0 ? Math.round((deptPresent / deptExpected) * 100) : 100;
-      return {
-        department: d.name,
-        employees: deptExpected,
-        present: deptPresent,
-        leave: deptLeave,
-        absent: Math.max(0, deptAbsent),
-        late: deptLate,
-        rate,
-      };
-    });
+    const trends = [...trendsMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, records]) => ({ date, ...attendanceCounts(records) }));
+    const departments = await this.prisma.department.findMany({ where: { companyId } });
+    const reportDepartments = departments.filter(d => employees.some(e => e.departmentId === d.id));
+    const departmentWiseAttendance = reportDepartments.map(d => ({
+      department: d.name,
+      employees: employees.filter(e => e.departmentId === d.id && employedStatuses.includes(e.status) && e.joiningDate <= todayEnd).length,
+      ...attendanceCounts(todayAttendance.filter(a => a.employee?.departmentId === d.id)),
+    }));
 
     // Working Hours
     const presentRecords = attendances.filter(
-      (a) => a.punchInAt !== null && a.workedMinutes > 0,
+      (a) => a.punchInAt != null && a.punchOutAt != null && a.workedMinutes >= 0,
     );
     const avgWorkMinutes =
       presentRecords.length > 0
         ? presentRecords.reduce((sum, a) => sum + a.workedMinutes, 0) /
           presentRecords.length
-        : 492; // 8h 12m default fallback if none
-    const avgWorkHoursStr = `${Math.floor(avgWorkMinutes / 60)}h ${Math.round(avgWorkMinutes % 60)}m`;
+        : null;
+    const avgWorkHoursStr = avgWorkMinutes == null ? null : `${Math.floor(Math.round(avgWorkMinutes) / 60)}h ${Math.round(avgWorkMinutes) % 60}m`;
 
     const overtimeMinutesTotal = presentRecords.reduce(
       (sum, a) => sum + a.overtimeMinutes,
@@ -3579,24 +3295,15 @@ export class SuperAdminService implements OnApplicationBootstrap {
     );
     const overtimeHoursTotal = Math.round(overtimeMinutesTotal / 60);
 
-    const shortMinutesTotal = presentRecords.reduce((sum, a) => {
-      const standard = 480; // 8 hours standard
-      return (
-        sum + (a.workedMinutes < standard ? standard - a.workedMinutes : 0)
-      );
-    }, 0);
-    const shortHoursTotal = Math.round(shortMinutesTotal / 60);
-
-    // Filter late arrivals Exceptions
-    const lateArrivalsList = attendances
-      .filter((a) => a.lateMinutes > 0)
-      .map((a) => ({
-        name: a.employee?.fullName || 'Employee',
-        department: a.employee?.department?.name || 'Unassigned',
-        date: a.attendanceDate.toISOString().slice(0, 10),
-        lateMinutes: a.lateMinutes,
-        time: a.punchInAt ? a.punchInAt.toISOString().slice(11, 16) : '—',
-      }));
+    const shortHoursTotal = null; // No recorded employee shift target in this model.
+    const todayPunches = todayAttendance.filter(a => a.punchInAt).map(a => ({
+      name: a.employee?.fullName || 'Not recorded', department: a.employee?.department?.name || 'Unassigned',
+      date: hrDay(a.attendanceDate), lateMinutes: a.lateMinutes, time: hrTime(a.punchInAt), punchOut: hrTime(a.punchOutAt),
+    }));
+    const lateArrivalsList = attendances.filter(a => a.lateMinutes > 0).map(a => ({
+      name: a.employee?.fullName || 'Not recorded', department: a.employee?.department?.name || 'Unassigned',
+      date: hrDay(a.attendanceDate), lateMinutes: a.lateMinutes, time: hrTime(a.punchInAt), punchOut: hrTime(a.punchOutAt),
+    }));
 
     // Group repeated late arrivals
     const lateCounts = new Map<
@@ -3628,29 +3335,16 @@ export class SuperAdminService implements OnApplicationBootstrap {
 
     const missingPunchOutCount = attendances.filter(
       (a) =>
-        a.punchInAt !== null &&
-        a.punchOutAt === null &&
+        a.punchInAt != null &&
+        a.punchOutAt == null &&
         a.attendanceDate.getTime() < todayStart.getTime(),
     ).length;
 
-    // 4. Leave balances
-    const leaveBalances = employees.map((emp) => {
-      const empApproved = leaveRequests.filter(
-        (l) => l.employeeId === emp.id && l.status === 'APPROVED',
-      );
-      const used = empApproved.reduce((sum, l) => sum + l.totalDays, 0);
-      const total = 24;
-      const remaining = Math.max(0, total - used);
-      return {
-        employee: emp.fullName,
-        code: emp.employeeCode,
-        casual: 12,
-        sick: 8,
-        earned: 4,
-        used,
-        remaining,
-      };
-    });
+    // No leave-policy ledger exists; do not invent entitlements or remaining balances.
+    const leaveBalances = employees.map(emp => ({
+      employee: emp.fullName, code: emp.employeeCode, casual: null, sick: null, earned: null, remaining: null,
+      used: leaveRequests.filter(l => l.employeeId === emp.id && l.status === 'APPROVED').reduce((sum, l) => sum + l.totalDays, 0),
+    }));
 
     const leaveTypesMap = new Map<string, number>();
     for (const req of leaveRequests.filter((l) => l.status === 'APPROVED')) {
@@ -3681,43 +3375,27 @@ export class SuperAdminService implements OnApplicationBootstrap {
         .length,
     };
 
-    // Workforce Availability calendar representation for current day and next 3 days
-    const leaveCalendarList: any[] = [];
-    for (let i = 0; i < 4; i++) {
-      const targetDay = new Date(now);
-      targetDay.setDate(now.getDate() + i);
-      const tStr = targetDay.toISOString().slice(0, 10);
-      const dayLeaves = leaveRequests.filter(
-        (l) =>
-          l.status === 'APPROVED' &&
-          targetDay >= l.fromDate &&
-          targetDay <= l.toDate,
-      );
-
-      const deptLeavesCounts: Record<string, number> = {};
-      for (const req of dayLeaves) {
-        const dept = req.employee?.department?.name || 'Unassigned';
-        deptLeavesCounts[dept] = (deptLeavesCounts[dept] || 0) + 1;
+    const leaveDays = new Map<string, Map<string, string>>();
+    for (const request of leaveRequests.filter(l => l.status === 'APPROVED')) {
+      const first = allTime ? request.fromDate : new Date(Math.max(start.getTime(), request.fromDate.getTime()));
+      const last = allTime ? request.toDate : new Date(Math.min(end.getTime(), request.toDate.getTime()));
+      for (let day = hrDay(first); day <= hrDay(last); day = hrDay(new Date(new Date(day + 'T00:00:00+05:30').getTime() + 86400000))) {
+        if (!leaveDays.has(day)) leaveDays.set(day, new Map());
+        leaveDays.get(day)!.set(request.employeeId, request.employee?.department?.name || 'Unassigned');
       }
-      leaveCalendarList.push({
-        date: tStr,
-        leaves: dayLeaves.length,
-        breakdown: deptLeavesCounts,
-      });
     }
+    const leaveCalendarList = [...leaveDays.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, people]) => {
+      const breakdown: Record<string, number> = {};
+      for (const department of people.values()) breakdown[department] = (breakdown[department] || 0) + 1;
+      return { date, leaves: people.size, breakdown };
+    });
+
+    const isOpenRequisition = (r: any) => ['OPEN', 'HR_PROCESSING', 'CANDIDATES_SOURCED', 'INTERVIEWS_SCHEDULED', 'CANDIDATES_SELECTED', 'OFFER_IN_PROGRESS', 'PARTIALLY_FULFILLED'].includes(r.status);
 
     // 5. Recruitment Requisitions & candidate pipeline
     const recruitmentSummary = {
-      openRequisitions: recruitmentRequests.filter(
-        (r) =>
-          r.status !== 'FULFILLED' &&
-          r.status !== 'REJECTED' &&
-          r.status !== 'WITHDRAWN',
-      ).length,
-      totalVacancies: recruitmentRequests.reduce(
-        (sum, r) => sum + r.vacancies,
-        0,
-      ),
+      openRequisitions: recruitmentRequests.filter(isOpenRequisition).length,
+      totalVacancies: recruitmentRequests.filter(isOpenRequisition).reduce((sum, r) => sum + Math.max(0, r.vacancies - r.positionsFilled), 0),
       positionsFilled: recruitmentRequests.reduce(
         (sum, r) => sum + r.positionsFilled,
         0,
@@ -3734,8 +3412,8 @@ export class SuperAdminService implements OnApplicationBootstrap {
       );
       return {
         department: d.name,
-        openRoles: deptRequests.filter((r) => r.status !== 'FULFILLED').length,
-        vacancies: deptRequests.reduce((sum, r) => sum + r.vacancies, 0),
+        openRoles: deptRequests.filter(isOpenRequisition).length,
+        vacancies: deptRequests.filter(isOpenRequisition).reduce((sum, r) => sum + Math.max(0, r.vacancies - r.positionsFilled), 0),
         filled: deptRequests.reduce((sum, r) => sum + r.positionsFilled, 0),
       };
     });
@@ -3773,29 +3451,20 @@ export class SuperAdminService implements OnApplicationBootstrap {
               0,
             ) / fulfilledReqs.length,
           )
-        : 21; // standard average default fallback if none
+        : null;
 
-    const openDaysCount = recruitmentRequests.filter((r) => {
-      if (
-        r.status === 'FULFILLED' ||
-        r.status === 'REJECTED' ||
-        r.status === 'WITHDRAWN'
-      )
-        return false;
-      const days =
-        (now.getTime() - r.submittedAt.getTime()) / (1000 * 3600 * 24);
-      return days > 30;
-    }).length;
+    const openDaysCount = recruitmentRequests.filter(r => isOpenRequisition(r) && (now.getTime() - r.submittedAt.getTime()) / 86400000 > 30).length;
 
     const recruitmentMetrics = {
       candidatesCount: candidates.length,
       timeToFill: avgTimeToFill,
-      offerAcceptanceRate: 82, // Standard industry standard or mock percentage
+      offerAcceptanceRate: candidates.some(c => ['OFFERED', 'OFFER_ACCEPTED', 'OFFER_REJECTED', 'JOINED'].includes(c.status))
+        ? Number((100 * candidates.filter(c => ['OFFER_ACCEPTED', 'JOINED'].includes(c.status)).length / candidates.filter(c => ['OFFERED', 'OFFER_ACCEPTED', 'OFFER_REJECTED', 'JOINED'].includes(c.status)).length).toFixed(1)) : null,
       positionsOpenOver30Days: openDaysCount,
     };
 
     // 6. Payroll
-    const payableEmployeesCount = activePayrollRecords.length;
+    const payableEmployeesCount = new Set(activePayrollRecords.map(r => r.employeeId)).size;
     const grossPayrollTotal = activePayrollRecords.reduce(
       (sum, r) => sum + Number(r.grossEarnings),
       0,
@@ -3827,22 +3496,22 @@ export class SuperAdminService implements OnApplicationBootstrap {
       prepared: activePayrollRecords.filter(
         (r) => r.status === 'DRAFT' || r.status === 'HR_VERIFIED',
       ).length,
-      pending: employees.length - activePayrollRecords.length,
+      pending: payrollPeriods.length ? payrollPeriods.reduce((sum, period) => sum + employees.filter(e => employedStatuses.includes(e.status) && e.joiningDate <= period.endDate && !period.payrollRecords.some(r => r.employeeId === e.id)).length, 0) : null,
       approved: activePayrollRecords.filter(
-        (r) => r.status === 'SUPER_ADMIN_APPROVED' || r.status === 'PAID',
+        (r) => ['SUPER_ADMIN_APPROVED', 'PENDING_FINANCE', 'PROCESSING', 'PAID'].includes(r.status),
       ).length,
       paymentPending: activePayrollRecords.filter(
-        (r) => r.status === 'SUPER_ADMIN_APPROVED',
+        (r) => ['SUPER_ADMIN_APPROVED', 'PENDING_FINANCE', 'PROCESSING'].includes(r.status),
       ).length,
     };
 
-    const departmentPayrollCosts = departments.map((d) => {
+    const departmentPayrollCosts = reportDepartments.filter(d => activePayrollRecords.some(r => r.employee?.departmentId === d.id)).map((d) => {
       const deptRecords = activePayrollRecords.filter(
         (r) => r.employee?.departmentId === d.id,
       );
       return {
         department: d.name,
-        employees: deptRecords.length,
+        employees: new Set(deptRecords.map(r => r.employeeId)).size,
         gross: deptRecords.reduce((sum, r) => sum + Number(r.grossEarnings), 0),
         deductions: deptRecords.reduce(
           (sum, r) => sum + Number(r.totalDeductions),
@@ -3858,11 +3527,11 @@ export class SuperAdminService implements OnApplicationBootstrap {
       0,
     );
     const expenseApproved = expenses
-      .filter((e) => e.status === 'APPROVED')
+      .filter((e) => ['PENDING_FINANCE', 'FINANCE_PROCESSED'].includes(e.status))
       .reduce((sum, e) => sum + Number(e.amount), 0);
     const expensePending = expenses
       .filter(
-        (e) => e.status === 'PENDING_HR' || e.status === 'PENDING_SUPER_ADMIN',
+        (e) => e.status === 'PENDING_HR' || e.status === 'PENDING_SUPERADMIN',
       )
       .reduce((sum, e) => sum + Number(e.amount), 0);
     const expenseRejected = expenses
@@ -3870,65 +3539,20 @@ export class SuperAdminService implements OnApplicationBootstrap {
       .reduce((sum, e) => sum + Number(e.amount), 0);
 
     const expenseClaimsPendingCount = expenses.filter(
-      (e) => e.status === 'PENDING_HR' || e.status === 'PENDING_SUPER_ADMIN',
+      (e) => e.status === 'PENDING_HR' || e.status === 'PENDING_SUPERADMIN',
     ).length;
     const expenseClaimsApprovedCount = expenses.filter(
-      (e) => e.status === 'APPROVED',
+      (e) => ['PENDING_FINANCE', 'FINANCE_PROCESSED'].includes(e.status),
     ).length;
     const expenseClaimsRejectedCount = expenses.filter(
       (e) => e.status === 'REJECTED',
     ).length;
 
-    // Categories mapping from expenseName text
+    // Group by recorded expense names rather than guessed keyword categories.
     const expenseCategoriesMap = new Map<string, number>();
-    for (const exp of expenses) {
-      const name = String(exp.expenseName).toLowerCase();
-      let cat = 'Other';
-      if (
-        name.includes('travel') ||
-        name.includes('cab') ||
-        name.includes('flight') ||
-        name.includes('train')
-      ) {
-        cat = 'Travel';
-      } else if (
-        name.includes('food') ||
-        name.includes('meal') ||
-        name.includes('dinner') ||
-        name.includes('lunch')
-      ) {
-        cat = 'Food';
-      } else if (
-        name.includes('hotel') ||
-        name.includes('stay') ||
-        name.includes('room') ||
-        name.includes('accommodation')
-      ) {
-        cat = 'Accommodation';
-      } else if (
-        name.includes('conveyance') ||
-        name.includes('taxi') ||
-        name.includes('auto') ||
-        name.includes('cab')
-      ) {
-        cat = 'Local Conveyance';
-      } else if (
-        name.includes('fuel') ||
-        name.includes('petrol') ||
-        name.includes('diesel')
-      ) {
-        cat = 'Fuel';
-      } else if (
-        name.includes('office') ||
-        name.includes('stationery') ||
-        name.includes('paper')
-      ) {
-        cat = 'Office Expense';
-      }
-      expenseCategoriesMap.set(
-        cat,
-        (expenseCategoriesMap.get(cat) || 0) + Number(exp.amount),
-      );
+    for (const expense of expenses) {
+      const name = expense.expenseName || 'Not recorded';
+      expenseCategoriesMap.set(name, (expenseCategoriesMap.get(name) || 0) + Number(expense.amount));
     }
     const expenseCategories = Array.from(expenseCategoriesMap.entries()).map(
       ([name, value]) => ({
@@ -3937,7 +3561,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
       }),
     );
 
-    const expenseDepartmentCosts = departments.map((d) => {
+    const expenseDepartmentCosts = reportDepartments.map((d) => {
       const deptExpenses = expenses.filter((e) => {
         const emp = employees.find((empItem) => empItem.id === e.employeeId);
         return emp?.departmentId === d.id;
@@ -3948,64 +3572,11 @@ export class SuperAdminService implements OnApplicationBootstrap {
       };
     });
 
-    // 8. Exits & Attrition (using fallback default clearances & inactive status checks)
-    const exitsCount = employees.filter((e) => e.status === 'INACTIVE').length;
-    const onNoticeCount =
-      employees.filter(
-        (e) =>
-          e.status === 'ACTIVE' &&
-          e.probationEndDate &&
-          e.probationEndDate < now,
-      ).length > 0
-        ? 1
-        : 0; // simulated notice period based on probation date or custom logic
-
-    // Default simulated exits list merged with database records
-    const exitsClearancesList = [
-      {
-        employee: 'Neha Shah',
-        department: 'Marketing & Sales',
-        lastWorkingDay: '2026-06-30',
-        progress: 100,
-        pendingWith: 'None',
-        status: 'Cleared',
-      },
-      {
-        employee: 'Ramanathan Swamy',
-        department: 'Plant Operations',
-        lastWorkingDay: '2026-07-15',
-        progress: 50,
-        pendingWith: 'Finance & HR',
-        status: 'In Progress',
-      },
-    ];
-
-    // Simple attrition formula: (Exits / Avg Headcount) * 100
-    const attritionRate =
-      employees.length > 0
-        ? Number(((exitsCount / employees.length) * 100).toFixed(1))
-        : 0.0;
-
-    const exitedCountThisMonth = employees.filter(
-      (e) => e.status === 'INACTIVE' && e.createdAt >= start,
-    ).length;
-    const newJoinersThisMonth = employees.filter(
-      (e) => e.joiningDate >= start,
-    ).length;
-
-    const attritionSummary = {
-      notice: onNoticeCount,
-      clearancePending: exitsClearancesList.filter(
-        (e) => e.status === 'In Progress',
-      ).length,
-      exited: exitsCount,
-      attritionRate: `${attritionRate}%`,
-      newHireRate:
-        employees.length > 0
-          ? `${((newJoinersThisMonth / employees.length) * 100).toFixed(1)}%`
-          : '0%',
-      netGrowth: `+${newJoinersThisMonth - exitedCountThisMonth}`,
-    };
+    // Status alone does not establish an exit date, notice period, or clearance progress.
+    const exitsCount = employees.filter(e => ['RESIGNED', 'TERMINATED', 'RETIRED'].includes(e.status)).length;
+    const newJoinersThisMonth = employees.filter(e => e.joiningDate && (allTime || (e.joiningDate >= start && e.joiningDate <= end))).length;
+    const exitsClearancesList: any[] = [];
+    const attritionSummary = { notice: null, clearancePending: null, exited: exitsCount, attritionRate: null, newHireRate: null, netGrowth: null };
 
     // 9. HR Notifications summary & latest items
     // (already computed at the top)
@@ -4013,7 +3584,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
     // 10. Dynamic Risk Exception alerts list
     const alerts: string[] = [];
     if (absentTodayCount > 0) {
-      alerts.push(`⚠ ${absentTodayCount} expected employees are absent today`);
+      alerts.push(`⚠ ${absentTodayCount} employees have recorded absence today`);
     }
     if (lateTodayCount > 0) {
       alerts.push(`⚠ ${lateTodayCount} employees arrived late today`);
@@ -4040,41 +3611,32 @@ export class SuperAdminService implements OnApplicationBootstrap {
     }
     if (recruitmentSummary.openRequisitions > 0) {
       alerts.push(
-        `⚠ ${recruitmentSummary.openRequisitions} active vacancies are currently hiring`,
+        `⚠ ${recruitmentSummary.openRequisitions} open recruitment requisitions`,
       );
     }
     if (openDaysCount > 0) {
       alerts.push(
-        `⚠ ${openDaysCount} vacancies have remained open for more than 30 days`,
+        `⚠ ${openDaysCount} requisitions have remained open for more than 30 days`,
       );
     }
 
     // Return payload
     return {
       period: {
-        from: start.toISOString().slice(0, 10),
-        to: end.toISOString().slice(0, 10),
+        from: allTime ? null : hrDay(start),
+        to: allTime ? null : hrDay(end),
+        allTime,
       },
       filters: {
         departments: departments.map((d) => ({ id: d.id, name: d.name })),
-        locations: [
-          ...new Set(
-            employees.map((e) => e.workLocation?.name).filter(Boolean),
-          ),
-        ],
-        employmentTypes: [
-          'PERMANENT',
-          'CONTRACT',
-          'TEMPORARY',
-          'APPRENTICE',
-          'INTERN',
-        ],
-        employees: employees.map((e) => ({ id: e.id, name: e.fullName })),
+        locations: [...new Map(filterEmployees.filter(e => e.workLocation).map(e => [e.workLocation.id, e.workLocation])).values()],
+        employmentTypes: [...new Set(filterEmployees.map(e => e.employmentType))].sort(),
+        employees: filterEmployees.map(e => ({ id: e.id, name: e.fullName })),
       },
       workforce: {
         total: employees.length,
-        active: employees.filter((e) => e.status === 'ACTIVE').length,
-        inactive: employees.filter((e) => e.status === 'INACTIVE').length,
+        active: employees.filter((e) => employedStatuses.includes(e.status)).length,
+        inactive: employees.filter((e) => !employedStatuses.includes(e.status)).length,
         permanent: employees.filter(
           (e) => (e.employmentType as string) === 'PERMANENT',
         ).length,
@@ -4103,8 +3665,11 @@ export class SuperAdminService implements OnApplicationBootstrap {
           earlyExit: earlyExitTodayCount,
           clockedIn: clockedInCount,
           completed: completedShiftCount,
-          rate: attendanceRateToday.toFixed(1),
+          rate: attendanceRateToday,
+          recorded: todayCounts.recorded,
+          unrecorded: employees.filter(e => employedStatuses.includes(e.status) && e.joiningDate <= todayEnd && !todayAttendance.some(a => a.employeeId === e.id && a.status !== 'NOT_PUNCHED_IN')).length,
         },
+        punches: todayPunches,
         trends,
         departmentWise: departmentWiseAttendance,
         workingHours: {
@@ -4116,20 +3681,20 @@ export class SuperAdminService implements OnApplicationBootstrap {
         lateArrivals: {
           todayCount: lateTodayCount,
           repeated: repeatedLateList,
-          list: lateArrivalsList.slice(0, 10),
+          list: lateArrivalsList,
         },
       },
       attendanceRequests: {
         summary: {
-          pending: 0,
-          approved: 0,
-          rejected: 0,
+          pending: manualRequests.filter(r => r.status === 'PENDING').length,
+          approved: manualRequests.filter(r => r.status === 'APPROVED').length,
+          rejected: manualRequests.filter(r => r.status === 'REJECTED').length,
         },
-        pending: [],
+        pending: manualRequests.filter(r => r.status === 'PENDING').map(r => ({ id: r.id, employee: r.employee.fullName, date: hrDay(r.date), reason: r.reason })),
       },
       leave: {
         summary: leaveSummary,
-        balances: leaveBalances.slice(0, 10),
+        balances: leaveBalances,
         types: leaveTypesBreakdown,
         trends: leaveCalendarList,
         upcoming: leaveRequests
@@ -4137,8 +3702,8 @@ export class SuperAdminService implements OnApplicationBootstrap {
           .map((l) => ({
             employee: l.employee?.fullName,
             department: l.employee?.department?.name,
-            from: l.fromDate.toISOString().slice(0, 10),
-            to: l.toDate.toISOString().slice(0, 10),
+            from: hrDay(l.fromDate),
+            to: hrDay(l.toDate),
             days: l.totalDays,
           })),
       },
@@ -4181,11 +3746,11 @@ export class SuperAdminService implements OnApplicationBootstrap {
           locked: usersList.filter((u) => u.lockedUntil && u.lockedUntil > now)
             .length,
         },
-        list: userList.slice(0, 10),
+        list: userList,
       },
       employeeDataQuality: {
         completionRate,
-        incompleteRecords: incompleteRecordsList.slice(0, 10),
+        incompleteRecords: incompleteRecordsList,
         missingFieldCounts: {
           pan: missingPanCount,
           aadhaar: missingAadhaarCount,
@@ -4212,7 +3777,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
           : null,
         joiningDate: emp.joiningDate ? emp.joiningDate.toISOString() : null,
         status: emp.status,
-        baseSalary: Number(emp.baseSalary ?? 0),
+        baseSalary: emp.baseSalary == null ? null : Number(emp.baseSalary),
         panNumber: emp.panNumber ? `${emp.panNumber.slice(0, 4)}XXXXX` : '',
         bankAccountLastFour: emp.bankAccountLastFour || '',
         bankName: emp.bankName || '',
@@ -4224,6 +3789,16 @@ export class SuperAdminService implements OnApplicationBootstrap {
           ? emp.probationEndDate.toISOString()
           : null,
       })),
+      generatedAt: now.toISOString(),
+      scope: {
+        attendance: 'Today is a current snapshot. Trends show recorded days in the selected period. Missing records are not absences. Rates exclude holidays and weekly offs.',
+        payroll: 'Full payroll periods overlapping the selected dates; includes prepared records, excludes rejected and cancelled records. Amounts are not prorated.',
+        leave: 'Approved requests overlapping the selected dates; breakdown uses full requested days. Balances are unavailable without a policy ledger.',
+        recruitment: 'Current requisitions and candidate statuses, filtered by department and employment type. Employee and location filters do not apply.',
+        exits: 'Exit dates, notice periods and clearance records are not recorded; period attrition is unavailable.',
+        celebrations: allTime ? 'Current calendar year' : 'Selected period',
+        expenses: 'Expense claims in the selected period for matching employees.',
+      },
       alerts,
     };
   }
@@ -5469,36 +5044,23 @@ export class SuperAdminService implements OnApplicationBootstrap {
   async getDispatchAnalytics(query: any, companyId: string) {
     const isCompanyScoped =
       companyId && companyId !== 'null' && companyId !== 'undefined';
+    if (!isCompanyScoped) throw new BadRequestException('Company context is required');
     const toNumber = (val: any) =>
       val === null || val === undefined ? 0 : Number(val) || 0;
     const percentage = (numerator: number, denominator: number) =>
-      denominator ? Number(((numerator / denominator) * 100).toFixed(2)) : 0;
+      denominator ? Number(((numerator / denominator) * 100).toFixed(2)) : null;
 
     const now = new Date();
-    const isAllTime =
-      query?.month === 'all' ||
-      query?.period === 'All Time' ||
-      query?.filter === 'All Time';
-    let start: Date;
-    let end: Date;
-
-    if (isAllTime) {
-      start = new Date('2020-01-01T00:00:00.000Z');
-      end = new Date('2030-12-31T23:59:59.999Z');
-    } else if (query?.month && /^\d{4}-\d{2}$/.test(query.month)) {
-      const [y, m] = query.month.split('-').map(Number);
-      start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
-      end = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
-    } else {
-      end = query?.to ? new Date(`${query.to}T23:59:59.999Z`) : now;
-      start = query?.from
-        ? new Date(`${query.from}T00:00:00.000Z`)
-        : new Date(end.getFullYear(), end.getMonth(), 1);
-    }
-
-    const duration = end.getTime() - start.getTime() + 1;
+    const range = dispatchAnalyticsPeriod(
+      query?.period === 'All Time' || query?.filter === 'All Time' ? 'All Time' :
+        (query?.from || query?.to) ? 'Custom' : undefined,
+      query?.from, query?.to, query?.month, undefined, now,
+    );
+    const { startDate: start, isAllTime } = range;
+    const end = new Date(range.endDate.getTime() - 1);
+    const duration = isAllTime ? 0 : range.endDate.getTime() - start.getTime();
     const previousEnd = new Date(start.getTime() - 1);
-    const previousStart = new Date(previousEnd.getTime() - duration + 1);
+    const previousStart = new Date(start.getTime() - duration);
 
     const branchId =
       query?.branchId || (query?.branch !== 'All' ? query?.branch : undefined);
@@ -5515,7 +5077,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
       query?.status ||
       (query?.dispatchStatus !== 'All' ? query?.dispatchStatus : undefined);
     const dispatchCategory =
-      query?.dispatchCategory ||
+      query?.dispatchCategory || query?.categoryId ||
       (query?.category !== 'All' ? query?.category : undefined);
     const transporterId =
       query?.transporterId ||
@@ -5527,6 +5089,8 @@ export class SuperAdminService implements OnApplicationBootstrap {
       isSample = false,
       isAlloc = false,
     ) => {
+      if (isDispatch && status && item.status !== status) return false;
+      if (isDispatch && transporterId && item.transporterName !== transporterId) return false;
       if (branchId) {
         let bId = null;
         if (isDispatch) bId = item.salesOrder?.customer?.branchId;
@@ -5568,7 +5132,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
         let hasCategory = false;
         if (isDispatch) {
           hasCategory =
-            item.dispatchCategory === dispatchCategory ||
+            item.dispatchCategory === dispatchCategory || !item.dispatchCategory &&
             item.items?.some(
               (i: any) =>
                 i.salesOrderItem?.product?.dispatchCategory ===
@@ -5596,10 +5160,9 @@ export class SuperAdminService implements OnApplicationBootstrap {
 
     // Database Queries
     const salesOrderWhere: any = {
-      ...(isCompanyScoped ? { customer: { companyId } } : {}),
-      ...(branchId ? { customer: { branchId } } : {}),
+      customer: { companyId, ...(branchId ? { branchId } : {}) },
       ...(customerId ? { customerId } : {}),
-      ...(productId ? { items: { some: { productId } } } : {}),
+      ...((productId || dispatchCategory) ? { items: { some: { ...(productId ? { productId } : {}), ...(dispatchCategory ? { product: { dispatchCategory } } : {}) } } } : {}),
       ...(salesExecutiveId ? { salesExecutiveId } : {}),
     };
 
@@ -5618,6 +5181,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
       salespeople,
     ] = await Promise.all([
       this.prisma.dispatch.findMany({
+        where: { salesOrder: { customer: { companyId } } },
         include: {
           salesOrder: {
             include: {
@@ -5651,13 +5215,8 @@ export class SuperAdminService implements OnApplicationBootstrap {
         where: {
           allocationType: 'FINISHED_GOODS_RESERVATION',
           reservedQuantity: { gt: 0 },
-          ...(isCompanyScoped
-            ? { salesOrder: { customer: { companyId } } }
-            : {}),
-          ...(branchId ? { salesOrder: { customer: { branchId } } } : {}),
-          ...(customerId ? { salesOrder: { customerId } } : {}),
+          salesOrder: salesOrderWhere,
           ...(productId ? { productId } : {}),
-          ...(salesExecutiveId ? { salesOrder: { salesExecutiveId } } : {}),
         },
         include: {
           salesOrder: {
@@ -5684,11 +5243,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
       }),
       this.prisma.replacementRequest.findMany({
         where: {
-          ...(isCompanyScoped
-            ? { salesOrder: { customer: { companyId } } }
-            : {}),
-          ...(customerId ? { salesOrder: { customerId } } : {}),
-          ...(salesExecutiveId ? { salesOrder: { salesExecutiveId } } : {}),
+          salesOrder: salesOrderWhere,
           ...(productId ? { items: { some: { productId } } } : {}),
         },
         include: {
@@ -5698,11 +5253,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
       }),
       this.prisma.salesReturn.findMany({
         where: {
-          ...(isCompanyScoped
-            ? { salesOrder: { customer: { companyId } } }
-            : {}),
-          ...(customerId ? { salesOrder: { customerId } } : {}),
-          ...(salesExecutiveId ? { salesOrder: { salesExecutiveId } } : {}),
+          salesOrder: salesOrderWhere,
           ...(productId ? { items: { some: { productId } } } : {}),
         },
         include: {
@@ -5774,18 +5325,19 @@ export class SuperAdminService implements OnApplicationBootstrap {
 
     // Filter dispatches by effective dispatch date (dispatchedAt or createdAt)
     const getDispatchDate = (d: any) => {
-      const dt = d.dispatchedAt || d.createdAt;
+      const dt = d.dispatchedAt;
       return dt ? new Date(dt) : new Date(0);
     };
 
     const currentPeriodDispatches = filteredDispatches.filter((d) => {
+      if (!d.dispatchedAt || ['CANCELLED', 'REJECTED', 'DISPATCH_DRAFT'].includes(d.status)) return false;
       if (isAllTime) return true;
       const dDate = getDispatchDate(d);
       return dDate >= start && dDate <= end;
     });
 
     const previousPeriodDispatches = filteredDispatches.filter((d) => {
-      if (isAllTime) return false;
+      if (isAllTime || !d.dispatchedAt || ['CANCELLED', 'REJECTED', 'DISPATCH_DRAFT'].includes(d.status)) return false;
       const dDate = getDispatchDate(d);
       return dDate >= previousStart && dDate <= previousEnd;
     });
@@ -5800,7 +5352,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
       0,
     );
     const costChangePercent =
-      lastMonthTransportCost > 0
+      lastMonthTransportCost > 0 && ![...currentPeriodDispatches, ...previousPeriodDispatches].some(d => d.freightAmount == null)
         ? Number(
             (
               ((thisMonthTransportCost - lastMonthTransportCost) /
@@ -5808,22 +5360,20 @@ export class SuperAdminService implements OnApplicationBootstrap {
               100
             ).toFixed(1),
           )
-        : 0;
+        : null;
 
-    const expectedTransportCost = currentPeriodDispatches.reduce((sum, d) => {
-      const soFreight = toNumber(
-        d.salesOrder?.freightAmount ||
-          d.salesOrder?.sourceQuotation?.expectedTransportationCost,
-      );
-      return sum + (soFreight > 0 ? soFreight : toNumber(d.freightAmount));
-    }, 0);
-    const actualTransportCost = thisMonthTransportCost;
-    const varianceAmount = actualTransportCost - expectedTransportCost;
+    // Split shipments share one recorded quotation baseline per order.
+    const periodOrders = [...new Map(currentPeriodDispatches.map(d => [d.salesOrderId, d.salesOrder])).values()];
+    const baselines = periodOrders.map(order => order?.sourceQuotation?.expectedTransportationCost);
+    const expectedTransportCost = baselines.length && baselines.every(value => value != null)
+      ? baselines.reduce((sum, value) => sum + toNumber(value), 0) : null;
+    const actualTransportCost = currentPeriodDispatches.some(d => d.freightAmount == null) ? null : thisMonthTransportCost;
+    const varianceAmount = expectedTransportCost == null || actualTransportCost == null ? null : actualTransportCost - expectedTransportCost;
 
     const branchMap = new Map(allBranches.map((b) => [b.id, b.name]));
 
     const mappedDispatches = currentPeriodDispatches.map((d: any) => {
-      const dDate = (d.dispatchedAt || d.createdAt)?.toISOString().slice(0, 10);
+      const dDate = dispatchDay(new Date(d.dispatchedAt));
       const deliveredDateStr = d.deliveredAt
         ? new Date(d.deliveredAt).toISOString().slice(0, 10)
         : null;
@@ -5834,21 +5384,18 @@ export class SuperAdminService implements OnApplicationBootstrap {
           productName:
             it.salesOrderItem?.productNameSnapshot ||
             it.salesOrderItem?.product?.name ||
-            'FRP Product',
+            'Not recorded',
           sku: it.salesOrderItem?.product?.sku || '',
           category:
             it.salesOrderItem?.product?.category ||
             it.salesOrderItem?.product?.dispatchCategory ||
-            'D1',
+            'Not recorded',
           quantity: toNumber(it.quantity),
           specifications: it.salesOrderItem?.specifications || {},
         })) || [];
 
-      const totalQty =
-        items.reduce((s: number, i: any) => s + i.quantity, 0) ||
-        toNumber(d.packageCount) ||
-        1;
-      const loc = parseDeliveryLocation(
+      const totalQty = items.reduce((s: number, i: any) => s + i.quantity, 0);
+      const loc = recordedDispatchLocation(
         d.deliveryAddress,
         d.salesOrder?.shippingAddress,
         d.salesOrder?.customer?.billingAddress,
@@ -5881,31 +5428,11 @@ export class SuperAdminService implements OnApplicationBootstrap {
         stage = 'CREATED';
       }
 
-      let sla = 'On-Time';
-      if (stage === 'DELIVERED') {
-        if (
-          d.deliveredAt &&
-          promisedDate &&
-          new Date(d.deliveredAt) > new Date(promisedDate)
-        ) {
-          sla = 'Delayed';
-        } else {
-          sla = 'On-Time';
-        }
-      } else if (stage === 'IN_TRANSIT') {
-        if (
-          (promisedDate && new Date(promisedDate) < now) ||
-          d.transitCondition === 'DELAYED'
-        ) {
-          sla = 'Delayed';
-        } else {
-          sla = 'On-Time';
-        }
-      } else {
-        sla =
-          promisedDate && new Date(promisedDate) < now
-            ? 'Delayed'
-            : 'On-Time';
+      let sla = 'Not recorded';
+      if (promisedDate && (stage !== 'DELIVERED' || d.deliveredAt)) {
+        sla = new Date(stage === 'DELIVERED' ? d.deliveredAt : now) > new Date(promisedDate) ? 'Delayed' : 'On-Time';
+      } else if (stage === 'IN_TRANSIT' && d.transitCondition === 'DELAYED') {
+        sla = 'Delayed';
       }
 
       return {
@@ -5916,12 +5443,12 @@ export class SuperAdminService implements OnApplicationBootstrap {
         customerId: d.salesOrder?.customerId,
         customerName: d.salesOrder?.customer?.companyName || '—',
         branchName:
-          branchMap.get(d.salesOrder?.customer?.branchId) || 'Main Plant',
+          branchMap.get(d.salesOrder?.customer?.branchId) || 'Not recorded',
         salesperson: d.salesOrder?.salesExecutive?.name || '—',
         dispatchCategory:
           d.dispatchCategory ||
           d.items?.[0]?.salesOrderItem?.product?.dispatchCategory ||
-          'D1',
+          'Not recorded',
         status: d.status,
         stage,
         sla,
@@ -5932,17 +5459,18 @@ export class SuperAdminService implements OnApplicationBootstrap {
           : promisedDate
             ? new Date(promisedDate).toISOString().slice(0, 10)
             : null,
-        transporterName: d.transporterName || 'Direct / Self-Pickup',
-        vehicleNumber: d.vehicleNumber || 'GJ01TF0620',
-        vehicleType: d.vehicleType || 'Truck',
-        driverName: d.driverName || 'Verified Driver',
+        transporterName: d.transporterName || 'Not recorded',
+        vehicleNumber: d.vehicleNumber || 'Not recorded',
+        vehicleType: d.vehicleType || 'Not recorded',
+        driverName: d.driverName || 'Not recorded',
         driverPhone: d.driverPhone || '',
         lrNumber: d.lrNumber || '',
-        freightAmount: toNumber(d.freightAmount),
-        freightType: d.freightType || 'Paid',
-        packageCount: d.packageCount || totalQty,
-        packageType: d.packageType || 'Pallet / Box',
-        totalWeight: toNumber(d.totalWeight) || totalQty * 5,
+        freightAmount: d.freightAmount == null ? null : toNumber(d.freightAmount),
+        freightType: d.freightType || 'Not recorded',
+        packageCount: d.packageCount,
+        quantity: totalQty,
+        packageType: d.packageType || 'Not recorded',
+        totalWeight: d.totalWeight == null ? null : toNumber(d.totalWeight),
         destination: loc.formattedLocation,
         locality: loc.locality,
         city: loc.city,
@@ -5950,8 +5478,8 @@ export class SuperAdminService implements OnApplicationBootstrap {
         zone: loc.zone,
         deliveryAddress: d.deliveryAddress || loc.formattedLocation,
         podStatus:
-          d.podStatus || (stage === 'DELIVERED' ? 'APPROVED' : 'PENDING'),
-        transitCondition: d.transitCondition || 'ON_SCHEDULE',
+          d.podStatus || 'Not recorded',
+        transitCondition: d.transitCondition || 'Not recorded',
         items,
       };
     });
@@ -6001,7 +5529,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
     }, 0);
 
     // In Transit
-    const inTransitDispatches = filteredDispatches.filter((d) =>
+    const inTransitDispatches = currentPeriodDispatches.filter((d) =>
       ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(d.status),
     );
     const inTransitCount = inTransitDispatches.length;
@@ -6010,15 +5538,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
     }, 0);
 
     // Delivered
-    const deliveredDispatches = filteredDispatches.filter(
-      (d) =>
-        ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status) &&
-        (isAllTime ||
-          (d.deliveredAt &&
-            new Date(d.deliveredAt) >= start &&
-            new Date(d.deliveredAt) <= end) ||
-          (getDispatchDate(d) >= start && getDispatchDate(d) <= end)),
-    );
+    const deliveredDispatches = currentPeriodDispatches.filter(d => ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status));
     const deliveredCount = deliveredDispatches.length;
     const deliveredQty = deliveredDispatches.reduce((sum, d) => {
       return sum + d.items.reduce((s, item) => s + toNumber(item.quantity), 0);
@@ -6037,7 +5557,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
       for (const item of order.items) {
         const orderedQty = toNumber(item.orderedQuantity);
         const successfullyDispatched = item.dispatchItems
-          .filter((di: any) => di.dispatch.status !== 'DISPATCH_DRAFT')
+          .filter((di: any) => !!di.dispatch.dispatchedAt && !['DISPATCH_DRAFT', 'REJECTED', 'CANCELLED'].includes(di.dispatch.status))
           .reduce((sum: number, di: any) => sum + toNumber(di.quantity), 0);
 
         const balance = Math.max(0, orderedQty - successfullyDispatched);
@@ -6065,7 +5585,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
             return (
               sum +
               i.dispatchItems
-                .filter((di: any) => di.dispatch.status !== 'DISPATCH_DRAFT')
+                .filter((di: any) => !!di.dispatch.dispatchedAt && !['DISPATCH_DRAFT', 'REJECTED', 'CANCELLED'].includes(di.dispatch.status))
                 .reduce((s: number, di: any) => s + toNumber(di.quantity), 0)
             );
           }, 0),
@@ -6101,8 +5621,8 @@ export class SuperAdminService implements OnApplicationBootstrap {
     // 4. Daily Dispatch Report Trends
     const trendsMap = new Map<string, any>();
     const tempDate = new Date(start);
-    while (tempDate <= end) {
-      const dateStr = tempDate.toISOString().slice(0, 10);
+    while (!isAllTime && tempDate <= end) {
+      const dateStr = dispatchDay(tempDate);
       trendsMap.set(dateStr, {
         date: dateStr,
         dispatches: 0,
@@ -6115,12 +5635,17 @@ export class SuperAdminService implements OnApplicationBootstrap {
     }
 
     for (const d of currentPeriodDispatches) {
-      const dateStr = new Date(d.createdAt).toISOString().slice(0, 10);
+      const dateStr = dispatchDay(getDispatchDate(d));
+      if (!trendsMap.has(dateStr)) trendsMap.set(dateStr, { date: dateStr, dispatches: 0, orders: 0, qty: 0, delivered: 0, pending: 0 });
       if (trendsMap.has(dateStr)) {
         const trend = trendsMap.get(dateStr);
         trend.dispatches++;
         trend.qty += d.items.reduce((s, i) => s + toNumber(i.quantity), 0);
-        if (d.salesOrderId) trend.orders++;
+        if (d.salesOrderId) {
+          trend.orderIds ||= new Set();
+          trend.orderIds.add(d.salesOrderId);
+          trend.orders = trend.orderIds.size;
+        }
         if (
           ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status)
         ) {
@@ -6130,7 +5655,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
         }
       }
     }
-    const dailyTrends = Array.from(trendsMap.values());
+    const dailyTrends = Array.from(trendsMap.values()).map(({ orderIds, ...trend }) => trend).sort((a, b) => a.date.localeCompare(b.date));
 
     // Daily summary metrics
     const dailySummary = {
@@ -6206,7 +5731,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
 
     const transporterStatsMap = new Map<string, any>();
 
-    for (const d of filteredDispatches) {
+    for (const d of currentPeriodDispatches) {
       const promisedDate =
         d.eta || d.expectedDeliveryTime || d.salesOrder?.requestedDeliveryDate;
       const deliveredDate = d.deliveredAt;
@@ -6220,14 +5745,14 @@ export class SuperAdminService implements OnApplicationBootstrap {
         }
       }
 
-      const dispatchDate = d.dispatchedAt || d.createdAt;
+      const dispatchDate = d.dispatchedAt;
       if (['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status)) {
         if (dispatchDate && deliveredDate) {
           const transitTimeMs =
             new Date(deliveredDate).getTime() -
             new Date(dispatchDate).getTime();
           const transitDays = Math.max(
-            0.1,
+            0,
             Number((transitTimeMs / (1000 * 60 * 60 * 24)).toFixed(2)),
           );
 
@@ -6246,14 +5771,12 @@ export class SuperAdminService implements OnApplicationBootstrap {
             } else {
               delayedShipmentsCount++;
             }
-          } else {
-            onTimeDeliveryCount++;
           }
         }
       }
 
       // Transporter Scorecard
-      const transporter = d.transporterName || 'Self-Pickup';
+      const transporter = d.transporterName || 'Not recorded';
       if (!transporterStatsMap.has(transporter)) {
         transporterStatsMap.set(transporter, {
           transporter,
@@ -6263,17 +5786,19 @@ export class SuperAdminService implements OnApplicationBootstrap {
           totalTransit: 0,
           transitCount: 0,
           onTime: 0,
+          measured: 0,
         });
       }
       const transStat = transporterStatsMap.get(transporter);
       transStat.shipments++;
       if (['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status)) {
         transStat.delivered++;
+        if (deliveredDate && promisedDate) transStat.measured++;
         if (dispatchDate && deliveredDate) {
           const tMs =
             new Date(deliveredDate).getTime() -
             new Date(dispatchDate).getTime();
-          transStat.totalTransit += Math.max(0.1, tMs / (1000 * 60 * 60 * 24));
+          transStat.totalTransit += Math.max(0, tMs / (1000 * 60 * 60 * 24));
           transStat.transitCount++;
         }
         if (
@@ -6282,7 +5807,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
           new Date(deliveredDate) > new Date(promisedDate)
         ) {
           transStat.delayed++;
-        } else if (deliveredDate) {
+        } else if (deliveredDate && promisedDate) {
           transStat.onTime++;
         }
       } else if (promisedDate && new Date(promisedDate) < now) {
@@ -6293,13 +5818,11 @@ export class SuperAdminService implements OnApplicationBootstrap {
     const avgTransitTime =
       transitTimeCount > 0
         ? Number((totalTransitTimeDays / transitTimeCount).toFixed(1))
-        : 0;
+        : null;
     const finalFastestTransit =
-      fastestDeliveryDays === 999 ? 0 : fastestDeliveryDays;
-    const onTimeDeliveryRate = percentage(
-      onTimeDeliveryCount,
-      deliveredDispatches.length || 1,
-    );
+      fastestDeliveryDays === 999 ? null : fastestDeliveryDays;
+    const measuredDeliveries = mappedDispatches.filter(d => d.stage === 'DELIVERED' && d.sla !== 'Not recorded').length;
+    const onTimeDeliveryRate = measuredDeliveries ? percentage(onTimeDeliveryCount, measuredDeliveries) : null;
 
     const transporterPerformance = Array.from(transporterStatsMap.values()).map(
       (t) => ({
@@ -6310,8 +5833,8 @@ export class SuperAdminService implements OnApplicationBootstrap {
         avgTransit:
           t.transitCount > 0
             ? Number((t.totalTransit / t.transitCount).toFixed(1))
-            : 0,
-        onTimePct: percentage(t.onTime, t.delivered || 1),
+            : null,
+        onTimePct: percentage(t.onTime, t.measured),
       }),
     );
 
@@ -6361,15 +5884,6 @@ export class SuperAdminService implements OnApplicationBootstrap {
         (sample.lead.convertedCustomerId || sample.lead.convertedAt)
       ) {
         isConverted = true;
-      } else if (sample.customerId) {
-        const customerOrders = salesOrders.filter(
-          (so) =>
-            so.customerId === sample.customerId &&
-            new Date(so.orderDate) > new Date(sample.requestedDate),
-        );
-        if (customerOrders.length > 0) {
-          isConverted = true;
-        }
       }
       if (isConverted) {
         convertedToBusiness++;
@@ -6400,9 +5914,8 @@ export class SuperAdminService implements OnApplicationBootstrap {
             ? s.dispatchDate.toISOString().slice(0, 10)
             : '—',
           deliveryStatus: s.status,
-          testingStatus: s.sampleResult || 'PENDING',
-        }))
-        .slice(0, 50),
+          testingStatus: s.sampleResult || 'Not recorded',
+        })),
     };
 
     // 9. Replacements Analytics
@@ -6461,10 +5974,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
         inTransit: inTransitReplacementsCount,
         delivered: deliveredReplacementsCount,
         pending: pendingReplacementsCount,
-        replacementRate: percentage(
-          replacementRequestsCount,
-          deliveredCount || 1,
-        ),
+        replacementRate: null,
       },
       reasons: replacementReasons,
       records: filteredReplacements
@@ -6478,9 +5988,8 @@ export class SuperAdminService implements OnApplicationBootstrap {
             0,
           reason: r.reasonCode,
           status: r.status,
-          dispatchStatus: r.dispatchStatus || 'PENDING',
-        }))
-        .slice(0, 50),
+          dispatchStatus: r.dispatchStatus || 'Not recorded',
+        })),
     };
 
     // 10. Returns Analytics
@@ -6525,7 +6034,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
         inTransit: inTransitReturns,
         received: receivedReturns,
         closed: closedReturns,
-        returnRate: percentage(returnRequests, deliveredCount || 1),
+        returnRate: null,
       },
       reasons: returnReasons,
       records: filteredReturns
@@ -6540,9 +6049,10 @@ export class SuperAdminService implements OnApplicationBootstrap {
           reason: r.reasonCode,
           pickupRequired: r.pickupRequired,
           status: r.status,
-        }))
-        .slice(0, 50),
+        })),
     };
+
+    const shipmentIds = new Set(currentPeriodDispatches.map(d => d.id));
 
     // 11. Product-Wise Dispatch Performance
     const productStatsMap = new Map<string, any>();
@@ -6551,8 +6061,9 @@ export class SuperAdminService implements OnApplicationBootstrap {
         const prod = item.product;
         const prodName =
           item.productNameSnapshot || prod?.name || 'Unknown Product';
-        if (!productStatsMap.has(prodName)) {
-          productStatsMap.set(prodName, {
+        const productKey = item.productId || prod?.id || item.id;
+        if (!productStatsMap.has(productKey)) {
+          productStatsMap.set(productKey, {
             product: prodName,
             sku: prod?.sku || '',
             readyFG: 0,
@@ -6564,12 +6075,12 @@ export class SuperAdminService implements OnApplicationBootstrap {
             replacementQty: 0,
           });
         }
-        const stat = productStatsMap.get(prodName);
-        stat.reserved += toNumber(item.orderedQuantity);
+        const stat = productStatsMap.get(productKey);
+        stat.reserved += filteredAllocations.filter(a => a.salesOrderItemId === item.id).reduce((sum, a) => sum + toNumber(a.reservedQuantity), 0);
         stat.remaining += Math.max(
           0,
           toNumber(item.orderedQuantity) -
-            item.dispatchItems.reduce(
+            item.dispatchItems.filter(di => di.dispatch.dispatchedAt && !['REJECTED', 'CANCELLED'].includes(di.dispatch.status)).reduce(
               (s: number, di: any) => s + toNumber(di.quantity),
               0,
             ),
@@ -6577,13 +6088,13 @@ export class SuperAdminService implements OnApplicationBootstrap {
         stat.dispatched += item.dispatchItems
           .filter(
             (di: any) =>
-              di.dispatch.status !== 'DISPATCH_DRAFT' &&
+              shipmentIds.has(di.dispatch.id) && !!di.dispatch.dispatchedAt && !['DISPATCH_DRAFT', 'REJECTED', 'CANCELLED'].includes(di.dispatch.status) &&
               di.dispatch.status !== 'REJECTED',
           )
           .reduce((s: number, di: any) => s + toNumber(di.quantity), 0);
         stat.delivered += item.dispatchItems
           .filter((di: any) =>
-            ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(
+            shipmentIds.has(di.dispatch.id) && ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(
               di.dispatch.status,
             ),
           )
@@ -6592,7 +6103,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
     }
 
     for (const fg of finishedGoods) {
-      const prodName = fg.product?.name;
+      const prodName = fg.productId;
       if (prodName && productStatsMap.has(prodName)) {
         const stat = productStatsMap.get(prodName);
         stat.readyFG += toNumber(fg.availableQuantity);
@@ -6601,11 +6112,11 @@ export class SuperAdminService implements OnApplicationBootstrap {
 
     for (const ret of filteredReturns) {
       for (const item of ret.items) {
-        const prodName = item.product?.name;
+        const prodName = item.productId;
         if (prodName && productStatsMap.has(prodName)) {
           const stat = productStatsMap.get(prodName);
           stat.returnQty += toNumber(
-            item.receivedQuantity || item.requestedQuantity,
+            item.receivedQuantity,
           );
         }
       }
@@ -6613,7 +6124,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
 
     for (const repl of filteredReplacements) {
       for (const item of repl.items) {
-        const prodName = item.product?.name;
+        const prodName = item.productId;
         if (prodName && productStatsMap.has(prodName)) {
           const stat = productStatsMap.get(prodName);
           stat.replacementQty += toNumber(item.requestedQuantity);
@@ -6636,6 +6147,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
           pending: 0,
           onTimeCount: 0,
           deliveredCount: 0,
+          measuredCount: 0,
           delayedCount: 0,
         });
       }
@@ -6647,7 +6159,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
       );
     }
 
-    for (const d of filteredDispatches) {
+    for (const d of currentPeriodDispatches) {
       const custName = d.salesOrder?.customer?.companyName;
       if (custName && customerStatsMap.has(custName)) {
         const stat = customerStatsMap.get(custName);
@@ -6658,6 +6170,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
         ) {
           stat.delivered += dQty;
           stat.deliveredCount++;
+          if (d.deliveredAt && d.eta) stat.measuredCount++;
           if (
             d.deliveredAt &&
             d.eta &&
@@ -6676,7 +6189,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
     const customersAnalytics = Array.from(customerStatsMap.values()).map(
       (c) => ({
         ...c,
-        onTimePct: percentage(c.onTimeCount, c.deliveredCount || 1),
+        onTimePct: percentage(c.onTimeCount, c.measuredCount),
       }),
     );
 
@@ -6703,7 +6216,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
           i.dispatchItems
             .filter(
               (di: any) =>
-                di.dispatch.status !== 'DISPATCH_DRAFT' &&
+                shipmentIds.has(di.dispatch.id) && !!di.dispatch.dispatchedAt && !['DISPATCH_DRAFT', 'REJECTED', 'CANCELLED'].includes(di.dispatch.status) &&
                 di.dispatch.status !== 'REJECTED',
             )
             .reduce((s: number, di: any) => s + toNumber(di.quantity), 0)
@@ -6714,7 +6227,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
           sum +
           i.dispatchItems
             .filter((di: any) =>
-              ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(
+              shipmentIds.has(di.dispatch.id) && ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(
                 di.dispatch.status,
               ),
             )
@@ -6728,7 +6241,8 @@ export class SuperAdminService implements OnApplicationBootstrap {
 
       stat.dispatched += orderDispatched;
       stat.delivered += orderDelivered;
-      stat.pending += Math.max(0, orderOrdered - orderDispatched);
+      stat.pending += Math.max(0, orderOrdered - order.items.reduce((sum, i) => sum + i.dispatchItems.filter(di => di.dispatch.dispatchedAt && !['CANCELLED', 'REJECTED'].includes(di.dispatch.status)).reduce((n, di) => n + toNumber(di.quantity), 0), 0));
+      stat.ready += filteredAllocations.filter(a => a.salesOrderId === order.id).reduce((sum, a) => sum + toNumber(a.reservedQuantity), 0);
     }
     const salespersonAnalytics = Array.from(salespersonStatsMap.values());
 
@@ -6740,18 +6254,15 @@ export class SuperAdminService implements OnApplicationBootstrap {
         );
         return item?.product?.dispatchCategory === cat;
       });
-      const catDispatches = filteredDispatches.filter(
+      const catDispatches = currentPeriodDispatches.filter(
         (d) =>
-          d.dispatchCategory === cat ||
-          d.items.some(
-            (i) => i.salesOrderItem?.product?.dispatchCategory === cat,
-          ),
+          d.dispatchCategory === cat,
       );
 
       const readyOrders = new Set(catAllocations.map((a) => a.salesOrderId))
         .size;
       const dispatchesCount = catDispatches.filter((d) => {
-        const dDate = new Date(d.createdAt);
+        const dDate = getDispatchDate(d);
         return dDate >= start && dDate <= end;
       }).length;
       const qtyDispatched = catDispatches.reduce(
@@ -6777,7 +6288,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
         qtyDispatched,
         pending,
         delivered: delivered.length,
-        onTimePct: percentage(onTime, delivered.length || 1),
+        onTimePct: percentage(onTime, delivered.filter(d => d.deliveredAt && d.eta).length),
       };
     };
 
@@ -6795,7 +6306,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
       (sum, a) => sum + toNumber(a.reservedQuantity),
       0,
     );
-    const dispatchReadyTotal = filteredDispatches
+    const dispatchReadyTotal = currentPeriodDispatches
       .filter((d) =>
         [
           'DISPATCH_APPROVED',
@@ -6808,7 +6319,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
         (sum, d) => sum + d.items.reduce((s, i) => s + toNumber(i.quantity), 0),
         0,
       );
-    const dispatchedTotal = filteredDispatches
+    const dispatchedTotal = currentPeriodDispatches
       .filter((d) =>
         [
           'DISPATCHED',
@@ -6832,24 +6343,9 @@ export class SuperAdminService implements OnApplicationBootstrap {
       mismatches: [] as any[],
     };
 
-    // Exception detection
-    for (const d of filteredDispatches) {
-      for (const di of d.items) {
-        const alloc = filteredAllocations.find(
-          (a) => a.salesOrderItemId === di.salesOrderItemId,
-        );
-        if (alloc && toNumber(di.quantity) > toNumber(alloc.reservedQuantity)) {
-          inventoryReconciliation.mismatches.push({
-            type: 'DISPATCH_EXCEEDS_RESERVATION',
-            message: `Dispatch ${d.dispatchNo} item quantity (${di.quantity}) exceeds reservation (${alloc.reservedQuantity}) for product ${di.salesOrderItem?.productNameSnapshot || 'item'}.`,
-            severity: 'WARNING',
-          });
-        }
-      }
-    }
-
+    // Check recorded stock movements; current reservations are remaining balances.
     for (const alloc of filteredAllocations) {
-      const orderDispatches = filteredDispatches.filter(
+      const orderDispatches = currentPeriodDispatches.filter(
         (d) => d.salesOrderId === alloc.salesOrderId,
       );
       if (orderDispatches.length === 0) {
@@ -6861,7 +6357,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
       }
     }
 
-    for (const d of filteredDispatches) {
+    for (const d of currentPeriodDispatches) {
       if (
         [
           'DISPATCHED',
@@ -6883,7 +6379,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
       }
     }
 
-    for (const d of filteredDispatches) {
+    for (const d of currentPeriodDispatches) {
       if (
         ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(d.status) &&
         (d.deliveredAt || d.podStatus === 'APPROVED')
@@ -6903,7 +6399,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
         `⚠ ${remainingOrdersCount} orders have remaining dispatch quantity`,
       );
     }
-    const pastPromisedDispatches = filteredDispatches.filter(
+    const pastPromisedDispatches = currentPeriodDispatches.filter(
       (d) =>
         !['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status) &&
         d.eta &&
@@ -6946,10 +6442,10 @@ export class SuperAdminService implements OnApplicationBootstrap {
     // 17. Logistics Vehicles Stats
     const logistics = {
       vehicles: Array.from(
-        new Set(filteredDispatches.map((d) => d.vehicleNumber).filter(Boolean)),
+        new Set(currentPeriodDispatches.map((d) => d.vehicleNumber).filter(Boolean)),
       )
         .map((vehicleNo) => {
-          const vehicleDispatches = filteredDispatches.filter(
+          const vehicleDispatches = currentPeriodDispatches.filter(
             (d) => d.vehicleNumber === vehicleNo,
           );
           const trips = vehicleDispatches.length;
@@ -6967,11 +6463,11 @@ export class SuperAdminService implements OnApplicationBootstrap {
                 d.status,
               ),
             )
-              ? 'ACTIVE'
-              : 'IDLE',
+              ? 'IN TRANSIT'
+              : 'NO IN-TRANSIT SHIPMENTS IN PERIOD',
           };
         })
-        .slice(0, 50),
+,
       transporters: transporterPerformance,
     };
 
@@ -6986,7 +6482,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
       categories: [
         ...new Set(
           allProducts
-            .map((p) => p.dispatchCategory || p.category)
+            .map((p) => p.dispatchCategory)
             .filter(Boolean),
         ),
       ],
@@ -7018,7 +6514,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
       flow,
       transportCost: {
         thisMonthTransportCost,
-        lastMonthTransportCost,
+        lastMonthTransportCost: isAllTime || previousPeriodDispatches.some(d => d.freightAmount == null) ? null : lastMonthTransportCost,
         costChangePercent,
         expectedTransportCost,
         actualTransportCost,
@@ -7037,8 +6533,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
           partiallyReady: readyOrdersSummary.filter(
             (o) => o.reservedQty < o.orderedQty,
           ).length,
-          urgent: readyOrdersSummary.filter((o) => o.reservedQty < o.orderedQty)
-            .length, // simple representation
+          urgent: null,
           waitingMoreThan24Hrs: waitingReadyOrders.length,
         },
         orders: readyOrdersSummary,
@@ -7064,8 +6559,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
         summary: {
           deliveredToday: deliveredDispatches.filter(
             (d) =>
-              new Date(d.deliveredAt!).toISOString().slice(0, 10) ===
-              now.toISOString().slice(0, 10),
+              d.deliveredAt && dispatchDay(new Date(d.deliveredAt)) === dispatchDay(now),
           ).length,
           deliveredThisMonth: deliveredCount,
           onTime: onTimeDeliveryCount,
@@ -7073,7 +6567,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
           onTimeDeliveryRate: onTimeDeliveryRate,
           avgTransitTime,
           fastestDelivery: finalFastestTransit,
-          longestDelivery: longestDeliveryDays,
+          longestDelivery: transitTimeCount ? longestDeliveryDays : null,
           delayedShipments: delayedShipmentsCount,
         },
         trends: dailyTrends,
@@ -7094,10 +6588,9 @@ export class SuperAdminService implements OnApplicationBootstrap {
           pastTargetDate: countPastTargetDate,
           vehicleDelay: currentPeriodDispatches.filter(
             (d) =>
-              d.transitCondition === 'DELAYED' ||
               d.transitRemarks?.toLowerCase().includes('vehicle'),
           ).length,
-          productionDependency: waitingReadyOrders.length,
+          productionDependency: null,
           documentationDelay: currentPeriodDispatches.filter(
             (d) =>
               d.transitRemarks?.toLowerCase().includes('doc') ||
@@ -7115,11 +6608,10 @@ export class SuperAdminService implements OnApplicationBootstrap {
             reason: 'Vehicle Delay',
             count: currentPeriodDispatches.filter(
               (d) =>
-                d.transitCondition === 'DELAYED' ||
                 d.transitRemarks?.toLowerCase().includes('vehicle'),
             ).length,
           },
-          { reason: 'Production Dependency', count: waitingReadyOrders.length },
+
           {
             reason: 'Documentation Delay',
             count: currentPeriodDispatches.filter(
@@ -7149,40 +6641,31 @@ export class SuperAdminService implements OnApplicationBootstrap {
           ordersCompleted: new Set(
             deliveredDispatches.map((d) => d.salesOrderId),
           ).size,
-          partialDispatchOrders: filteredDispatches.filter(
-            (d) => d.items.length < d.salesOrder?.items?.length,
+          partialDispatchOrders: currentPeriodDispatches.filter(
+            (d) => d.salesOrder?.items?.some(item => d.items.filter(di => di.salesOrderItemId === item.id).reduce((sum, di) => sum + toNumber(di.quantity), 0) < toNumber(item.orderedQuantity)),
           ).length,
         },
         trends: dailyTrends,
       },
       performance: {
-        onTimeDispatchRate: percentage(
-          currentPeriodDispatches.filter(
-            (d) =>
-              d.status !== 'DISPATCH_DRAFT' && d.status !== 'DISPATCH_APPROVED',
-          ).length,
-          currentPeriodDispatches.length || 1,
-        ),
+        onTimeDispatchRate: null,
         onTimeDeliveryRate,
         fullDispatchRate: percentage(
-          filteredDispatches.filter(
-            (d) => d.items.length === d.salesOrder?.items?.length,
+          currentPeriodDispatches.filter(
+            (d) => d.salesOrder?.items?.every(item => d.items.filter(di => di.salesOrderItemId === item.id).reduce((sum, di) => sum + toNumber(di.quantity), 0) >= toNumber(item.orderedQuantity)),
           ).length,
-          filteredDispatches.length || 1,
+          currentPeriodDispatches.length,
         ),
         partialDispatchRate: percentage(
-          filteredDispatches.filter(
-            (d) => d.items.length < d.salesOrder?.items?.length,
+          currentPeriodDispatches.filter(
+            (d) => d.salesOrder?.items?.some(item => d.items.filter(di => di.salesOrderItemId === item.id).reduce((sum, di) => sum + toNumber(di.quantity), 0) < toNumber(item.orderedQuantity)),
           ).length,
-          filteredDispatches.length || 1,
+          currentPeriodDispatches.length,
         ),
         averageWaitingTime: backlogAging.averageWaitingDays * 24, // in hours
         averageTransitTime: avgTransitTime,
-        replacementRate: percentage(
-          replacementRequestsCount,
-          deliveredCount || 1,
-        ),
-        returnRate: percentage(returnRequests, deliveredCount || 1),
+        replacementRate: null,
+        returnRate: null,
       },
       alerts: alertsList,
       filters: filterOptions,

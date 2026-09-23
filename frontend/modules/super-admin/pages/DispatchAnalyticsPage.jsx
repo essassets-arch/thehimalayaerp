@@ -8,11 +8,16 @@ import {
 } from 'recharts';
 import { backendFetch } from '@/lib/backendFetch';
 import { useSuperAdminFilter } from '../context/SuperAdminFilterContext';
-import { formatCurrency, formatNumber } from '../utils/financialCalculations';
+import { formatCurrency as currency, formatNumber as number } from '../utils/financialCalculations';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
 import './DispatchAnalyticsPage.css';
 import ResponsiveChart from '../../../shared/components/ResponsiveChart';
 import { exportToExcel, exportDispatchReportPDF } from '../../../services/export.service';
+
+const formatCurrency = value => value == null || value === 'Not recorded' ? 'Not recorded' : currency(value);
+const formatNumber = value => value == null || value === 'Not recorded' ? 'Not recorded' : number(value);
+
+const formatPercent = value => value == null ? 'Not recorded' : `${value}%`;
 
 const CHART_COLORS = ['#0284C7', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#64748B'];
 
@@ -30,7 +35,6 @@ export default function DispatchAnalyticsPage() {
 
   // Custom manifest search & filters
   const [searchTerm, setSearchTerm] = useState('');
-  const [tempType, setTempType] = useState('All');
   const [tempTransporter, setTempTransporter] = useState('All');
   const [tempCategory, setTempCategory] = useState('All');
   const [tempSla, setTempSla] = useState('All');
@@ -43,10 +47,14 @@ export default function DispatchAnalyticsPage() {
   // Modal inspection
   const [selectedDispatch, setSelectedDispatch] = useState(null);
 
+  const requestSequence = useRef(0);
   const load = useCallback(async () => {
+    const request = ++requestSequence.current;
     try {
       setLoading(true);
       setError(null);
+      setData(null);
+      setSelectedDispatch(null);
       const params = new URLSearchParams({
         from: activeDates?.dateFrom || '',
         to: activeDates?.dateTo || '',
@@ -57,6 +65,7 @@ export default function DispatchAnalyticsPage() {
 
       const filterMap = {
         branch: 'branchId',
+        customer: 'customerId',
         product: 'productId',
         category: 'categoryId',
         status: 'dispatchStatus',
@@ -69,25 +78,30 @@ export default function DispatchAnalyticsPage() {
         }
       });
 
-      if (tempType !== 'All') params.set('dispatchType', tempType);
       if (tempTransporter !== 'All') params.set('transporterId', tempTransporter);
       if (tempCategory !== 'All') params.set('dispatchCategory', tempCategory);
 
       const res = await backendFetch(`/api/backend/super-admin/analytics/dispatch?${params}`, {
         cacheTtlMs: 0,
       });
-      setData(res);
+      if (!res || !Array.isArray(res.dispatches) || !res.flow || !res.delivery?.summary || !res.transportCost || !res.generatedAt) {
+        throw new Error('The server returned an incomplete dispatch report.');
+      }
+      if (request === requestSequence.current) setData(res);
     } catch (e) {
       console.error('Failed to load dispatch analytics:', e);
-      setError(e);
+      if (request === requestSequence.current) setError(e);
     } finally {
-      setLoading(false);
+      if (request === requestSequence.current) setLoading(false);
     }
-  }, [activeDates?.dateFrom, activeDates?.dateTo, period, filters, tempType, tempTransporter, tempCategory]);
+  }, [activeDates?.dateFrom, activeDates?.dateTo, period, filters, tempTransporter, tempCategory]);
 
   useEffect(() => {
     load();
+    return () => { requestSequence.current += 1; };
   }, [load]);
+
+  useEffect(() => { setManifestPage(1); }, [searchTerm, tempSla, tempStage, pageSize, data]);
 
   // When user clicks a funnel node, sync stage filter
   const handleFunnelNodeClick = (stageKey) => {
@@ -105,7 +119,7 @@ export default function DispatchAnalyticsPage() {
     setManifestPage(1);
   };
 
-  // Safe fallback unwrap
+  // Empty containers are used only while the loading or error screen is visible.
   const {
     dispatches = [],
     flow = {},
@@ -180,7 +194,7 @@ export default function DispatchAnalyticsPage() {
   // Real Export to Excel
   const handleExportExcel = async () => {
     try {
-      const rows = (filteredDispatches.length > 0 ? filteredDispatches : dispatches).map((d) => ({
+      const rows = filteredDispatches.map((d) => ({
         'Dispatch No': d.dispatchNo,
         'SO Number': d.orderNumber,
         'Customer': d.customerName,
@@ -191,9 +205,9 @@ export default function DispatchAnalyticsPage() {
         'Driver': d.driverName || '—',
         'Destination': d.destination || '—',
         'City': d.city || '—',
-        'Quantity': d.packageCount || 1,
-        'Weight (kg)': d.totalWeight || 0,
-        'Freight Amount (Rs)': d.freightAmount || 0,
+        'Quantity': d.quantity,
+        'Weight (kg)': d.totalWeight ?? 'Not recorded',
+        'Freight Amount (Rs)': d.freightAmount ?? 'Not recorded',
         'Status': d.status,
         'Stage': d.stage,
         'SLA': d.sla,
@@ -213,6 +227,9 @@ export default function DispatchAnalyticsPage() {
   const handleExportPDF = async () => {
     try {
       await exportDispatchReportPDF({
+        report: data,
+        manifest: filteredDispatches,
+        period,
         from: activeDates.dateFrom,
         to: activeDates.dateTo,
         branchId: filters.branch !== 'All' ? filters.branch : undefined,
@@ -258,7 +275,7 @@ export default function DispatchAnalyticsPage() {
       >
         <option value="All">Stage: All Stages</option>
         <option value="READY">Stage: Ready for Dispatch</option>
-        <option value="CREATED">Stage: Dispatches Created</option>
+        <option value="CREATED">Stage: Recorded Shipments</option>
         <option value="IN_TRANSIT">Stage: In Transit</option>
         <option value="DELIVERED">Stage: Delivered</option>
       </select>
@@ -303,13 +320,13 @@ export default function DispatchAnalyticsPage() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <h1 className="dispatch-analytics-title">Dispatch Command Center</h1>
-              <span className="dispatch-analytics-badge">LOGISTICS TELEMETRY</span>
-              <span className="da-status-pill">
-                <span className="da-pulse-dot" /> LIVE TELEMETRY
+              <span className="dispatch-analytics-badge">DISPATCH ANALYTICS</span>
+              <span className="da-status-pill" title={`Updated ${new Date(data.generatedAt).toLocaleString()}`}>
+                <span className="da-pulse-dot" /> DATABASE REPORT
               </span>
             </div>
             <p className="dispatch-analytics-subtitle">
-              Authoritative logistics tracking, dispatch lifecycle funnel, vehicle fleets, reverse logistics, and finished goods reconciliation.
+              Shipment metrics use recorded dispatch dates in India time. Ready orders, backlog, stock, and reverse logistics show current records. Missing measurements are marked Not recorded.
             </p>
           </div>
         </div>
@@ -374,7 +391,7 @@ export default function DispatchAnalyticsPage() {
           className={`da-tab-btn ${activeTab === 'backlog' ? 'active' : ''}`}
           onClick={() => setActiveTab('backlog')}
         >
-          <Lucide.Clock size={16} /> Pending Backlog ({remainingDispatch.summary?.ordersWithBalance ?? 0})
+          <Lucide.Clock size={16} /> Pending Backlog ({remainingDispatch.summary?.ordersWithBalance ?? 'Not recorded'})
         </button>
         <button
           className={`da-tab-btn ${activeTab === 'reverse' ? 'active' : ''}`}
@@ -401,16 +418,16 @@ export default function DispatchAnalyticsPage() {
               <div className="dispatch-cost-card-header">
                 <div>
                   <span className="dispatch-cost-title">This Period Transport Cost</span>
-                  <div className="dispatch-cost-amount">{formatCurrency(transportCost.actualTransportCost || 0)}</div>
+                  <div className="dispatch-cost-amount">{formatCurrency(transportCost.actualTransportCost)}</div>
                 </div>
                 <div className="dispatch-cost-icon-box orange">
                   <Lucide.DollarSign size={20} />
                 </div>
               </div>
               <div className="dispatch-cost-footer">
-                <span>Prior Period: <strong>{formatCurrency(transportCost.lastMonthTransportCost || 0)}</strong></span>
+                <span>Prior Period: <strong>{formatCurrency(transportCost.lastMonthTransportCost)}</strong></span>
                 <span className={`dispatch-cost-trend ${transportCost.costChangePercent >= 0 ? 'red' : 'text-success'}`}>
-                  Change: <strong>{transportCost.costChangePercent >= 0 ? '+' : ''}{transportCost.costChangePercent}%</strong>
+                  Change: <strong>{formatPercent(transportCost.costChangePercent)}</strong>
                 </span>
               </div>
             </div>
@@ -420,7 +437,7 @@ export default function DispatchAnalyticsPage() {
                 <div>
                   <span className="dispatch-cost-title">Quotation Baseline vs Actual Transport Expense (Variance)</span>
                   <div className={`dispatch-cost-badge-budget ${transportCost.varianceAmount > 0 ? 'danger' : 'success'}`}>
-                    {transportCost.varianceAmount > 0
+                    {transportCost.varianceAmount == null ? 'Baseline unavailable' : transportCost.varianceAmount > 0
                       ? `${formatCurrency(transportCost.varianceAmount)} Over Budget`
                       : transportCost.varianceAmount < 0
                       ? `${formatCurrency(Math.abs(transportCost.varianceAmount))} Budget Savings`
@@ -434,16 +451,16 @@ export default function DispatchAnalyticsPage() {
               <div className="dispatch-cost-variance-grid">
                 <div className="dispatch-cost-variance-item">
                   <span className="label">EXPECTED FREIGHT BASELINE</span>
-                  <strong className="value blue">{formatCurrency(transportCost.expectedTransportCost || 0)}</strong>
+                  <strong className="value blue">{formatCurrency(transportCost.expectedTransportCost)}</strong>
                 </div>
                 <div className="dispatch-cost-variance-item">
                   <span className="label">ACTUAL DISPATCH EXPENSE</span>
-                  <strong className="value red">{formatCurrency(transportCost.actualTransportCost || 0)}</strong>
+                  <strong className="value red">{formatCurrency(transportCost.actualTransportCost)}</strong>
                 </div>
                 <div className="dispatch-cost-variance-item highlight">
                   <span className="label">NET COST VARIANCE</span>
                   <strong className={`value ${transportCost.varianceAmount > 0 ? 'danger' : 'text-success'}`}>
-                    {transportCost.varianceAmount > 0 ? '+' : ''}{formatCurrency(transportCost.varianceAmount || 0)}
+                    {transportCost.varianceAmount > 0 ? '+' : ''}{formatCurrency(transportCost.varianceAmount)}
                   </strong>
                 </div>
               </div>
@@ -460,8 +477,8 @@ export default function DispatchAnalyticsPage() {
                 <span className="label">Ready for Dispatch</span>
                 <Lucide.Archive size={18} color="#0284c7" />
               </div>
-              <div className="value">{flow.ready?.count ?? 0}</div>
-              <p className="sub">{formatNumber(flow.ready?.qty ?? 0)} units waiting</p>
+              <div className="value">{flow.ready?.count ?? 'Not recorded'}</div>
+              <p className="sub">{formatNumber(flow.ready?.qty ?? 'Not recorded')} units waiting</p>
             </div>
 
             <div
@@ -472,8 +489,8 @@ export default function DispatchAnalyticsPage() {
                 <span className="label">Dispatches Created</span>
                 <Lucide.PlusCircle size={18} color="#10b981" />
               </div>
-              <div className="value">{flow.created?.count ?? 0}</div>
-              <p className="sub">{formatNumber(flow.created?.qty ?? 0)} units created</p>
+              <div className="value">{flow.created?.count ?? 'Not recorded'}</div>
+              <p className="sub">{formatNumber(flow.created?.qty ?? 'Not recorded')} units shipped</p>
             </div>
 
             <div
@@ -484,8 +501,8 @@ export default function DispatchAnalyticsPage() {
                 <span className="label">Active In Transit</span>
                 <Lucide.Truck size={18} color="#f59e0b" />
               </div>
-              <div className="value">{flow.inTransit?.count ?? 0}</div>
-              <p className="sub">{formatNumber(flow.inTransit?.qty ?? 0)} units en route</p>
+              <div className="value">{flow.inTransit?.count ?? 'Not recorded'}</div>
+              <p className="sub">{formatNumber(flow.inTransit?.qty ?? 'Not recorded')} units en route</p>
             </div>
 
             <div
@@ -496,8 +513,8 @@ export default function DispatchAnalyticsPage() {
                 <span className="label">Delivered Shipments</span>
                 <Lucide.FileCheck size={18} color="#10b981" />
               </div>
-              <div className="value">{flow.delivered?.count ?? 0}</div>
-              <p className="sub">{formatNumber(flow.delivered?.qty ?? 0)} units delivered</p>
+              <div className="value">{flow.delivered?.count ?? 'Not recorded'}</div>
+              <p className="sub">{formatNumber(flow.delivered?.qty ?? 'Not recorded')} units delivered</p>
             </div>
 
             <div
@@ -508,8 +525,8 @@ export default function DispatchAnalyticsPage() {
                 <span className="label">Pending Orders</span>
                 <Lucide.Clock size={18} color="#ef4444" />
               </div>
-              <div className="value">{flow.remaining?.count ?? 0}</div>
-              <p className="sub">{formatNumber(remainingDispatch.summary?.remainingQuantity ?? 0)} units balance</p>
+              <div className="value">{flow.remaining?.count ?? 'Not recorded'}</div>
+              <p className="sub">{formatNumber(remainingDispatch.summary?.remainingQuantity ?? 'Not recorded')} units balance</p>
             </div>
 
             <div className="dispatch-kpi-card">
@@ -517,8 +534,8 @@ export default function DispatchAnalyticsPage() {
                 <span className="label">On-Time Delivery %</span>
                 <Lucide.CheckCircle size={18} color="#10b981" />
               </div>
-              <div className="value text-success">{delivery.summary?.onTimeDeliveryRate ?? 100}%</div>
-              <p className="sub">{delivery.summary?.onTime ?? 0} on-time / {delivery.summary?.late ?? 0} delayed</p>
+              <div className="value text-success">{formatPercent(delivery.summary?.onTimeDeliveryRate)}</div>
+              <p className="sub">{delivery.summary?.onTime ?? 'Not recorded'} on-time / {delivery.summary?.late ?? 'Not recorded'} delayed</p>
             </div>
           </div>
 
@@ -548,8 +565,8 @@ export default function DispatchAnalyticsPage() {
                 onClick={() => handleFunnelNodeClick('ready')}
               >
                 <span className="node-title">1. READY FOR DISPATCH</span>
-                <strong className="node-value">{flow.ready?.count ?? 0} Orders</strong>
-                <span className="node-sub">{formatNumber(flow.ready?.qty ?? 0)} Units Reserved</span>
+                <strong className="node-value">{flow.ready?.count ?? 'Not recorded'} Orders</strong>
+                <span className="node-sub">{formatNumber(flow.ready?.qty ?? 'Not recorded')} Units Reserved</span>
               </div>
 
               <div className="dispatch-funnel-arrow">
@@ -561,8 +578,8 @@ export default function DispatchAnalyticsPage() {
                 onClick={() => handleFunnelNodeClick('created')}
               >
                 <span className="node-title">2. DISPATCH CREATED</span>
-                <strong className="node-value">{flow.created?.count ?? 0} Dispatches</strong>
-                <span className="node-sub">{formatNumber(flow.created?.qty ?? 0)} Units Packed</span>
+                <strong className="node-value">{flow.created?.count ?? 'Not recorded'} Dispatches</strong>
+                <span className="node-sub">{formatNumber(flow.created?.qty ?? 'Not recorded')} Units Packed</span>
               </div>
 
               <div className="dispatch-funnel-arrow">
@@ -574,8 +591,8 @@ export default function DispatchAnalyticsPage() {
                 onClick={() => handleFunnelNodeClick('inTransit')}
               >
                 <span className="node-title">3. IN TRANSIT</span>
-                <strong className="node-value">{flow.inTransit?.count ?? 0} Active Shipments</strong>
-                <span className="node-sub">{formatNumber(flow.inTransit?.qty ?? 0)} Units Moving</span>
+                <strong className="node-value">{flow.inTransit?.count ?? 'Not recorded'} Active Shipments</strong>
+                <span className="node-sub">{formatNumber(flow.inTransit?.qty ?? 'Not recorded')} Units Moving</span>
               </div>
 
               <div className="dispatch-funnel-arrow">
@@ -587,8 +604,8 @@ export default function DispatchAnalyticsPage() {
                 onClick={() => handleFunnelNodeClick('delivered')}
               >
                 <span className="node-title">4. DELIVERED</span>
-                <strong className="node-value">{flow.delivered?.count ?? 0} Completed</strong>
-                <span className="node-sub">{formatNumber(flow.delivered?.qty ?? 0)} Units Handed Over</span>
+                <strong className="node-value">{flow.delivered?.count ?? 'Not recorded'} Completed</strong>
+                <span className="node-sub">{formatNumber(flow.delivered?.qty ?? 'Not recorded')} Units Handed Over</span>
               </div>
 
               <div className="dispatch-funnel-arrow">
@@ -600,8 +617,8 @@ export default function DispatchAnalyticsPage() {
                 onClick={() => handleFunnelNodeClick('remaining')}
               >
                 <span className="node-title">5. REMAINING BALANCE</span>
-                <strong className="node-value">{flow.remaining?.count ?? 0} Orders Pending</strong>
-                <span className="node-sub">{formatNumber(remainingDispatch.summary?.remainingQuantity ?? 0)} Units</span>
+                <strong className="node-value">{flow.remaining?.count ?? 'Not recorded'} Orders Pending</strong>
+                <span className="node-sub">{formatNumber(remainingDispatch.summary?.remainingQuantity ?? 'Not recorded')} Units</span>
               </div>
             </div>
           </div>
@@ -701,7 +718,7 @@ export default function DispatchAnalyticsPage() {
                         <td>{d.orderNumber}</td>
                         <td className="bold">{d.customerName}</td>
                         <td>{d.dispatchedAt || '—'}</td>
-                        <td className="bold">{d.packageCount || 1}</td>
+                        <td className="bold">{d.quantity}</td>
                         <td>{d.transporterName || '—'}</td>
                         <td>{d.vehicleNumber || '—'}</td>
                         <td><span className="badge badge-info">{(d.status || '').replaceAll('_', ' ')}</span></td>
@@ -718,7 +735,7 @@ export default function DispatchAnalyticsPage() {
                     {dispatches.length === 0 && (
                       <tr>
                         <td colSpan={9} style={{ textAlign: 'center', color: '#64748b', padding: '24px' }}>
-                          No dispatches created during this period.
+                          No recorded shipments during this period.
                         </td>
                       </tr>
                     )}
@@ -768,7 +785,7 @@ export default function DispatchAnalyticsPage() {
                         <td>{d.destination || d.city}</td>
                         <td>{d.transporterName || '—'}</td>
                         <td>{d.vehicleNumber} ({d.driverName || 'Verified Driver'})</td>
-                        <td className="bold">{d.eta || 'On Schedule'}</td>
+                        <td className="bold">{d.eta || 'Not recorded'}</td>
                         <td>
                           <span className={`badge ${d.sla === 'Delayed' ? 'badge-danger' : 'badge-warning'}`}>
                             {d.transitCondition || 'ON SCHEDULE'}
@@ -839,7 +856,7 @@ export default function DispatchAnalyticsPage() {
                         <td className="bold">{formatCurrency(d.freightAmount)}</td>
                         <td><span className="badge badge-success">{d.podStatus || 'APPROVED'}</span></td>
                         <td>
-                          <span className={`badge ${d.sla === 'On-Time' ? 'badge-success' : 'badge-danger'}`}>
+                          <span className={`badge ${d.sla === 'On-Time' ? 'badge-success' : d.sla === 'Delayed' ? 'badge-danger' : 'badge-warning'}`}>
                             {d.sla}
                           </span>
                         </td>
@@ -942,27 +959,27 @@ export default function DispatchAnalyticsPage() {
               <div className="dispatch-report-grid">
                 <div className="dispatch-report-item">
                   <span className="label">Total Dispatches Created</span>
-                  <strong className="val">{dailyDispatch.summary?.dispatches ?? 0}</strong>
+                  <strong className="val">{dailyDispatch.summary?.dispatches ?? 'Not recorded'}</strong>
                 </div>
                 <div className="dispatch-report-item">
                   <span className="label">Orders Covered</span>
-                  <strong className="val">{dailyDispatch.summary?.orders ?? 0}</strong>
+                  <strong className="val">{dailyDispatch.summary?.orders ?? 'Not recorded'}</strong>
                 </div>
                 <div className="dispatch-report-item">
                   <span className="label">Total Physical Quantity</span>
-                  <strong className="val">{formatNumber(dailyDispatch.summary?.totalQuantity ?? 0)}</strong>
+                  <strong className="val">{formatNumber(dailyDispatch.summary?.totalQuantity ?? 'Not recorded')}</strong>
                 </div>
                 <div className="dispatch-report-item">
                   <span className="label">Customers Served</span>
-                  <strong className="val">{dailyDispatch.summary?.customers ?? 0}</strong>
+                  <strong className="val">{dailyDispatch.summary?.customers ?? 'Not recorded'}</strong>
                 </div>
                 <div className="dispatch-report-item">
                   <span className="label">Vehicles Active</span>
-                  <strong className="val">{dailyDispatch.summary?.vehiclesUsed ?? 0}</strong>
+                  <strong className="val">{dailyDispatch.summary?.vehiclesUsed ?? 'Not recorded'}</strong>
                 </div>
                 <div className="dispatch-report-item">
                   <span className="label">Delivered in Period</span>
-                  <strong className="val text-success">{dailyDispatch.summary?.delivered ?? 0}</strong>
+                  <strong className="val text-success">{dailyDispatch.summary?.delivered ?? 'Not recorded'}</strong>
                 </div>
               </div>
             </div>
@@ -977,19 +994,19 @@ export default function DispatchAnalyticsPage() {
                 <div className="dispatch-report-grid">
                   <div className="dispatch-report-item">
                     <span className="label">Ready Orders</span>
-                    <strong>{categories.dispatch1?.readyOrders ?? 0}</strong>
+                    <strong>{categories.dispatch1?.readyOrders ?? 'Not recorded'}</strong>
                   </div>
                   <div className="dispatch-report-item">
                     <span className="label">Dispatches in Period</span>
-                    <strong>{categories.dispatch1?.dispatchesToday ?? 0}</strong>
+                    <strong>{categories.dispatch1?.dispatchesToday ?? 'Not recorded'}</strong>
                   </div>
                   <div className="dispatch-report-item">
                     <span className="label">Qty Dispatched</span>
-                    <strong>{formatNumber(categories.dispatch1?.qtyDispatched ?? 0)}</strong>
+                    <strong>{formatNumber(categories.dispatch1?.qtyDispatched ?? 'Not recorded')}</strong>
                   </div>
                   <div className="dispatch-report-item">
                     <span className="label">Delivered / SLA</span>
-                    <strong className="text-success">{categories.dispatch1?.delivered ?? 0} ({categories.dispatch1?.onTimePct ?? 100}%)</strong>
+                    <strong className="text-success">{categories.dispatch1?.delivered ?? 'Not recorded'} ({formatPercent(categories.dispatch1?.onTimePct)})</strong>
                   </div>
                 </div>
               </div>
@@ -999,19 +1016,19 @@ export default function DispatchAnalyticsPage() {
                 <div className="dispatch-report-grid">
                   <div className="dispatch-report-item">
                     <span className="label">Ready Orders</span>
-                    <strong>{categories.dispatch2?.readyOrders ?? 0}</strong>
+                    <strong>{categories.dispatch2?.readyOrders ?? 'Not recorded'}</strong>
                   </div>
                   <div className="dispatch-report-item">
                     <span className="label">Dispatches in Period</span>
-                    <strong>{categories.dispatch2?.dispatchesToday ?? 0}</strong>
+                    <strong>{categories.dispatch2?.dispatchesToday ?? 'Not recorded'}</strong>
                   </div>
                   <div className="dispatch-report-item">
                     <span className="label">Qty Dispatched</span>
-                    <strong>{formatNumber(categories.dispatch2?.qtyDispatched ?? 0)}</strong>
+                    <strong>{formatNumber(categories.dispatch2?.qtyDispatched ?? 'Not recorded')}</strong>
                   </div>
                   <div className="dispatch-report-item">
                     <span className="label">Delivered / SLA</span>
-                    <strong className="text-success">{categories.dispatch2?.delivered ?? 0} ({categories.dispatch2?.onTimePct ?? 100}%)</strong>
+                    <strong className="text-success">{categories.dispatch2?.delivered ?? 'Not recorded'} ({formatPercent(categories.dispatch2?.onTimePct)})</strong>
                   </div>
                 </div>
               </div>
@@ -1158,11 +1175,11 @@ export default function DispatchAnalyticsPage() {
                       <div style={{ fontSize: '11px', color: '#64748b' }}>{d.destination || d.city || '—'}</div>
                     </td>
                     <td>
-                      <div className="bold">{d.packageCount || 1} pcs</div>
+                      <div className="bold">{d.quantity} pcs</div>
                       <div style={{ fontSize: '11px', color: '#64748b' }}>{d.totalWeight ? `${d.totalWeight} kg` : '—'}</div>
                     </td>
                     <td>
-                      <div>{d.transporterName || 'Self-Pickup'}</div>
+                      <div>{d.transporterName || 'Not recorded'}</div>
                       <div style={{ fontSize: '11px', color: '#64748b' }}>
                         {d.vehicleNumber} {d.driverName ? `· ${d.driverName}` : ''}
                       </div>
@@ -1239,19 +1256,19 @@ export default function DispatchAnalyticsPage() {
             <div className="dispatch-grid-four" style={{ marginBottom: 20 }}>
               <div className="dispatch-kpi-subcard">
                 <span className="label">Delivered Shipments</span>
-                <strong className="val text-success">{delivery.summary?.deliveredThisMonth ?? 0}</strong>
+                <strong className="val text-success">{delivery.summary?.deliveredThisMonth ?? 'Not recorded'}</strong>
               </div>
               <div className="dispatch-kpi-subcard">
                 <span className="label">On-Time Deliveries</span>
-                <strong className="val text-success">{delivery.summary?.onTime ?? 0}</strong>
+                <strong className="val text-success">{delivery.summary?.onTime ?? 'Not recorded'}</strong>
               </div>
               <div className="dispatch-kpi-subcard">
                 <span className="label">Average Transit Time</span>
-                <strong className="val">{delivery.summary?.avgTransitTime ?? 0} Days</strong>
+                <strong className="val">{delivery.summary?.avgTransitTime ?? 'Not recorded'} Days</strong>
               </div>
               <div className="dispatch-kpi-subcard">
                 <span className="label">Fastest Transit Delivery</span>
-                <strong className="val text-success">{delivery.summary?.fastestDelivery ?? 0} Days</strong>
+                <strong className="val text-success">{delivery.summary?.fastestDelivery ?? 'Not recorded'} Days</strong>
               </div>
             </div>
 
@@ -1274,10 +1291,10 @@ export default function DispatchAnalyticsPage() {
                       <td>{row.shipments}</td>
                       <td className="text-success bold">{row.delivered}</td>
                       <td className={row.delayed > 0 ? 'text-danger bold' : ''}>{row.delayed}</td>
-                      <td>{row.avgTransit} Days</td>
+                      <td>{row.avgTransit == null ? 'Not recorded' : `${row.avgTransit} Days`}</td>
                       <td>
                         <span className={`badge ${row.onTimePct >= 90 ? 'badge-success' : row.onTimePct >= 70 ? 'badge-warning' : 'badge-danger'}`}>
-                          {row.onTimePct}%
+                          {formatPercent(row.onTimePct)}
                         </span>
                       </td>
                     </tr>
@@ -1295,13 +1312,13 @@ export default function DispatchAnalyticsPage() {
           </div>
 
           <div className="dispatch-card">
-            <h3 className="dispatch-card-title">Vehicle Fleet Telemetry &amp; Utilization</h3>
+            <h3 className="dispatch-card-title">Vehicles Used in Period</h3>
             <div className="dispatch-table-wrapper">
               <table className="dispatch-table">
                 <thead>
                   <tr>
                     <th>Vehicle Registration No.</th>
-                    <th>Completed Trips</th>
+                    <th>Recorded Trips</th>
                     <th>Dispatched Payload (Units)</th>
                     <th>Fleet Status</th>
                   </tr>
@@ -1313,7 +1330,7 @@ export default function DispatchAnalyticsPage() {
                       <td>{row.trips} Trips</td>
                       <td className="bold text-blue-600">{formatNumber(row.qty)} units</td>
                       <td>
-                        <span className={`badge ${row.status === 'ACTIVE' ? 'badge-success' : 'badge-info'}`}>
+                        <span className={`badge ${row.status === 'IN TRANSIT' ? 'badge-success' : 'badge-info'}`}>
                           {row.status}
                         </span>
                       </td>
@@ -1365,8 +1382,8 @@ export default function DispatchAnalyticsPage() {
                       <td className="bold text-blue-600">{formatNumber(row.dispatched)}</td>
                       <td className="bold text-danger">{formatNumber(row.remaining)}</td>
                       <td className="text-success bold">{formatNumber(row.delivered)}</td>
-                      <td>{row.returnQty || 0}</td>
-                      <td>{row.replacementQty || 0}</td>
+                      <td>{row.returnQty ?? 'Not recorded'}</td>
+                      <td>{row.replacementQty ?? 'Not recorded'}</td>
                     </tr>
                   ))}
                   {products.length === 0 && (
@@ -1389,7 +1406,7 @@ export default function DispatchAnalyticsPage() {
                   <tr>
                     <th>Customer Name</th>
                     <th>Orders</th>
-                    <th>Dispatches Created</th>
+                    <th>Recorded Shipments</th>
                     <th>Ordered Qty</th>
                     <th>Delivered Qty</th>
                     <th>Pending Qty</th>
@@ -1407,7 +1424,7 @@ export default function DispatchAnalyticsPage() {
                       <td className="text-danger bold">{formatNumber(c.pending)}</td>
                       <td>
                         <span className={`badge ${c.onTimePct >= 80 ? 'badge-success' : 'badge-warning'}`}>
-                          {c.onTimePct}%
+                          {formatPercent(c.onTimePct)}
                         </span>
                       </td>
                     </tr>
@@ -1435,19 +1452,19 @@ export default function DispatchAnalyticsPage() {
           <div className="dispatch-grid-four" style={{ marginBottom: 20 }}>
             <div className="dispatch-kpi-subcard">
               <span className="label">Orders with Balance</span>
-              <strong className="val text-danger">{remainingDispatch.summary?.ordersWithBalance ?? 0}</strong>
+              <strong className="val text-danger">{remainingDispatch.summary?.ordersWithBalance ?? 'Not recorded'}</strong>
             </div>
             <div className="dispatch-kpi-subcard">
               <span className="label">Remaining Quantity</span>
-              <strong className="val">{formatNumber(remainingDispatch.summary?.remainingQuantity ?? 0)}</strong>
+              <strong className="val">{formatNumber(remainingDispatch.summary?.remainingQuantity ?? 'Not recorded')}</strong>
             </div>
             <div className="dispatch-kpi-subcard">
               <span className="label">Critical Pending (&gt;7 Days)</span>
-              <strong className="val text-danger">{remainingDispatch.summary?.criticalPendingOrders ?? 0}</strong>
+              <strong className="val text-danger">{remainingDispatch.summary?.criticalPendingOrders ?? 'Not recorded'}</strong>
             </div>
             <div className="dispatch-kpi-subcard">
               <span className="label">Past Promised Target Date</span>
-              <strong className="val text-warning">{remainingDispatch.summary?.pastTargetDate ?? 0}</strong>
+              <strong className="val text-warning">{remainingDispatch.summary?.pastTargetDate ?? 'Not recorded'}</strong>
             </div>
           </div>
 
@@ -1456,19 +1473,19 @@ export default function DispatchAnalyticsPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
               <div className="dispatch-kpi-subcard small">
                 <span className="label">0–1 Day</span>
-                <strong className="val text-success">{remainingDispatch.aging?.aging0to1 ?? 0} Orders</strong>
+                <strong className="val text-success">{remainingDispatch.aging?.aging0to1 ?? 'Not recorded'} Orders</strong>
               </div>
               <div className="dispatch-kpi-subcard small">
                 <span className="label">2–3 Days</span>
-                <strong className="val text-info">{remainingDispatch.aging?.aging2to3 ?? 0} Orders</strong>
+                <strong className="val text-info">{remainingDispatch.aging?.aging2to3 ?? 'Not recorded'} Orders</strong>
               </div>
               <div className="dispatch-kpi-subcard small">
                 <span className="label">4–7 Days</span>
-                <strong className="val text-warning">{remainingDispatch.aging?.aging4to7 ?? 0} Orders</strong>
+                <strong className="val text-warning">{remainingDispatch.aging?.aging4to7 ?? 'Not recorded'} Orders</strong>
               </div>
               <div className="dispatch-kpi-subcard small">
                 <span className="label">&gt; 7 Days (Critical)</span>
-                <strong className="val text-danger">{remainingDispatch.aging?.agingMoreThan7 ?? 0} Orders</strong>
+                <strong className="val text-danger">{remainingDispatch.aging?.agingMoreThan7 ?? 'Not recorded'} Orders</strong>
               </div>
             </div>
           </div>
@@ -1523,30 +1540,30 @@ export default function DispatchAnalyticsPage() {
             <div className="dispatch-grid-three" style={{ marginBottom: 16 }}>
               <div className="dispatch-kpi-subcard small">
                 <span className="label">Ready / In Transit</span>
-                <strong>{samples.summary?.samplesReady ?? 0} / {samples.summary?.samplesInTransit ?? 0}</strong>
+                <strong>{samples.summary?.samplesReady ?? 'Not recorded'} / {samples.summary?.samplesInTransit ?? 'Not recorded'}</strong>
               </div>
               <div className="dispatch-kpi-subcard small">
                 <span className="label">Delivered</span>
-                <strong className="text-success">{samples.summary?.samplesDelivered ?? 0}</strong>
+                <strong className="text-success">{samples.summary?.samplesDelivered ?? 'Not recorded'}</strong>
               </div>
               <div className="dispatch-kpi-subcard small">
                 <span className="label">Overdue</span>
-                <strong className="text-danger">{samples.summary?.samplesOverdue ?? 0}</strong>
+                <strong className="text-danger">{samples.summary?.samplesOverdue ?? 'Not recorded'}</strong>
               </div>
             </div>
 
             <div className="dispatch-report-grid" style={{ marginBottom: 16 }}>
               <div className="dispatch-report-item">
                 <span className="label">Total Samples Dispatched</span>
-                <strong>{samples.summary?.totalDispatched ?? 0}</strong>
+                <strong>{samples.summary?.totalDispatched ?? 'Not recorded'}</strong>
               </div>
               <div className="dispatch-report-item">
                 <span className="label">Samples Approved / Accepted</span>
-                <strong className="text-success">{samples.summary?.totalAccepted ?? 0}</strong>
+                <strong className="text-success">{samples.summary?.totalAccepted ?? 'Not recorded'}</strong>
               </div>
               <div className="dispatch-report-item">
                 <span className="label">Converted to Closed Business</span>
-                <strong className="text-success">{samples.summary?.converted ?? 0}</strong>
+                <strong className="text-success">{samples.summary?.converted ?? 'Not recorded'}</strong>
               </div>
               <div className="dispatch-report-item">
                 <span className="label">Conversion Rate</span>
@@ -1595,48 +1612,48 @@ export default function DispatchAnalyticsPage() {
             <h3 className="dispatch-card-title">Replacements &amp; Sales Returns</h3>
             <div className="dispatch-kpi-subcard" style={{ marginBottom: 16 }}>
               <h4 className="dispatch-sub-title" style={{ margin: '0 0 10px 0' }}>
-                Replacement Requests ({replacements.summary?.replacementRequests ?? 0})
+                Replacement Requests ({replacements.summary?.replacementRequests ?? 'Not recorded'})
               </h4>
               <div className="dispatch-report-grid">
                 <div className="dispatch-report-item">
                   <span className="label">Approved</span>
-                  <strong>{replacements.summary?.approved ?? 0}</strong>
+                  <strong>{replacements.summary?.approved ?? 'Not recorded'}</strong>
                 </div>
                 <div className="dispatch-report-item">
                   <span className="label">Ready / In-Transit</span>
-                  <strong>{replacements.summary?.readyForDispatch ?? 0} / {replacements.summary?.inTransit ?? 0}</strong>
+                  <strong>{replacements.summary?.readyForDispatch ?? 'Not recorded'} / {replacements.summary?.inTransit ?? 'Not recorded'}</strong>
                 </div>
                 <div className="dispatch-report-item">
                   <span className="label">Replacement Rate</span>
-                  <strong className="text-danger">{replacements.summary?.replacementRate ?? 0}%</strong>
+                  <strong className="text-danger">{formatPercent(replacements.summary?.replacementRate)}</strong>
                 </div>
                 <div className="dispatch-report-item">
                   <span className="label">Pending Action</span>
-                  <strong className="text-warning">{replacements.summary?.pending ?? 0}</strong>
+                  <strong className="text-warning">{replacements.summary?.pending ?? 'Not recorded'}</strong>
                 </div>
               </div>
             </div>
 
             <div className="dispatch-kpi-subcard">
               <h4 className="dispatch-sub-title" style={{ margin: '0 0 10px 0' }}>
-                Sales Returns Pickups ({returns.summary?.returnRequests ?? 0})
+                Sales Returns Pickups ({returns.summary?.returnRequests ?? 'Not recorded'})
               </h4>
               <div className="dispatch-report-grid">
                 <div className="dispatch-report-item">
                   <span className="label">Pickup Pending</span>
-                  <strong className="text-warning">{returns.summary?.pickupPending ?? 0}</strong>
+                  <strong className="text-warning">{returns.summary?.pickupPending ?? 'Not recorded'}</strong>
                 </div>
                 <div className="dispatch-report-item">
                   <span className="label">In Transit</span>
-                  <strong className="text-info">{returns.summary?.inTransit ?? 0}</strong>
+                  <strong className="text-info">{returns.summary?.inTransit ?? 'Not recorded'}</strong>
                 </div>
                 <div className="dispatch-report-item">
                   <span className="label">Gate Received / Closed</span>
-                  <strong className="text-success">{returns.summary?.received ?? 0} / {returns.summary?.closed ?? 0}</strong>
+                  <strong className="text-success">{returns.summary?.received ?? 'Not recorded'} / {returns.summary?.closed ?? 'Not recorded'}</strong>
                 </div>
                 <div className="dispatch-report-item">
                   <span className="label">Return Rate</span>
-                  <strong className="text-danger">{returns.summary?.returnRate ?? 0}%</strong>
+                  <strong className="text-danger">{formatPercent(returns.summary?.returnRate)}</strong>
                 </div>
               </div>
             </div>
@@ -1653,22 +1670,22 @@ export default function DispatchAnalyticsPage() {
           <div className="dispatch-reconciliation-flow">
             <div className="reconciliation-node">
               <span className="label">1. FG AVAILABLE IN WAREHOUSE</span>
-              <strong className="val">{formatNumber(inventoryReconciliation.finishedGoods ?? 0)}</strong>
+              <strong className="val">{formatNumber(inventoryReconciliation.finishedGoods ?? 'Not recorded')}</strong>
             </div>
             <div className="reconciliation-arrow"><Lucide.ArrowRight /></div>
             <div className="reconciliation-node">
               <span className="label">2. RESERVED FOR SALES ORDERS</span>
-              <strong className="val text-blue-600">{formatNumber(inventoryReconciliation.reservations ?? 0)}</strong>
+              <strong className="val text-blue-600">{formatNumber(inventoryReconciliation.reservations ?? 'Not recorded')}</strong>
             </div>
             <div className="reconciliation-arrow"><Lucide.ArrowRight /></div>
             <div className="reconciliation-node">
               <span className="label">3. DISPATCH READY IN DOCK</span>
-              <strong className="val text-warning">{formatNumber(inventoryReconciliation.dispatchReady ?? 0)}</strong>
+              <strong className="val text-warning">{formatNumber(inventoryReconciliation.dispatchReady ?? 'Not recorded')}</strong>
             </div>
             <div className="reconciliation-arrow"><Lucide.ArrowRight /></div>
             <div className="reconciliation-node">
               <span className="label">4. PHYSICAL STOCK DEDUCTED</span>
-              <strong className="val text-success">{formatNumber(inventoryReconciliation.dispatched ?? 0)}</strong>
+              <strong className="val text-success">{formatNumber(inventoryReconciliation.dispatched ?? 'Not recorded')}</strong>
             </div>
           </div>
 
@@ -1697,7 +1714,7 @@ export default function DispatchAnalyticsPage() {
                 {(!inventoryReconciliation.mismatches || inventoryReconciliation.mismatches.length === 0) && (
                   <tr>
                     <td colSpan={3} style={{ textAlign: 'center', color: '#10b981', fontWeight: 'bold', padding: '24px' }}>
-                      ✓ All stock allocations, order reservations, and dispatch deductions are fully reconciled with zero discrepancies.
+                      No exceptions found by the recorded stock-movement checks.
                     </td>
                   </tr>
                 )}
@@ -1724,7 +1741,7 @@ export default function DispatchAnalyticsPage() {
                       {selectedDispatch.dispatchNo}
                     </h3>
                     <span className="badge badge-info">{selectedDispatch.stage}</span>
-                    <span className={`badge ${selectedDispatch.sla === 'On-Time' ? 'badge-success' : 'badge-danger'}`}>
+                    <span className={`badge ${selectedDispatch.sla === 'On-Time' ? 'badge-success' : selectedDispatch.sla === 'Delayed' ? 'badge-danger' : 'badge-warning'}`}>
                       {selectedDispatch.sla}
                     </span>
                   </div>
@@ -1751,7 +1768,7 @@ export default function DispatchAnalyticsPage() {
 
                 <div className="da-modal-info-card">
                   <span className="label">LOGISTICS &amp; VEHICLE</span>
-                  <strong className="val">{selectedDispatch.transporterName || 'Self-Pickup'}</strong>
+                  <strong className="val">{selectedDispatch.transporterName || 'Not recorded'}</strong>
                   <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#0f172a', fontWeight: 'bold' }}>
                     Vehicle: {selectedDispatch.vehicleNumber}
                   </p>
@@ -1767,7 +1784,7 @@ export default function DispatchAnalyticsPage() {
                     Freight Type: {selectedDispatch.freightType}
                   </p>
                   <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>
-                    Total Weight: {selectedDispatch.totalWeight} kg ({selectedDispatch.packageCount} pcs)
+                    Total Weight: {selectedDispatch.totalWeight ?? 'Not recorded'} kg ({selectedDispatch.packageCount ?? 'Not recorded'} packages)
                   </p>
                 </div>
               </div>
@@ -1801,7 +1818,7 @@ export default function DispatchAnalyticsPage() {
                       {(!selectedDispatch.items || selectedDispatch.items.length === 0) && (
                         <tr>
                           <td colSpan={5} style={{ textAlign: 'center', color: '#64748b' }}>
-                            Single packaged consignment ({selectedDispatch.packageCount || 1} units).
+                            No dispatch items recorded.
                           </td>
                         </tr>
                       )}
@@ -1822,12 +1839,12 @@ export default function DispatchAnalyticsPage() {
                   </div>
                   <div>
                     <span className="label" style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>TARGET / PROMISED ETA</span>
-                    <strong style={{ fontSize: '13px' }}>{selectedDispatch.eta || 'On Schedule'}</strong>
+                    <strong style={{ fontSize: '13px' }}>{selectedDispatch.eta || 'Not recorded'}</strong>
                   </div>
                   <div>
                     <span className="label" style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>DELIVERED AT</span>
                     <strong style={{ fontSize: '13px', color: selectedDispatch.deliveredAt ? '#16a34a' : '#64748b' }}>
-                      {selectedDispatch.deliveredAt || 'In Transit'}
+                      {selectedDispatch.deliveredAt || 'Not recorded'}
                     </strong>
                   </div>
                   <div>

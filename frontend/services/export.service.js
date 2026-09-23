@@ -1132,7 +1132,7 @@ export const exportProductionReportPDF = async (filters = {}) => {
  * Export Dispatch Report to PDF (100% Dynamic with Live Logistics Telemetry & Manifest)
  */
 export const exportDispatchReportPDF = async (filters = {}) => {
-  let dispData = null;
+  let dispData = filters.report || null;
   const startDate = filters.startDate || filters.date_from || filters.from || '';
   const endDate = filters.endDate || filters.date_to || filters.to || '';
   const branchId = filters.branchId || filters.branch || '';
@@ -1142,7 +1142,7 @@ export const exportDispatchReportPDF = async (filters = {}) => {
   if (endDate) params.append('to', endDate);
   if (branchId && branchId !== 'All') params.append('branchId', branchId);
 
-  try {
+  if (!dispData) try {
     const res = await apiClient.get(`/backend/super-admin/analytics/dispatch?${params.toString()}`);
     if (res && res.data) {
       dispData = res.data;
@@ -1150,16 +1150,17 @@ export const exportDispatchReportPDF = async (filters = {}) => {
       dispData = res;
     }
   } catch (err) {
-    console.warn('Failed to fetch /backend/super-admin/analytics/dispatch for PDF:', err.message);
+    throw new Error('Unable to load dispatch report for PDF: ' + err.message);
   }
 
+  if (!dispData || !Array.isArray(dispData.dispatches)) throw new Error('Invalid dispatch report');
   const flow = dispData?.flow || {};
   const transportCost = dispData?.transportCost || {};
   const delivery = dispData?.delivery || {};
-  const dispatches = dispData?.dispatches || [];
+  const dispatches = filters.manifest ?? dispData.dispatches;
   const remainingDispatch = dispData?.remainingDispatch || {};
 
-  const dateLabel = (startDate && endDate) ? `${startDate} to ${endDate}` : 'Current Active Period';
+  const dateLabel = filters.period === 'All Time' ? 'All Time' : (startDate && endDate) ? `${startDate} to ${endDate}` : 'Current Active Period';
 
   const doc = new jsPDF({
     orientation: 'landscape',
@@ -1196,10 +1197,10 @@ export const exportDispatchReportPDF = async (filters = {}) => {
 
   const kpiCols = ['Logistics Metric', 'Value', 'Logistics Metric', 'Value'];
   const kpiRows = [
-    ['Orders Ready for Dispatch', `${flow.ready?.count ?? 0} Orders (${(flow.ready?.qty ?? 0).toLocaleString()} Units)`, 'Dispatches Created in Period', `${flow.created?.count ?? 0} Dispatches (${(flow.created?.qty ?? 0).toLocaleString()} Units)`],
+    ['Orders Ready for Dispatch', `${flow.ready?.count ?? 0} Orders (${(flow.ready?.qty ?? 0).toLocaleString()} Units)`, 'Recorded Shipments in Period', `${flow.created?.count ?? 0} Dispatches (${(flow.created?.qty ?? 0).toLocaleString()} Units)`],
     ['Active Shipments In Transit', `${flow.inTransit?.count ?? 0} Shipments (${(flow.inTransit?.qty ?? 0).toLocaleString()} Units)`, 'Delivered Shipments', `${flow.delivered?.count ?? 0} Delivered (${(flow.delivered?.qty ?? 0).toLocaleString()} Units)`],
-    ['On-Time Delivery SLA', `${delivery.summary?.onTimeDeliveryRate ?? 100}% Compliance`, 'Pending Backlog Balance', `${remainingDispatch.summary?.ordersWithBalance ?? 0} Orders (${(remainingDispatch.summary?.remainingQuantity ?? 0).toLocaleString()} Units)`],
-    ['Total Transport Expense', `Rs. ${(transportCost.actualTransportCost ?? 0).toLocaleString()}`, 'Quotation Transport Baseline', `Rs. ${(transportCost.expectedTransportCost ?? 0).toLocaleString()}`]
+    ['On-Time Delivery SLA', delivery.summary?.onTimeDeliveryRate == null ? 'Not recorded' : `${delivery.summary.onTimeDeliveryRate}% Compliance`, 'Pending Backlog Balance', `${remainingDispatch.summary?.ordersWithBalance ?? 0} Orders (${(remainingDispatch.summary?.remainingQuantity ?? 0).toLocaleString()} Units)`],
+    ['Total Transport Expense', `Rs. ${(transportCost.actualTransportCost ?? 'Not recorded').toLocaleString()}`, 'Quotation Transport Baseline', `Rs. ${(transportCost.expectedTransportCost ?? 'Not recorded').toLocaleString()}`]
   ];
 
   autoTable(doc, {
@@ -1238,12 +1239,12 @@ export const exportDispatchReportPDF = async (filters = {}) => {
       d.orderNumber,
       (d.customerName || '').slice(0, 22),
       d.dispatchedAt || '—',
-      (d.transporterName || 'Self-Pickup').slice(0, 16),
+      (d.transporterName || 'Not recorded').slice(0, 16),
       d.vehicleNumber || '—',
-      String(d.packageCount || 1),
-      `Rs. ${Number(d.freightAmount || 0).toLocaleString()}`,
+      String(d.quantity),
+      d.freightAmount == null ? 'Not recorded' : `Rs. ${Number(d.freightAmount).toLocaleString()}`,
       (d.status || '').replaceAll('_', ' '),
-      d.sla || 'On-Time'
+      d.sla || 'Not recorded'
     ]);
 
     autoTable(doc, {

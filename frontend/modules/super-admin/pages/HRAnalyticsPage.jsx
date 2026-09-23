@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, cloneElement } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as Lucide from 'lucide-react';
 import { 
   ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
@@ -8,16 +8,19 @@ import {
 } from 'recharts';
 import { backendFetch } from '@/lib/backendFetch';
 import { useSuperAdminFilter } from '../context/SuperAdminFilterContext';
-import { formatCurrency, formatNumber } from '../utils/financialCalculations';
+import { formatCurrency as currency, formatNumber } from '../utils/financialCalculations';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
 import './HRAnalyticsPage.css';
 
 import ResponsiveChart from '../../../shared/components/ResponsiveChart';
 
+const formatCurrency = value => value == null || value === 'Not recorded' ? 'Not recorded' : currency(value);
+const formatPercent = value => value == null ? 'Not recorded' : `${value}%`;
+
 const CHART_COLORS = ["#7e22ce", "#16a34a", "#2563eb", "#d97706", "#e11d48", "#06b6d4", "#64748b"];
 
 export default function HRAnalyticsPage() {
-  const { period, startDate, endDate, activeDates, filters, setFilter } = useSuperAdminFilter();
+  const { period, activeDates, filters, setFilter } = useSuperAdminFilter();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -30,50 +33,70 @@ export default function HRAnalyticsPage() {
   // Drill-down Drawer Employee selection
   const [selectedEmp, setSelectedEmp] = useState(null);
 
+  const requestSequence = useRef(0);
   const fetchHRAnalytics = useCallback(async () => {
+    const request = ++requestSequence.current;
     setLoading(true);
     setError(null);
+    setData(null);
+    setSelectedEmp(null);
     try {
       const params = new URLSearchParams();
-      if (startDate) params.append('from', startDate);
-      if (endDate) params.append('to', endDate);
-      if (filters.branch && filters.branch !== 'All') params.append('branchId', filters.branch);
+      params.set('period', period);
+      if (activeDates.dateFrom) params.set('from', activeDates.dateFrom);
+      if (activeDates.dateTo) params.set('to', activeDates.dateTo);
+      if (filters.location && filters.location !== 'All') params.set('location', filters.location);
       if (filters.department && filters.department !== 'All') params.append('departmentId', filters.department);
       if (filters.employmentType && filters.employmentType !== 'All') params.append('employmentType', filters.employmentType);
       if (filters.employee && filters.employee !== 'All') params.append('employeeId', filters.employee);
 
       const res = await backendFetch(`/api/backend/super-admin/analytics/hr?${params.toString()}`, { cacheTtlMs: 0 });
-      setData(res);
+      if (!res?.workforce || !res?.attendance?.today || !res?.payroll?.summary || !res?.filters || !res?.scope || !res?.period || !Array.isArray(res?.filters?.departments) || !Array.isArray(res?.filters?.locations) || !Array.isArray(res?.filters?.employees) || !Array.isArray(res?.filters?.employmentTypes) || !Array.isArray(res?.employees) || !res?.generatedAt) {
+        throw new Error('The server returned an incomplete HR report.');
+      }
+      if (request === requestSequence.current) setData(res);
     } catch (err) {
       console.error('Error fetching HR analytics:', err);
-      setError('Unable to load HR & Workforce Command Center telemetry.');
+      if (request === requestSequence.current) setError(err.message || 'Unable to load HR analytics.');
     } finally {
-      setLoading(false);
+      if (request === requestSequence.current) setLoading(false);
     }
-  }, [startDate, endDate, filters]);
+  }, [activeDates.dateFrom, activeDates.dateTo, period, filters]);
 
   useEffect(() => {
     fetchHRAnalytics();
+    return () => { requestSequence.current += 1; };
   }, [fetchHRAnalytics]);
 
   const handleExportCSV = () => {
     if (!data) return;
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + ["Metric,Value", 
-         `Total Employees,${data.workforce?.total ?? 0}`,
-         `Present Today,${data.attendance?.today?.present ?? 0}`,
-         `Absent Today,${data.attendance?.today?.absent ?? 0}`,
-         `Late Today,${data.attendance?.today?.late ?? 0}`,
-         `Payroll Cost,₹${data.payroll?.summary?.netPayroll ?? 0}`,
-         `Expenses Approved,₹${data.expenses?.summary?.approved ?? 0}`
-        ].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `hr-analytics-summary-${startDate || 'all'}.csv`);
+    const rows = [
+      ['Metric', 'Value'],
+      ['Period', data.period.allTime ? 'All Time' : data.period.from + ' to ' + data.period.to],
+      ['Generated At', data.generatedAt],
+      ['Attendance Snapshot Date', data.attendance.today.targetDate],
+      ['Workforce Size (current)', data.workforce.total],
+      ['Present Today (recorded)', data.attendance.today.present],
+      ['Absent Today (recorded)', data.attendance.today.absent],
+      ['Attendance Not Recorded Today', data.attendance.today.unrecorded],
+      ['Late Today', data.attendance.today.late],
+      ['Recorded Net Payroll (INR)', data.payroll.summary.netPayroll],
+      ['Payroll Scope', data.scope.payroll],
+      ['Approved Expense Claims (INR)', data.expenses.summary.approved],
+      ['Department Filter', filters.department || 'All'],
+      ['Location Filter', filters.location || 'All'],
+      ['Employment Type Filter', filters.employmentType || 'All'],
+      ['Employee Filter', filters.employee || 'All'],
+    ];
+    const csv = rows.map(row => row.map(value => '"' + String(value ?? 'Not recorded').replaceAll('"', '""') + '"').join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'hr-analytics-' + (data.period.from || 'all-time') + '.csv';
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   if (loading) {
@@ -123,7 +146,7 @@ export default function HRAnalyticsPage() {
           </div>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: '900', margin: 0, letterSpacing: '-0.5px' }}>HR Analytics & Workforce Command Center</h1>
-            <p className="hr-header-description">Complete workforce visibility across employees, attendance, leave, recruitment, payroll, expenses and exits.</p>
+            <p className="hr-header-description">Current workforce and attendance snapshots, with payroll, leave and expense records for the selected period.</p>
           </div>
         </div>
         
@@ -132,14 +155,34 @@ export default function HRAnalyticsPage() {
         </button>
       </header>
 
-      {/* ── FILTER BAR ── */}
+      {/* Filter bar */}
       <SuperAdminAnalyticsFilter
-        title="Command Center Filter Control"
-        showBranch={true}
-        showDepartment={true}
-        showEmploymentType={true}
-        showEmployee={true}
+        title="HR Report Filters"
+        customActions={<>
+          <select aria-label="Department" className="sa-analytics-filter__select" value={filters.department || 'All'} onChange={e => setFilter('department', e.target.value)}>
+            <option value="All">Department: All</option>
+            {data.filters.departments.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
+          </select>
+          <select aria-label="Work location" className="sa-analytics-filter__select" value={filters.location || 'All'} onChange={e => setFilter('location', e.target.value)}>
+            <option value="All">Location: All</option>
+            {data.filters.locations.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
+          </select>
+          <select aria-label="Employment type" className="sa-analytics-filter__select" value={filters.employmentType || 'All'} onChange={e => setFilter('employmentType', e.target.value)}>
+            <option value="All">Employment Type: All</option>
+            {data.filters.employmentTypes.map(type => <option key={type} value={type}>{type.replaceAll('_', ' ')}</option>)}
+          </select>
+          <select aria-label="Employee" className="sa-analytics-filter__select" value={filters.employee || 'All'} onChange={e => setFilter('employee', e.target.value)}>
+            <option value="All">Employee: All</option>
+            {data.filters.employees.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
+          </select>
+          <button className="sa-analytics-filter__btn" onClick={fetchHRAnalytics}><Lucide.RefreshCw size={14} /> Refresh</button>
+        </>}
       />
+      <p style={{ color: '#64748b', fontSize: 12 }}>
+        Updated {new Date(data.generatedAt).toLocaleString()} | {data.scope.attendance}
+      </p>
+      {employees.length === 0 && <p role="status">No employee records match the selected filters.</p>}
+
 
       {/* ── ALERTS / EXCEPTION CENTER ── */}
       {alerts.length > 0 && (
@@ -164,20 +207,20 @@ export default function HRAnalyticsPage() {
             <span>Workforce Size</span>
             <Lucide.UserCheck size={16} />
           </div>
-          <div className="hr-kpi-card-value">{workforce.total ?? 0}</div>
+          <div className="hr-kpi-card-value">{workforce.total ?? 'Not recorded'}</div>
           <div className="hr-kpi-card-subtext">
-            <span style={{ color: '#16a34a', fontWeight: 'bold' }}>{workforce.active ?? 0} Active</span> | <span>{workforce.inactive ?? 0} Inactive</span>
+            <span style={{ color: '#16a34a', fontWeight: 'bold' }}>{workforce.active ?? 'Not recorded'} Active</span> | <span>{workforce.inactive ?? 'Not recorded'} Inactive</span>
           </div>
         </div>
 
         <div className="hr-kpi-card green">
           <div className="hr-kpi-card-header">
-            <span>Attendance Rate</span>
+            <span>Present Rate Today</span>
             <Lucide.CheckCircle size={16} />
           </div>
-          <div className="hr-kpi-card-value">{attendance.today?.rate ?? '100'}%</div>
+          <div className="hr-kpi-card-value">{formatPercent(attendance.today?.rate)}</div>
           <div className="hr-kpi-card-subtext">
-            <span>{attendance.today?.present ?? 0} Present Today</span> | <span style={{ color: '#ef4444' }}>{attendance.today?.absent ?? 0} Absent</span>
+            <span>{attendance.today?.present ?? 'Not recorded'} Present Today</span> | <span style={{ color: '#ef4444' }}>{attendance.today?.absent ?? 'Not recorded'} Absent</span>
           </div>
         </div>
 
@@ -186,9 +229,9 @@ export default function HRAnalyticsPage() {
             <span>Celebrations</span>
             <Lucide.Gift size={16} style={{ color: '#d97706' }} />
           </div>
-          <div className="hr-kpi-card-value">{(workforce.birthdaysCount ?? 0) + (workforce.anniversariesCount ?? 0)}</div>
+          <div className="hr-kpi-card-value">{workforce.birthdaysCount + workforce.anniversariesCount}</div>
           <div className="hr-kpi-card-subtext">
-            <span style={{ color: '#b91c1c', fontWeight: 'bold' }}>{workforce.birthdaysCount ?? 0} Birthdays</span> | <span style={{ color: '#1d4ed8', fontWeight: 'bold' }}>{workforce.anniversariesCount ?? 0} Anniversaries</span>
+            <span style={{ color: '#b91c1c', fontWeight: 'bold' }}>{workforce.birthdaysCount ?? 'Not recorded'} Birthdays</span> | <span style={{ color: '#1d4ed8', fontWeight: 'bold' }}>{workforce.anniversariesCount ?? 'Not recorded'} Anniversaries</span>
           </div>
         </div>
 
@@ -197,9 +240,9 @@ export default function HRAnalyticsPage() {
             <span>Active Recruitment</span>
             <Lucide.Search size={16} />
           </div>
-          <div className="hr-kpi-card-value">{recruitment.summary?.openRequisitions ?? 0}</div>
+          <div className="hr-kpi-card-value">{recruitment.summary?.openRequisitions ?? 'Not recorded'}</div>
           <div className="hr-kpi-card-subtext">
-            <span>{recruitment.summary?.totalVacancies ?? 0} Open Vacancies</span>
+            <span>{recruitment.summary?.totalVacancies ?? 'Not recorded'} Open Vacancies</span>
           </div>
         </div>
 
@@ -209,7 +252,7 @@ export default function HRAnalyticsPage() {
             <Lucide.Clock size={16} />
           </div>
           <div className="hr-kpi-card-value">
-            {leave.summary?.pendingApproval ?? 0}
+            {leave.summary?.pendingApproval ?? 'Not recorded'}
           </div>
           <div className="hr-kpi-card-subtext">
             <span>Leaves pending</span>
@@ -218,12 +261,12 @@ export default function HRAnalyticsPage() {
 
         <div className="hr-kpi-card rose">
           <div className="hr-kpi-card-header">
-            <span>Monthly Net Payroll</span>
+            <span>Recorded Net Payroll</span>
             <Lucide.CreditCard size={16} />
           </div>
-          <div className="hr-kpi-card-value">{formatCurrency(payroll.summary?.netPayroll ?? 0)}</div>
+          <div className="hr-kpi-card-value">{formatCurrency(payroll.summary?.netPayroll ?? 'Not recorded')}</div>
           <div className="hr-kpi-card-subtext">
-            <span>Payable: {payroll.summary?.payableEmployees ?? 0} Staff</span>
+            <span>Records for: {payroll.summary?.payableEmployees ?? 'Not recorded'} Staff</span>
           </div>
         </div>
       </div>
@@ -232,21 +275,22 @@ export default function HRAnalyticsPage() {
       <div className="hr-double-grid">
         <div className="hr-card">
           <div className="hr-card-header">
-            <h3 className="hr-card-title">Live Attendance Command</h3>
+            <h3 className="hr-card-title">Today's Recorded Attendance</h3>
             <span className="hr-status-pill active">Today: {attendance.today?.targetDate}</span>
           </div>
+          <p style={{ fontSize: 12, color: "#64748b" }}>{attendance.today.unrecorded} active staff have no attendance record today.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
             <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, textAlign: 'center' }}>
               <span style={{ fontSize: 11, color: '#64748b', fontWeight: 'bold' }}>CLOCK-IN ACTIVE</span>
-              <div style={{ fontSize: 22, fontWeight: 900, color: '#2563eb' }}>{attendance.today?.clockedIn ?? 0}</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: '#2563eb' }}>{attendance.today?.clockedIn ?? 'Not recorded'}</div>
             </div>
             <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, textAlign: 'center' }}>
               <span style={{ fontSize: 11, color: '#64748b', fontWeight: 'bold' }}>LATE TODAY</span>
-              <div style={{ fontSize: 22, fontWeight: 900, color: '#d97706' }}>{attendance.today?.late ?? 0}</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: '#d97706' }}>{attendance.today?.late ?? 'Not recorded'}</div>
             </div>
             <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, textAlign: 'center' }}>
               <span style={{ fontSize: 11, color: '#64748b', fontWeight: 'bold' }}>EARLY EXITS</span>
-              <div style={{ fontSize: 22, fontWeight: 900, color: '#e11d48' }}>{attendance.today?.earlyExit ?? 0}</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: '#e11d48' }}>{attendance.today?.earlyExit ?? 'Not recorded'}</div>
             </div>
           </div>
           <div className="desktop-only">
@@ -262,7 +306,7 @@ export default function HRAnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {attendance.lateArrivals?.list?.map((row, idx) => (
+                  {attendance.punches?.map((row, idx) => (
                     <tr key={idx}>
                       <td><strong>{row.name}</strong></td>
                       <td>{row.department}</td>
@@ -275,18 +319,19 @@ export default function HRAnalyticsPage() {
                       </td>
                     </tr>
                   ))}
+                {attendance.punches.length === 0 && <tr><td colSpan={5} style={{ textAlign: "center", padding: 16 }}>No punches recorded for today.</td></tr>}
                 </tbody>
               </table>
             </div>
           </div>
 
           <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {(!attendance.lateArrivals?.list || attendance.lateArrivals.list.length === 0) ? (
+            {(!attendance.punches || attendance.punches.length === 0) ? (
               <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12.5px', fontStyle: 'italic' }}>
-                No active punches recorded for today.
+                No punches recorded for today.
               </div>
             ) : (
-              attendance.lateArrivals.list.map((row, idx) => (
+              attendance.punches.map((row, idx) => (
                 <div key={idx} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{row.name}</strong>
@@ -306,7 +351,7 @@ export default function HRAnalyticsPage() {
 
         <div className="hr-card">
           <div className="hr-card-header">
-            <h3 className="hr-card-title">Department-Wise Attendance</h3>
+            <h3 className="hr-card-title">Department-Wise Attendance Today</h3>
           </div>
           <div className="desktop-only">
             <div className="hr-table-frame" style={{ maxHeight: 310 }}>
@@ -314,7 +359,7 @@ export default function HRAnalyticsPage() {
                 <thead>
                   <tr>
                     <th>Department</th>
-                    <th>Expected</th>
+                    <th>Active Staff</th>
                     <th>Present</th>
                     <th>Absent</th>
                     <th>Leave</th>
@@ -331,9 +376,9 @@ export default function HRAnalyticsPage() {
                       <td>{row.leave}</td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span>{row.rate}%</span>
+                          <span>{formatPercent(row.rate)}</span>
                           <div className="hr-progress-container" style={{ width: 60 }}>
-                            <div className="hr-progress-fill" style={{ width: `${row.rate}%`, background: row.rate > 90 ? '#16a34a' : '#d97706' }} />
+                            <div className="hr-progress-fill" style={{ width: `${formatPercent(row.rate)}`, background: row.rate > 90 ? '#16a34a' : '#d97706' }} />
                           </div>
                         </div>
                       </td>
@@ -361,11 +406,11 @@ export default function HRAnalyticsPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{row.department}</strong>
                   <span style={{ fontSize: '11px', fontWeight: 800, color: row.rate >= 90 ? '#16a34a' : '#d97706', background: row.rate >= 90 ? '#dcfce7' : '#fef3c7', padding: '2px 8px', borderRadius: '12px' }}>
-                    {row.rate}% Present
+                    {formatPercent(row.rate)} Present
                   </span>
                 </div>
                 <div className="hr-progress-container" style={{ width: '100%', height: '5px' }}>
-                  <div className="hr-progress-fill" style={{ width: `${row.rate}%`, background: row.rate >= 90 ? '#16a34a' : '#d97706' }} />
+                  <div className="hr-progress-fill" style={{ width: `${formatPercent(row.rate)}`, background: row.rate >= 90 ? '#16a34a' : '#d97706' }} />
                 </div>
                 <div style={{
                   display: 'grid',
@@ -378,7 +423,7 @@ export default function HRAnalyticsPage() {
                   textAlign: 'center'
                 }}>
                   <div>
-                    <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Expected</span>
+                    <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Active Staff</span>
                     <strong style={{ fontSize: '11px', color: '#0f172a' }}>{row.employees}</strong>
                   </div>
                   <div>
@@ -416,11 +461,12 @@ export default function HRAnalyticsPage() {
                 <ComposedChart data={attendance.trends}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                  <YAxis width={40} tick={{ fontSize: 10 }} />
+                  <YAxis yAxisId="rate" domain={[0, 100]} unit="%" width={45} tick={{ fontSize: 10 }} />
+                  <YAxis yAxisId="count" orientation="right" allowDecimals={false} width={35} tick={{ fontSize: 10 }} />
                   <Tooltip />
                   <Legend />
-                  <Area type="monotone" dataKey="rate" name="Present Rate %" fill="#faf5ff" stroke="#7e22ce" strokeWidth={2} />
-                  <Bar dataKey="late" name="Late Arrivals" fill="#d97706" barSize={12} />
+                  <Area yAxisId="rate" type="monotone" dataKey="rate" name="Present % of recorded workdays" fill="#faf5ff" stroke="#7e22ce" strokeWidth={2} />
+                  <Bar yAxisId="count" dataKey="late" name="Late Arrivals" fill="#d97706" barSize={12} />
                 </ComposedChart>
               </ResponsiveChart>
             )}
@@ -432,26 +478,27 @@ export default function HRAnalyticsPage() {
             <h3 className="hr-card-title">Workforce Lifecycle & Account Audit</h3>
           </div>
           <p style={{ margin: '0 0 16px', fontSize: 12.5, color: '#64748b' }}>Status counts along the employee lifecycle.</p>
+          <p style={{ fontSize: 12, color: "#64748b" }}>{data.scope.recruitment}</p>
           <div className="hr-lifecycle-funnel">
             <div className="hr-funnel-step">
               <span className="hr-funnel-step-label">Hiring</span>
-              <span className="hr-funnel-step-value">{recruitment.summary?.totalVacancies ?? 0}</span>
+              <span className="hr-funnel-step-value">{recruitment.summary?.totalVacancies ?? 'Not recorded'}</span>
             </div>
             <div className="hr-funnel-step">
               <span className="hr-funnel-step-label">Selected</span>
-              <span className="hr-funnel-step-value">{recruitment.pipeline?.selected ?? 0}</span>
+              <span className="hr-funnel-step-value">{recruitment.pipeline?.selected ?? 'Not recorded'}</span>
             </div>
             <div className="hr-funnel-step">
-              <span className="hr-funnel-step-label">Onboarding</span>
-              <span className="hr-funnel-step-value">{recruitment.pipeline?.joined ?? 0}</span>
+              <span className="hr-funnel-step-label">Joined</span>
+              <span className="hr-funnel-step-value">{recruitment.pipeline?.joined ?? 'Not recorded'}</span>
             </div>
             <div className="hr-funnel-step">
               <span className="hr-funnel-step-label">Active</span>
-              <span className="hr-funnel-step-value">{workforce.active ?? 0}</span>
+              <span className="hr-funnel-step-value">{workforce.active ?? 'Not recorded'}</span>
             </div>
             <div className="hr-funnel-step">
               <span className="hr-funnel-step-label">On Notice</span>
-              <span className="hr-funnel-step-value">{exits.summary?.notice ?? 0}</span>
+              <span className="hr-funnel-step-value">{exits.summary?.notice ?? 'Not recorded'}</span>
             </div>
           </div>
 
@@ -459,15 +506,15 @@ export default function HRAnalyticsPage() {
             <span style={{ fontSize: 12, fontWeight: 'bold', color: '#1e40af' }}>ERP LOG-IN AUDIT</span>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
               <span>Total Active Staff</span>
-              <strong>{workforce.active ?? 0} Employees</strong>
+              <strong>{workforce.active ?? 'Not recorded'} Employees</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#ef4444' }}>
               <span>Employees Without Login Credentials</span>
-              <strong>{users.summary?.noLogin ?? 0} Staff</strong>
+              <strong>{users.summary?.noLogin ?? 'Not recorded'} Staff</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
               <span>Active User Accounts</span>
-              <strong>{users.summary?.active ?? 0} Users</strong>
+              <strong>{users.summary?.active ?? 'Not recorded'} Users</strong>
             </div>
           </div>
         </div>
@@ -477,12 +524,13 @@ export default function HRAnalyticsPage() {
       <div className="hr-double-grid">
         <div className="hr-card">
           <div className="hr-card-header">
-            <h3 className="hr-card-title">Leave Type Breakdown</h3>
+            <h3 className="hr-card-title">Approved Leave Requests by Type</h3>
           </div>
+          <p style={{ fontSize: 12, color: "#64748b" }}>{data.scope.leave}</p>
           <div style={{ display: 'flex', alignItems: 'center', height: '240px', width: '100%', minWidth: 0 }}>
             <div style={{ flex: 1 }}>
               {leave.types?.length === 0 ? (
-                <div style={{ height: '240px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontStyle: 'italic' }}>No leave transactions this month.</div>
+                <div style={{ height: '240px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontStyle: 'italic' }}>No approved leave requests overlap this period.</div>
               ) : (
                 <div style={{ height: '240px', width: '100%', position: 'relative' }}>
                   <ResponsiveChart height={240}>
@@ -521,7 +569,7 @@ export default function HRAnalyticsPage() {
                   <tr>
                     <th>Date</th>
                     <th>Leaves Active</th>
-                    <th>Risk Level</th>
+                    <th>Source</th>
                     <th>Department Breakdown</th>
                   </tr>
                 </thead>
@@ -532,7 +580,7 @@ export default function HRAnalyticsPage() {
                       <td style={{ fontWeight: 'bold' }}>{day.leaves} Employees</td>
                       <td>
                         <span className={`hr-status-pill ${day.leaves > 3 ? 'rose' : day.leaves > 1 ? 'pending' : 'active'}`}>
-                          {day.leaves > 3 ? 'High Staffing Risk' : day.leaves > 1 ? 'Moderate' : 'Healthy'}
+                          Approved requests
                         </span>
                       </td>
                       <td style={{ fontSize: 11.5, color: '#64748b' }}>
@@ -551,7 +599,7 @@ export default function HRAnalyticsPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{day.date}</strong>
                   <span className={`hr-status-pill ${day.leaves > 3 ? 'rose' : day.leaves > 1 ? 'pending' : 'active'}`} style={{ fontSize: '10.5px' }}>
-                    {day.leaves > 3 ? 'High Risk' : day.leaves > 1 ? 'Moderate' : 'Healthy'}
+                    Approved requests
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#64748b', background: '#f8fafc', padding: '6px 10px', borderRadius: '6px' }}>
@@ -568,8 +616,9 @@ export default function HRAnalyticsPage() {
       <div className="hr-double-grid">
         <div className="hr-card">
           <div className="hr-card-header">
-            <h3 className="hr-card-title">Department-Wise Payroll Expense</h3>
+            <h3 className="hr-card-title">Department-Wise Recorded Payroll</h3>
           </div>
+          <p style={{ fontSize: 12, color: "#64748b" }}>{data.scope.payroll}</p>
           <div style={{ height: '280px', width: '100%', position: 'relative' }}>
             {(!payroll.departmentWise || payroll.departmentWise.length === 0) ? (
               <div style={{ height: '280px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontStyle: 'italic', fontSize: '13px' }}>
@@ -598,19 +647,19 @@ export default function HRAnalyticsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
             <div style={{ background: '#f8fafc', padding: 8, borderRadius: 6, textAlign: 'center' }}>
               <span style={{ fontSize: 10, color: '#64748b', fontWeight: 'bold' }}>MISSING PAN</span>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#b91c1c' }}>{employeeDataQuality.missingFieldCounts?.pan ?? 0}</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#b91c1c' }}>{employeeDataQuality.missingFieldCounts?.pan ?? 'Not recorded'}</div>
             </div>
             <div style={{ background: '#f8fafc', padding: 8, borderRadius: 6, textAlign: 'center' }}>
               <span style={{ fontSize: 10, color: '#64748b', fontWeight: 'bold' }}>MISSING AADHAAR</span>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#b91c1c' }}>{employeeDataQuality.missingFieldCounts?.aadhaar ?? 0}</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#b91c1c' }}>{employeeDataQuality.missingFieldCounts?.aadhaar ?? 'Not recorded'}</div>
             </div>
             <div style={{ background: '#f8fafc', padding: 8, borderRadius: 6, textAlign: 'center' }}>
               <span style={{ fontSize: 10, color: '#64748b', fontWeight: 'bold' }}>MISSING BANK ACC</span>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#b91c1c' }}>{employeeDataQuality.missingFieldCounts?.bank ?? 0}</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#b91c1c' }}>{employeeDataQuality.missingFieldCounts?.bank ?? 'Not recorded'}</div>
             </div>
             <div style={{ background: '#f8fafc', padding: 8, borderRadius: 6, textAlign: 'center' }}>
               <span style={{ fontSize: 10, color: '#64748b', fontWeight: 'bold' }}>MISSING MANAGER</span>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#d97706' }}>{employeeDataQuality.missingFieldCounts?.manager ?? 0}</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#d97706' }}>{employeeDataQuality.missingFieldCounts?.manager ?? 'Not recorded'}</div>
             </div>
           </div>
           <div className="desktop-only">
@@ -641,7 +690,7 @@ export default function HRAnalyticsPage() {
           <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {(!employeeDataQuality.incompleteRecords || employeeDataQuality.incompleteRecords.length === 0) ? (
               <div style={{ textAlign: 'center', padding: '16px', color: '#16a34a', fontSize: '12.5px', fontStyle: 'italic' }}>
-                ✓ All employee statutory records are 100% complete.
+                {employees.length ? 'No missing fields found by the employee record checks.' : 'No employee records to check.'}
               </div>
             ) : (
               employeeDataQuality.incompleteRecords.map((item, idx) => (
@@ -700,8 +749,9 @@ export default function HRAnalyticsPage() {
         <div className="hr-card">
           <div className="hr-card-header">
             <h3 className="hr-card-title">Offboarding Clearance Tracker</h3>
-            <span style={{ fontSize: 12, color: '#64748b' }}>Attrition: {exits.attrition?.attritionRate}</span>
+            <span style={{ fontSize: 12, color: '#64748b' }}>Attrition: {exits.attrition?.attritionRate ?? 'Not recorded'}</span>
           </div>
+          <p style={{ color: "#64748b", fontSize: 13 }}>{data.scope.exits}</p>
           <div className="desktop-only">
             <div className="hr-table-frame">
               <table className="hr-table">
@@ -763,10 +813,10 @@ export default function HRAnalyticsPage() {
         <div className="hr-card">
           <div className="hr-card-header">
             <h3 className="hr-card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px' }}>
-              <Lucide.Cake size={18} style={{ color: '#7e22ce' }} /> Birthdays in Selected Period
+              <Lucide.Cake size={18} style={{ color: '#7e22ce' }} /> Birthdays ({data.scope.celebrations})
             </h3>
             <span className="hr-status-pill active" style={{ background: '#faf5ff', color: '#7e22ce', border: '1px solid #f3e8ff' }}>
-              {celebrations?.birthdays?.length ?? 0} Birthdays
+              {celebrations?.birthdays?.length ?? 'Not recorded'} Birthdays
             </span>
           </div>
           <div className="hr-table-frame" style={{ maxHeight: '240px' }}>
@@ -800,10 +850,10 @@ export default function HRAnalyticsPage() {
         <div className="hr-card">
           <div className="hr-card-header">
             <h3 className="hr-card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px' }}>
-              <Lucide.Gift size={18} style={{ color: '#2563eb' }} /> Work Anniversaries in Selected Period
+              <Lucide.Gift size={18} style={{ color: '#2563eb' }} /> Work Anniversaries ({data.scope.celebrations})
             </h3>
             <span className="hr-status-pill active" style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #dbeafe' }}>
-              {celebrations?.anniversaries?.length ?? 0} Anniversaries
+              {celebrations?.anniversaries?.length ?? 'Not recorded'} Anniversaries
             </span>
           </div>
           <div className="hr-table-frame" style={{ maxHeight: '240px' }}>
@@ -862,13 +912,13 @@ export default function HRAnalyticsPage() {
                 </tr>
               </thead>
               <tbody>
-                {employees.slice(0, 10).map((emp, idx) => (
+                {employees.map((emp, idx) => (
                   <tr key={idx} style={{ cursor: 'pointer' }} onClick={() => setSelectedEmp(emp)}>
                     <td><strong>{emp.fullName}</strong></td>
                     <td><code>{emp.employeeCode}</code></td>
                     <td>{emp.department?.name || 'Unassigned'}</td>
                     <td>{emp.jobTitle}</td>
-                    <td>{emp.workLocation?.name || 'Factory Head'}</td>
+                    <td>{emp.workLocation?.name || 'Not recorded'}</td>
                     <td>{emp.reportingManager?.fullName || '—'}</td>
                     <td>{emp.joiningDate ? emp.joiningDate.slice(0, 10) : '—'}</td>
                     <td>
@@ -885,7 +935,7 @@ export default function HRAnalyticsPage() {
 
         {/* Mobile Staff Cards */}
         <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {employees.slice(0, 10).map((emp, idx) => (
+          {employees.map((emp, idx) => (
             <div
               key={idx}
               onClick={() => setSelectedEmp(emp)}
@@ -908,7 +958,7 @@ export default function HRAnalyticsPage() {
                     <code style={{ fontSize: '11px', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', color: '#0284c7', fontWeight: 700 }}>
                       {emp.employeeCode}
                     </code>
-                    <span style={{ fontSize: '11.5px', color: '#64748b' }}>• {emp.department?.name || 'Operations'}</span>
+                    <span style={{ fontSize: '11.5px', color: '#64748b' }}>• {emp.department?.name || 'Unassigned'}</span>
                   </div>
                 </div>
                 <span className={`hr-status-pill ${emp.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`} style={{ fontSize: '10.5px' }}>
@@ -975,7 +1025,7 @@ export default function HRAnalyticsPage() {
                 <span style={{ fontSize: 11, color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Statutory & Payroll Data</span>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span>Base Salary</span>
-                  <strong>{formatCurrency(Number(selectedEmp.baseSalary ?? 0))}</strong>
+                  <strong>{formatCurrency(selectedEmp.baseSalary)}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span>PAN Card</span>
