@@ -489,7 +489,10 @@ export class WorkOrdersService {
               i.product?.productType === 'TRADING' ||
               i.product?.category === 'COVERBLOCK' ||
               i.product?.category === 'FRC COVER' ||
-              i.product?.category === 'RCC PIPE',
+              i.product?.category === 'RCC PIPE' ||
+              (i.product?.category === 'FRP GRATINGS' &&
+                (i.product?.name?.toUpperCase()?.includes('MOULDED') ||
+                 i.product?.sku?.toUpperCase()?.includes('MOULDED'))),
           );
         const targetRoles = isAllTrading
           ? ['DISPATCH_2']

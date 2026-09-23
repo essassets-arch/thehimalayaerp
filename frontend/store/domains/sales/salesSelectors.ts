@@ -162,45 +162,66 @@ function isTradingProductItem(item: any): boolean {
   if (pType === 'MANUFACTURING') return false;
   if (item.isTrading === true || item.product?.isTrading === true) return true;
 
+  const name = String(item.productName || item.product_name || item.name || item.product?.name || item.productNameSnapshot || '').toUpperCase();
+  const sku = String(item.sku || item.productSku || item.product_sku || item.productCode || item.productCodeSnapshot || item.product?.sku || '').toUpperCase();
+
+  const cleanName = name.replace(/\bHIMALAYA\b/g, '').trim();
+  const cleanSku = sku.replace(/\bHIMALAYA\b/g, '').trim();
+
+  if (
+    name.includes('MOULDED') ||
+    sku.includes('MOULDED') ||
+    cleanName.startsWith('FRCCP') ||
+    cleanName.startsWith('FRCT') ||
+    cleanName.startsWith('FRCSQRC') ||
+    cleanName.startsWith('FRCRFRC') ||
+    cleanName.startsWith('FRCSFSC') ||
+    cleanName.startsWith('FRCROFROC') ||
+    cleanName.startsWith('FRCGT') ||
+    cleanName.startsWith('FRCTSOC') ||
+    cleanName.startsWith('FRCTPEC') ||
+    cleanName.startsWith('FRC') ||
+    cleanName.startsWith('RCC') ||
+    cleanName.startsWith('BTCB') ||
+    cleanName.startsWith('WCB') ||
+    cleanName.startsWith('PCB') ||
+    cleanName.startsWith('HTCB') ||
+    cleanName.startsWith('DTCB') ||
+    cleanName.startsWith('MCB') ||
+    cleanName.includes('FRC COVER') ||
+    cleanName.includes('RCC PIPE') ||
+    cleanName.includes('COVERBLOCK') ||
+    cleanName.includes('COVER BLOCK')
+  ) return true;
+
+  if (
+    cleanSku.startsWith('FRCCP') ||
+    cleanSku.startsWith('FRCT') ||
+    cleanSku.startsWith('FRCSQRC') ||
+    cleanSku.startsWith('FRCRFRC') ||
+    cleanSku.startsWith('FRCSFSC') ||
+    cleanSku.startsWith('FRCROFROC') ||
+    cleanSku.startsWith('FRCGT') ||
+    cleanSku.startsWith('FRCTSOC') ||
+    cleanSku.startsWith('FRCTPEC') ||
+    cleanSku.startsWith('FRC') ||
+    cleanSku.startsWith('RCC') ||
+    cleanSku.startsWith('BTCB') ||
+    cleanSku.startsWith('WCB') ||
+    cleanSku.startsWith('PCB') ||
+    cleanSku.startsWith('HTCB') ||
+    cleanSku.startsWith('DTCB') ||
+    cleanSku.startsWith('MCB') ||
+    cleanSku.includes('COVERBLOCK') ||
+    cleanSku.includes('COVER BLOCK')
+  ) return true;
+
   const cat = String(item.category || item.product_family || item.product?.category || item.product?.product_family || '').toLowerCase();
   if (cat.includes('trading') || cat.includes('rcc pipe') || cat.includes('frc cover') || cat.includes('coverblock') || cat.includes('others')) return true;
-  if (cat.includes('frp covers') || cat.includes('frp gratings') || cat.includes('manufacturing')) return false;
-
-  const name = String(item.productName || item.product_name || item.name || item.product?.name || item.productNameSnapshot || '').toUpperCase();
-  if (
-    name.startsWith('FRCCP') ||
-    name.startsWith('FRCT') ||
-    name.startsWith('FRCSQRC') ||
-    name.startsWith('FRC') ||
-    name.startsWith('RCC') ||
-    name.startsWith('BTCB') ||
-    name.startsWith('WCB') ||
-    name.startsWith('PCB') ||
-    name.startsWith('HTCB') ||
-    name.startsWith('DTCB') ||
-    name.startsWith('MCB') ||
-    name.includes('FRC COVER') ||
-    name.includes('RCC PIPE') ||
-    name.includes('COVERBLOCK') ||
-    name.includes('COVER BLOCK')
-  ) return true;
-
-  const sku = String(item.sku || item.productSku || item.product_sku || item.productCode || item.productCodeSnapshot || item.product?.sku || '').toUpperCase();
-  if (
-    sku.startsWith('FRCCP') ||
-    sku.startsWith('FRCT') ||
-    sku.startsWith('FRCSQRC') ||
-    sku.startsWith('FRC') ||
-    sku.startsWith('RCC') ||
-    sku.startsWith('BTCB') ||
-    sku.startsWith('WCB') ||
-    sku.startsWith('PCB') ||
-    sku.startsWith('HTCB') ||
-    sku.startsWith('DTCB') ||
-    sku.startsWith('MCB') ||
-    sku.includes('COVERBLOCK') ||
-    sku.includes('COVER BLOCK')
-  ) return true;
+  if (cat.includes('frp gratings')) {
+    return name.includes('MOULDED') || sku.includes('MOULDED');
+  }
+  if (cat.includes('frp covers') || cat.includes('manufacturing')) return false;
 
   const dCat = String(item.dispatchCategory || item.dispatch_category || item.product?.dispatchCategory || item.product?.dispatch_category || '').toUpperCase();
   if (dCat === 'D2' || dCat === 'DISPATCH 2' || dCat === 'DISPATCH_2' || dCat.includes('CAT 2') || dCat.includes('CATEGORY 2')) return true;

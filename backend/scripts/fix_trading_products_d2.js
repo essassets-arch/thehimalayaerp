@@ -19,6 +19,14 @@ async function main() {
         { sku: { startsWith: 'FRCCP' } },
         { sku: { startsWith: 'FRCT' } },
         { sku: { startsWith: 'FRCSQRC' } },
+        { sku: { startsWith: 'FRCRFRC' } },
+        { sku: { startsWith: 'FRCSFSC' } },
+        { sku: { startsWith: 'FRCROFROC' } },
+        { sku: { startsWith: 'FRCGT' } },
+        { sku: { startsWith: 'FRCTSOC' } },
+        { sku: { startsWith: 'FRCTPEC' } },
+        { sku: { contains: 'MOULDED', mode: 'insensitive' } },
+        { name: { contains: 'MOULDED', mode: 'insensitive' } },
         { name: { contains: 'COVERBLOCK', mode: 'insensitive' } },
         { name: { contains: 'COVER BLOCK', mode: 'insensitive' } },
         { name: { contains: 'FRC COVER', mode: 'insensitive' } },
@@ -28,14 +36,9 @@ async function main() {
         {
           NOT: {
             OR: [
-              { category: 'FRP COVERS' },
-              { category: 'FRP GRATINGS' },
               { category: 'Hardware' },
               { category: 'Electric' },
               { category: 'Raw Material' },
-              { name: { contains: 'FRP MOULDED', mode: 'insensitive' } },
-              { name: { contains: 'FRP GRATINGS', mode: 'insensitive' } },
-              { name: { contains: 'FRP GRATING', mode: 'insensitive' } },
             ],
           },
         },
@@ -49,16 +52,25 @@ async function main() {
 
   console.log(`Updated ${res1.count} products to TRADING / D2.`);
 
-  // 2. Ensure FRP GRATINGS / FRP COVERS are MANUFACTURING / D1
+  // 2. Ensure standard FRP COVERS and manufactured products remain MANUFACTURING / D1 (excluding Moulded Gratings)
   const res2 = await prisma.product.updateMany({
     where: {
       OR: [
         { category: 'FRP COVERS' },
-        { category: 'FRP GRATINGS' },
         { category: 'Finished Goods' },
-        { name: { contains: 'FRP MOULDED', mode: 'insensitive' } },
-        { name: { contains: 'FRP GRATINGS', mode: 'insensitive' } },
-        { name: { contains: 'FRP GRATING', mode: 'insensitive' } },
+      ],
+      AND: [
+        {
+          NOT: {
+            OR: [
+              { name: { contains: 'MOULDED', mode: 'insensitive' } },
+              { sku: { contains: 'MOULDED', mode: 'insensitive' } },
+              { category: 'FRC COVER' },
+              { category: 'RCC PIPE' },
+              { category: 'COVERBLOCK' },
+            ],
+          },
+        },
       ],
     },
     data: {

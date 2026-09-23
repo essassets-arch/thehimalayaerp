@@ -1115,29 +1115,41 @@ export class SalesService {
           const dCat = String(p?.dispatchCategory || item?.dispatchCategory || '').toUpperCase();
           if (dCat === 'D2' || dCat.includes('2')) return true;
 
-          const cat = String(p?.category || item?.category || '').toUpperCase();
-          if (['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING'].includes(cat)) return true;
-          if (['FRP COVERS', 'FRP GRATINGS', 'MANUFACTURING'].includes(cat)) return false;
-
           const skuOrName = String(p?.sku || p?.name || item?.productCodeSnapshot || item?.productNameSnapshot || '').toUpperCase();
+          const cleanSkuOrName = skuOrName.replace(/^HIMALAYA\s+/i, '').trim();
+
           if (
-            skuOrName.startsWith('WCB') ||
-            skuOrName.startsWith('PCB') ||
-            skuOrName.startsWith('HTCB') ||
-            skuOrName.startsWith('DTCB') ||
-            skuOrName.startsWith('MCB') ||
-            skuOrName.startsWith('BTCB') ||
-            skuOrName.startsWith('FRCCP') ||
-            skuOrName.startsWith('FRCT') ||
-            skuOrName.startsWith('FRCSQRC') ||
-            skuOrName.startsWith('FRC') ||
-            skuOrName.startsWith('RCC') ||
+            skuOrName.includes('MOULDED') ||
+            cleanSkuOrName.startsWith('WCB') ||
+            cleanSkuOrName.startsWith('PCB') ||
+            cleanSkuOrName.startsWith('HTCB') ||
+            cleanSkuOrName.startsWith('DTCB') ||
+            cleanSkuOrName.startsWith('MCB') ||
+            cleanSkuOrName.startsWith('BTCB') ||
+            cleanSkuOrName.startsWith('FRCCP') ||
+            cleanSkuOrName.startsWith('FRCT') ||
+            cleanSkuOrName.startsWith('FRCSQRC') ||
+            cleanSkuOrName.startsWith('FRCRFRC') ||
+            cleanSkuOrName.startsWith('FRCSFSC') ||
+            cleanSkuOrName.startsWith('FRCROFROC') ||
+            cleanSkuOrName.startsWith('FRCGT') ||
+            cleanSkuOrName.startsWith('FRCTSOC') ||
+            cleanSkuOrName.startsWith('FRCTPEC') ||
+            cleanSkuOrName.startsWith('FRC') ||
+            cleanSkuOrName.startsWith('RCC') ||
             skuOrName.includes('COVERBLOCK') ||
             skuOrName.includes('COVER BLOCK') ||
             skuOrName.includes('FRC COVER') ||
             skuOrName.includes('RCC PIPE')
           ) {
             return true;
+          }
+
+          const cat = String(p?.category || item?.category || '').toUpperCase();
+          if (['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING'].includes(cat)) return true;
+          if (['FRP COVERS', 'MANUFACTURING'].includes(cat)) return false;
+          if (cat === 'FRP GRATINGS') {
+            return skuOrName.includes('MOULDED');
           }
           return false;
         };
@@ -1242,27 +1254,44 @@ export class SalesService {
           if (pType === 'MANUFACTURING') return false;
           const dCat = String(p?.dispatchCategory || item?.dispatchCategory || '').toUpperCase();
           if (dCat === 'D2' || dCat.includes('2')) return true;
-          const cat = String(p?.category || item?.category || '').toUpperCase();
-          if (['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING'].includes(cat)) return true;
-          if (['FRP COVERS', 'FRP GRATINGS', 'MANUFACTURING'].includes(cat)) return false;
+
           const skuOrName = String(p?.sku || p?.name || item?.productCodeSnapshot || item?.productNameSnapshot || '').toUpperCase();
-          return (
-            skuOrName.startsWith('WCB') ||
-            skuOrName.startsWith('PCB') ||
-            skuOrName.startsWith('HTCB') ||
-            skuOrName.startsWith('DTCB') ||
-            skuOrName.startsWith('MCB') ||
-            skuOrName.startsWith('BTCB') ||
-            skuOrName.startsWith('FRCCP') ||
-            skuOrName.startsWith('FRCT') ||
-            skuOrName.startsWith('FRCSQRC') ||
-            skuOrName.startsWith('FRC') ||
-            skuOrName.startsWith('RCC') ||
+          const cleanSkuOrName = skuOrName.replace(/^HIMALAYA\s+/i, '').trim();
+
+          if (
+            skuOrName.includes('MOULDED') ||
+            cleanSkuOrName.startsWith('WCB') ||
+            cleanSkuOrName.startsWith('PCB') ||
+            cleanSkuOrName.startsWith('HTCB') ||
+            cleanSkuOrName.startsWith('DTCB') ||
+            cleanSkuOrName.startsWith('MCB') ||
+            cleanSkuOrName.startsWith('BTCB') ||
+            cleanSkuOrName.startsWith('FRCCP') ||
+            cleanSkuOrName.startsWith('FRCT') ||
+            cleanSkuOrName.startsWith('FRCSQRC') ||
+            cleanSkuOrName.startsWith('FRCRFRC') ||
+            cleanSkuOrName.startsWith('FRCSFSC') ||
+            cleanSkuOrName.startsWith('FRCROFROC') ||
+            cleanSkuOrName.startsWith('FRCGT') ||
+            cleanSkuOrName.startsWith('FRCTSOC') ||
+            cleanSkuOrName.startsWith('FRCTPEC') ||
+            cleanSkuOrName.startsWith('FRC') ||
+            cleanSkuOrName.startsWith('RCC') ||
             skuOrName.includes('COVERBLOCK') ||
             skuOrName.includes('COVER BLOCK') ||
             skuOrName.includes('FRC COVER') ||
             skuOrName.includes('RCC PIPE')
-          );
+          ) {
+            return true;
+          }
+
+          const cat = String(p?.category || item?.category || '').toUpperCase();
+          if (['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING'].includes(cat)) return true;
+          if (['FRP COVERS', 'MANUFACTURING'].includes(cat)) return false;
+          if (cat === 'FRP GRATINGS') {
+            return skuOrName.includes('MOULDED');
+          }
+          return false;
         };
 
         const hasManufacturing = order.items.some((item: any) => !isItemTrading(item));

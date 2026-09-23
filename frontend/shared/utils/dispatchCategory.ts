@@ -45,9 +45,6 @@ export function isTradingProduct(entity?: any, productsMap?: Map<string, any>): 
     entity.product?.product_family ||
     ''
   ).toUpperCase();
-  if (['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING'].includes(cat)) return true;
-  if (['FRP COVERS', 'FRP GRATINGS', 'MANUFACTURING', 'FINISHED GOODS'].includes(cat)) return false;
-
   const name = String(
     entity.name ||
     entity.productName ||
@@ -68,19 +65,27 @@ export function isTradingProduct(entity?: any, productsMap?: Map<string, any>): 
   ).toUpperCase();
 
   const nameOrSku = `${name} ${sku}`;
+  const cleanNameOrSku = nameOrSku.replace(/\bHIMALAYA\b/g, '').trim();
 
   if (
-    nameOrSku.startsWith('WCB') ||
-    nameOrSku.startsWith('PCB') ||
-    nameOrSku.startsWith('HTCB') ||
-    nameOrSku.startsWith('DTCB') ||
-    nameOrSku.startsWith('MCB') ||
-    nameOrSku.startsWith('BTCB') ||
-    nameOrSku.startsWith('FRCCP') ||
-    nameOrSku.startsWith('FRCT') ||
-    nameOrSku.startsWith('FRCSQRC') ||
-    nameOrSku.startsWith('FRC') ||
-    nameOrSku.startsWith('RCC') ||
+    nameOrSku.includes('MOULDED') ||
+    cleanNameOrSku.startsWith('WCB') ||
+    cleanNameOrSku.startsWith('PCB') ||
+    cleanNameOrSku.startsWith('HTCB') ||
+    cleanNameOrSku.startsWith('DTCB') ||
+    cleanNameOrSku.startsWith('MCB') ||
+    cleanNameOrSku.startsWith('BTCB') ||
+    cleanNameOrSku.startsWith('FRCCP') ||
+    cleanNameOrSku.startsWith('FRCT') ||
+    cleanNameOrSku.startsWith('FRCSQRC') ||
+    cleanNameOrSku.startsWith('FRCRFRC') ||
+    cleanNameOrSku.startsWith('FRCSFSC') ||
+    cleanNameOrSku.startsWith('FRCROFROC') ||
+    cleanNameOrSku.startsWith('FRCGT') ||
+    cleanNameOrSku.startsWith('FRCTSOC') ||
+    cleanNameOrSku.startsWith('FRCTPEC') ||
+    cleanNameOrSku.startsWith('FRC') ||
+    cleanNameOrSku.startsWith('RCC') ||
     nameOrSku.includes('COVERBLOCK') ||
     nameOrSku.includes('COVER BLOCK') ||
     nameOrSku.includes('FRC COVER') ||
@@ -88,6 +93,12 @@ export function isTradingProduct(entity?: any, productsMap?: Map<string, any>): 
   ) {
     return true;
   }
+
+  if (['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING'].includes(cat)) return true;
+  if (cat === 'FRP GRATINGS') {
+    return nameOrSku.includes('MOULDED');
+  }
+  if (['FRP COVERS', 'MANUFACTURING', 'FINISHED GOODS'].includes(cat)) return false;
 
   // 2. Check items array if entity is an order / sample / replacement / return container
   const items = entity.items || entity.products || entity.sampleItems || entity.orderItems || [];

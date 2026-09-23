@@ -267,6 +267,9 @@ export function mapSalesOrder(
       const prodType = String((item as any).product?.productType || (item as any).productType || '').toUpperCase();
       const prodDCat = String((item as any).product?.dispatchCategory || '').toUpperCase();
 
+      const cleanSku = prodSku.replace(/^HIMALAYA\s+/i, '').trim();
+      const cleanName = prodName.replace(/^HIMALAYA\s+/i, '').trim();
+
       const isTrading =
         prodType === 'TRADING' ||
         prodDCat === 'D2' ||
@@ -276,34 +279,45 @@ export function mapSalesOrder(
         prodCat.includes('FRC COVER') ||
         prodCat.includes('COVERBLOCK') ||
         prodCat.includes('OTHERS') ||
-        prodSku.startsWith('FRCCP') ||
-        prodSku.startsWith('FRCT') ||
-        prodSku.startsWith('FRCSQRC') ||
-        prodSku.startsWith('FRC') ||
-        prodSku.startsWith('RCC') ||
-        prodSku.startsWith('BTCB') ||
-        prodSku.startsWith('WCB') ||
-        prodSku.startsWith('PCB') ||
-        prodSku.startsWith('HTCB') ||
-        prodSku.startsWith('DTCB') ||
-        prodSku.startsWith('MCB') ||
-        prodSku.includes('COVERBLOCK') ||
-        prodSku.includes('COVER BLOCK') ||
-        prodName.startsWith('FRCCP') ||
-        prodName.startsWith('FRCT') ||
-        prodName.startsWith('FRCSQRC') ||
-        prodName.startsWith('FRC') ||
-        prodName.startsWith('RCC') ||
-        prodName.startsWith('BTCB') ||
-        prodName.startsWith('WCB') ||
-        prodName.startsWith('PCB') ||
-        prodName.startsWith('HTCB') ||
-        prodName.startsWith('DTCB') ||
-        prodName.startsWith('MCB') ||
-        prodName.includes('FRC COVER') ||
-        prodName.includes('RCC PIPE') ||
-        prodName.includes('COVERBLOCK') ||
-        prodName.includes('COVER BLOCK');
+        (prodCat.includes('FRP GRATINGS') && (prodName.includes('MOULDED') || prodSku.includes('MOULDED'))) ||
+        prodName.includes('MOULDED') ||
+        prodSku.includes('MOULDED') ||
+        cleanSku.startsWith('FRCCP') ||
+        cleanSku.startsWith('FRCT') ||
+        cleanSku.startsWith('FRCSQRC') ||
+        cleanSku.startsWith('FRCRFRC') ||
+        cleanSku.startsWith('FRCSFSC') ||
+        cleanSku.startsWith('FRCROFROC') ||
+        cleanSku.startsWith('FRCGT') ||
+        cleanSku.startsWith('FRC') ||
+        cleanSku.startsWith('RCC') ||
+        cleanSku.startsWith('BTCB') ||
+        cleanSku.startsWith('WCB') ||
+        cleanSku.startsWith('PCB') ||
+        cleanSku.startsWith('HTCB') ||
+        cleanSku.startsWith('DTCB') ||
+        cleanSku.startsWith('MCB') ||
+        cleanSku.includes('COVERBLOCK') ||
+        cleanSku.includes('COVER BLOCK') ||
+        cleanName.startsWith('FRCCP') ||
+        cleanName.startsWith('FRCT') ||
+        cleanName.startsWith('FRCSQRC') ||
+        cleanName.startsWith('FRCRFRC') ||
+        cleanName.startsWith('FRCSFSC') ||
+        cleanName.startsWith('FRCROFROC') ||
+        cleanName.startsWith('FRCGT') ||
+        cleanName.startsWith('FRC') ||
+        cleanName.startsWith('RCC') ||
+        cleanName.startsWith('BTCB') ||
+        cleanName.startsWith('WCB') ||
+        cleanName.startsWith('PCB') ||
+        cleanName.startsWith('HTCB') ||
+        cleanName.startsWith('DTCB') ||
+        cleanName.startsWith('MCB') ||
+        cleanName.includes('FRC COVER') ||
+        cleanName.includes('RCC PIPE') ||
+        cleanName.includes('COVERBLOCK') ||
+        cleanName.includes('COVER BLOCK');
 
       const orderedQty = Number(item.orderedQuantity);
       const alreadyDispatchedQty = dispatchMap
