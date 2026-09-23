@@ -192,6 +192,24 @@
   transform: translateY(-1px);
 }
 
+.tm-btn-ghost {
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.tm-btn-ghost:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
 /* ── KPI Grid ── */
 .tm-kpi-grid {
   display: grid;
@@ -717,12 +735,12 @@
   color: #ffffff;
 }
 
-/* ── Modal Design ── */
+/* ── Modal Design — High-Contrast Executive Style ── */
 .tm-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.68);
-  backdrop-filter: blur(8px);
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -735,106 +753,283 @@
   background: #ffffff;
   border-radius: var(--tm-radius-lg);
   width: 100%;
-  max-width: 580px;
-  max-height: 90vh;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  max-width: 560px;
+  max-height: 92vh;
+  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.35);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(226, 232, 240, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  animation: tmModalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes tmModalPop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .tm-modal-card-lg {
   max-width: 860px;
 }
 
+/* Clean Crisp Modal Header */
 .tm-modal-header {
-  padding: 22px 28px;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  color: #ffffff;
+  padding: 24px 28px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tm-modal-header-left {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 14px;
+}
+
+.tm-modal-icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(99, 102, 241, 0.12) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+.tm-modal-icon-badge.emerald {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.12) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #059669;
 }
 
 .tm-modal-title {
   margin: 0;
   font-size: 18px;
   font-weight: 800;
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  color: #0f172a !important;
+  letter-spacing: -0.3px;
+  line-height: 1.25;
+}
+
+.tm-modal-subtitle {
+  margin: 3px 0 0 0;
+  font-size: 12.5px;
+  color: #64748b;
+  font-weight: 500;
 }
 
 .tm-modal-close {
-  background: rgba(255, 255, 255, 0.12);
-  border: none;
-  color: #ffffff;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.18s ease;
+  font-size: 14px;
 }
 
 .tm-modal-close:hover {
-  background: rgba(255, 255, 255, 0.25);
-  transform: rotate(90deg);
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #cbd5e1;
 }
 
 .tm-modal-body {
-  padding: 28px;
+  padding: 24px 28px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
 .tm-modal-footer {
   padding: 18px 28px;
   background: #f8fafc;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid #f1f5f9;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
 }
 
-/* Live Velocity Math Box in Modal */
-.tm-velocity-box {
-  background: linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%);
-  border: 1px solid #bfdbfe;
-  border-radius: var(--tm-radius-md);
-  padding: 16px 20px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  text-align: center;
-}
-
-.tm-velocity-item {
+/* Form Controls Inside Modal */
+.tm-form-group {
   display: flex;
   flex-direction: column;
+  gap: 6px;
+}
+
+.tm-form-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
   gap: 4px;
 }
 
-.tm-velocity-label {
+.tm-form-label .tm-required {
+  color: #ef4444;
+}
+
+.tm-form-input,
+.tm-form-select {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1.5px solid #e2e8f0;
+  background: #ffffff;
+  font-size: 13.5px;
+  color: #0f172a;
+  font-weight: 500;
+  outline: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.tm-form-input:focus,
+.tm-form-select:focus {
+  border-color: #3b82f6;
+  background: #ffffff;
+  box-shadow: 0 0 0 3.5px rgba(59, 130, 246, 0.12);
+}
+
+.tm-form-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1.5px solid #e2e8f0;
+  background: #ffffff;
+  font-size: 13.5px;
+  color: #0f172a;
+  outline: none;
+  resize: vertical;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  font-family: inherit;
+}
+
+.tm-form-textarea:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3.5px rgba(59, 130, 246, 0.12);
+}
+
+.tm-modal-card.emerald .tm-form-input:focus,
+.tm-modal-card.emerald .tm-form-select:focus,
+.tm-modal-card.emerald .tm-form-textarea:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3.5px rgba(16, 185, 129, 0.14);
+}
+
+/* Live Velocity Deck Widget */
+.tm-velocity-widget {
+  background: linear-gradient(135deg, #f0f7ff 0%, #e0eefe 50%, #eef2ff 100%);
+  border: 1.5px solid #bfdbfe;
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.8), 0 2px 8px rgba(59, 130, 246, 0.06);
+}
+
+.tm-velocity-widget.emerald {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 50%, #f0fdf4 100%);
+  border-color: #a7f3d0;
+}
+
+.tm-velocity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed rgba(59, 130, 246, 0.25);
+}
+
+.tm-velocity-widget.emerald .tm-velocity-header {
+  border-bottom-color: rgba(16, 185, 129, 0.25);
+}
+
+.tm-velocity-title {
   font-size: 11px;
+  font-weight: 800;
+  color: #1e40af;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tm-velocity-widget.emerald .tm-velocity-title {
+  color: #065f46;
+}
+
+.tm-velocity-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.tm-velocity-pill {
+  background: #ffffff;
+  border: 1px solid rgba(191, 219, 254, 0.85);
+  border-radius: 10px;
+  padding: 10px 8px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tm-velocity-widget.emerald .tm-velocity-pill {
+  border-color: rgba(167, 243, 208, 0.85);
+}
+
+.tm-velocity-pill-label {
+  font-size: 10px;
   font-weight: 700;
-  color: #3b82f6;
+  color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.tm-velocity-val {
-  font-size: 16px;
+.tm-velocity-pill-value {
+  font-size: 15px;
   font-weight: 800;
-  color: #1e3a8a;
+  color: #0f172a;
+  letter-spacing: -0.3px;
+}
+
+.tm-velocity-pill-value.highlight-emerald {
+  color: #059669;
+}
+
+.tm-velocity-pill-value.highlight-primary {
+  color: #2563eb;
+}
+
+.tm-velocity-pill-sub {
+  font-size: 9.5px;
+  color: #94a3b8;
 }
 
 /* Mobile cards */
@@ -869,8 +1064,20 @@
     grid-template-columns: 1fr;
   }
 
-  .tm-velocity-box {
+  .tm-velocity-grid {
     grid-template-columns: 1fr;
     text-align: left;
+  }
+
+  .tm-modal-header {
+    padding: 18px 20px 14px;
+  }
+
+  .tm-modal-body {
+    padding: 18px 20px;
+  }
+
+  .tm-modal-footer {
+    padding: 14px 20px;
   }
 }

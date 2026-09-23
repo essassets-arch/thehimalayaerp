@@ -865,19 +865,31 @@ export default function SalesTargetManagementView({
         <div className="tm-modal-overlay">
           <div className="tm-modal-card">
             <div className="tm-modal-header">
-              <h3 className="tm-modal-title">
-                <Target size={20} style={{ color: '#38bdf8' }} />
-                {modalMode === 'create' ? 'Assign Sales Revenue Quota' : 'Modify Revenue Quota'}
-              </h3>
-              <button className="tm-modal-close" onClick={() => setShowTargetModal(false)}>✕</button>
+              <div className="tm-modal-header-left">
+                <div className="tm-modal-icon-badge">
+                  <Target size={22} />
+                </div>
+                <div>
+                  <h3 className="tm-modal-title">
+                    {modalMode === 'create' ? 'Assign Sales Revenue Quota' : 'Modify Revenue Quota'}
+                  </h3>
+                  <p className="tm-modal-subtitle">
+                    Configure milestone quota and calculate required run-rate
+                  </p>
+                </div>
+              </div>
+              <button className="tm-modal-close" onClick={() => setShowTargetModal(false)} type="button">✕</button>
             </div>
 
             <form onSubmit={handleSaveTarget}>
               <div className="tm-modal-body">
                 {/* Salesperson Selector */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Salesperson *</label>
+                <div className="tm-form-group">
+                  <label className="tm-form-label">
+                    Salesperson <span className="tm-required">*</span>
+                  </label>
                   <select
+                    className="tm-form-select"
                     required
                     value={formData.salespersonId}
                     onChange={(e) => {
@@ -888,7 +900,6 @@ export default function SalesTargetManagementView({
                         salespersonName: sel?.name || ''
                       });
                     }}
-                    style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
                   >
                     {salesPersonnel.map(p => (
                       <option key={p.id} value={p.id}>
@@ -899,10 +910,13 @@ export default function SalesTargetManagementView({
                 </div>
 
                 {/* Period Preset & Date Pickers */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Target Period *</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div className="tm-form-group">
+                    <label className="tm-form-label">
+                      Target Period <span className="tm-required">*</span>
+                    </label>
                     <select
+                      className="tm-form-select"
                       value={formData.period}
                       onChange={(e) => {
                         const period = e.target.value;
@@ -922,7 +936,6 @@ export default function SalesTargetManagementView({
                         }
                         setFormData({ ...formData, period, startDate: start, endDate: end });
                       }}
-                      style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
                     >
                       <option value="Monthly">Monthly</option>
                       <option value="Quarterly">Quarterly</option>
@@ -930,71 +943,91 @@ export default function SalesTargetManagementView({
                     </select>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Revenue Target (INR) *</label>
+                  <div className="tm-form-group">
+                    <label className="tm-form-label">
+                      Revenue Target (INR) <span className="tm-required">*</span>
+                    </label>
                     <input
+                      className="tm-form-input"
                       type="number"
                       required
                       min="1000"
                       step="1000"
                       value={formData.targetAmount}
                       onChange={(e) => setFormData({ ...formData, targetAmount: Number(e.target.value) })}
-                      style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontWeight: '700' }}
                     />
                   </div>
                 </div>
 
                 {/* Dates */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Start Date *</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div className="tm-form-group">
+                    <label className="tm-form-label">
+                      Start Date <span className="tm-required">*</span>
+                    </label>
                     <input
+                      className="tm-form-input"
                       type="date"
                       required
                       value={formData.startDate}
                       onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                      style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
                     />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>End Date *</label>
+                  <div className="tm-form-group">
+                    <label className="tm-form-label">
+                      End Date <span className="tm-required">*</span>
+                    </label>
                     <input
+                      className="tm-form-input"
                       type="date"
                       required
                       value={formData.endDate}
                       onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                      style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
                     />
                   </div>
                 </div>
 
                 {/* Live Pacing Calculation Box */}
-                <div className="tm-velocity-box">
-                  <div className="tm-velocity-item">
-                    <span className="tm-velocity-label">Window Duration</span>
-                    <span className="tm-velocity-val">{modalLiveVelocity.totalDays} Days</span>
-                  </div>
-                  <div className="tm-velocity-item">
-                    <span className="tm-velocity-label">Target Revenue</span>
-                    <span className="tm-velocity-val">{formatCurrency(formData.targetAmount)}</span>
-                  </div>
-                  <div className="tm-velocity-item">
-                    <span className="tm-velocity-label">Required Velocity</span>
-                    <span className="tm-velocity-val" style={{ color: '#059669' }}>
-                      {formatCurrency(modalLiveVelocity.dailyRequired)}/day
+                <div className="tm-velocity-widget">
+                  <div className="tm-velocity-header">
+                    <span className="tm-velocity-title">
+                      <TrendingUp size={13} style={{ color: '#2563eb' }} />
+                      Live Pacing &amp; Velocity Telemetry
                     </span>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+                      Auto-calculated
+                    </span>
+                  </div>
+                  <div className="tm-velocity-grid">
+                    <div className="tm-velocity-pill">
+                      <span className="tm-velocity-pill-label">Window Duration</span>
+                      <span className="tm-velocity-pill-value">{modalLiveVelocity.totalDays} Days</span>
+                      <span className="tm-velocity-pill-sub">Target period</span>
+                    </div>
+                    <div className="tm-velocity-pill">
+                      <span className="tm-velocity-pill-label">Target Revenue</span>
+                      <span className="tm-velocity-pill-value highlight-primary">{formatCurrency(formData.targetAmount)}</span>
+                      <span className="tm-velocity-pill-sub">Total quota</span>
+                    </div>
+                    <div className="tm-velocity-pill">
+                      <span className="tm-velocity-pill-label">Required Velocity</span>
+                      <span className="tm-velocity-pill-value highlight-emerald">
+                        {formatCurrency(modalLiveVelocity.dailyRequired)}
+                      </span>
+                      <span className="tm-velocity-pill-sub">Per day required</span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Remarks */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Strategic Remarks / Notes</label>
+                <div className="tm-form-group">
+                  <label className="tm-form-label">Strategic Remarks / Notes</label>
                   <textarea
+                    className="tm-form-textarea"
                     rows={2}
                     placeholder="e.g. Focus on moulded products and top distributor renewals..."
                     value={formData.remarks}
                     onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                    style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
                   />
                 </div>
               </div>
@@ -1002,8 +1035,7 @@ export default function SalesTargetManagementView({
               <div className="tm-modal-footer">
                 <button
                   type="button"
-                  className="tm-btn-secondary"
-                  style={{ color: '#475569', background: '#f1f5f9' }}
+                  className="tm-btn-ghost"
                   onClick={() => setShowTargetModal(false)}
                 >
                   Cancel
@@ -1022,16 +1054,20 @@ export default function SalesTargetManagementView({
         <div className="tm-modal-overlay">
           <div className="tm-modal-card tm-modal-card-lg">
             <div className="tm-modal-header">
-              <div>
-                <h3 className="tm-modal-title">
-                  <CheckCircle2 size={20} style={{ color: '#10b981' }} />
-                  Confirmed Orders — {selectedTarget.salespersonName}
-                </h3>
-                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
-                  Target Period: {selectedTarget.startDate} to {selectedTarget.endDate} · {formatCurrency(selectedTarget.achieved)} Confirmed
+              <div className="tm-modal-header-left">
+                <div className="tm-modal-icon-badge emerald">
+                  <CheckCircle2 size={22} />
+                </div>
+                <div>
+                  <h3 className="tm-modal-title">
+                    Confirmed Orders — {selectedTarget.salespersonName}
+                  </h3>
+                  <p className="tm-modal-subtitle">
+                    Target Period: {selectedTarget.startDate} to {selectedTarget.endDate} · {formatCurrency(selectedTarget.achieved)} Confirmed
+                  </p>
                 </div>
               </div>
-              <button className="tm-modal-close" onClick={() => setShowOrdersModal(false)}>✕</button>
+              <button className="tm-modal-close" onClick={() => setShowOrdersModal(false)} type="button">✕</button>
             </div>
 
             <div className="tm-modal-body" style={{ maxHeight: '60vh', padding: '0' }}>
@@ -1096,11 +1132,20 @@ export default function SalesTargetManagementView({
         <div className="tm-modal-overlay">
           <div className="tm-modal-card">
             <div className="tm-modal-header">
-              <h3 className="tm-modal-title">
-                <TrendingUp size={20} style={{ color: '#8b5cf6' }} />
-                Pacing Telemetry: {selectedTarget.salespersonName}
-              </h3>
-              <button className="tm-modal-close" onClick={() => setShowVelocityModal(false)}>✕</button>
+              <div className="tm-modal-header-left">
+                <div className="tm-modal-icon-badge">
+                  <TrendingUp size={22} />
+                </div>
+                <div>
+                  <h3 className="tm-modal-title">
+                    Pacing Telemetry: {selectedTarget.salespersonName}
+                  </h3>
+                  <p className="tm-modal-subtitle">
+                    Live velocity run-rate and milestone trajectory
+                  </p>
+                </div>
+              </div>
+              <button className="tm-modal-close" onClick={() => setShowVelocityModal(false)} type="button">✕</button>
             </div>
 
             <div className="tm-modal-body">
@@ -1124,20 +1169,34 @@ export default function SalesTargetManagementView({
                 </div>
               </div>
 
-              <div className="tm-velocity-box">
-                <div className="tm-velocity-item">
-                  <span className="tm-velocity-label">Days Total</span>
-                  <span className="tm-velocity-val">{selectedTarget.totalDays} Days</span>
-                </div>
-                <div className="tm-velocity-item">
-                  <span className="tm-velocity-label">Days Left</span>
-                  <span className="tm-velocity-val" style={{ color: '#ef4444' }}>{selectedTarget.daysRemaining} Days</span>
-                </div>
-                <div className="tm-velocity-item">
-                  <span className="tm-velocity-label">Daily Run-Rate</span>
-                  <span className="tm-velocity-val" style={{ color: '#2563eb' }}>
-                    {formatCurrency(selectedTarget.requiredDaily)}/day
+              <div className="tm-velocity-widget">
+                <div className="tm-velocity-header">
+                  <span className="tm-velocity-title">
+                    <TrendingUp size={13} style={{ color: '#2563eb' }} />
+                    Run-Rate Breakdown
                   </span>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+                    Active Window
+                  </span>
+                </div>
+                <div className="tm-velocity-grid">
+                  <div className="tm-velocity-pill">
+                    <span className="tm-velocity-pill-label">Days Total</span>
+                    <span className="tm-velocity-pill-value">{selectedTarget.totalDays} Days</span>
+                    <span className="tm-velocity-pill-sub">Full duration</span>
+                  </div>
+                  <div className="tm-velocity-pill">
+                    <span className="tm-velocity-pill-label">Days Left</span>
+                    <span className="tm-velocity-pill-value" style={{ color: '#ef4444' }}>{selectedTarget.daysRemaining} Days</span>
+                    <span className="tm-velocity-pill-sub">Remaining</span>
+                  </div>
+                  <div className="tm-velocity-pill">
+                    <span className="tm-velocity-pill-label">Daily Run-Rate</span>
+                    <span className="tm-velocity-pill-value highlight-primary">
+                      {formatCurrency(selectedTarget.requiredDaily)}
+                    </span>
+                    <span className="tm-velocity-pill-sub">Per day required</span>
+                  </div>
                 </div>
               </div>
 

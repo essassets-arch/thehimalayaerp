@@ -795,22 +795,34 @@ export default function ProductionTargetManagementView({
       {/* ── Assign / Edit Production Target Modal (with Live Run-rate Calculator) ── */}
       {showTargetModal && (
         <div className="tm-modal-overlay">
-          <div className="tm-modal-card">
-            <div className="tm-modal-header" style={{ background: 'linear-gradient(135deg, #064e3b 0%, #0f172a 100%)' }}>
-              <h3 className="tm-modal-title">
-                <Factory size={20} style={{ color: '#34d399' }} />
-                {modalMode === 'create' ? 'Assign Production Volume Quota' : 'Modify Production Quota'}
-              </h3>
-              <button className="tm-modal-close" onClick={() => setShowTargetModal(false)}>✕</button>
+          <div className="tm-modal-card emerald">
+            <div className="tm-modal-header">
+              <div className="tm-modal-header-left">
+                <div className="tm-modal-icon-badge emerald">
+                  <Factory size={22} />
+                </div>
+                <div>
+                  <h3 className="tm-modal-title">
+                    {modalMode === 'create' ? 'Assign Production Volume Quota' : 'Modify Production Quota'}
+                  </h3>
+                  <p className="tm-modal-subtitle">
+                    Configure manufacturing targets and live plant pacing
+                  </p>
+                </div>
+              </div>
+              <button className="tm-modal-close" onClick={() => setShowTargetModal(false)} type="button">✕</button>
             </div>
 
             <form onSubmit={handleSaveTarget}>
               <div className="tm-modal-body">
                 {/* Period & Target Quantity */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Target Period *</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div className="tm-form-group">
+                    <label className="tm-form-label">
+                      Target Period <span className="tm-required">*</span>
+                    </label>
                     <select
+                      className="tm-form-select"
                       value={formData.period}
                       onChange={(e) => {
                         const period = e.target.value;
@@ -830,7 +842,6 @@ export default function ProductionTargetManagementView({
                         }
                         setFormData({ ...formData, period, startDate: start, endDate: end });
                       }}
-                      style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
                     >
                       <option value="Monthly">Monthly</option>
                       <option value="Quarterly">Quarterly</option>
@@ -838,27 +849,31 @@ export default function ProductionTargetManagementView({
                     </select>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Target Quantity (Units) *</label>
+                  <div className="tm-form-group">
+                    <label className="tm-form-label">
+                      Target Quantity (Units) <span className="tm-required">*</span>
+                    </label>
                     <input
+                      className="tm-form-input"
                       type="number"
                       required
                       min="1"
                       step="50"
                       value={formData.targetQty}
                       onChange={(e) => setFormData({ ...formData, targetQty: Number(e.target.value) })}
-                      style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontWeight: '700' }}
                     />
                   </div>
                 </div>
 
                 {/* Facility / Plant Allocation */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Manufacturing Plant / Facility *</label>
+                <div className="tm-form-group">
+                  <label className="tm-form-label">
+                    Manufacturing Plant / Facility <span className="tm-required">*</span>
+                  </label>
                   <select
+                    className="tm-form-select"
                     value={formData.plantId}
                     onChange={(e) => setFormData({ ...formData, plantId: e.target.value })}
-                    style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
                   >
                     <option value="Plant 1 - Primary Facility">Plant 1 - Primary Production Facility</option>
                     <option value="Plant 2 - Moulded Products Unit">Plant 2 - Moulded Products Unit</option>
@@ -867,56 +882,74 @@ export default function ProductionTargetManagementView({
                 </div>
 
                 {/* Dates */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Start Date *</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div className="tm-form-group">
+                    <label className="tm-form-label">
+                      Start Date <span className="tm-required">*</span>
+                    </label>
                     <input
+                      className="tm-form-input"
                       type="date"
                       required
                       value={formData.startDate}
                       onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                      style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
                     />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>End Date *</label>
+                  <div className="tm-form-group">
+                    <label className="tm-form-label">
+                      End Date <span className="tm-required">*</span>
+                    </label>
                     <input
+                      className="tm-form-input"
                       type="date"
                       required
                       value={formData.endDate}
                       onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                      style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
                     />
                   </div>
                 </div>
 
                 {/* Live Output Velocity Box */}
-                <div className="tm-velocity-box" style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)', borderColor: '#a7f3d0' }}>
-                  <div className="tm-velocity-item">
-                    <span className="tm-velocity-label" style={{ color: '#047857' }}>Production Window</span>
-                    <span className="tm-velocity-val" style={{ color: '#064e3b' }}>{modalLiveVelocity.totalDays} Days</span>
-                  </div>
-                  <div className="tm-velocity-item">
-                    <span className="tm-velocity-label" style={{ color: '#047857' }}>Total Target</span>
-                    <span className="tm-velocity-val" style={{ color: '#064e3b' }}>{formatUnits(formData.targetQty)} Units</span>
-                  </div>
-                  <div className="tm-velocity-item">
-                    <span className="tm-velocity-label" style={{ color: '#047857' }}>Required Run-Rate</span>
-                    <span className="tm-velocity-val" style={{ color: '#059669' }}>
-                      {formatUnits(modalLiveVelocity.dailyRequired)} units/day
+                <div className="tm-velocity-widget emerald">
+                  <div className="tm-velocity-header">
+                    <span className="tm-velocity-title">
+                      <TrendingUp size={13} style={{ color: '#059669' }} />
+                      Live Plant Pacing &amp; Velocity Telemetry
                     </span>
+                    <span style={{ fontSize: '11px', color: '#047857', fontWeight: '600' }}>
+                      Auto-calculated
+                    </span>
+                  </div>
+                  <div className="tm-velocity-grid">
+                    <div className="tm-velocity-pill">
+                      <span className="tm-velocity-pill-label">Production Window</span>
+                      <span className="tm-velocity-pill-value">{modalLiveVelocity.totalDays} Days</span>
+                      <span className="tm-velocity-pill-sub">Fulfillment timeframe</span>
+                    </div>
+                    <div className="tm-velocity-pill">
+                      <span className="tm-velocity-pill-label">Total Target</span>
+                      <span className="tm-velocity-pill-value highlight-emerald">{formatUnits(formData.targetQty)} Units</span>
+                      <span className="tm-velocity-pill-sub">Volume quota</span>
+                    </div>
+                    <div className="tm-velocity-pill">
+                      <span className="tm-velocity-pill-label">Required Run-Rate</span>
+                      <span className="tm-velocity-pill-value highlight-emerald">
+                        {formatUnits(modalLiveVelocity.dailyRequired)}
+                      </span>
+                      <span className="tm-velocity-pill-sub">Units/day required</span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Remarks */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Production Directives / Notes</label>
+                <div className="tm-form-group">
+                  <label className="tm-form-label">Production Directives / Notes</label>
                   <textarea
+                    className="tm-form-textarea"
                     rows={2}
                     placeholder="e.g. Prioritize high-demand Moulded items in shift 1..."
                     value={formData.remarks}
                     onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                    style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
                   />
                 </div>
               </div>
@@ -924,8 +957,7 @@ export default function ProductionTargetManagementView({
               <div className="tm-modal-footer">
                 <button
                   type="button"
-                  className="tm-btn-secondary"
-                  style={{ color: '#475569', background: '#f1f5f9' }}
+                  className="tm-btn-ghost"
                   onClick={() => setShowTargetModal(false)}
                 >
                   Cancel
