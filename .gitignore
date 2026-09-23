@@ -64,3 +64,11 @@ playwright-report/
 firebase-service-account.json
 backend/firebase-service-account.json
 frontend/public/firebase-messaging-sw.js
+
+# Production backups & backup files
+backups/
+*.backup.*
+
+# Local test uploads
+backend/uploads/attendance/
+frontend/public/uploads/attendance/

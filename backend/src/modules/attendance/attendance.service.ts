@@ -91,6 +91,7 @@ export function getKolkataDate(date: Date = new Date()): {
 }
 
 import { LocationService } from '../location/location.service';
+import { LocationTrackingService } from '../location/location-tracking.service';
 import { Optional } from '@nestjs/common';
 
 @Injectable()
@@ -98,6 +99,7 @@ export class AttendanceService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly locationService?: LocationService,
+    @Optional() private readonly locationTrackingService?: LocationTrackingService,
   ) {}
 
   // Cache for Google Maps reverse geocoding to prevent repetitive API calls: grid of ~100m (3 decimal places)
@@ -398,7 +400,38 @@ export class AttendanceService {
       },
     });
 
-    return this.mapTodayAttendance(attendance);
+    // Start additive location tracking session safely (non-blocking)
+    let trackingSessionId: string | null = null;
+    if (this.locationTrackingService) {
+      try {
+        const trackingSession = await this.locationTrackingService.startSession(
+          userId,
+          companyId,
+          employeeId,
+          attendance.id,
+          {
+            latitude: Number(latitude),
+            longitude: Number(longitude),
+            accuracy: accuracy ? Number(accuracy) : null,
+            address: resolvedAddress,
+            punchInAt: now,
+          },
+        );
+        trackingSessionId = trackingSession?.id || null;
+      } catch (trackErr: any) {
+        // NON-NEGOTIABLE GUARDRAIL A: Attendance must remain authoritative.
+        // A failure in tracking session creation must NEVER roll back or fail punch in.
+        console.warn(
+          `[AttendanceService] LocationTrackingService startSession degraded: ${trackErr?.message}`,
+        );
+      }
+    }
+
+    const mapped = this.mapTodayAttendance(attendance);
+    return {
+      ...mapped,
+      trackingSessionId,
+    };
   }
 
   // Centralized punch-out (Atomic)
@@ -535,6 +568,30 @@ export class AttendanceService {
       },
     });
 
+    // Safely conclude additive location tracking session (non-blocking)
+    if (this.locationTrackingService) {
+      try {
+        await this.locationTrackingService.endSession(
+          userId,
+          companyId,
+          existing.id,
+          {
+            latitude: latitude != null ? Number(latitude) : null,
+            longitude: longitude != null ? Number(longitude) : null,
+            accuracy: accuracy ? Number(accuracy) : null,
+            address: resolvedAddress,
+            punchOutAt: now,
+          },
+        );
+      } catch (trackErr: any) {
+        // NON-NEGOTIABLE GUARDRAIL A: Attendance must remain authoritative.
+        // A failure in tracking session conclusion must NEVER fail punch out.
+        console.warn(
+          `[AttendanceService] LocationTrackingService endSession degraded: ${trackErr?.message}`,
+        );
+      }
+    }
+
     return this.mapTodayAttendance(updated);
   }
 
@@ -582,6 +639,7 @@ export class AttendanceService {
           ...(targetCompanyId && { companyId: targetCompanyId }),
           attendanceDate: startOfDay,
         },
+        include: { locationSession: true },
       });
 
       if (!record) {
@@ -724,6 +782,7 @@ export class AttendanceService {
       punchOutAccuracy: record.punchOutAccuracy != null ? Math.round(record.punchOutAccuracy) : null,
       punchOutSelfieUrl: record.punchOutSelfieUrl || null,
       lastPhoto: record.punchOutSelfieUrl || record.punchInSelfieUrl || null,
+      trackingSessionId: record.locationSession?.id || record.trackingSessionId || null,
     };
   }
 

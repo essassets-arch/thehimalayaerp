@@ -148,570 +148,254 @@ export const ROLE_CONFIG = {
   'Finance': {
     name: 'Finance & Accounts',
     shortName: 'Finance',
-    color: '#4F46E5', // Indigo
-    accentColor: '#3730A3',
-    lightBg: '#EEF2FF',
-    borderColor: '#A5B4FC',
-    textColor: '#4338CA',
-    glowColor: 'rgba(79, 70, 229, 0.5)',
-    iconType: 'finance',
-    emoji: '💼',
-    description: 'Finance Manager & Billing (Briefcase Icon)',
-  },
-  'Procurement': {
-    name: 'Purchase & Sourcing',
-    shortName: 'Procurement',
     color: '#0D9488', // Teal
     accentColor: '#0F766E',
     lightBg: '#F0FDFA',
-    borderColor: '#5EEAD4',
+    borderColor: '#99F6E4',
     textColor: '#0F766E',
     glowColor: 'rgba(13, 148, 136, 0.5)',
+    iconType: 'finance',
+    emoji: '💳',
+    description: 'Finance & Accounting Staff (Ledger Icon)',
+  },
+  'Procurement': {
+    name: 'Procurement',
+    shortName: 'Purchase',
+    color: '#6366F1', // Indigo
+    accentColor: '#4338CA',
+    lightBg: '#EEF2FF',
+    borderColor: '#C7D2FE',
+    textColor: '#4338CA',
+    glowColor: 'rgba(99, 102, 241, 0.5)',
     iconType: 'procurement',
     emoji: '🛒',
-    description: 'Purchase Manager & Sourcing (Cart Icon)',
+    description: 'Purchase & Vendor Management (Cart Icon)',
   },
   'Admin': {
-    name: 'Super Admin',
+    name: 'Administration',
     shortName: 'Admin',
-    color: '#DC2626', // Red
-    accentColor: '#991B1B',
-    lightBg: '#FEF2F2',
-    borderColor: '#FCA5A5',
-    textColor: '#991B1B',
-    glowColor: 'rgba(220, 38, 38, 0.5)',
-    iconType: 'admin',
-    emoji: '👑',
-    description: 'Super Admin & Executive Management (Crown Icon)',
-  },
-  'Other': {
-    name: 'Staff',
-    shortName: 'Staff',
-    color: '#64748B', // Slate
-    accentColor: '#334155',
+    color: '#0F172A', // Slate 900
+    accentColor: '#0284C7',
     lightBg: '#F8FAFC',
     borderColor: '#CBD5E1',
-    textColor: '#334155',
-    glowColor: 'rgba(100, 116, 139, 0.5)',
-    iconType: 'pin',
-    emoji: '📍',
-    description: 'General Staff Member',
+    textColor: '#0F172A',
+    glowColor: 'rgba(15, 23, 42, 0.5)',
+    iconType: 'admin',
+    emoji: '🏛️',
+    description: 'Super Admin, Directors & Executives (Building / Star)',
+  },
+  'Other': {
+    name: 'General Staff',
+    shortName: 'Staff',
+    color: '#64748B', // Slate
+    accentColor: '#475569',
+    lightBg: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    textColor: '#475569',
+    glowColor: 'rgba(100, 116, 139, 0.4)',
+    iconType: 'other',
+    emoji: '👤',
+    description: 'Employees & Contractors (User Icon)',
   },
 };
 
-// ─── EXTRACT AUTHORITATIVE LIVE SESSION PER USER ──────────────────────────────
-export const getAuthoritativeUserSession = (user) => {
+// ─── EXTRACT AUTHORITATIVE LIVE SESSION PER USER ─────────────────────────────
+export const extractAuthoritativeSession = (user) => {
   if (!user || !user.sessions || user.sessions.length === 0) return null;
+  const sessions = [...user.sessions];
+  
+  // Sort priority: ONLINE with GPS > ONLINE without GPS > RECENT with GPS > OFFLINE
+  sessions.sort((a, b) => {
+    const aOnline = a.status === 'ONLINE' ? 1 : 0;
+    const bOnline = b.status === 'ONLINE' ? 1 : 0;
+    if (aOnline !== bOnline) return bOnline - aOnline;
 
-  // 1. First Priority: ONLINE session with valid location coordinates
-  const onlineWithLoc = user.sessions.find(
-    (s) => s.status === 'ONLINE' && s.location && s.location.latitude && s.location.longitude
-  );
-  if (onlineWithLoc) return onlineWithLoc;
+    const aHasGps = a.location?.latitude && a.location?.longitude ? 1 : 0;
+    const bHasGps = b.location?.latitude && b.location?.longitude ? 1 : 0;
+    if (aHasGps !== bHasGps) return bHasGps - aHasGps;
 
-  // 2. Second Priority: Most recent session with valid location
-  const withLoc = user.sessions.filter(
-    (s) => s.location && s.location.latitude && s.location.longitude
-  );
-  if (withLoc.length > 0) {
-    withLoc.sort((a, b) => {
-      const timeA = new Date(a.location?.capturedAt || a.lastSeenAt || 0).getTime();
-      const timeB = new Date(b.location?.capturedAt || b.lastSeenAt || 0).getTime();
-      return timeB - timeA;
-    });
-    return withLoc[0];
-  }
+    const aTime = a.location?.capturedAt ? new Date(a.location.capturedAt).getTime() : 0;
+    const bTime = b.location?.capturedAt ? new Date(b.location.capturedAt).getTime() : 0;
+    return bTime - aTime;
+  });
 
-  // 3. Third Priority: Most recent session (even without location, for status/device info)
-  return user.sessions[0];
+  return sessions[0];
 };
 
-// ─── HIGH-QUALITY SVG PIN MARKER GENERATOR ────────────────────────────────────
-export const getRoleSvgIcon = (role, heading, status, isHighlighted = false) => {
-  const category = getCategoryForRole(role);
+// ─── HIGH-QUALITY SVG PIN MARKERS ─────────────────────────────────────────────
+export const generatePinSvg = (category, isOnline = true, isHighlighted = false) => {
   const cfg = ROLE_CONFIG[category] || ROLE_CONFIG['Other'];
-  const isOnline = status === 'ONLINE';
-  const isRecent = status === 'RECENTLY_ACTIVE';
+  const pinColor = cfg.color;
+  const statusColor = isOnline ? '#10B981' : '#94A3B8';
+  const strokeColor = isHighlighted ? '#F59E0B' : '#FFFFFF';
+  const strokeWidth = isHighlighted ? '3' : '2';
 
-  let pinColor = cfg.color;
-  if (!isOnline) {
-    pinColor = isRecent ? '#F59E0B' : '#64748B';
-  }
+  const iconPaths = {
+    bike: '<path d="M13 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M23 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M15 18l3-6h4 M18 12l2 6 M17 9h3" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+    plant_head: '<path d="M12 21V9l4 4V9l4 4V9l4 4v8H12z" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+    hr: '<path d="M20 15a3 3 0 1 0 0-6a3 3 0 0 0 0 6z M14 21a6 6 0 0 1 12 0" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+    dispatch: '<rect x="11" y="11" width="11" height="8" rx="1" stroke="#FFFFFF" stroke-width="1.6" fill="none"/><path d="M22 14h4l2 3v2h-6v-5z" stroke="#FFFFFF" stroke-width="1.6" fill="none"/><circle cx="14" cy="20" r="1.5" fill="#FFFFFF"/><circle cx="25" cy="20" r="1.5" fill="#FFFFFF"/>',
+    production: '<circle cx="20" cy="16" r="3" stroke="#FFFFFF" stroke-width="1.6" fill="none"/><path d="M20 10v2M20 20v2M14 16h2M24 16h2M15.5 11.5l1.5 1.5M23 19l1.5 1.5M15.5 20.5l1.5-1.5M23 13l1.5-1.5" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round"/>',
+    qc: '<path d="M20 10l6 2.5v5c0 4-2.5 7-6 8.5c-3.5-1.5-6-4.5-6-8.5v-5l6-2.5z" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M18 17l1.5 1.5l3-3" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+    store: '<path d="M13 13l7-3l7 3v8l-7 3l-7-3v-8z M13 13l7 3l7-3 M20 16v8" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+    finance: '<rect x="12" y="11" width="16" height="11" rx="2" stroke="#FFFFFF" stroke-width="1.6" fill="none"/><line x1="12" y1="15" x2="28" y2="15" stroke="#FFFFFF" stroke-width="1.6"/><circle cx="16" cy="19" r="1" fill="#FFFFFF"/>',
+    procurement: '<circle cx="16" cy="21" r="1.5" fill="#FFFFFF"/><circle cx="24" cy="21" r="1.5" fill="#FFFFFF"/><path d="M11 11h2.5l2 8h9l2-6H15" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+    admin: '<path d="M13 21V11l7-3l7 3v10 M17 21v-4h6v4 M16 14h1 M23 14h1" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+    other: '<circle cx="20" cy="14" r="3" stroke="#FFFFFF" stroke-width="1.6" fill="none"/><path d="M14 21c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" fill="none"/>',
+  };
 
-  const normalizedHeading = Number.isFinite(heading)
-    ? ((heading % 360) + 360) % 360
-    : 0;
-  const shouldRotate = (category === 'Sales' || category === 'Dispatch') && heading !== null && heading !== undefined && heading !== 0;
-  const rotation = shouldRotate ? normalizedHeading : 0;
-
-  // Center vector icon symbol
-  let innerIcon = '';
-  if (category === 'Sales') {
-    innerIcon = `
-      <g transform="translate(6.5, 5.5) scale(0.48)" fill="${pinColor}">
-        <path d="M19.5 13.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zm-15 0a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zm12.5-3.5h-2.18l-1.63-3.26A1.5 1.5 0 0 0 11.85 6H8.5a1 1 0 0 0 0 2h2.85l1.5 3H6.5a1 1 0 0 0 0 2h6.86l2.14 3.86a1 1 0 0 0 .87.54h1.13a1 1 0 0 0 0-2h-.63L15.2 12H17a1 1 0 0 0 0-2z"/>
-      </g>
-    `;
-  } else if (category === 'Plant Head') {
-    innerIcon = `
-      <g transform="translate(6.5, 5.5) scale(0.48)" fill="${pinColor}">
-        <path d="M12 2l2.5 3.5 3.5-1-1.5 4.5h-9L6 4.5l3.5 1L12 2zm-8 8.5h16V19H4v-8.5zm3 2.5v3h2v-3H7zm5 0v3h2v-3h-2zm5 0v3h2v-3h-2z"/>
-      </g>
-    `;
-  } else if (category === 'HR') {
-    innerIcon = `
-      <g transform="translate(6.5, 5.5) scale(0.48)" fill="${pinColor}">
-        <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
-      </g>
-    `;
-  } else if (category === 'Dispatch') {
-    innerIcon = `
-      <g transform="translate(6.5, 5.5) scale(0.48)" fill="${pinColor}">
-        <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm12 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6.5h-2.5V9.5h2.5v2.5z"/>
-      </g>
-    `;
-  } else if (category === 'Production') {
-    innerIcon = `
-      <g transform="translate(6.5, 5.5) scale(0.48)" fill="${pinColor}">
-        <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54A.484.484 0 0 0 13.9 2h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.71 8.55c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-      </g>
-    `;
-  } else if (category === 'Store') {
-    innerIcon = `
-      <g transform="translate(6.5, 5.5) scale(0.48)" fill="${pinColor}">
-        <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 2.5l5 3-5 3-5-3 5-3zM4 8.25l7 4.2v6.55H4V8.25zm16 10.75h-7v-6.55l7-4.2v10.75z"/>
-      </g>
-    `;
-  } else if (category === 'Finance') {
-    innerIcon = `
-      <g transform="translate(6.5, 5.5) scale(0.48)" fill="${pinColor}">
-        <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2zm-2 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/>
-      </g>
-    `;
-  } else if (category === 'QC') {
-    innerIcon = `
-      <g transform="translate(6.5, 5.5) scale(0.48)" fill="${pinColor}">
-        <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
-      </g>
-    `;
-  } else if (category === 'Procurement') {
-    innerIcon = `
-      <g transform="translate(6.5, 5.5) scale(0.48)" fill="${pinColor}">
-        <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1.003 1.003 0 0 0 20 4H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/>
-      </g>
-    `;
-  } else if (category === 'Admin') {
-    innerIcon = `
-      <g transform="translate(6.5, 5.5) scale(0.48)" fill="${pinColor}">
-        <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 6l1.76 3.57 3.94.57-2.85 2.78.67 3.92L12 16l-3.52 1.84.67-3.92-2.85-2.78 3.94-.57L12 7z"/>
-      </g>
-    `;
-  } else {
-    innerIcon = `
-      <g transform="translate(6.5, 5.5) scale(0.48)" fill="${pinColor}">
-        <circle cx="12" cy="12" r="7"/>
-      </g>
-    `;
-  }
-
-  // Live Beacon Pulse on top-right
-  const liveIndicator = isOnline
-    ? `<circle cx="19" cy="5" r="4.5" fill="#10B981" stroke="#FFFFFF" stroke-width="1.5"/>`
-    : isRecent
-    ? `<circle cx="19" cy="5" r="4" fill="#F59E0B" stroke="#FFFFFF" stroke-width="1.5"/>`
-    : '';
-
-  // Outer Highlight Halo ring
-  const highlightHalo = isHighlighted
-    ? `<circle cx="12" cy="11" r="11" fill="none" stroke="${cfg.color}" stroke-width="2.5" opacity="0.85"/>`
-    : '';
+  const chosenPath = iconPaths[cfg.iconType] || iconPaths.other;
 
   const pinSvg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 28" width="46" height="52">
-      ${highlightHalo}
-      <path d="M12 2C7.58 2 4 5.58 4 10c0 5.8 8 15 8 15s8-9.2 8-15c0-4.42-3.58-8-8-8z" fill="${pinColor}" stroke="#FFFFFF" stroke-width="1.8" filter="drop-shadow(0 2px 5px rgba(0,0,0,0.3))"/>
-      <circle cx="12" cy="10" r="7" fill="#FFFFFF"/>
-      <g transform="rotate(${rotation} 12 10)">
-        ${innerIcon}
-      </g>
-      ${liveIndicator}
+    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="52" viewBox="0 0 40 52">
+      <defs>
+        <filter id="shadow" x="-20%" y="-10%" width="140%" height="130%">
+          <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="rgba(0,0,0,0.35)"/>
+        </filter>
+      </defs>
+      <path d="M20 2 C9 2 2 9 2 20 C2 31 16 48 20 50 C24 48 38 31 38 20 C38 9 31 2 20 2 Z"
+            fill="${pinColor}" stroke="${strokeColor}" stroke-width="${strokeWidth}" filter="url(#shadow)" />
+      <circle cx="20" cy="17" r="12" fill="rgba(0,0,0,0.18)" />
+      ${chosenPath}
+      <circle cx="31" cy="9" r="4.5" fill="${statusColor}" stroke="#FFFFFF" stroke-width="1.8" />
     </svg>
   `;
 
   return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvg);
 };
 
+export const getStopPinSvg = (stopNumber) => {
+  const pinSvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 34 42">
+      <defs>
+        <filter id="stopShadow" x="-20%" y="-10%" width="140%" height="130%">
+          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.3)"/>
+        </filter>
+      </defs>
+      <path d="M17 1 C8 1 2 7 2 16 C2 26 14 39 17 41 C20 39 32 26 32 16 C32 7 26 1 17 1 Z"
+            fill="#D97706" stroke="#FFFFFF" stroke-width="2" filter="url(#stopShadow)"/>
+      <circle cx="17" cy="16" r="10" fill="#FFFFFF"/>
+      <text x="17" y="20" font-size="11" font-weight="bold" fill="#92400E" text-anchor="middle" font-family="system-ui, sans-serif">${stopNumber}</text>
+    </svg>
+  `;
+  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvg);
+};
+
+export const getStartPinSvg = () => {
+  const pinSvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">
+      <defs>
+        <filter id="startShadow" x="-20%" y="-10%" width="140%" height="130%">
+          <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="rgba(0,0,0,0.35)"/>
+        </filter>
+      </defs>
+      <path d="M18 1 C8.5 1 2 7.5 2 17 C2 28 15 43 18 45 C21 43 34 28 34 17 C34 7.5 27.5 1 18 1 Z"
+            fill="#16A34A" stroke="#FFFFFF" stroke-width="2" filter="url(#startShadow)"/>
+      <circle cx="18" cy="17" r="10" fill="#FFFFFF"/>
+      <text x="18" y="21" font-size="12" font-weight="bold" fill="#15803D" text-anchor="middle" font-family="system-ui, sans-serif">S</text>
+    </svg>
+  `;
+  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvg);
+};
+
+export const getEndPinSvg = () => {
+  const pinSvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">
+      <defs>
+        <filter id="endShadow" x="-20%" y="-10%" width="140%" height="130%">
+          <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="rgba(0,0,0,0.35)"/>
+        </filter>
+      </defs>
+      <path d="M18 1 C8.5 1 2 7.5 2 17 C2 28 15 43 18 45 C21 43 34 28 34 17 C34 7.5 27.5 1 18 1 Z"
+            fill="#DC2626" stroke="#FFFFFF" stroke-width="2" filter="url(#endShadow)"/>
+      <circle cx="18" cy="17" r="10" fill="#FFFFFF"/>
+      <text x="18" y="21" font-size="12" font-weight="bold" fill="#991B1B" text-anchor="middle" font-family="system-ui, sans-serif">E</text>
+    </svg>
+  `;
+  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvg);
+};
+
 export default function SuperAdminLiveMapPage() {
   const { accessToken } = useAuthStore();
-  const [usersData, setUsersData] = useState([]);
+
+  // ─── 4 MAIN OPERATIONAL MODES ─────────────────────────────────────────────
+  // 'LIVE_NOW': Active punch-in shift telemetry from /location/routes/live
+  // 'TODAY': All sessions from today (active + completed) from /location/routes/sessions
+  // 'HISTORY': Historical shift route viewer with timeline playback & stops
+  // 'DEVICE_SESSIONS': Device presence & browser logins
+  const [mode, setMode] = useState('LIVE_NOW');
+
+  // Common UI & Connection States
   const [loading, setLoading] = useState(true);
   const [mapsLoaded, setMapsLoaded] = useState(false);
   const [mapsError, setMapsError] = useState(null);
   const [liveStatus, setLiveStatus] = useState('OFFLINE'); // 'LIVE' | 'RECONNECTING' | 'OFFLINE'
   const [lastRestSync, setLastRestSync] = useState(null);
   const [lastSocketEvent, setLastSocketEvent] = useState(null);
-
-  // Selected state: keyed by user ID
-  const [selectedUserId, setSelectedUserId] = useState(null);
   const [showTraffic, setShowTraffic] = useState(false);
-
-  // Mode & Route History States
-  const [mode, setMode] = useState('LIVE'); // 'LIVE' | 'HISTORY'
-  const [selectedUserForHistory, setSelectedUserForHistory] = useState(null);
-  const [historyPoints, setHistoryPoints] = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState(null);
-  const [selectedDateOption, setSelectedDateOption] = useState('today');
-  const [customDateFrom, setCustomDateFrom] = useState(() => getLocalDateString());
-  const [customDateTo, setCustomDateTo] = useState(() => getLocalDateString());
-  const [playbackIndex, setPlaybackIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [historyMetadata, setHistoryMetadata] = useState(null);
-  const [initialBoundsFitDone, setInitialBoundsFitDone] = useState(false);
-  
-  // Filters & Search
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedRole, setSelectedRole] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'ONLINE_GPS' | 'ONLINE' | 'HAS_LOCATION'
-  const [selectedDevice, setSelectedDevice] = useState('All');
-
-  // Layout Mobile Toggle
   const [showDrawer, setShowDrawer] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
+  // 1. Live Shift Routes State (/location/routes/live)
+  const [liveRoutes, setLiveRoutes] = useState([]);
+  const [selectedLiveSessionId, setSelectedLiveSessionId] = useState(null);
+
+  // 2. Today Sessions State (/location/routes/sessions?date=...)
+  const [todaySessions, setTodaySessions] = useState([]);
+  const [selectedTodaySessionId, setSelectedTodaySessionId] = useState(null);
+
+  // 3. History Shift Route State (/location/routes/history)
+  const [allEmployees, setAllEmployees] = useState([]);
+  const [selectedHistoryEmployeeId, setSelectedHistoryEmployeeId] = useState('');
+  const [historyDate, setHistoryDate] = useState(() => getLocalDateString());
+  const [historyData, setHistoryData] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState(null);
+  const [playbackIndex, setPlaybackIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+
+  // 4. Device Presence Sessions State (Legacy / Web sessions)
+  const [usersData, setUsersData] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState(null);
+
+  // Filters & Search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedRole, setSelectedRole] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+
+  // Google Maps Refs
+  const mapContainerRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const markersRef = useRef({}); // id -> Marker
+  const stopMarkersRef = useRef([]); // Stop Markers
+  const activePolylineRef = useRef(null); // Route Polyline
+  const startMarkerRef = useRef(null);
+  const endMarkerRef = useRef(null);
+  const playbackMarkerRef = useRef(null);
+  const accuracyCircleRef = useRef(null);
+  const trafficLayerRef = useRef(null);
+  const infoWindowRef = useRef(null);
+  const socketRef = useRef(null);
+  const geocodeCacheRef = useRef({});
+
+  const apiKey =
+    process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
+    'AIzaSyC2ISdvD-9mXT5RevQEyHfTio1Mtb6cZpg';
+
+  // Responsive mobile drawer
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const handleResize = () => {
         const mobile = window.innerWidth < 768;
         setIsMobile(mobile);
-        if (mobile) {
-          setShowDrawer(false);
-        }
+        if (mobile) setShowDrawer(false);
       };
       handleResize();
       window.addEventListener('resize', handleResize);
       return () => window.removeEventListener('resize', handleResize);
     }
   }, []);
-
-  // Refs for Google Map, Markers & Overlays
-  const mapContainerRef = useRef(null);
-  const mapInstanceRef = useRef(null);
-  const markersRef = useRef({}); // userId -> google.maps.Marker
-  const accuracyCircleRef = useRef(null);
-  const trafficLayerRef = useRef(null);
-  const infoWindowRef = useRef(null);
-  const socketRef = useRef(null);
-
-  // Refs for Location History Overlays
-  const historyPolylineRef = useRef(null);
-  const historyStartMarkerRef = useRef(null);
-  const historyEndMarkerRef = useRef(null);
-  const playbackMarkerRef = useRef(null);
-  
-  // Geocoding cache: coordinates -> address string
-  const geocodeCacheRef = useRef({});
-
-  // Dynamic values derived from env (fallback to known valid project key)
-  const apiKey =
-    process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
-    'AIzaSyC2ISdvD-9mXT5RevQEyHfTio1Mtb6cZpg';
-
-  // 1. Fetch live users snapshot (Authoritative REST with clean unwrapping)
-  const fetchSnapshot = useCallback(async () => {
-    try {
-      let raw = await backendFetch('/super-admin/live-users');
-      let data = Array.isArray(raw) ? raw : (raw?.data || []);
-      if (!data || data.length === 0) {
-        raw = await backendFetch('/location/live-users');
-        data = Array.isArray(raw) ? raw : (raw?.data || []);
-      }
-      const rawUsers = Array.isArray(data) ? data : [];
-      const normalizedUsers = rawUsers.map((u) => {
-        const uId = u.userId || u.id;
-        return {
-          ...u,
-          userId: uId,
-          sessions: (u.sessions || []).map((s) => ({
-            ...s,
-            userId: s.userId || uId,
-            userName: u.name,
-            userRole: u.role,
-          })),
-        };
-      });
-      setUsersData(normalizedUsers);
-      setLastRestSync(new Date().toLocaleTimeString());
-      setLoading(false);
-      return normalizedUsers;
-    } catch (err) {
-      try {
-        const raw = await backendFetch('/location/live-users');
-        const data = Array.isArray(raw) ? raw : (raw?.data || []);
-        const normalizedUsers = data.map((u) => {
-          const uId = u.userId || u.id;
-          return {
-            ...u,
-            userId: uId,
-            sessions: (u.sessions || []).map((s) => ({
-              ...s,
-              userId: s.userId || uId,
-              userName: u.name,
-              userRole: u.role,
-            })),
-          };
-        });
-        setUsersData(normalizedUsers);
-        setLastRestSync(new Date().toLocaleTimeString());
-        setLoading(false);
-        return normalizedUsers;
-      } catch (fallbackErr) {
-        console.error('Error fetching live users snapshot:', fallbackErr);
-        setLoading(false);
-        return [];
-      }
-    }
-  }, []);
-
-  // 2. Load Google Maps Script
-  useEffect(() => {
-    let cancelled = false;
-    loadGoogleMaps(apiKey)
-      .then(() => {
-        if (!cancelled) {
-          setMapsError(null);
-          setMapsLoaded(true);
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setMapsError(error.message);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [apiKey]);
-
-  // 3. Initialize Map once loaded
-  useEffect(() => {
-    if (!mapsLoaded || !mapContainerRef.current || mapInstanceRef.current) return;
-
-    try {
-      const mapOptions = {
-        center: { lat: 23.0225, lng: 72.5714 }, // Ahmedabad / Gujarat center
-        zoom: 12,
-        styles: [
-          { elementType: 'geometry', stylers: [{ color: '#f8fafc' }] },
-          { elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },
-          { elementType: 'labels.text.fill', stylers: [{ color: '#334155' }] },
-          { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-          { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#e2e8f0' }] },
-          { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#bae6fd' }] },
-          { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#dcfce7' }] }
-        ],
-        mapTypeControl: true,
-        mapTypeControlOptions: {
-          style: window.google.maps.MapTypeControlStyle.DROPDOWN_MENU,
-          position: window.google.maps.ControlPosition.TOP_RIGHT,
-        },
-        fullscreenControl: true,
-        streetViewControl: false,
-        zoomControl: true,
-      };
-
-      const map = new window.google.maps.Map(mapContainerRef.current, mapOptions);
-      mapInstanceRef.current = map;
-      infoWindowRef.current = new window.google.maps.InfoWindow();
-
-      fitAllMarkers(true);
-    } catch (err) {
-      console.error('Failed to initialize Google Maps:', err);
-      setMapsError('Failed to initialize Google Maps instance.');
-    }
-  }, [mapsLoaded]);
-
-  // 4. Connect to Socket.IO for realtime updates
-  useEffect(() => {
-    if (!accessToken) return;
-
-    const cleanToken = (accessToken || '').replace(/^Bearer\s+/i, '').trim();
-
-    let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_BACKEND_SOCKET_URL || '';
-    if (typeof window !== 'undefined') {
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      if (isLocalhost) {
-        socketUrl = socketUrl || `${window.location.protocol}//${window.location.hostname}:4001`;
-      } else {
-        socketUrl = socketUrl || window.location.origin;
-      }
-    } else {
-      socketUrl = socketUrl || 'http://localhost:4001';
-    }
-
-    const socket = io(socketUrl, {
-      path: '/socket.io',
-      auth: { token: cleanToken },
-      transports: ['polling', 'websocket'],
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-    });
-
-    socketRef.current = socket;
-
-    socket.on('connect', () => {
-      setLiveStatus('LIVE');
-      setLastSocketEvent({ name: 'connect', time: new Date().toLocaleTimeString() });
-      fetchSnapshot();
-    });
-
-    socket.on('connect_error', (err) => {
-      console.warn('[LiveMap] Socket connection notice (REST sync active):', err?.message || err);
-      setLiveStatus('RECONNECTING');
-    });
-
-    socket.on('disconnect', (reason) => {
-      console.warn('[LiveMap] Socket disconnected:', reason);
-      setLiveStatus('OFFLINE');
-      setLastSocketEvent({ name: 'disconnect', time: new Date().toLocaleTimeString() });
-    });
-
-    socket.on('device:connected', (data) => {
-      setLastSocketEvent({ name: 'device:connected', time: new Date().toLocaleTimeString() });
-      fetchSnapshot();
-    });
-
-    socket.on('device:disconnected', (data) => {
-      setLastSocketEvent({ name: 'device:disconnected', time: new Date().toLocaleTimeString() });
-      setUsersData((prev) =>
-        prev.map((u) => {
-          if (u.userId !== data.userId) return u;
-          return {
-            ...u,
-            sessions: u.sessions.map((s) => {
-              if (s.sessionId !== data.sessionId) return s;
-              return { ...s, status: 'OFFLINE', lastSeenAt: new Date(data.disconnectedAt) };
-            }),
-          };
-        })
-      );
-    });
-
-    socket.on('device:heartbeat', (data) => {
-      setLastSocketEvent({ name: 'device:heartbeat', time: new Date().toLocaleTimeString() });
-      setUsersData((prev) => {
-        const exists = prev.some((u) => u.userId === data.userId && u.sessions.some((s) => s.sessionId === data.sessionId));
-        if (!exists) {
-          fetchSnapshot();
-          return prev;
-        }
-        return prev.map((u) => {
-          if (u.userId !== data.userId) return u;
-          return {
-            ...u,
-            sessions: u.sessions.map((s) => {
-              if (s.sessionId !== data.sessionId) return s;
-              return { ...s, status: 'ONLINE', lastSeenAt: new Date(data.lastSeenAt) };
-            }),
-          };
-        });
-      });
-    });
-
-    socket.on('user:location:update', (data) => {
-      setLastSocketEvent({ name: 'user:location:update', time: new Date().toLocaleTimeString() });
-      setUsersData((prev) =>
-        prev.map((u) => {
-          if (u.userId !== data.userId) return u;
-          const newLocation = {
-            latitude: data.latitude,
-            longitude: data.longitude,
-            accuracy: data.accuracy,
-            speed: data.speed,
-            heading: data.heading,
-            batteryLevel: data.batteryLevel,
-            capturedAt: new Date(data.capturedAt),
-            gpsStatus: 'ACTIVE',
-          };
-
-          // Smoothly update live marker on map immediately
-          updateMarkerOnMap(
-            u.userId,
-            u.name,
-            u.role,
-            newLocation,
-            'ONLINE',
-            data.deviceType || 'DESKTOP',
-            u.userId === selectedUserId
-          );
-
-          // Update active accuracy circle if this user is selected
-          if (selectedUserId === u.userId) {
-            const cat = getCategoryForRole(u.role);
-            const cfg = ROLE_CONFIG[cat] || ROLE_CONFIG['Other'];
-            showAccuracyCircle(data.latitude, data.longitude, data.accuracy, cfg.color);
-          }
-
-          let sessionFound = false;
-          const updatedSessions = u.sessions.map((s) => {
-            if (s.sessionId === data.sessionId) {
-              sessionFound = true;
-              return { ...s, status: 'ONLINE', lastSeenAt: new Date(), location: newLocation };
-            }
-            return s;
-          });
-
-          if (!sessionFound) {
-            updatedSessions.unshift({
-              sessionId: data.sessionId,
-              userId: u.userId,
-              status: 'ONLINE',
-              lastSeenAt: new Date(),
-              location: newLocation,
-              operatingSystem: data.operatingSystem || 'Unknown',
-              deviceType: data.deviceType || 'DESKTOP',
-              browser: data.browser || 'Web',
-            });
-          }
-
-          return { ...u, sessions: updatedSessions };
-        })
-      );
-    });
-
-    socket.on('device:permission:update', (data) => {
-      setLastSocketEvent({ name: 'device:permission:update', time: new Date().toLocaleTimeString() });
-      setUsersData((prev) =>
-        prev.map((u) => {
-          if (u.userId !== data.userId) return u;
-          return {
-            ...u,
-            sessions: u.sessions.map((s) => {
-              if (s.sessionId !== data.sessionId) return s;
-              return { ...s, status: 'ONLINE', locationPermission: data.locationPermission, lastSeenAt: new Date() };
-            }),
-          };
-        })
-      );
-    });
-
-    return () => {
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, [accessToken, fetchSnapshot, selectedUserId]);
-
-  // Periodic background polling (authoritative 4s interval)
-  useEffect(() => {
-    fetchSnapshot();
-    const interval = setInterval(() => {
-      fetchSnapshot();
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [fetchSnapshot]);
 
   // ── Accuracy Circle Indicator ──────────────────────────────────────────────
   const showAccuracyCircle = (lat, lng, accuracy, color = '#2563EB') => {
@@ -742,334 +426,373 @@ export default function SuperAdminLiveMapPage() {
     }
   };
 
-  // 5. Authoritative 1-Marker-Per-User Synced Map Management
-  useEffect(() => {
-    if (!mapsLoaded || !mapInstanceRef.current) return;
-
-    const activeUserIds = new Set();
-
-    usersData.forEach((u) => {
-      const userCategory = getCategoryForRole(u.role);
-      const targetSession = getAuthoritativeUserSession(u);
-
-      if (targetSession && targetSession.location && targetSession.location.latitude && targetSession.location.longitude) {
-        activeUserIds.add(u.userId);
-
-        // 1. Role filter
-        let matchesRole = true;
-        if (selectedRole !== 'All') {
-          matchesRole = (userCategory === selectedRole);
-        }
-
-        // 2. Status filter
-        let matchesStatus = true;
-        if (statusFilter === 'ONLINE_GPS') {
-          matchesStatus = targetSession.status === 'ONLINE' && !!targetSession.location;
-        } else if (statusFilter === 'ONLINE') {
-          matchesStatus = targetSession.status === 'ONLINE';
-        } else if (statusFilter === 'HAS_LOCATION') {
-          matchesStatus = !!targetSession.location;
-        }
-
-        // 3. Device filter
-        let matchesOS = true;
-        if (selectedDevice !== 'All') {
-          matchesOS = (targetSession.operatingSystem === selectedDevice);
-        }
-
-        // 4. Search query filter
-        let matchesSearch = true;
-        if (searchQuery) {
-          const query = searchQuery.toLowerCase();
-          const nameMatch = u.name.toLowerCase().includes(query);
-          const roleMatch = u.role.toLowerCase().includes(query);
-          const emailMatch = u.email?.toLowerCase().includes(query) || false;
-          const osMatch = targetSession.operatingSystem?.toLowerCase().includes(query) || false;
-          matchesSearch = nameMatch || roleMatch || emailMatch || osMatch;
-        }
-
-        const visible = matchesRole && matchesStatus && matchesOS && matchesSearch;
-        const isHighlighted = selectedUserId === u.userId || (selectedRole !== 'All' && userCategory === selectedRole);
-
-        updateMarkerOnMap(
-          u.userId,
-          u.name,
-          u.role,
-          targetSession.location,
-          targetSession.status,
-          targetSession.deviceType,
-          isHighlighted,
-          visible,
-          targetSession
-        );
-      }
-    });
-
-    // Clean up stale markers
-    Object.keys(markersRef.current).forEach((uid) => {
-      if (!activeUserIds.has(uid)) {
-        markersRef.current[uid].setMap(null);
-        delete markersRef.current[uid];
-      }
-    });
-  }, [usersData, mapsLoaded, selectedRole, statusFilter, selectedDevice, searchQuery, selectedUserId]);
-
-  // Create or Update Marker per user in place
-  const updateMarkerOnMap = (
-    userId,
-    name,
-    role,
-    loc,
-    status,
-    deviceType,
-    isHighlighted = false,
-    visible = true,
-    targetSession = null
-  ) => {
-    if (!mapsLoaded || !mapInstanceRef.current || !loc?.latitude || !loc?.longitude) return;
-
-    const latLng = new window.google.maps.LatLng(loc.latitude, loc.longitude);
-    let marker = markersRef.current[userId];
-    const iconUrl = getRoleSvgIcon(role, loc.heading, status, isHighlighted);
-
-    if (marker) {
-      marker.setPosition(latLng);
-      marker.setIcon({
-        url: iconUrl,
-        scaledSize: new window.google.maps.Size(46, 52),
-        anchor: new window.google.maps.Point(23, 52),
-      });
-      marker.setVisible(visible);
-      marker.setZIndex(isHighlighted ? 999 : status === 'ONLINE' ? 150 : 10);
-    } else {
-      marker = new window.google.maps.Marker({
-        position: latLng,
-        map: mapInstanceRef.current,
-        title: `${name} (${role})`,
-        icon: {
-          url: iconUrl,
-          scaledSize: new window.google.maps.Size(46, 52),
-          anchor: new window.google.maps.Point(23, 52),
-        },
-        visible,
-        zIndex: isHighlighted ? 999 : status === 'ONLINE' ? 150 : 10,
-      });
-
-      marker.addListener('click', () => {
-        const foundUser = usersData.find((u) => u.userId === userId);
-        const session = targetSession || getAuthoritativeUserSession(foundUser);
-        openInfoWindow(userId, session, name, role, loc, status, deviceType);
-      });
-
-      markersRef.current[userId] = marker;
+  // Clear all overlays (routes, pins, stops, playback)
+  const clearAllOverlays = useCallback(() => {
+    if (activePolylineRef.current) {
+      activePolylineRef.current.setMap(null);
+      activePolylineRef.current = null;
     }
-  };
-
-  // Client-side Reverse Geocoding with local cache
-  const geocodeAddress = (latitude, longitude, callback) => {
-    const latStr = latitude.toFixed(4);
-    const lngStr = longitude.toFixed(4);
-    const cacheKey = `${latStr},${lngStr}`;
-
-    if (geocodeCacheRef.current[cacheKey]) {
-      callback(geocodeCacheRef.current[cacheKey]);
-      return;
+    if (startMarkerRef.current) {
+      startMarkerRef.current.setMap(null);
+      startMarkerRef.current = null;
     }
-
-    if (!window.google || !window.google.maps) {
-      callback('Geocoding unavailable');
-      return;
-    }
-
-    const geocoder = new window.google.maps.Geocoder();
-    geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
-      if (status === 'OK' && results && results[0]) {
-        const address = results[0].formatted_address;
-        geocodeCacheRef.current[cacheKey] = address;
-        callback(address);
-      } else {
-        callback('Address location available');
-      }
-    });
-  };
-
-  // Display Custom InfoWindow for User
-  const openInfoWindow = (userId, session, name, role, loc, status, deviceType) => {
-    const marker = markersRef.current[userId];
-    const infoWindow = infoWindowRef.current;
-    if (!marker || !infoWindow) return;
-
-    setSelectedUserId(userId);
-    const category = getCategoryForRole(role);
-    const cfg = ROLE_CONFIG[category] || ROLE_CONFIG['Other'];
-
-    // Draw accuracy circle
-    showAccuracyCircle(loc.latitude, loc.longitude, loc.accuracy, cfg.color);
-
-    const updateContent = (address = '') => {
-      const speedKmh = loc.speed !== null && loc.speed !== undefined && loc.speed > 0 ? Math.round(loc.speed * 3.6) : null;
-      const accuracyStr = loc.accuracy ? `±${Math.round(loc.accuracy)} m` : null;
-      const isLiveActive = status === 'ONLINE';
-      const capturedTime = loc.capturedAt ? new Date(loc.capturedAt).toLocaleTimeString() : 'Recent';
-
-      infoWindow.setContent(`
-        <div style="font-family:'Outfit',sans-serif; color:#0f172a; padding:8px; min-width:280px; font-size:13px; line-height:1.4;">
-          <!-- Header Banner -->
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #e2e8f0; padding-bottom:8px; margin-bottom:8px;">
-            <div>
-              <div style="display:flex; align-items:center; gap:6px;">
-                <span style="font-size:18px;">${cfg.emoji}</span>
-                <strong style="font-size:15px; color:#0f172a;">${name}</strong>
-              </div>
-              <div style="display:inline-block; font-size:11px; padding:2px 8px; border-radius:12px; font-weight:600; margin-top:3px; background:${cfg.lightBg}; color:${cfg.textColor}; border:1px solid ${cfg.borderColor};">
-                ${cfg.name} • ${role}
-              </div>
-            </div>
-            <span style="font-size:10.5px; padding:3px 8px; border-radius:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:inline-flex; align-items:center; gap:4px;
-              ${isLiveActive ? 'background:#d1fae5; color:#065f46; border:1px solid #a7f3d0;' : 'background:#f1f5f9; color:#475569; border:1px solid #e2e8f0;'}">
-              <span style="width:6px; height:6px; border-radius:50%; background:${isLiveActive ? '#10b981' : '#94a3b8'};"></span>
-              ${isLiveActive ? 'LIVE GPS' : 'OFFLINE'}
-            </span>
-          </div>
-
-          <!-- Quick Telemetry Grid -->
-          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px; font-size:11.5px; color:#475569; display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px;">
-            <div><strong>Device:</strong> ${session?.operatingSystem || 'Web'} (${session?.deviceType || deviceType || 'Desktop'})</div>
-            <div><strong>GPS State:</strong> ${isLiveActive ? '<span style="color:#10b981; font-weight:700;">Active Live</span>' : '<span style="color:#f59e0b; font-weight:700;">Last Known</span>'}</div>
-            ${accuracyStr ? `<div><strong>Accuracy:</strong> <span style="color:#2563eb; font-weight:600;">${accuracyStr}</span></div>` : ''}
-            ${speedKmh !== null ? `<div><strong>Speed:</strong> ${speedKmh} km/h</div>` : '<div><strong>Speed:</strong> Stationary</div>'}
-            ${loc.heading ? `<div><strong>Heading:</strong> ${Math.round(loc.heading)}°</div>` : ''}
-            ${loc.batteryLevel !== null && loc.batteryLevel !== undefined ? `<div><strong>Battery:</strong> 🔋 ${loc.batteryLevel}%</div>` : ''}
-          </div>
-
-          <!-- Real Address -->
-          <div style="margin-bottom:10px; color:#334155; font-size:11.5px; background:#ffffff; border:1px solid #e2e8f0; padding:6px 10px; border-radius:6px;">
-            <strong style="color:#64748B; font-size:10.5px; text-transform:uppercase;">📍 Current Address:</strong><br/>
-            ${address || 'Resolving street address...'}
-          </div>
-
-          <!-- Action Button -->
-          <button id="infowindow-route-history" data-user-id="${userId}" style="width:100%; background:linear-gradient(135deg, ${cfg.color}, ${cfg.accentColor}); border:none; border-radius:6px; color:#FFFFFF; padding:8px 12px; font-family:'Outfit',sans-serif; font-size:12px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; box-shadow:0 2px 4px rgba(0,0,0,0.1);">
-            <span>${cfg.emoji} View Route History & Trail</span>
-          </button>
-          
-          <div style="display:flex; justify-content:space-between; font-size:10px; color:#94a3b8; margin-top:6px;">
-            <span>Coordinates: ${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}</span>
-            <span>${capturedTime}</span>
-          </div>
-        </div>
-      `);
-    };
-
-    updateContent('Fetching address...');
-
-    geocodeAddress(loc.latitude, loc.longitude, (address) => {
-      updateContent(address);
-    });
-
-    infoWindow.open(mapInstanceRef.current, marker);
-
-    window.google.maps.event.clearListeners(infoWindow, 'domready');
-    infoWindow.addListener('domready', () => {
-      const btn = document.getElementById('infowindow-route-history');
-      if (btn) {
-        btn.onclick = () => {
-          const uId = btn.getAttribute('data-user-id');
-          const foundUser = usersData.find((u) => u.userId === uId);
-          const activeSession = session || getAuthoritativeUserSession(foundUser);
-          if (foundUser && activeSession) {
-            enterHistoryMode(activeSession, foundUser.name, foundUser.role, foundUser.userId);
-          }
-        };
-      }
-    });
-  };
-
-  // 5.5 Location History Management Logic
-  const clearHistoryOverlays = () => {
-    if (historyPolylineRef.current) {
-      historyPolylineRef.current.setMap(null);
-      historyPolylineRef.current = null;
-    }
-    if (historyStartMarkerRef.current) {
-      historyStartMarkerRef.current.setMap(null);
-      historyStartMarkerRef.current = null;
-    }
-    if (historyEndMarkerRef.current) {
-      historyEndMarkerRef.current.setMap(null);
-      historyEndMarkerRef.current = null;
+    if (endMarkerRef.current) {
+      endMarkerRef.current.setMap(null);
+      endMarkerRef.current = null;
     }
     if (playbackMarkerRef.current) {
       playbackMarkerRef.current.setMap(null);
       playbackMarkerRef.current = null;
     }
+    if (stopMarkersRef.current && stopMarkersRef.current.length > 0) {
+      stopMarkersRef.current.forEach((m) => m.setMap(null));
+      stopMarkersRef.current = [];
+    }
     clearAccuracyCircle();
     setIsPlaying(false);
     setPlaybackIndex(0);
-    setHistoryPoints([]);
-    setHistoryError(null);
-    setHistoryMetadata(null);
-  };
+  }, []);
 
-  const enterHistoryMode = (session, userName, userRole, userId) => {
-    setMode('HISTORY');
-    const resolvedUserId = userId || session?.userId;
-    const sessionInfo = {
-      userId: resolvedUserId,
-      userName,
-      userRole,
-      sessionId: session?.sessionId,
-      browser: session?.browser,
-      operatingSystem: session?.operatingSystem,
-      deviceType: session?.deviceType,
-      status: session?.status,
+  // Clear live markers dictionary
+  const clearLiveMarkers = useCallback(() => {
+    Object.values(markersRef.current).forEach((m) => m.setMap(null));
+    markersRef.current = {};
+  }, []);
+
+  // ─── 1. FETCH LIVE SHIFT ROUTES (/location/routes/live) ──────────────────────
+  const fetchLiveRoutes = useCallback(async () => {
+    try {
+      const raw = await backendFetch('/location/routes/live');
+      const data = Array.isArray(raw) ? raw : (raw?.data || []);
+      setLiveRoutes(data);
+      setLastRestSync(new Date().toLocaleTimeString());
+      return data;
+    } catch (err) {
+      console.warn('[LiveMap] Error fetching live shift routes:', err?.message || err);
+      return [];
+    }
+  }, []);
+
+  // ─── 2. FETCH TODAY'S SESSIONS (/location/routes/sessions) ───────────────────
+  const fetchTodaySessions = useCallback(async () => {
+    try {
+      const todayStr = getLocalDateString(0);
+      const raw = await backendFetch(`/location/routes/sessions?date=${todayStr}`);
+      const data = Array.isArray(raw) ? raw : (raw?.data || []);
+      setTodaySessions(data);
+      return data;
+    } catch (err) {
+      console.warn('[LiveMap] Error fetching today sessions:', err?.message || err);
+      return [];
+    }
+  }, []);
+
+  // ─── 3. FETCH ALL EMPLOYEES FOR DROPDOWN (/employees) ───────────────────────
+  const fetchEmployeesList = useCallback(async () => {
+    try {
+      const raw = await backendFetch('/employees');
+      const list = Array.isArray(raw) ? raw : (raw?.data || []);
+      setAllEmployees(list);
+    } catch (err) {
+      console.warn('[LiveMap] Error fetching employees list:', err?.message || err);
+    }
+  }, []);
+
+  // ─── 4. FETCH LEGACY DEVICE PRESENCE (/super-admin/live-users) ──────────────
+  const fetchDeviceUsersSnapshot = useCallback(async () => {
+    try {
+      let raw = await backendFetch('/super-admin/live-users');
+      let data = Array.isArray(raw) ? raw : (raw?.data || []);
+      if (!data || data.length === 0) {
+        raw = await backendFetch('/location/live-users');
+        data = Array.isArray(raw) ? raw : (raw?.data || []);
+      }
+      const rawUsers = Array.isArray(data) ? data : [];
+      const normalizedUsers = rawUsers.map((u) => {
+        const uId = u.userId || u.id;
+        return {
+          ...u,
+          userId: uId,
+          sessions: (u.sessions || []).map((s) => ({
+            ...s,
+            userId: s.userId || uId,
+            userName: u.name,
+            userRole: u.role,
+          })),
+        };
+      });
+      setUsersData(normalizedUsers);
+      return normalizedUsers;
+    } catch (err) {
+      console.warn('[LiveMap] Error fetching device users snapshot:', err?.message || err);
+      return [];
+    }
+  }, []);
+
+  // Master Initial Load
+  const fetchAllData = useCallback(async () => {
+    setLoading(true);
+    await Promise.allSettled([
+      fetchLiveRoutes(),
+      fetchTodaySessions(),
+      fetchEmployeesList(),
+      fetchDeviceUsersSnapshot(),
+    ]);
+    setLoading(false);
+  }, [fetchLiveRoutes, fetchTodaySessions, fetchEmployeesList, fetchDeviceUsersSnapshot]);
+
+  // Periodic background refresh (5s)
+  useEffect(() => {
+    fetchAllData();
+    const interval = setInterval(() => {
+      if (mode === 'LIVE_NOW') fetchLiveRoutes();
+      else if (mode === 'TODAY') fetchTodaySessions();
+      else if (mode === 'DEVICE_SESSIONS') fetchDeviceUsersSnapshot();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [fetchAllData, mode, fetchLiveRoutes, fetchTodaySessions, fetchDeviceUsersSnapshot]);
+
+  // ─── 5. GOOGLE MAPS LOADER & INITIALIZATION ─────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    loadGoogleMaps(apiKey)
+      .then(() => {
+        if (!cancelled) {
+          setMapsError(null);
+          setMapsLoaded(true);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) setMapsError(error.message);
+      });
+    return () => {
+      cancelled = true;
     };
-    setSelectedUserForHistory(sessionInfo);
-    setSelectedDateOption('today');
-    fetchRouteHistory(sessionInfo, 'today');
-  };
+  }, [apiKey]);
 
-  const fetchRouteHistory = async (sessionInfo, dateOption, customFrom, customTo) => {
-    if (!sessionInfo) return;
-    setHistoryLoading(true);
-    setHistoryError(null);
-    setHistoryPoints([]);
-    clearHistoryOverlays();
+  useEffect(() => {
+    if (!mapsLoaded || !mapContainerRef.current || mapInstanceRef.current) return;
 
     try {
-      const targetUserId = sessionInfo.userId || 'me';
-      let url = `/super-admin/live-users/${targetUserId}/location-history?deviceSessionId=${sessionInfo.sessionId || ''}`;
-      if (dateOption === 'custom') {
-        if (!customFrom || !customTo) {
-          throw new Error('Please select both From and To dates.');
-        }
-        url += `&from=${customFrom}&to=${customTo}`;
-      } else {
-        const offset = dateOption === 'today' ? 0 : dateOption === 'yesterday' ? 1 : 2;
-        url += `&date=${getLocalDateString(offset)}`;
-      }
+      const mapOptions = {
+        center: { lat: 23.0225, lng: 72.5714 }, // Ahmedabad / Gujarat Center
+        zoom: 12,
+        styles: [
+          { elementType: 'geometry', stylers: [{ color: '#f8fafc' }] },
+          { elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },
+          { elementType: 'labels.text.fill', stylers: [{ color: '#334155' }] },
+          { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+          { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#e2e8f0' }] },
+          { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#bae6fd' }] },
+          { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#dcfce7' }] },
+        ],
+        mapTypeControl: true,
+        mapTypeControlOptions: {
+          style: window.google.maps.MapTypeControlStyle.DROPDOWN_MENU,
+          position: window.google.maps.ControlPosition.TOP_RIGHT,
+        },
+        fullscreenControl: true,
+        streetViewControl: false,
+        zoomControl: true,
+      };
 
-      const raw = await backendFetch(url);
-      const res = raw?.data || raw || {};
-      const points = Array.isArray(res.points) ? res.points : [];
-      setHistoryPoints(points);
-      setHistoryMetadata(res.summary || null);
-
-      if (points.length > 0) {
-        drawHistoryRoute(points, sessionInfo, dateOption);
-      } else {
-        setHistoryError('No GPS track points recorded for the selected date period.');
-      }
+      const map = new window.google.maps.Map(mapContainerRef.current, mapOptions);
+      mapInstanceRef.current = map;
+      infoWindowRef.current = new window.google.maps.InfoWindow();
     } catch (err) {
-      console.error('Error fetching route history:', err);
-      setHistoryError(err.message || 'Failed to fetch route history.');
-    } finally {
-      setHistoryLoading(false);
+      console.error('Failed to initialize Google Maps:', err);
+      setMapsError('Failed to initialize Google Maps instance.');
     }
-  };
+  }, [mapsLoaded]);
 
-  const drawHistoryRoute = (points, sessionInfo, dateOption) => {
-    if (!mapsLoaded || !mapInstanceRef.current || points.length === 0) return;
+  // ─── 6. SOCKET.IO REALTIME BROADCAST LISTENER ───────────────────────────────
+  useEffect(() => {
+    if (!accessToken) return;
+    const cleanToken = (accessToken || '').replace(/^Bearer\s+/i, '').trim();
+
+    let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_BACKEND_SOCKET_URL || '';
+    if (typeof window !== 'undefined') {
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (isLocalhost) {
+        socketUrl = socketUrl || `${window.location.protocol}//${window.location.hostname}:4001`;
+      } else {
+        socketUrl = socketUrl || window.location.origin;
+      }
+    } else {
+      socketUrl = socketUrl || 'http://localhost:4001';
+    }
+
+    const socket = io(socketUrl, {
+      path: '/socket.io',
+      auth: { token: cleanToken },
+      transports: ['polling', 'websocket'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      setLiveStatus('LIVE');
+      setLastSocketEvent({ name: 'connect', time: new Date().toLocaleTimeString() });
+      fetchAllData();
+    });
+
+    socket.on('connect_error', (err) => {
+      setLiveStatus('RECONNECTING');
+    });
+
+    socket.on('disconnect', () => {
+      setLiveStatus('OFFLINE');
+      setLastSocketEvent({ name: 'disconnect', time: new Date().toLocaleTimeString() });
+    });
+
+    // Real-time telemetry broadcast from LocationTrackingService
+    socket.on('employee:route:update', (data) => {
+      setLastSocketEvent({ name: 'employee:route:update', time: new Date().toLocaleTimeString() });
+
+      setLiveRoutes((prev) => {
+        return prev.map((s) => {
+          if (s.employeeId !== data.employeeId && s.sessionId !== data.sessionId) return s;
+          const newPoint = {
+            latitude: Number(data.latitude),
+            longitude: Number(data.longitude),
+            speed: data.speed,
+            heading: data.heading,
+            batteryLevel: data.batteryLevel,
+            recordedAt: data.recordedAt,
+          };
+          const updatedPoints = [...(s.routePoints || []), newPoint];
+
+          // If this session is currently active and selected, update polyline
+          if (selectedLiveSessionId === s.sessionId && mapInstanceRef.current && window.google?.maps) {
+            if (activePolylineRef.current) {
+              const path = activePolylineRef.current.getPath();
+              path.push(new window.google.maps.LatLng(newPoint.latitude, newPoint.longitude));
+            }
+            showAccuracyCircle(newPoint.latitude, newPoint.longitude, 15, '#2563EB');
+          }
+
+          return {
+            ...s,
+            currentLocation: newPoint,
+            routePoints: updatedPoints,
+            totalDistanceKm: data.totalDistanceKm != null ? data.totalDistanceKm : s.totalDistanceKm,
+            status: data.status || 'LIVE',
+            minutesSinceLastGps: 0,
+          };
+        });
+      });
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [accessToken, fetchAllData, selectedLiveSessionId]);
+
+  // ─── 7. DRAW LIVE ROUTE POLYLINE & STOP PINS ───────────────────────────────
+  const drawLiveRouteOnMap = useCallback((session) => {
+    if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps || !session) return;
+
+    clearAllOverlays();
+
+    const points = session.routePoints || [];
+    const cat = getCategoryForRole(session.role);
+    const cfg = ROLE_CONFIG[cat] || ROLE_CONFIG['Other'];
+
+    if (points.length < 2) {
+      const lat = session.currentLocation?.latitude || session.punchInCoordinates?.latitude;
+      const lng = session.currentLocation?.longitude || session.punchInCoordinates?.longitude;
+      if (lat && lng) {
+        mapInstanceRef.current.panTo({ lat, lng });
+        mapInstanceRef.current.setZoom(16);
+        showAccuracyCircle(lat, lng, session.currentLocation?.accuracy || 20, cfg.color);
+      }
+      return;
+    }
+
+    const path = points.map((p) => new window.google.maps.LatLng(p.latitude, p.longitude));
+
+    const polyline = new window.google.maps.Polyline({
+      path,
+      geodesic: true,
+      strokeColor: '#0284C7',
+      strokeOpacity: 0.9,
+      strokeWeight: 5,
+      map: mapInstanceRef.current,
+    });
+    activePolylineRef.current = polyline;
+
+    // Render Start Pin at punch-in point
+    const startLoc = points[0];
+    const startMarker = new window.google.maps.Marker({
+      position: new window.google.maps.LatLng(startLoc.latitude, startLoc.longitude),
+      map: mapInstanceRef.current,
+      title: `Punch In (${new Date(session.punchInAt).toLocaleTimeString()})`,
+      icon: {
+        url: getStartPinSvg(),
+        scaledSize: new window.google.maps.Size(32, 38),
+        anchor: new window.google.maps.Point(16, 38),
+      },
+    });
+    startMarkerRef.current = startMarker;
+
+    // Render Stop Pins
+    if (session.stops && session.stops.length > 0) {
+      session.stops.forEach((st) => {
+        const stopMarker = new window.google.maps.Marker({
+          position: new window.google.maps.LatLng(st.latitude, st.longitude),
+          map: mapInstanceRef.current,
+          title: `Stop #${st.stopNumber} (${st.durationMinutes} min)`,
+          icon: {
+            url: getStopPinSvg(st.stopNumber),
+            scaledSize: new window.google.maps.Size(30, 36),
+            anchor: new window.google.maps.Point(15, 36),
+          },
+        });
+
+        stopMarker.addListener('click', () => {
+          if (!infoWindowRef.current) return;
+          const html = `
+            <div style="font-family: system-ui, sans-serif; padding: 6px; min-width: 180px;">
+              <div style="font-weight: 700; color: #B45309; font-size: 13px; margin-bottom: 4px;">
+                🛑 Stop #${st.stopNumber} (${st.durationMinutes} mins)
+              </div>
+              <div style="font-size: 11px; color: #475569; margin-bottom: 4px;">
+                <strong>Arrived:</strong> ${new Date(st.arrivedAt).toLocaleTimeString()}<br/>
+                <strong>Departed:</strong> ${new Date(st.departedAt).toLocaleTimeString()}
+              </div>
+              <div style="font-size: 11px; color: #64748B;">
+                ${st.address || st.locationName || 'Field stationary stop'}
+              </div>
+            </div>
+          `;
+          infoWindowRef.current.setContent(html);
+          infoWindowRef.current.open(mapInstanceRef.current, stopMarker);
+        });
+
+        stopMarkersRef.current.push(stopMarker);
+      });
+    }
+
+    // Fit bounds to polyline
+    const bounds = new window.google.maps.LatLngBounds();
+    path.forEach((p) => bounds.extend(p));
+    mapInstanceRef.current.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
+
+    const latest = points[points.length - 1];
+    if (latest) {
+      showAccuracyCircle(latest.latitude, latest.longitude, latest.accuracy || 15, cfg.color);
+    }
+  }, [mapsLoaded, clearAllOverlays]);
+
+  // ─── 8. DRAW HISTORICAL SHIFT ROUTE & STOPS ─────────────────────────────────
+  const drawHistoryRoute = useCallback((points, stops, session) => {
+    if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps || points.length === 0) return;
+
+    clearAllOverlays();
 
     const path = points.map((p) => new window.google.maps.LatLng(p.latitude, p.longitude));
 
@@ -1081,261 +804,343 @@ export default function SuperAdminLiveMapPage() {
       strokeWeight: 5,
       map: mapInstanceRef.current,
     });
-    historyPolylineRef.current = polyline;
+    activePolylineRef.current = polyline;
 
     const bounds = new window.google.maps.LatLngBounds();
     path.forEach((p) => bounds.extend(p));
     mapInstanceRef.current.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
 
-    // START marker
+    // 1. START Marker (Punch In)
     const startLoc = points[0];
-    const startTimeStr = new Date(startLoc.capturedAt).toLocaleTimeString();
     const startMarker = new window.google.maps.Marker({
       position: new window.google.maps.LatLng(startLoc.latitude, startLoc.longitude),
       map: mapInstanceRef.current,
-      title: 'Start Location',
-      label: { text: 'S', color: '#FFFFFF', fontWeight: 'bold' },
+      title: 'Shift Punch In',
       icon: {
-        path: window.google.maps.SymbolPath.CIRCLE,
-        scale: 12,
-        fillColor: '#10B981',
-        fillOpacity: 1,
-        strokeColor: '#FFFFFF',
-        strokeWeight: 2,
+        url: getStartPinSvg(),
+        scaledSize: new window.google.maps.Size(34, 42),
+        anchor: new window.google.maps.Point(17, 42),
       },
     });
-
-    const startInfo = new window.google.maps.InfoWindow({
-      content: `<div style="font-family:'Outfit',sans-serif;font-size:12px;padding:4px;color:#0F172A;"><strong>🟢 START TRIP</strong><br/>Time: ${startTimeStr}</div>`,
+    startMarker.addListener('click', () => {
+      if (!infoWindowRef.current) return;
+      infoWindowRef.current.setContent(`
+        <div style="font-family: system-ui, sans-serif; padding: 6px;">
+          <div style="font-weight: 700; color: #16A34A; font-size: 13px;">🟢 Shift Punch In</div>
+          <div style="font-size: 11.5px; color: #475569; margin-top: 3px;">
+            <strong>Time:</strong> ${new Date(startLoc.recordedAt).toLocaleTimeString()}<br/>
+            ${session?.punchInAddress ? `<strong>Address:</strong> ${session.punchInAddress}` : ''}
+          </div>
+        </div>
+      `);
+      infoWindowRef.current.open(mapInstanceRef.current, startMarker);
     });
-    startMarker.addListener('click', () => startInfo.open(mapInstanceRef.current, startMarker));
-    historyStartMarkerRef.current = startMarker;
+    startMarkerRef.current = startMarker;
 
-    // END marker
+    // 2. STOP Markers
+    if (stops && stops.length > 0) {
+      stops.forEach((st) => {
+        const stopMarker = new window.google.maps.Marker({
+          position: new window.google.maps.LatLng(st.latitude, st.longitude),
+          map: mapInstanceRef.current,
+          title: `Stop #${st.stopNumber} (${st.durationMinutes} mins)`,
+          icon: {
+            url: getStopPinSvg(st.stopNumber),
+            scaledSize: new window.google.maps.Size(30, 36),
+            anchor: new window.google.maps.Point(15, 36),
+          },
+        });
+        stopMarker.addListener('click', () => {
+          if (!infoWindowRef.current) return;
+          infoWindowRef.current.setContent(`
+            <div style="font-family: system-ui, sans-serif; padding: 6px; min-width: 180px;">
+              <div style="font-weight: 700; color: #B45309; font-size: 13px; margin-bottom: 4px;">
+                🛑 Stop #${st.stopNumber} (${st.durationMinutes} mins)
+              </div>
+              <div style="font-size: 11px; color: #475569; margin-bottom: 4px;">
+                <strong>Arrived:</strong> ${new Date(st.arrivedAt).toLocaleTimeString()}<br/>
+                <strong>Departed:</strong> ${new Date(st.departedAt).toLocaleTimeString()}
+              </div>
+              <div style="font-size: 11px; color: #64748B;">
+                ${st.address || st.locationName || 'Stationary stop'}
+              </div>
+            </div>
+          `);
+          infoWindowRef.current.open(mapInstanceRef.current, stopMarker);
+        });
+        stopMarkersRef.current.push(stopMarker);
+      });
+    }
+
+    // 3. END Marker (Punch Out)
     const endLoc = points[points.length - 1];
-    const endTimeStr = new Date(endLoc.capturedAt).toLocaleTimeString();
-    const isTodayActive = dateOption === 'today' && sessionInfo.status === 'ONLINE';
-    const endColor = isTodayActive ? '#3B82F6' : '#EF4444';
-    const labelChar = isTodayActive ? 'C' : 'E';
-
+    const isCompleted = session?.status === 'COMPLETED';
     const endMarker = new window.google.maps.Marker({
       position: new window.google.maps.LatLng(endLoc.latitude, endLoc.longitude),
       map: mapInstanceRef.current,
-      title: isTodayActive ? 'Current Location' : 'End Location',
-      label: { text: labelChar, color: '#FFFFFF', fontWeight: 'bold' },
+      title: isCompleted ? 'Shift Punch Out' : 'Current Position',
       icon: {
-        path: window.google.maps.SymbolPath.CIRCLE,
-        scale: 12,
-        fillColor: endColor,
-        fillOpacity: 1,
-        strokeColor: '#FFFFFF',
-        strokeWeight: 2,
+        url: isCompleted ? getEndPinSvg() : getStartPinSvg(),
+        scaledSize: new window.google.maps.Size(34, 42),
+        anchor: new window.google.maps.Point(17, 42),
       },
     });
-
-    const endInfo = new window.google.maps.InfoWindow({
-      content: `<div style="font-family:'Outfit',sans-serif;font-size:12px;padding:4px;color:#0F172A;"><strong>${isTodayActive ? '🔵 CURRENT' : '🔴 END'}</strong><br/>Time: ${endTimeStr}</div>`,
+    endMarker.addListener('click', () => {
+      if (!infoWindowRef.current) return;
+      infoWindowRef.current.setContent(`
+        <div style="font-family: system-ui, sans-serif; padding: 6px;">
+          <div style="font-weight: 700; color: ${isCompleted ? '#DC2626' : '#2563EB'}; font-size: 13px;">
+            ${isCompleted ? '🔴 Shift Punch Out' : '📍 Current Shift Position'}
+          </div>
+          <div style="font-size: 11.5px; color: #475569; margin-top: 3px;">
+            <strong>Time:</strong> ${new Date(endLoc.recordedAt).toLocaleTimeString()}<br/>
+            ${session?.punchOutAddress ? `<strong>Address:</strong> ${session.punchOutAddress}` : ''}
+          </div>
+        </div>
+      `);
+      infoWindowRef.current.open(mapInstanceRef.current, endMarker);
     });
-    endMarker.addListener('click', () => endInfo.open(mapInstanceRef.current, endMarker));
-    historyEndMarkerRef.current = endMarker;
+    endMarkerRef.current = endMarker;
+  }, [mapsLoaded, clearAllOverlays]);
 
-    updatePlaybackMarker(points[0]);
+  // Load History for an employee and date
+  const loadHistoryRoute = async (empId, dateStr) => {
+    if (!empId || !dateStr) return;
+    setHistoryLoading(true);
+    setHistoryError(null);
+    setHistoryData(null);
+    clearAllOverlays();
+
+    try {
+      const raw = await backendFetch(`/location/routes/history?employeeId=${empId}&date=${dateStr}`);
+      const data = raw?.data || raw;
+
+      if (!data || !data.points || data.points.length === 0) {
+        setHistoryError('No GPS route telemetry recorded for this employee shift.');
+        setHistoryData(null);
+        return;
+      }
+
+      setHistoryData(data);
+      drawHistoryRoute(data.points, data.stops, data.session);
+    } catch (err) {
+      console.error('Error fetching historical route:', err);
+      setHistoryError(err?.message || 'Failed to load historical route.');
+    } finally {
+      setHistoryLoading(false);
+    }
   };
 
-  const updatePlaybackMarker = (point) => {
-    if (!mapsLoaded || !mapInstanceRef.current) return;
-    const latLng = new window.google.maps.LatLng(point.latitude, point.longitude);
-    const icon = {
-      path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-      scale: 6,
-      fillColor: '#F59E0B',
-      fillOpacity: 1,
-      strokeColor: '#FFFFFF',
-      strokeWeight: 1.5,
-      rotation: point.heading || 0,
-    };
+  // ─── 9. ANIMATED TIMELINE PLAYBACK CONTROLLER ──────────────────────────────
+  const updatePlaybackMarker = useCallback((pt) => {
+    if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps || !pt) return;
 
-    if (playbackMarkerRef.current) {
-      playbackMarkerRef.current.setPosition(latLng);
-      playbackMarkerRef.current.setIcon(icon);
-    } else {
+    const latLng = new window.google.maps.LatLng(pt.latitude, pt.longitude);
+
+    if (!playbackMarkerRef.current) {
       playbackMarkerRef.current = new window.google.maps.Marker({
         position: latLng,
         map: mapInstanceRef.current,
-        title: 'Playback Position',
-        icon,
-        zIndex: 999,
+        zIndex: 9999,
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 9,
+          fillColor: '#2563EB',
+          fillOpacity: 1,
+          strokeColor: '#FFFFFF',
+          strokeWeight: 3,
+        },
+      });
+    } else {
+      playbackMarkerRef.current.setPosition(latLng);
+    }
+
+    showAccuracyCircle(pt.latitude, pt.longitude, pt.accuracy || 15, '#2563EB');
+  }, [mapsLoaded]);
+
+  // Playback timer ticker
+  useEffect(() => {
+    if (!isPlaying || !historyData?.points || historyData.points.length === 0) return;
+
+    const delayMs = Math.max(100, Math.floor(1000 / playbackSpeed));
+    const timer = setTimeout(() => {
+      setPlaybackIndex((prev) => {
+        const next = prev + 1;
+        if (next >= historyData.points.length) {
+          setIsPlaying(false);
+          return prev;
+        }
+        updatePlaybackMarker(historyData.points[next]);
+        return next;
+      });
+    }, delayMs);
+
+    return () => clearTimeout(timer);
+  }, [isPlaying, playbackIndex, playbackSpeed, historyData, updatePlaybackMarker]);
+
+  // ─── 10. MAP MARKERS SYNC FOR LIVE_NOW & DEVICE_SESSIONS ────────────────────
+  useEffect(() => {
+    if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps) return;
+
+    // Clear live pins when entering history mode
+    if (mode === 'HISTORY') {
+      clearLiveMarkers();
+      return;
+    }
+
+    if (mode === 'LIVE_NOW') {
+      const activeIds = new Set();
+
+      liveRoutes.forEach((shift) => {
+        const sId = shift.sessionId;
+        activeIds.add(sId);
+
+        const lat = shift.currentLocation?.latitude || shift.punchInCoordinates?.latitude;
+        const lng = shift.currentLocation?.longitude || shift.punchInCoordinates?.longitude;
+        if (!lat || !lng) return;
+
+        const cat = getCategoryForRole(shift.role);
+        const cfg = ROLE_CONFIG[cat] || ROLE_CONFIG['Other'];
+        const isSelected = selectedLiveSessionId === sId;
+        const isOnline = shift.status === 'LIVE';
+
+        const latLng = new window.google.maps.LatLng(lat, lng);
+        const iconUrl = generatePinSvg(cat, isOnline, isSelected);
+
+        let marker = markersRef.current[sId];
+        if (!marker) {
+          marker = new window.google.maps.Marker({
+            position: latLng,
+            map: mapInstanceRef.current,
+            title: `${shift.employeeName} (${shift.role})`,
+            icon: {
+              url: iconUrl,
+              scaledSize: new window.google.maps.Size(40, 52),
+              anchor: new window.google.maps.Point(20, 50),
+            },
+            zIndex: isSelected ? 999 : 100,
+          });
+
+          marker.addListener('click', () => {
+            setSelectedLiveSessionId(sId);
+            drawLiveRouteOnMap(shift);
+          });
+
+          markersRef.current[sId] = marker;
+        } else {
+          marker.setPosition(latLng);
+          marker.setIcon({
+            url: iconUrl,
+            scaledSize: new window.google.maps.Size(40, 52),
+            anchor: new window.google.maps.Point(20, 50),
+          });
+          marker.setZIndex(isSelected ? 999 : 100);
+        }
+      });
+
+      // Remove obsolete markers
+      Object.keys(markersRef.current).forEach((id) => {
+        if (!activeIds.has(id)) {
+          markersRef.current[id].setMap(null);
+          delete markersRef.current[id];
+        }
+      });
+    } else if (mode === 'DEVICE_SESSIONS') {
+      const activeUserIds = new Set();
+
+      usersData.forEach((u) => {
+        const uId = u.userId;
+        const session = extractAuthoritativeSession(u);
+        if (!session?.location?.latitude || !session?.location?.longitude) return;
+
+        activeUserIds.add(uId);
+        const cat = getCategoryForRole(u.role);
+        const isOnline = session.status === 'ONLINE';
+        const isSelected = selectedUserId === uId;
+        const latLng = new window.google.maps.LatLng(session.location.latitude, session.location.longitude);
+        const iconUrl = generatePinSvg(cat, isOnline, isSelected);
+
+        let marker = markersRef.current[uId];
+        if (!marker) {
+          marker = new window.google.maps.Marker({
+            position: latLng,
+            map: mapInstanceRef.current,
+            title: `${u.name} (${u.role})`,
+            icon: {
+              url: iconUrl,
+              scaledSize: new window.google.maps.Size(40, 52),
+              anchor: new window.google.maps.Point(20, 50),
+            },
+            zIndex: isSelected ? 999 : 100,
+          });
+
+          marker.addListener('click', () => {
+            setSelectedUserId(uId);
+            mapInstanceRef.current.panTo(latLng);
+            showAccuracyCircle(session.location.latitude, session.location.longitude, session.location.accuracy || 20);
+          });
+
+          markersRef.current[uId] = marker;
+        } else {
+          marker.setPosition(latLng);
+          marker.setIcon({
+            url: iconUrl,
+            scaledSize: new window.google.maps.Size(40, 52),
+            anchor: new window.google.maps.Point(20, 50),
+          });
+          marker.setZIndex(isSelected ? 999 : 100);
+        }
+      });
+
+      Object.keys(markersRef.current).forEach((id) => {
+        if (!activeUserIds.has(id)) {
+          markersRef.current[id].setMap(null);
+          delete markersRef.current[id];
+        }
       });
     }
-  };
+  }, [mode, mapsLoaded, liveRoutes, selectedLiveSessionId, usersData, selectedUserId, drawLiveRouteOnMap, clearLiveMarkers]);
 
-  // Playback timer interval
-  useEffect(() => {
-    let interval = null;
-    if (isPlaying && historyPoints.length > 0) {
-      const ms = 1000 / playbackSpeed;
-      interval = setInterval(() => {
-        setPlaybackIndex((prev) => {
-          if (prev >= historyPoints.length - 1) {
-            setIsPlaying(false);
-            return prev;
-          }
-          const nextIndex = prev + 1;
-          updatePlaybackMarker(historyPoints[nextIndex]);
-          return nextIndex;
-        });
-      }, ms);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isPlaying, historyPoints, playbackSpeed]);
-
-  // Route statistics calculator
-  const routeStats = useMemo(() => {
-    if (historyPoints.length === 0) return null;
-
-    let totalDistMeters = 0;
-    let maxSpeed = 0;
-    let speedSum = 0;
-    let speedCount = 0;
-
-    const startLoc = historyPoints[0];
-    const endLoc = historyPoints[historyPoints.length - 1];
-
-    const start = new Date(startLoc.capturedAt);
-    const end = new Date(endLoc.capturedAt);
-    const durationMs = Math.max(0, end.getTime() - start.getTime());
-
-    const durationHrs = Math.floor(durationMs / 3600000);
-    const durationMins = Math.floor((durationMs % 3600000) / 60000);
-    const durationStr = `${durationHrs}h ${durationMins}m`;
-
-    for (let i = 1; i < historyPoints.length; i++) {
-      const prev = historyPoints[i - 1];
-      const curr = historyPoints[i];
-
-      const dLat = (curr.latitude - prev.latitude) * Math.PI / 180;
-      const dLon = (curr.longitude - prev.longitude) * Math.PI / 180;
-      const a = 
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(prev.latitude * Math.PI / 180) * Math.cos(curr.latitude * Math.PI / 180) * 
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const dist = 6371000 * c;
-
-      const timeSec = (new Date(curr.capturedAt).getTime() - new Date(prev.capturedAt).getTime()) / 1000;
-      const impliedSpeedKmh = timeSec > 0 ? (dist / timeSec) * 3.6 : 0;
-
-      if (impliedSpeedKmh <= 150) {
-        totalDistMeters += dist;
-      }
-
-      if (curr.speed !== null && curr.speed !== undefined) {
-        const speedKmh = curr.speed * 3.6;
-        if (speedKmh > maxSpeed && speedKmh <= 150) {
-          maxSpeed = speedKmh;
-        }
-        speedSum += speedKmh;
-        speedCount++;
-      }
-    }
-
-    const averageSpeed = speedCount > 0 ? speedSum / speedCount : (durationMs > 0 ? (totalDistMeters / (durationMs / 1000)) * 3.6 : 0);
-
-    return {
-      distanceKm: (totalDistMeters / 1000).toFixed(2),
-      startTime: start.toLocaleTimeString(),
-      endTime: end.toLocaleTimeString(),
-      durationStr,
-      averageSpeedKmh: averageSpeed > 0 ? averageSpeed.toFixed(1) : '0',
-      maxSpeedKmh: maxSpeed > 0 ? maxSpeed.toFixed(1) : '0',
-    };
-  }, [historyPoints]);
-
-  // 6. Action handlers: Selecting a user
-  const handleSelectUser = (user) => {
-    setSelectedUserId(user.userId);
-    const targetSession = getAuthoritativeUserSession(user);
-    if (!targetSession?.location) return;
-
-    if (mapInstanceRef.current) {
-      const latLng = new window.google.maps.LatLng(targetSession.location.latitude, targetSession.location.longitude);
-      mapInstanceRef.current.panTo(latLng);
-      mapInstanceRef.current.setZoom(16);
-      openInfoWindow(
-        user.userId,
-        targetSession,
-        user.name,
-        user.role,
-        targetSession.location,
-        targetSession.status,
-        targetSession.deviceType
-      );
-    }
-  };
-
-  const fitAllMarkers = (initial = false, targetRole = selectedRole) => {
-    if (!mapsLoaded || !mapInstanceRef.current) return;
+  // Fit all markers button
+  const fitAllMarkers = (force = false) => {
+    if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps) return;
 
     const bounds = new window.google.maps.LatLngBounds();
-    let hasCoords = false;
+    let count = 0;
 
-    usersData.forEach((u) => {
-      const cat = getCategoryForRole(u.role);
-      const targetSession = getAuthoritativeUserSession(u);
-
-      if (targetSession?.location) {
-        let matchesRole = true;
-        if (targetRole !== 'All') {
-          matchesRole = (cat === targetRole);
+    if (mode === 'LIVE_NOW') {
+      liveRoutes.forEach((s) => {
+        const lat = s.currentLocation?.latitude || s.punchInCoordinates?.latitude;
+        const lng = s.currentLocation?.longitude || s.punchInCoordinates?.longitude;
+        if (lat && lng) {
+          bounds.extend(new window.google.maps.LatLng(lat, lng));
+          count++;
         }
-
-        let matchesStatus = true;
-        if (statusFilter === 'ONLINE_GPS') {
-          matchesStatus = targetSession.status === 'ONLINE' && !!targetSession.location;
-        } else if (statusFilter === 'ONLINE') {
-          matchesStatus = targetSession.status === 'ONLINE';
+      });
+    } else if (mode === 'DEVICE_SESSIONS') {
+      usersData.forEach((u) => {
+        const s = extractAuthoritativeSession(u);
+        if (s?.location?.latitude && s?.location?.longitude) {
+          bounds.extend(new window.google.maps.LatLng(s.location.latitude, s.location.longitude));
+          count++;
         }
+      });
+    }
 
-        let matchesOS = true;
-        if (selectedDevice !== 'All') {
-          matchesOS = (targetSession.operatingSystem === selectedDevice);
-        }
-
-        let matchesSearch = true;
-        if (searchQuery) {
-          const query = searchQuery.toLowerCase();
-          const nameMatch = u.name.toLowerCase().includes(query);
-          const roleMatch = u.role.toLowerCase().includes(query);
-          const emailMatch = u.email?.toLowerCase().includes(query) || false;
-          const osMatch = targetSession.operatingSystem?.toLowerCase().includes(query) || false;
-          matchesSearch = nameMatch || roleMatch || emailMatch || osMatch;
-        }
-
-        if (matchesRole && matchesStatus && matchesOS && matchesSearch) {
-          bounds.extend(new window.google.maps.LatLng(targetSession.location.latitude, targetSession.location.longitude));
-          hasCoords = true;
-        }
-      }
-    });
-
-    if (hasCoords) {
-      mapInstanceRef.current.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
-      if (initial && mapInstanceRef.current.getZoom() > 14) {
-        mapInstanceRef.current.setZoom(12);
-      }
+    if (count > 0) {
+      mapInstanceRef.current.fitBounds(bounds, { top: 50, bottom: 50, left: 50, right: 50 });
+    } else {
+      mapInstanceRef.current.panTo({ lat: 23.0225, lng: 72.5714 });
+      mapInstanceRef.current.setZoom(12);
     }
   };
 
-  // Center on Himalaya Factory/HQ
   const centerOnHQ = () => {
     if (!mapInstanceRef.current) return;
     mapInstanceRef.current.panTo({ lat: 23.0225, lng: 72.5714 });
-    mapInstanceRef.current.setZoom(14);
+    mapInstanceRef.current.setZoom(13);
   };
 
-  // Toggle Live Traffic
   const toggleTraffic = () => {
     if (!mapInstanceRef.current || !window.google?.maps) return;
     if (!trafficLayerRef.current) {
@@ -1350,157 +1155,43 @@ export default function SuperAdminLiveMapPage() {
     }
   };
 
-  // Auto-fit bounds on initial data load
-  useEffect(() => {
-    if (mapsLoaded && usersData.length > 0 && !initialBoundsFitDone) {
-      fitAllMarkers(true);
-      setInitialBoundsFitDone(true);
-    }
-  }, [mapsLoaded, usersData, initialBoundsFitDone]);
-
-  // Fit bounds on filter change
-  useEffect(() => {
-    if (initialBoundsFitDone) {
-      fitAllMarkers(false, selectedRole);
-    }
-  }, [selectedRole, statusFilter, selectedDevice]);
-
-  // 7. Computed Stats & Role Grouping (1 authoritative record per user)
-  const { stats, roleCounts, allStaffList } = useMemo(() => {
-    let totalUsers = 0;
-    let onlineUsersCount = 0;
-    let onlineGpsCount = 0;
-    let withLocation = 0;
-    const staffList = [];
-
-    const counts = {};
-    Object.keys(ROLE_CONFIG).forEach((cat) => {
-      counts[cat] = { total: 0, online: 0, withLocation: 0 };
-    });
-
-    usersData.forEach((u) => {
-      totalUsers++;
-      const userCategory = getCategoryForRole(u.role);
-      if (!counts[userCategory]) {
-        counts[userCategory] = { total: 0, online: 0, withLocation: 0 };
+  // Filtered lists for Drawer
+  const filteredLiveRoutes = useMemo(() => {
+    return liveRoutes.filter((s) => {
+      if (selectedRole !== 'All') {
+        const cat = getCategoryForRole(s.role);
+        if (cat !== selectedRole) return false;
       }
-      counts[userCategory].total++;
-
-      const targetSession = getAuthoritativeUserSession(u);
-      const isOnline = targetSession?.status === 'ONLINE' || (u.sessions || []).some((s) => s.status === 'ONLINE');
-      const hasGps = !!(targetSession?.location?.latitude && targetSession?.location?.longitude);
-      const isOnlineGps = isOnline && hasGps && targetSession?.gpsStatus === 'ACTIVE';
-
-      if (isOnline) {
-        onlineUsersCount++;
-        counts[userCategory].online++;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesName = (s.employeeName || '').toLowerCase().includes(q);
+        const matchesCode = (s.employeeCode || '').toLowerCase().includes(q);
+        const matchesDept = (s.department || '').toLowerCase().includes(q);
+        const matchesAddr = (s.punchInAddress || '').toLowerCase().includes(q);
+        if (!matchesName && !matchesCode && !matchesDept && !matchesAddr) return false;
       }
-      if (isOnlineGps) {
-        onlineGpsCount++;
-      }
-      if (hasGps) {
-        withLocation++;
-        counts[userCategory].withLocation++;
-      }
-
-      staffList.push({
-        userId: u.userId,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        category: userCategory,
-        isOnline,
-        hasGps,
-        isOnlineGps,
-        authoritativeSession: targetSession,
-        sessions: u.sessions || [],
-      });
-    });
-
-    const onlineAwaitingGpsCount = Math.max(0, onlineUsersCount - onlineGpsCount);
-
-    return {
-      stats: {
-        totalUsers,
-        onlineUsersCount,
-        onlineGpsCount,
-        onlineAwaitingGpsCount,
-        withLocation,
-      },
-      roleCounts: counts,
-      allStaffList: staffList,
-    };
-  }, [usersData]);
-
-  // Filtered session / staff rows for the left drawer
-  const filteredStaff = useMemo(() => {
-    return allStaffList.filter((staff) => {
-      // 1. Role filter
-      if (selectedRole !== 'All' && staff.category !== selectedRole) return false;
-
-      // 2. Status filter
-      if (statusFilter === 'ONLINE_GPS') {
-        if (!staff.isOnlineGps) return false;
-      } else if (statusFilter === 'ONLINE') {
-        if (!staff.isOnline) return false;
-      } else if (statusFilter === 'HAS_LOCATION') {
-        if (!staff.hasGps) return false;
-      }
-
-      // 3. Device filter
-      if (selectedDevice !== 'All') {
-        const hasDevice = staff.sessions.some((s) => s.operatingSystem === selectedDevice);
-        if (!hasDevice) return false;
-      }
-
-      // 4. Search query
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const nameMatch = staff.name.toLowerCase().includes(query);
-        const roleMatch = staff.role.toLowerCase().includes(query);
-        const emailMatch = staff.email?.toLowerCase().includes(query) || false;
-        const osMatch = staff.sessions.some((s) => s.operatingSystem?.toLowerCase().includes(query));
-        return nameMatch || roleMatch || emailMatch || osMatch;
-      }
-
+      if (statusFilter === 'LIVE' && s.status !== 'LIVE') return false;
+      if (statusFilter === 'STALE' && s.status !== 'GPS_STALE' && s.status !== 'CONNECTION_DEGRADED') return false;
       return true;
-    }).sort((a, b) => {
-      // Sort: Live GPS first, then Online, then Has Location, then alphabetical
-      if (a.isOnlineGps && !b.isOnlineGps) return -1;
-      if (!a.isOnlineGps && b.isOnlineGps) return 1;
-
-      if (a.isOnline && !b.isOnline) return -1;
-      if (!a.isOnline && b.isOnline) return 1;
-
-      if (a.hasGps && !b.hasGps) return -1;
-      if (!a.hasGps && b.hasGps) return 1;
-
-      return a.name.localeCompare(b.name);
     });
-  }, [allStaffList, selectedRole, statusFilter, selectedDevice, searchQuery]);
+  }, [liveRoutes, selectedRole, searchQuery, statusFilter]);
 
-  const roleLegendKeys = useMemo(() => {
-    return ['Sales', 'Plant Head', 'HR', 'Dispatch', 'Production', 'QC', 'Store', 'Finance', 'Procurement', 'Admin'];
-  }, []);
-
-  const selectedStaffObj = useMemo(() => {
-    return allStaffList.find((s) => s.userId === selectedUserId);
-  }, [allStaffList, selectedUserId]);
+  const selectedLiveSession = useMemo(() => {
+    return liveRoutes.find((s) => s.sessionId === selectedLiveSessionId) || null;
+  }, [liveRoutes, selectedLiveSessionId]);
 
   return (
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      height: 'calc(100vh - 75px)',
+      height: 'calc(100vh - 72px)',
       background: '#F8FAFC',
-      fontFamily: "'Outfit', sans-serif",
-      color: '#0F172A',
-      padding: isMobile ? '8px' : '16px',
-      gap: '12px',
+      padding: '12px',
+      gap: '10px',
+      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       boxSizing: 'border-box',
     }}>
-      
-      {/* ── 1. HEADER BANNER & LIVE METRICS ─────────────────────────────────── */}
+      {/* ── 1. HEADER BANNER & STATUS ────────────────────────────────────────── */}
       <div style={{
         display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
@@ -1509,9 +1200,9 @@ export default function SuperAdminLiveMapPage() {
         background: '#FFFFFF',
         border: '1px solid #E2E8F0',
         borderRadius: '12px',
-        padding: isMobile ? '12px 14px' : '12px 20px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-        gap: isMobile ? '10px' : '16px',
+        padding: '12px 18px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+        gap: '12px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
@@ -1530,175 +1221,108 @@ export default function SuperAdminLiveMapPage() {
           </div>
           <div>
             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              Live User Map & Field Tracking
-              <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: '#F1F5F9', color: '#0284C7' }}>
-                LIVE GPS
+              Employee Live Route Tracking
+              <span style={{ fontSize: '10.5px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: '#F1F5F9', color: '#0284C7' }}>
+                PUNCH IN → PUNCH OUT
               </span>
             </h2>
             <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748B' }}>
-              Accurate live location monitoring of all employees across Gujarat & India
+              Real-time GPS telemetry, route lines, stop detection & historical playback
             </p>
           </div>
         </div>
 
         {/* Real-time Connection Indicator & Metrics */}
-        <div style={{ 
-          display: 'flex', 
-          flexDirection: isMobile ? 'column' : 'row',
-          alignItems: isMobile ? 'stretch' : 'center', 
-          gap: isMobile ? '8px' : '14px' 
-        }}>
-          {/* Quick Metrics */}
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '4px 10px', fontSize: '11.5px', color: '#475569' }}>
-              Employees: <strong style={{ color: '#0F172A' }}>{stats.totalUsers}</strong>
-            </div>
-            <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '8px', padding: '4px 10px', fontSize: '11.5px', color: '#047857' }}>
-              🟢 Online: <strong>{stats.onlineUsersCount}</strong>
-            </div>
-            <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', padding: '4px 10px', fontSize: '11.5px', color: '#1D4ED8' }}>
-              📍 Live GPS: <strong>{stats.onlineGpsCount}</strong>
-            </div>
-            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '4px 10px', fontSize: '11.5px', color: '#64748B' }}>
-              🗺️ Located: <strong>{stats.withLocation}</strong>
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '5px 12px', fontSize: '12px', color: '#15803D', fontWeight: 600 }}>
+            🟢 Active Shifts: <strong>{liveRoutes.length}</strong>
           </div>
-
-          {/* Connection Status Pill */}
+          <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', padding: '5px 12px', fontSize: '12px', color: '#1D4ED8', fontWeight: 600 }}>
+            📅 Today: <strong>{todaySessions.length}</strong>
+          </div>
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            padding: '6px 14px',
+            gap: '6px',
+            padding: '5px 12px',
             borderRadius: '20px',
             background: liveStatus === 'LIVE' ? '#F0FDF4' : liveStatus === 'RECONNECTING' ? '#FFFBEB' : '#FEF2F2',
             border: `1px solid ${liveStatus === 'LIVE' ? '#BBF7D0' : liveStatus === 'RECONNECTING' ? '#FDE68A' : '#FCA5A5'}`,
-            fontSize: '12px',
+            fontSize: '11.5px',
             fontWeight: 700,
           }}>
             <span style={{
-              display: 'block',
               width: '8px',
               height: '8px',
               borderRadius: '50%',
               background: liveStatus === 'LIVE' ? '#16A34A' : liveStatus === 'RECONNECTING' ? '#F59E0B' : '#DC2626',
-              boxShadow: liveStatus === 'LIVE' ? '0 0 8px #16A34A' : 'none',
             }} />
             <span style={{ color: liveStatus === 'LIVE' ? '#15803D' : liveStatus === 'RECONNECTING' ? '#B45309' : '#B91C1C' }}>
-              {liveStatus === 'LIVE' ? 'LIVE STREAMING' : liveStatus === 'RECONNECTING' ? 'RECONNECTING...' : 'OFFLINE'}
+              {liveStatus === 'LIVE' ? 'LIVE TELEMETRY' : liveStatus === 'RECONNECTING' ? 'RECONNECTING...' : 'OFFLINE'}
             </span>
           </div>
         </div>
       </div>
 
-      {/* ── 2. TOP ROLE DEFINITION & QUICK HIGHLIGHT BAR ────────────────────── */}
+      {/* ── 2. MODE SWITCHER TABS ────────────────────────────────────────────── */}
       <div style={{
+        display: 'flex',
+        alignItems: 'center',
         background: '#FFFFFF',
         border: '1px solid #E2E8F0',
         borderRadius: '12px',
-        padding: '10px 14px',
+        padding: '6px',
+        gap: '6px',
         boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
         overflowX: 'auto',
-        whiteSpace: 'nowrap',
       }}>
-        <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px', paddingRight: '8px', borderRight: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <Lucide.Layers size={14} />
-          Role Icons
-        </div>
-
-        {/* All Roles Button */}
-        <button
-          onClick={() => {
-            setSelectedRole('All');
-            fitAllMarkers(false, 'All');
-          }}
-          style={{
-            background: selectedRole === 'All' ? '#0F172A' : '#F8FAFC',
-            color: selectedRole === 'All' ? '#FFFFFF' : '#334155',
-            border: `1px solid ${selectedRole === 'All' ? '#0F172A' : '#E2E8F0'}`,
-            borderRadius: '20px',
-            padding: '5px 12px',
-            fontSize: '12px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            transition: 'all 0.15s',
-            flexShrink: 0,
-            boxShadow: selectedRole === 'All' ? '0 2px 6px rgba(15, 23, 42, 0.25)' : 'none',
-          }}
-        >
-          <span>🌐</span>
-          <span>All Roles</span>
-          <span style={{
-            fontSize: '10px',
-            padding: '1px 6px',
-            borderRadius: '10px',
-            background: selectedRole === 'All' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
-            color: selectedRole === 'All' ? '#FFFFFF' : '#475569',
-            fontWeight: 700,
-          }}>
-            {stats.totalUsers}
-          </span>
-        </button>
-
-        {/* Individual Role Definition Chips */}
-        {roleLegendKeys.map((catKey) => {
-          const cfg = ROLE_CONFIG[catKey];
-          const isSelected = selectedRole === catKey;
-          const roleStat = roleCounts[catKey] || { total: 0, online: 0, withLocation: 0 };
-
+        {[
+          { id: 'LIVE_NOW', label: 'LIVE NOW', icon: '🟢', badge: liveRoutes.length, desc: 'Real-time punch-in shift telemetry' },
+          { id: 'TODAY', label: 'TODAY', icon: '📅', badge: todaySessions.length, desc: "Today's shifts & daily routes" },
+          { id: 'HISTORY', label: 'HISTORY', icon: '📜', badge: null, desc: 'Shift route playback & stop detection' },
+          { id: 'DEVICE_SESSIONS', label: 'DEVICE SESSIONS', icon: '💻', badge: usersData.length, desc: 'Web & browser sessions' },
+        ].map((tab) => {
+          const isActive = mode === tab.id;
           return (
             <button
-              key={catKey}
+              key={tab.id}
               onClick={() => {
-                const nextRole = isSelected ? 'All' : catKey;
-                setSelectedRole(nextRole);
-                fitAllMarkers(false, nextRole);
+                setMode(tab.id);
+                clearAllOverlays();
+                if (tab.id === 'LIVE_NOW') fetchLiveRoutes();
+                if (tab.id === 'TODAY') fetchTodaySessions();
               }}
-              title={cfg.description}
               style={{
-                background: isSelected ? cfg.color : cfg.lightBg,
-                color: isSelected ? '#FFFFFF' : cfg.textColor,
-                border: `1.5px solid ${isSelected ? cfg.color : cfg.borderColor}`,
-                borderRadius: '20px',
-                padding: '5px 12px',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                transition: 'all 0.15s',
-                flexShrink: 0,
-                boxShadow: isSelected ? `0 3px 8px ${cfg.glowColor}` : 'none',
+                gap: '8px',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                background: isActive ? '#0F172A' : '#F8FAFC',
+                color: isActive ? '#FFFFFF' : '#475569',
+                fontSize: '12.5px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                whiteSpace: 'nowrap',
+                boxShadow: isActive ? '0 2px 6px rgba(15, 23, 42, 0.25)' : 'none',
               }}
             >
-              <span style={{ fontSize: '14px' }}>{cfg.emoji}</span>
-              <span>{cfg.shortName}</span>
-              
-              <span style={{
-                fontSize: '10px',
-                padding: '1px 6px',
-                borderRadius: '10px',
-                background: isSelected
-                  ? 'rgba(255,255,255,0.25)'
-                  : roleStat.online > 0
-                  ? '#10B981'
-                  : '#E2E8F0',
-                color: isSelected
-                  ? '#FFFFFF'
-                  : roleStat.online > 0
-                  ? '#FFFFFF'
-                  : '#64748B',
-                fontWeight: 700,
-              }}>
-                {roleStat.online > 0 ? `🟢 ${roleStat.online}` : roleStat.withLocation > 0 ? `📍 ${roleStat.withLocation}` : roleStat.total}
-              </span>
+              <span>{tab.icon}</span>
+              <span>{tab.label}</span>
+              {tab.badge !== null && (
+                <span style={{
+                  fontSize: '10.5px',
+                  padding: '2px 7px',
+                  borderRadius: '12px',
+                  background: isActive ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
+                  color: isActive ? '#FFFFFF' : '#334155',
+                  fontWeight: 700,
+                }}>
+                  {tab.badge}
+                </span>
+              )}
             </button>
           );
         })}
@@ -1712,12 +1336,11 @@ export default function SuperAdminLiveMapPage() {
         overflow: 'hidden',
         position: 'relative',
       }}>
-        
-        {/* Left Filter & Staff Drawer List */}
+        {/* Left Drawer */}
         <div style={{
           display: showDrawer ? 'flex' : 'none',
           flexDirection: 'column',
-          width: isMobile ? 'calc(100% - 24px)' : '380px',
+          width: isMobile ? 'calc(100% - 24px)' : '400px',
           position: isMobile ? 'absolute' : 'relative',
           top: isMobile ? '12px' : '0',
           left: isMobile ? '12px' : '0',
@@ -1732,306 +1355,22 @@ export default function SuperAdminLiveMapPage() {
             ? '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)'
             : '0 2px 4px rgba(0,0,0,0.02)',
         }}>
-          
-          {mode === 'HISTORY' ? (
+
+          {/* ═════════════════════════════════════════════════════════════════════
+              MODE 1: LIVE NOW (ACTIVE SHIFT TELEMETRY)
+          ═════════════════════════════════════════════════════════════════════ */}
+          {mode === 'LIVE_NOW' && (
             <>
-              {/* Route History Mode Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button
-                    onClick={() => {
-                      setMode('LIVE');
-                      clearHistoryOverlays();
-                    }}
-                    style={{
-                      background: '#F1F5F9',
-                      border: '1px solid #CBD5E1',
-                      borderRadius: '6px',
-                      color: '#0F172A',
-                      cursor: 'pointer',
-                      padding: '5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Lucide.ArrowLeft size={16} />
-                  </button>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>Route History</h3>
-                    <span style={{ fontSize: '11px', color: '#64748B' }}>Historical GPS Trail & Playback</span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowDrawer(false)}
-                  style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: '4px' }}
-                >
-                  <Lucide.X size={16} />
-                </button>
-              </div>
-
-              {/* User Detail Card in History Mode */}
-              <div style={{
-                background: '#F8FAFC',
-                border: '1px solid #E2E8F0',
-                borderRadius: '8px',
-                padding: '10px 12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-              }}>
-                <div style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '50%',
-                  background: ROLE_CONFIG[getCategoryForRole(selectedUserForHistory?.userRole)]?.lightBg || '#EFF6FF',
-                  border: `1px solid ${ROLE_CONFIG[getCategoryForRole(selectedUserForHistory?.userRole)]?.borderColor || '#BFDBFE'}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '18px',
-                }}>
-                  {ROLE_CONFIG[getCategoryForRole(selectedUserForHistory?.userRole)]?.emoji || '👤'}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <strong style={{ fontSize: '14px', color: '#0F172A' }}>{selectedUserForHistory?.userName}</strong>
-                  <div style={{ fontSize: '11px', color: '#475569' }}>{selectedUserForHistory?.userRole}</div>
-                  <div style={{ fontSize: '10px', color: '#94A3B8' }}>
-                    {selectedUserForHistory?.browser || 'Web'} • {selectedUserForHistory?.operatingSystem || 'Device'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Date Selector Buttons */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                {['today', 'yesterday', '2days', 'custom'].map((opt) => (
-                  <button
-                    key={opt}
-                    onClick={() => {
-                      setSelectedDateOption(opt);
-                      if (opt !== 'custom') {
-                        fetchRouteHistory(selectedUserForHistory, opt);
-                      }
-                    }}
-                    style={{
-                      background: selectedDateOption === opt ? '#EFF6FF' : '#FFFFFF',
-                      border: `1px solid ${selectedDateOption === opt ? '#3B82F6' : '#CBD5E1'}`,
-                      borderRadius: '6px',
-                      padding: '6px',
-                      fontSize: '11px',
-                      fontWeight: selectedDateOption === opt ? 700 : 500,
-                      color: selectedDateOption === opt ? '#1D4ED8' : '#475569',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {opt === 'today' ? 'Today' : opt === 'yesterday' ? 'Yesterday' : opt === '2days' ? '2 Days Ago' : 'Custom Range'}
-                  </button>
-                ))}
-              </div>
-
-              {/* Custom Date Pickers */}
-              {selectedDateOption === 'custom' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '10px', color: '#64748B', marginBottom: '2px' }}>From</label>
-                    <input
-                      type="date"
-                      value={customDateFrom}
-                      onChange={(e) => setCustomDateFrom(e.target.value)}
-                      style={{
-                        width: '100%',
-                        background: '#F8FAFC',
-                        border: '1px solid #CBD5E1',
-                        borderRadius: '6px',
-                        padding: '4px 6px',
-                        fontSize: '11px',
-                        color: '#0F172A',
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '10px', color: '#64748B', marginBottom: '2px' }}>To</label>
-                    <input
-                      type="date"
-                      value={customDateTo}
-                      onChange={(e) => setCustomDateTo(e.target.value)}
-                      style={{
-                        width: '100%',
-                        background: '#F8FAFC',
-                        border: '1px solid #CBD5E1',
-                        borderRadius: '6px',
-                        padding: '4px 6px',
-                        fontSize: '11px',
-                        color: '#0F172A',
-                      }}
-                    />
-                  </div>
-                  <button
-                    onClick={() => fetchRouteHistory(selectedUserForHistory, 'custom', customDateFrom, customDateTo)}
-                    style={{
-                      gridColumn: 'span 2',
-                      background: '#0284C7',
-                      border: 'none',
-                      borderRadius: '6px',
-                      padding: '6px',
-                      color: '#FFFFFF',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Apply Custom Range
-                  </button>
-                </div>
-              )}
-
-              {/* Route History loading / error / results */}
-              {historyLoading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '40px', color: '#64748B' }}>
-                  <Lucide.Loader2 className="animate-spin" size={24} />
-                </div>
-              ) : historyError ? (
-                <div style={{ textAlign: 'center', padding: '20px', color: '#EF4444', fontSize: '12px' }}>
-                  {historyError}
-                </div>
-              ) : historyPoints.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto' }}>
-                  {/* Stats Table */}
-                  <div style={{
-                    background: '#F8FAFC',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: '8px',
-                    padding: '10px',
-                    fontSize: '11.5px',
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '6px 10px',
-                  }}>
-                    <div><strong>Start:</strong> {routeStats?.startTime}</div>
-                    <div><strong>End:</strong> {routeStats?.endTime}</div>
-                    <div><strong>Distance:</strong> {routeStats?.distanceKm} km</div>
-                    <div><strong>Duration:</strong> {routeStats?.durationStr}</div>
-                    <div><strong>Avg Speed:</strong> {routeStats?.averageSpeedKmh} km/h</div>
-                    <div><strong>Max Speed:</strong> {routeStats?.maxSpeedKmh} km/h</div>
-                    <div style={{ gridColumn: 'span 2', borderTop: '1px solid #E2E8F0', paddingTop: '6px', color: '#64748B' }}>
-                      <strong>Recorded GPS Points:</strong> {historyPoints.length}
-                    </div>
-                  </div>
-
-                  {/* Playback Action Buttons */}
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      onClick={() => {
-                        if (historyPoints.length > 0) {
-                          const bounds = new window.google.maps.LatLngBounds();
-                          historyPoints.forEach((p) => bounds.extend(new window.google.maps.LatLng(p.latitude, p.longitude)));
-                          mapInstanceRef.current.fitBounds(bounds, { top: 50, bottom: 50, left: 50, right: 50 });
-                        }
-                      }}
-                      style={{
-                        flex: 1,
-                        background: '#EFF6FF',
-                        border: '1px solid #BFDBFE',
-                        borderRadius: '6px',
-                        padding: '8px',
-                        color: '#2563EB',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Fit Route
-                    </button>
-                    <button
-                      onClick={() => setIsPlaying(!isPlaying)}
-                      style={{
-                        flex: 1,
-                        background: isPlaying ? '#FEF2F2' : '#EFF6FF',
-                        border: `1px solid ${isPlaying ? '#FCA5A5' : '#BFDBFE'}`,
-                        borderRadius: '6px',
-                        padding: '8px',
-                        color: isPlaying ? '#DC2626' : '#2563EB',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '4px',
-                      }}
-                    >
-                      {isPlaying ? <Lucide.Pause size={14} /> : <Lucide.Play size={14} />}
-                      {isPlaying ? 'Pause' : 'Play Trail'}
-                    </button>
-                  </div>
-
-                  {/* Playback Controls */}
-                  <div style={{
-                    background: '#F8FAFC',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: '8px',
-                    padding: '8px 10px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
-                      <span style={{ color: '#64748B' }}>Time: {new Date(historyPoints[playbackIndex]?.capturedAt).toLocaleTimeString()}</span>
-                      <div style={{ display: 'flex', gap: '4px' }}>
-                        {[1, 2, 4].map((speed) => (
-                          <button
-                            key={speed}
-                            onClick={() => setPlaybackSpeed(speed)}
-                            style={{
-                              background: playbackSpeed === speed ? '#E2E8F0' : 'none',
-                              border: 'none',
-                              borderRadius: '4px',
-                              padding: '2px 6px',
-                              fontSize: '10px',
-                              fontWeight: 600,
-                              color: '#475569',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            {speed}x
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <input
-                      type="range"
-                      min="0"
-                      max={historyPoints.length - 1}
-                      value={playbackIndex}
-                      onChange={(e) => {
-                        const idx = Number(e.target.value);
-                        setPlaybackIndex(idx);
-                        updatePlaybackMarker(historyPoints[idx]);
-                      }}
-                      style={{ width: '100%', cursor: 'pointer' }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '40px', color: '#64748B', fontSize: '12px' }}>
-                  No GPS history recorded for this period.
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              {/* Drawer Header with Title & Action Icons */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>Staff Live Status</h3>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>Active Shifts</h3>
                   <span style={{ fontSize: '11px', color: '#64748B' }}>
-                    Showing {filteredStaff.length} of {allStaffList.length} staff members
+                    {filteredLiveRoutes.length} employee{filteredLiveRoutes.length !== 1 ? 's' : ''} currently on shift
                   </span>
                 </div>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <button
-                    onClick={() => fitAllMarkers(false, selectedRole)}
-                    title="Fit Map to Active Users"
+                    onClick={() => fitAllMarkers(true)}
                     style={{
                       background: '#EFF6FF',
                       border: '1px solid #BFDBFE',
@@ -2046,18 +1385,25 @@ export default function SuperAdminLiveMapPage() {
                       gap: '4px',
                     }}
                   >
-                    <Lucide.Crosshair size={13} />
-                    Fit
+                    <Lucide.Crosshair size={13} /> Fit All
                   </button>
                   <button
-                    onClick={() => setShowDrawer(false)}
-                    style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: '4px' }}
+                    onClick={fetchLiveRoutes}
+                    style={{
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '6px',
+                      padding: '4px 8px',
+                      color: '#475569',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                    }}
                   >
-                    <Lucide.X size={16} />
+                    <Lucide.RefreshCw size={13} />
                   </button>
                 </div>
               </div>
-              
+
               {/* Search Bar */}
               <div style={{
                 display: 'flex',
@@ -2071,7 +1417,7 @@ export default function SuperAdminLiveMapPage() {
                 <Lucide.Search size={15} color="#64748B" />
                 <input
                   type="text"
-                  placeholder="Search staff, role, email, city..."
+                  placeholder="Search staff, code, address..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={{
@@ -2081,8 +1427,6 @@ export default function SuperAdminLiveMapPage() {
                     outline: 'none',
                     fontSize: '12px',
                     color: '#0F172A',
-                    padding: '2px 0',
-                    width: '100%',
                   }}
                 />
                 {searchQuery && (
@@ -2096,12 +1440,11 @@ export default function SuperAdminLiveMapPage() {
               </div>
 
               {/* Status Filter Tabs */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '4px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px' }}>
                 {[
-                  { id: 'ALL', label: 'All', count: allStaffList.length },
-                  { id: 'ONLINE_GPS', label: 'Live GPS', count: stats.onlineGpsCount },
-                  { id: 'ONLINE', label: 'Online', count: stats.onlineUsersCount },
-                  { id: 'HAS_LOCATION', label: 'With Loc', count: stats.withLocation },
+                  { id: 'ALL', label: 'All', count: liveRoutes.length },
+                  { id: 'LIVE', label: '🟢 Live (<5m)', count: liveRoutes.filter(s => s.status === 'LIVE').length },
+                  { id: 'STALE', label: '🟡 Stale (>5m)', count: liveRoutes.filter(s => s.status !== 'LIVE').length },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -2123,7 +1466,7 @@ export default function SuperAdminLiveMapPage() {
                 ))}
               </div>
 
-              {/* Staff Cards List (Authoritative: 1 Card per User) */}
+              {/* Active Shifts List */}
               <div style={{
                 flex: 1,
                 overflowY: 'auto',
@@ -2136,172 +1479,148 @@ export default function SuperAdminLiveMapPage() {
                   <div style={{ display: 'flex', justifyContent: 'center', padding: '40px', color: '#94A3B8' }}>
                     <Lucide.Loader2 className="animate-spin" size={24} />
                   </div>
-                ) : filteredStaff.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '30px 10px', color: '#94A3B8', fontSize: '12px' }}>
-                    <Lucide.Users size={32} style={{ margin: '0 auto 8px auto', opacity: 0.5 }} />
-                    No staff members match the selected filters.
+                ) : filteredLiveRoutes.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '36px 12px', color: '#64748B', fontSize: '12.5px', background: '#F8FAFC', borderRadius: '10px', border: '1px dashed #CBD5E1' }}>
+                    <Lucide.ShieldCheck size={36} color="#0284C7" style={{ margin: '0 auto 10px auto', opacity: 0.8 }} />
+                    <div style={{ fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>No Active Punch-In Shifts</div>
+                    Employees currently punched in will automatically appear here with real-time GPS telemetry.
                   </div>
                 ) : (
-                  filteredStaff.map((staff) => {
-                    const cfg = ROLE_CONFIG[staff.category] || ROLE_CONFIG['Other'];
-                    const session = staff.authoritativeSession;
-                    const isSelected = selectedUserId === staff.userId;
-                    const hasLoc = staff.hasGps;
-                    const isLiveGps = staff.isOnlineGps;
+                  filteredLiveRoutes.map((shift) => {
+                    const isSelected = selectedLiveSessionId === shift.sessionId;
+                    const cat = getCategoryForRole(shift.role);
+                    const cfg = ROLE_CONFIG[cat] || ROLE_CONFIG['Other'];
 
                     return (
                       <div
-                        key={staff.userId}
+                        key={shift.sessionId}
                         onClick={() => {
-                          if (hasLoc) {
-                            handleSelectUser(staff);
-                          }
+                          setSelectedLiveSessionId(shift.sessionId);
+                          drawLiveRouteOnMap(shift);
                         }}
                         style={{
-                          background: isSelected ? '#EFF6FF' : '#FFFFFF',
-                          border: `1px solid ${isSelected ? '#3B82F6' : '#E2E8F0'}`,
+                          background: isSelected ? '#F0F9FF' : '#FFFFFF',
+                          border: `1.5px solid ${isSelected ? '#0284C7' : '#E2E8F0'}`,
                           borderRadius: '10px',
                           padding: '10px 12px',
-                          cursor: hasLoc ? 'pointer' : 'default',
-                          transition: 'all 0.15s ease-in-out',
-                          boxShadow: isSelected ? '0 2px 8px rgba(59, 130, 246, 0.15)' : 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                          transition: 'all 0.15s ease',
+                          boxShadow: isSelected ? '0 4px 12px rgba(2, 132, 199, 0.15)' : 'none',
                         }}
                       >
-                        {/* Header: Avatar, Name & Live Status */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{
-                              width: '30px',
-                              height: '30px',
+                            <div style={{
+                              width: '34px',
+                              height: '34px',
                               borderRadius: '8px',
                               background: cfg.lightBg,
                               border: `1px solid ${cfg.borderColor}`,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              fontSize: '15px',
-                              flexShrink: 0,
+                              fontSize: '17px',
                             }}>
                               {cfg.emoji}
-                            </span>
+                            </div>
                             <div>
-                              <strong style={{ fontSize: '13px', color: isSelected ? '#1D4ED8' : '#0F172A', display: 'block', lineHeight: 1.2 }}>
-                                {staff.name}
-                              </strong>
-                              <span style={{ fontSize: '11px', color: cfg.textColor, fontWeight: 600 }}>
-                                {staff.role}
-                              </span>
+                              <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
+                                {shift.employeeName}
+                              </div>
+                              <div style={{ fontSize: '11px', color: '#64748B' }}>
+                                {shift.employeeCode ? `${shift.employeeCode} • ` : ''}{shift.role}
+                              </div>
                             </div>
                           </div>
 
-                          {/* Online Status Pill */}
-                          <span style={{
+                          {/* Staleness Badge */}
+                          <div style={{
                             fontSize: '10px',
-                            padding: '2px 8px',
-                            borderRadius: '10px',
                             fontWeight: 700,
+                            padding: '3px 8px',
+                            borderRadius: '12px',
+                            background: shift.status === 'LIVE' ? '#DCFCE7' : shift.status === 'GPS_STALE' ? '#FEF3C7' : '#FFEDD5',
+                            color: shift.status === 'LIVE' ? '#15803D' : shift.status === 'GPS_STALE' ? '#B45309' : '#C2410C',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '4px',
-                            background: staff.isOnline ? '#ECFDF5' : '#F1F5F9',
-                            color: staff.isOnline ? '#047857' : '#64748B',
-                            border: `1px solid ${staff.isOnline ? '#A7F3D0' : '#E2E8F0'}`,
+                            whiteSpace: 'nowrap',
                           }}>
-                            <span style={{
-                              width: '6px',
-                              height: '6px',
-                              borderRadius: '50%',
-                              background: staff.isOnline ? '#10B981' : '#94A3B8',
-                              boxShadow: staff.isOnline ? '0 0 4px #10B981' : 'none',
-                            }} />
-                            {staff.isOnline ? 'Active' : 'Offline'}
-                          </span>
+                            {shift.status === 'LIVE' ? (
+                              <span>🟢 LIVE ({shift.currentLocation?.recordedAt ? new Date(shift.currentLocation.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Now'})</span>
+                            ) : shift.status === 'GPS_STALE' ? (
+                              <span>🟡 STALE ({shift.minutesSinceLastGps || 5}m ago)</span>
+                            ) : (
+                              <span>🟠 DEGRADED (&gt;30m)</span>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Device & Location Info */}
+                        {/* Tracking Truth Indicator */}
                         <div style={{
                           display: 'flex',
-                          justifyContent: 'space-between',
                           alignItems: 'center',
-                          marginTop: '8px',
-                          fontSize: '11px',
-                          color: '#64748B',
+                          gap: '6px',
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          fontSize: '10.5px',
+                          fontWeight: 600,
+                          background: (shift.totalPointsCount > 0 || (shift.routePoints && shift.routePoints.length > 0)) ? '#F0FDF4' : '#FFFBEB',
+                          border: `1px solid ${(shift.totalPointsCount > 0 || (shift.routePoints && shift.routePoints.length > 0)) ? '#BBF7D0' : '#FDE68A'}`,
+                          color: (shift.totalPointsCount > 0 || (shift.routePoints && shift.routePoints.length > 0)) ? '#15803D' : '#B45309',
                         }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            {session?.deviceType === 'MOBILE' ? <Lucide.Smartphone size={12} /> : <Lucide.Laptop size={12} />}
-                            {session ? `${session.operatingSystem || 'Device'} • ${session.browser || 'Web'}` : 'No device session'}
-                          </span>
-
-                          <span style={{
-                            color: isLiveGps ? '#10B981' : staff.isOnline ? '#64748B' : hasLoc ? '#F59E0B' : '#94A3B8',
-                            fontWeight: 600,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                          }}>
-                            {isLiveGps
-                              ? '📍 Live GPS'
-                              : staff.isOnline
-                              ? '⚪ Awaiting GPS'
-                              : hasLoc
-                              ? '📍 Last Known'
-                              : '⚪ No GPS'}
-                          </span>
+                          {(shift.totalPointsCount > 0 || (shift.routePoints && shift.routePoints.length > 0)) ? (
+                            <>
+                              <Lucide.Smartphone size={13} color="#16A34A" />
+                              <span>📱 Native background tracking ACTIVE</span>
+                            </>
+                          ) : (
+                            <>
+                              <Lucide.AlertTriangle size={13} color="#D97706" />
+                              <span>⚠️ BROWSER PRESENCE ONLY (Awaiting mobile GPS)</span>
+                            </>
+                          )}
                         </div>
 
-                        {/* Quick action buttons on card click / select */}
-                        {hasLoc && (
-                          <div style={{ display: 'flex', gap: '6px', marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #F1F5F9' }}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSelectUser(staff);
-                              }}
-                              style={{
-                                flex: 1,
-                                background: '#EFF6FF',
-                                border: '1px solid #BFDBFE',
-                                borderRadius: '4px',
-                                padding: '4px',
-                                color: '#2563EB',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '4px',
-                              }}
-                            >
-                              <Lucide.Eye size={12} />
-                              Center Map
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                enterHistoryMode(session, staff.name, staff.role, staff.userId);
-                              }}
-                              style={{
-                                flex: 1,
-                                background: '#F0FDF4',
-                                border: '1px solid #BBF7D0',
-                                borderRadius: '4px',
-                                padding: '4px',
-                                color: '#16A34A',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '4px',
-                              }}
-                            >
-                              <Lucide.History size={12} />
-                              Route History
-                            </button>
+                        {/* Shift Key Stats Row */}
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                          gap: '4px',
+                          background: isSelected ? '#E0F2FE' : '#F8FAFC',
+                          borderRadius: '6px',
+                          padding: '6px',
+                          fontSize: '10.5px',
+                          textAlign: 'center',
+                        }}>
+                          <div>
+                            <span style={{ color: '#64748B', display: 'block', fontSize: '9px', fontWeight: 600 }}>SHIFT</span>
+                            <strong style={{ color: '#0F172A' }}>{new Date(shift.punchInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
                           </div>
-                        )}
+                          <div>
+                            <span style={{ color: '#64748B', display: 'block', fontSize: '9px', fontWeight: 600 }}>DISTANCE</span>
+                            <strong style={{ color: '#0284C7' }}>{shift.totalDistanceKm} km</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: '#64748B', display: 'block', fontSize: '9px', fontWeight: 600 }}>POINTS</span>
+                            <strong style={{ color: '#0F172A' }}>{shift.totalPointsCount || (shift.routePoints?.length || 0)}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: '#64748B', display: 'block', fontSize: '9px', fontWeight: 600 }}>STOPS</span>
+                            <strong style={{ color: '#D97706' }}>{shift.totalStopsCount || (shift.stops?.length || 0)}</strong>
+                          </div>
+                        </div>
+
+                        {/* Punch In / Current Location Snippet */}
+                        <div style={{ fontSize: '11px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Lucide.MapPin size={12} color="#0284C7" />
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {shift.punchInAddress || 'Location recorded'}
+                          </span>
+                        </div>
                       </div>
                     );
                   })
@@ -2309,256 +1628,584 @@ export default function SuperAdminLiveMapPage() {
               </div>
             </>
           )}
+
+          {/* ═════════════════════════════════════════════════════════════════════
+              MODE 2: TODAY (ALL SHIFTS FROM TODAY)
+          ═════════════════════════════════════════════════════════════════════ */}
+          {mode === 'TODAY' && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>Today&apos;s Shifts</h3>
+                  <span style={{ fontSize: '11px', color: '#64748B' }}>
+                    {todaySessions.length} total shift{todaySessions.length !== 1 ? 's' : ''} recorded today
+                  </span>
+                </div>
+                <button
+                  onClick={fetchTodaySessions}
+                  style={{
+                    background: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '6px',
+                    padding: '4px 8px',
+                    color: '#475569',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Lucide.RefreshCw size={13} />
+                </button>
+              </div>
+
+              <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                paddingRight: '2px',
+              }}>
+                {todaySessions.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '36px 12px', color: '#64748B', fontSize: '12.5px', background: '#F8FAFC', borderRadius: '10px', border: '1px dashed #CBD5E1' }}>
+                    <Lucide.Calendar size={36} color="#64748B" style={{ margin: '0 auto 10px auto', opacity: 0.6 }} />
+                    <div style={{ fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>No Shifts Recorded Today</div>
+                    Shifts punched in today will be archived and reviewable here.
+                  </div>
+                ) : (
+                  todaySessions.map((session) => {
+                    const isSelected = selectedTodaySessionId === session.sessionId;
+                    const isCompleted = session.status === 'COMPLETED';
+
+                    return (
+                      <div
+                        key={session.sessionId}
+                        onClick={() => {
+                          setSelectedTodaySessionId(session.sessionId);
+                          loadHistoryRoute(session.employeeId, getLocalDateString(0));
+                        }}
+                        style={{
+                          background: isSelected ? '#F0F9FF' : '#FFFFFF',
+                          border: `1.5px solid ${isSelected ? '#0284C7' : '#E2E8F0'}`,
+                          borderRadius: '10px',
+                          padding: '10px 12px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
+                              {session.employeeName}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748B' }}>
+                              {session.employeeCode ? `${session.employeeCode} • ` : ''}{session.department}
+                            </div>
+                          </div>
+                          <span style={{
+                            fontSize: '10.5px',
+                            fontWeight: 700,
+                            padding: '3px 8px',
+                            borderRadius: '12px',
+                            background: isCompleted ? '#F1F5F9' : '#DCFCE7',
+                            color: isCompleted ? '#475569' : '#15803D',
+                          }}>
+                            {isCompleted ? '⚫ PUNCHED OUT' : '🟢 ACTIVE SHIFT'}
+                          </span>
+                        </div>
+
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr 1fr',
+                          gap: '4px',
+                          background: '#F8FAFC',
+                          borderRadius: '6px',
+                          padding: '6px',
+                          fontSize: '11px',
+                        }}>
+                          <div>
+                            <span style={{ color: '#64748B', display: 'block', fontSize: '9.5px' }}>IN</span>
+                            <strong style={{ color: '#0F172A' }}>{new Date(session.punchInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: '#64748B', display: 'block', fontSize: '9.5px' }}>OUT</span>
+                            <strong style={{ color: '#0F172A' }}>
+                              {session.punchOutAt ? new Date(session.punchOutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Ongoing'}
+                            </strong>
+                          </div>
+                          <div>
+                            <span style={{ color: '#64748B', display: 'block', fontSize: '9.5px' }}>KM</span>
+                            <strong style={{ color: '#0284C7' }}>{session.totalDistanceKm} km</strong>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ═════════════════════════════════════════════════════════════════════
+              MODE 3: HISTORY (HISTORICAL ROUTE & PLAYBACK)
+          ═════════════════════════════════════════════════════════════════════ */}
+          {mode === 'HISTORY' && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>Shift Route History</h3>
+                  <span style={{ fontSize: '11px', color: '#64748B' }}>
+                    Select employee and date to inspect route and stops
+                  </span>
+                </div>
+              </div>
+
+              {/* Employee Selector */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569' }}>SELECT EMPLOYEE</label>
+                <select
+                  value={selectedHistoryEmployeeId}
+                  onChange={(e) => {
+                    setSelectedHistoryEmployeeId(e.target.value);
+                    if (e.target.value && historyDate) {
+                      loadHistoryRoute(e.target.value, historyDate);
+                    }
+                  }}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '12.5px',
+                    color: '#0F172A',
+                    background: '#FFFFFF',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="">-- Choose Employee --</option>
+                  {allEmployees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.fullName} ({emp.employeeCode || emp.jobTitle || 'Staff'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date Selector */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569' }}>DATE</label>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <input
+                    type="date"
+                    value={historyDate}
+                    onChange={(e) => {
+                      setHistoryDate(e.target.value);
+                      if (selectedHistoryEmployeeId && e.target.value) {
+                        loadHistoryRoute(selectedHistoryEmployeeId, e.target.value);
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '6px 10px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '12px',
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      const todayStr = getLocalDateString(0);
+                      setHistoryDate(todayStr);
+                      if (selectedHistoryEmployeeId) loadHistoryRoute(selectedHistoryEmployeeId, todayStr);
+                    }}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      background: '#F8FAFC',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Today
+                  </button>
+                  <button
+                    onClick={() => {
+                      const yestStr = getLocalDateString(1);
+                      setHistoryDate(yestStr);
+                      if (selectedHistoryEmployeeId) loadHistoryRoute(selectedHistoryEmployeeId, yestStr);
+                    }}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      background: '#F8FAFC',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Yesterday
+                  </button>
+                </div>
+              </div>
+
+              {/* Route Summary & Playback */}
+              {historyLoading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '30px', color: '#94A3B8' }}>
+                  <Lucide.Loader2 className="animate-spin" size={24} />
+                </div>
+              ) : historyError ? (
+                <div style={{ padding: '16px', borderRadius: '8px', background: '#FEF2F2', border: '1px solid #FECDD3', color: '#991B1B', fontSize: '12px' }}>
+                  <Lucide.AlertCircle size={16} style={{ display: 'inline', marginRight: '6px' }} />
+                  {historyError}
+                </div>
+              ) : historyData && historyData.points?.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {/* Shift Stats Card */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: '6px',
+                    background: '#F0F9FF',
+                    border: '1px solid #BAE6FD',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    fontSize: '11px',
+                  }}>
+                    <div>
+                      <span style={{ color: '#0369A1', display: 'block', fontSize: '10px', fontWeight: 600 }}>DISTANCE</span>
+                      <strong style={{ color: '#0F172A', fontSize: '13px' }}>{historyData.session?.totalDistanceKm || 0} km</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#0369A1', display: 'block', fontSize: '10px', fontWeight: 600 }}>DURATION</span>
+                      <strong style={{ color: '#0F172A', fontSize: '13px' }}>{historyData.session?.durationFormatted || '—'}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#0369A1', display: 'block', fontSize: '10px', fontWeight: 600 }}>STOPS</span>
+                      <strong style={{ color: '#D97706', fontSize: '13px' }}>{historyData.stops?.length || 0} stops</strong>
+                    </div>
+                  </div>
+
+                  {/* Playback Controls */}
+                  <div style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '8px',
+                    padding: '10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#0F172A' }}>Shift Route Playback</span>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        {[1, 2, 5, 10].map((spd) => (
+                          <button
+                            key={spd}
+                            onClick={() => setPlaybackSpeed(spd)}
+                            style={{
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              border: `1px solid ${playbackSpeed === spd ? '#2563EB' : '#E2E8F0'}`,
+                              background: playbackSpeed === spd ? '#EFF6FF' : '#F8FAFC',
+                              color: playbackSpeed === spd ? '#1D4ED8' : '#64748B',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {spd}x
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        onClick={() => {
+                          if (playbackIndex >= (historyData.points?.length || 1) - 1) {
+                            setPlaybackIndex(0);
+                          }
+                          setIsPlaying(!isPlaying);
+                        }}
+                        style={{
+                          background: isPlaying ? '#EF4444' : '#2563EB',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '6px 12px',
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        {isPlaying ? <Lucide.Pause size={14} /> : <Lucide.Play size={14} />}
+                        {isPlaying ? 'Pause' : 'Play'}
+                      </button>
+
+                      <input
+                        type="range"
+                        min={0}
+                        max={historyData.points.length - 1}
+                        value={playbackIndex}
+                        onChange={(e) => {
+                          const idx = Number(e.target.value);
+                          setPlaybackIndex(idx);
+                          updatePlaybackMarker(historyData.points[idx]);
+                        }}
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+
+                    {historyData.points[playbackIndex] && (
+                      <div style={{ fontSize: '11px', color: '#64748B', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>
+                          Time: <strong style={{ color: '#0F172A' }}>{new Date(historyData.points[playbackIndex].recordedAt).toLocaleTimeString()}</strong>
+                        </span>
+                        <span>
+                          Speed: <strong style={{ color: '#0284C7' }}>{Math.round(historyData.points[playbackIndex].speed || 0)} km/h</strong>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Detected Stops List */}
+                  {historyData.stops && historyData.stops.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#0F172A' }}>Detected Field Stops</div>
+                      {historyData.stops.map((st) => (
+                        <div
+                          key={st.stopNumber}
+                          style={{
+                            background: '#FFFBEB',
+                            border: '1px solid #FCD34D',
+                            borderRadius: '6px',
+                            padding: '6px 10px',
+                            fontSize: '11px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <div>
+                            <strong style={{ color: '#B45309' }}>Stop #{st.stopNumber}</strong> ({st.durationMinutes} min)
+                            <div style={{ color: '#64748B', fontSize: '10px' }}>
+                              {new Date(st.arrivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – {new Date(st.departedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (mapInstanceRef.current) {
+                                mapInstanceRef.current.panTo({ lat: st.latitude, lng: st.longitude });
+                                mapInstanceRef.current.setZoom(16);
+                              }
+                            }}
+                            style={{
+                              background: '#F59E0B',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '3px 7px',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            View
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '30px 10px', color: '#64748B', fontSize: '12px' }}>
+                  Please choose an employee and date to view their historical GPS shift track.
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ═════════════════════════════════════════════════════════════════════
+              MODE 4: DEVICE SESSIONS (LEGACY WEB / DESKTOP SESSIONS)
+          ═════════════════════════════════════════════════════════════════════ */}
+          {mode === 'DEVICE_SESSIONS' && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>Device Sessions</h3>
+                  <span style={{ fontSize: '11px', color: '#64748B' }}>
+                    {usersData.length} total staff profiles
+                  </span>
+                </div>
+                <button
+                  onClick={fetchDeviceUsersSnapshot}
+                  style={{
+                    background: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '6px',
+                    padding: '4px 8px',
+                    color: '#475569',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Lucide.RefreshCw size={13} />
+                </button>
+              </div>
+
+              <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                paddingRight: '2px',
+              }}>
+                {usersData.map((u) => {
+                  const s = extractAuthoritativeSession(u);
+                  const isSelected = selectedUserId === u.userId;
+                  const cat = getCategoryForRole(u.role);
+                  const cfg = ROLE_CONFIG[cat] || ROLE_CONFIG['Other'];
+
+                  return (
+                    <div
+                      key={u.userId}
+                      onClick={() => {
+                        setSelectedUserId(u.userId);
+                        if (s?.location?.latitude && s?.location?.longitude && mapInstanceRef.current) {
+                          mapInstanceRef.current.panTo({ lat: s.location.latitude, lng: s.location.longitude });
+                          showAccuracyCircle(s.location.latitude, s.location.longitude, s.location.accuracy || 20);
+                        }
+                      }}
+                      style={{
+                        background: isSelected ? '#F0F9FF' : '#FFFFFF',
+                        border: `1.5px solid ${isSelected ? '#0284C7' : '#E2E8F0'}`,
+                        borderRadius: '10px',
+                        padding: '10px 12px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>{u.name}</div>
+                          <div style={{ fontSize: '11px', color: '#64748B' }}>{u.role}</div>
+                        </div>
+                        <span style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          padding: '2px 6px',
+                          borderRadius: '10px',
+                          background: s?.status === 'ONLINE' ? '#DCFCE7' : '#F1F5F9',
+                          color: s?.status === 'ONLINE' ? '#15803D' : '#64748B',
+                        }}>
+                          {s?.status || 'OFFLINE'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
         </div>
 
-        {/* Floating Drawer Open Trigger */}
-        {!showDrawer && (
-          <button
-            onClick={() => setShowDrawer(true)}
-            style={{
-              position: 'absolute',
-              left: '12px',
-              top: '12px',
-              zIndex: 99,
-              background: '#FFFFFF',
-              border: '1px solid #CBD5E1',
-              borderRadius: '8px',
-              padding: '8px 12px',
-              color: '#0F172A',
-              cursor: 'pointer',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '12px',
-              fontWeight: 600,
-            }}
-          >
-            <Lucide.Menu size={16} />
-            <span>Staff List ({allStaffList.length})</span>
-          </button>
-        )}
-
-        {/* Google Map Container with Floating Action Controls */}
+        {/* Right Map Canvas */}
         <div style={{
           flex: 1,
-          height: '100%',
-          borderRadius: '12px',
-          border: '1px solid #E2E8F0',
-          overflow: 'hidden',
-          background: '#F8FAFC',
           position: 'relative',
+          borderRadius: '12px',
+          overflow: 'hidden',
+          border: '1px solid #CBD5E1',
+          background: '#E2E8F0',
         }}>
-          {/* Floating Action Controls Overlay */}
+          {/* Quick Map Controls Overlay */}
           <div style={{
             position: 'absolute',
             top: '12px',
             right: '12px',
             zIndex: 10,
             display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
+            gap: '6px',
           }}>
             <button
-              onClick={() => fitAllMarkers(false, selectedRole)}
-              title="Fit viewport to all active users"
-              style={{
-                background: '#FFFFFF',
-                border: '1px solid #CBD5E1',
-                borderRadius: '8px',
-                padding: '8px 12px',
-                fontSize: '12px',
-                fontWeight: 600,
-                color: '#0F172A',
-                cursor: 'pointer',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <Lucide.Crosshair size={14} color="#0284C7" />
-              <span>Fit All ({stats.withLocation})</span>
-            </button>
-
-            <button
               onClick={centerOnHQ}
-              title="Center map on Himalaya Factory & Headquarters"
+              title="Center on HQ"
               style={{
                 background: '#FFFFFF',
                 border: '1px solid #CBD5E1',
                 borderRadius: '8px',
                 padding: '8px 12px',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: 600,
                 color: '#0F172A',
                 cursor: 'pointer',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
+                gap: '5px',
               }}
             >
-              <Lucide.Building2 size={14} color="#10B981" />
-              <span>Plant & HQ</span>
+              <Lucide.Home size={14} /> HQ
             </button>
-
             <button
               onClick={toggleTraffic}
-              title="Toggle Live Traffic Conditions"
+              title="Toggle Live Traffic"
               style={{
-                background: showTraffic ? '#EFF6FF' : '#FFFFFF',
-                border: `1px solid ${showTraffic ? '#3B82F6' : '#CBD5E1'}`,
+                background: showTraffic ? '#0F172A' : '#FFFFFF',
+                color: showTraffic ? '#FFFFFF' : '#0F172A',
+                border: '1px solid #CBD5E1',
                 borderRadius: '8px',
                 padding: '8px 12px',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: 600,
-                color: showTraffic ? '#1D4ED8' : '#0F172A',
                 cursor: 'pointer',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
+                gap: '5px',
               }}
             >
-              <Lucide.Navigation size={14} color={showTraffic ? '#2563EB' : '#64748B'} />
-              <span>Traffic {showTraffic ? 'ON' : 'OFF'}</span>
+              <Lucide.Navigation size={14} /> Traffic
             </button>
-
             <button
-              onClick={() => fetchSnapshot()}
-              title="Refresh Live Data Snapshot"
+              onClick={() => fitAllMarkers(true)}
+              title="Fit Markers"
               style={{
                 background: '#FFFFFF',
                 border: '1px solid #CBD5E1',
                 borderRadius: '8px',
                 padding: '8px 12px',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: 600,
                 color: '#0F172A',
                 cursor: 'pointer',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
+                gap: '5px',
               }}
             >
-              <Lucide.RefreshCw size={14} color="#475569" />
-              <span>Refresh</span>
+              <Lucide.Crosshair size={14} /> Fit
             </button>
           </div>
 
-          {/* Selected User Floating Bottom Info Bar */}
-          {selectedStaffObj && selectedStaffObj.authoritativeSession?.location && (
-            <div style={{
-              position: 'absolute',
-              bottom: '16px',
-              left: isMobile ? '12px' : '24px',
-              right: isMobile ? '12px' : 'auto',
-              maxWidth: '420px',
-              background: '#FFFFFF',
-              border: '1.5px solid #3B82F6',
-              borderRadius: '12px',
-              padding: '12px 16px',
-              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15)',
-              zIndex: 10,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '18px' }}>
-                    {ROLE_CONFIG[selectedStaffObj.category]?.emoji || '👤'}
-                  </span>
-                  <div>
-                    <strong style={{ fontSize: '14px', color: '#0F172A' }}>{selectedStaffObj.name}</strong>
-                    <span style={{ fontSize: '11px', color: '#64748B', marginLeft: '6px' }}>
-                      ({selectedStaffObj.role})
-                    </span>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{
-                    fontSize: '10px',
-                    padding: '2px 8px',
-                    borderRadius: '10px',
-                    fontWeight: 700,
-                    background: selectedStaffObj.isOnline ? '#ECFDF5' : '#F1F5F9',
-                    color: selectedStaffObj.isOnline ? '#047857' : '#64748B',
-                    border: `1px solid ${selectedStaffObj.isOnline ? '#A7F3D0' : '#E2E8F0'}`,
-                  }}>
-                    {selectedStaffObj.isOnline ? '🟢 ONLINE' : 'OFFLINE'}
-                  </span>
-                  <button
-                    onClick={() => {
-                      setSelectedUserId(null);
-                      clearAccuracyCircle();
-                    }}
-                    style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: '2px' }}
-                  >
-                    <Lucide.X size={15} />
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#475569' }}>
-                <span>
-                  📍 {selectedStaffObj.authoritativeSession.location.latitude.toFixed(4)}, {selectedStaffObj.authoritativeSession.location.longitude.toFixed(4)}
-                  {selectedStaffObj.authoritativeSession.location.accuracy ? ` (±${Math.round(selectedStaffObj.authoritativeSession.location.accuracy)} m)` : ''}
-                </span>
-                <button
-                  onClick={() => {
-                    enterHistoryMode(
-                      selectedStaffObj.authoritativeSession,
-                      selectedStaffObj.name,
-                      selectedStaffObj.role,
-                      selectedStaffObj.userId
-                    );
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#2563EB',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                    padding: 0,
-                  }}
-                >
-                  View History Trail →
-                </button>
-              </div>
-            </div>
-          )}
-
+          {/* Maps Error or Container */}
           {mapsError ? (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              height: '100%',
-              color: '#EF4444',
-              padding: '24px',
-              textAlign: 'center',
-            }}>
-              <Lucide.AlertCircle size={48} style={{ marginBottom: '12px' }} />
-              <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: 600 }}>Unable to load Google Maps</h4>
-              <p style={{ margin: 0, fontSize: '13px', color: '#64748B', maxWidth: '420px' }}>
-                {mapsError}
-              </p>
-            </div>
-          ) : !mapsLoaded ? (
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#94A3B8' }}>
-              <Lucide.Loader2 className="animate-spin" size={32} style={{ marginBottom: '8px' }} />
-              <span style={{ fontSize: '13px' }}>Loading Google Maps...</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '20px', color: '#DC2626' }}>
+              <Lucide.AlertTriangle size={24} style={{ marginRight: '8px' }} />
+              Failed to load Google Maps: {mapsError}
             </div>
           ) : (
             <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
           )}
         </div>
-
       </div>
     </div>
   );

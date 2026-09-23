@@ -1595,6 +1595,20 @@ export default function HeroBanner({
                         const data = res.data || res;
                         savePunchStatus(data);
                         window.dispatchEvent(new CustomEvent('himalaya:punch'));
+
+                        // Flutter WebView Background Location Bridge
+                        try {
+                          if (typeof window !== 'undefined' && window.flutter_inappwebview?.callHandler) {
+                            window.flutter_inappwebview.callHandler('startTrackingSession', {
+                              sessionId: data.trackingSessionId || data.sessionId,
+                              employeeId: user?.employeeId || data.employeeId,
+                              companyId: user?.companyId,
+                            });
+                          }
+                        } catch (bridgeErr) {
+                          console.warn('[HeroBanner] Flutter tracking start bridge notice:', bridgeErr);
+                        }
+
                         setShowPunchModal(false);
                         Swal.fire({
                           icon: 'success',
@@ -1710,6 +1724,16 @@ export default function HeroBanner({
                         const data = res.data || res;
                         savePunchStatus(data);
                         window.dispatchEvent(new CustomEvent('himalaya:punch'));
+
+                        // Flutter WebView Background Location Bridge
+                        try {
+                          if (typeof window !== 'undefined' && window.flutter_inappwebview?.callHandler) {
+                            window.flutter_inappwebview.callHandler('stopTrackingSession');
+                          }
+                        } catch (bridgeErr) {
+                          console.warn('[HeroBanner] Flutter tracking stop bridge notice:', bridgeErr);
+                        }
+
                         setShowPunchModal(false);
                         Swal.fire({
                           icon: 'success',

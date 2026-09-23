@@ -213,3 +213,122 @@ flutter build apk --release
 ```
 Install the resulting `.apk` on the physical phone. Once installed, tapping "Use Current Location" in `/sales/create-lead` will instantly receive the physical phone's fused GPS coordinates without browser timeout!
 
+---
+
+## 5. Employee Live Route Tracking (Punch In → Punch Out Telemetry)
+
+Himalaya ERP includes a battery-optimized background route tracking subsystem strictly bounded between employee **Punch In** and **Punch Out**.
+
+### Architecture Overview
+
+```
+    Web Application (HeroBanner.jsx)
+                │
+                ├── On Punch In  ──▶ window.flutter_inappwebview.callHandler('startTrackingSession', { sessionId, employeeId })
+                │                                    │
+                │                                    ▼
+                │                    Flutter Native Foreground Service (Persistent Notification)
+                │                                    │
+                │                    Periodic GPS Telemetry (every 30s / 25m displacement)
+                │                                    │
+                │                                    ├── If Online  ──▶ POST /location/track/batch
+                │                                    │
+                │                                    └── If Offline ──▶ Local SQLite Queue
+                │                                                              │
+                │                                                     (Flushed on Reconnect)
+                │
+                └── On Punch Out ──▶ window.flutter_inappwebview.callHandler('stopTrackingSession')
+                                                     │
+                                                     ▼
+                                     Foreground Service Immediately Concluded
+```
+
+### Android 14 Setup (`android/app/src/main/AndroidManifest.xml`)
+
+Add the mandatory foreground service location permissions:
+
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Mandatory for Android 14+ (API level 34+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <application ...>
+        <!-- Background Service Declaration -->
+        <service
+            android:name="id.flutter.flutter_background_service.BackgroundService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
+    </application>
+</manifest>
+```
+
+### iOS Setup (`ios/Runner/Info.plist`)
+
+```xml
+<key>UIBackgroundModes</key>
+<array>
+    <string>location</string>
+    <string>fetch</string>
+</array>
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+<string>Himalaya ERP requires background location tracking between Punch In and Punch Out to record field route visits.</string>
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>Himalaya ERP requires your location for attendance verification and customer site visits.</string>
+```
+
+### Local SQLite Offline Queue Schema
+
+When an employee travels through areas without cellular network coverage, points must never be discarded:
+
+```sql
+CREATE TABLE IF NOT EXISTS offline_gps_points (
+    client_point_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    accuracy REAL,
+    speed REAL,
+    heading REAL,
+    battery_level INTEGER,
+    is_mock_location INTEGER DEFAULT 0,
+    recorded_at TEXT NOT NULL,
+    is_synced INTEGER DEFAULT 0
+);
+```
+
+### Batch Ingestion API Contract (`POST /location/track/batch`)
+
+**Headers:**
+- `Authorization: Bearer <user_access_token>`
+- `Content-Type: application/json`
+
+**Body:**
+```json
+{
+  "sessionId": "b47dfc2a-9e12-421b-8531-ec23fa01815e",
+  "points": [
+    {
+      "clientPointId": "c9284fa1-8273-4512-98ab-82910facbd10",
+      "latitude": 23.02251,
+      "longitude": 72.57142,
+      "accuracy": 12.5,
+      "speed": 18.2,
+      "heading": 145.0,
+      "batteryLevel": 88,
+      "isMockLocation": false,
+      "recordedAt": "2026-09-23T14:30:00.000Z"
+    }
+  ]
+}
+```
+
+### Anti-Mock Location & Teleport Protection
+
+1. **Native Mock Detection**: Always populate `isMockLocation: position.isMocked ?? false`.
+2. **Speed Filter**: Any consecutive point jump exceeding `180 km/h` is flagged as an invalid jump and excluded from route distance.
+3. **Idempotency**: Repeated uploads of the same `clientPointId` UUID are safely ignored without double-counting distance.
+
+
