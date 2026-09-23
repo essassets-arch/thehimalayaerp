@@ -1,29 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as Lucide from 'lucide-react';
 import { backendFetch } from '@/lib/backendFetch';
-import { useAuthStore } from '@/store/authStore';
-import { 
-  exportSalesReportPDF, 
-  exportFinanceReportPDF, 
-  exportInventoryReportPDF, 
-  exportAgingReportPDF 
-} from '@/services/export.service';
 import "../components/dashboard.css";
 
-// Helper for Indian Currency Formatting
-function formatCurrencyCompact(amount) {
-  const val = Number(amount || 0);
-  if (isNaN(val) || val === 0) return '₹0';
-  const absVal = Math.abs(val);
-  const sign = val < 0 ? '-' : '';
-  if (absVal >= 10000000) return `${sign}₹${(absVal / 10000000).toFixed(2)} Cr`;
-  if (absVal >= 100000) return `${sign}₹${(absVal / 100000).toFixed(2)} L`;
-  return `${sign}₹${absVal.toLocaleString('en-IN')}`;
+function formatMetric(metric) {
+  if (metric.value == null || !Number.isFinite(Number(metric.value))) return 'Not recorded';
+  const value = Number(metric.value);
+  if (metric.unit === 'INR') return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(value);
+  if (metric.unit === '%') return value.toFixed(1) + '%';
+  return value.toLocaleString('en-IN') + ' ' + metric.unit;
 }
 
-function formatPercent(val) {
-  const num = Number(val || 0);
-  return `${num.toFixed(1)}%`;
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url; link.download = filename;
+  document.body.appendChild(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 const PRESET_OPTIONS = [
@@ -68,92 +61,91 @@ export default function BusinessReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [exportError, setExportError] = useState(null);
+  const [availableFilters, setAvailableFilters] = useState({});
+  const requestSequence = useRef(0);
   const [exporting, setExporting] = useState(false);
 
   const buildReportParams = useCallback(() => {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => {
+      if (filters.rangePreset !== 'CUSTOM' && ['startDate', 'endDate'].includes(key)) return;
       if (value && value !== 'All') params.set(key, value);
     });
     return params;
   }, [filters]);
 
   const loadReports = useCallback(async () => {
+    const request = ++requestSequence.current;
+    setReport(null);
+    setLastUpdated(null);
+    setExportError(null);
     setLoading(true);
     setError(null);
     try {
+      if (filters.rangePreset === 'CUSTOM' && (!filters.startDate || !filters.endDate || filters.startDate > filters.endDate)) {
+        throw new Error('Choose a valid start and end date for the custom range.');
+      }
       const params = buildReportParams();
       const payload = await backendFetch(`/api/backend/super-admin/reports?${params}`, { cacheTtlMs: 0 });
-      setReport(payload);
-      setLastUpdated(new Date());
+      if (!Array.isArray(payload?.sections) || !payload?.generatedAt || !payload?.csv || !payload?.period || !payload?.filters) throw new Error('The server returned an incomplete report.');
+      if (request === requestSequence.current) {
+        setReport(payload);
+        setAvailableFilters(payload.filters);
+        setLastUpdated(new Date(payload.generatedAt));
+      }
     } catch (err) {
       console.error('Failed to load centralized reports:', err);
-      setError(err || new Error('Failed to load reports'));
-      setReport(null);
+      if (request === requestSequence.current) setError(err || new Error('Failed to load reports'));
     } finally {
-      setLoading(false);
+      if (request === requestSequence.current) setLoading(false);
     }
-  }, [buildReportParams]);
+  }, [buildReportParams, filters.rangePreset, filters.startDate, filters.endDate]);
 
   useEffect(() => {
     loadReports();
+    return () => { requestSequence.current += 1; };
   }, [loadReports]);
 
-  const downloadCsv = async () => {
-    try {
-      setExporting(true);
-      const params = buildReportParams();
-      const token = useAuthStore.getState().accessToken;
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-
-      const response = await fetch(`/api/backend/super-admin/reports/export/csv?${params}`, {
-        headers,
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Failed to download CSV');
-
-      const blob = await response.blob();
-      const disposition = response.headers.get('content-disposition');
-      const match = disposition?.match(/filename="?([^"]+)"?/i);
-      const filename = match?.[1] || `centralized-business-report.csv`;
-
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = filename;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('CSV export failed:', err);
-      alert('Failed to export CSV report. Please try again.');
-    } finally {
-      setExporting(false);
-    }
+  const downloadCsv = () => {
+    if (!report || loading) return;
+    setExportError(null);
+    try { saveBlob(new Blob([report.csv.content], { type: 'text/csv;charset=utf-8' }), report.csv.filename); }
+    catch (error) { setExportError(error.message || 'Unable to download the CSV.'); }
   };
 
   const handleDocumentExport = async (type) => {
+    const key = type === 'inventory' ? 'store' : type;
+    const section = report?.sections.find(section => section.key === key);
+    if (!section || loading) return;
+    setExporting(true); setExportError(null);
     try {
-      setExporting(true);
-      if (type === 'sales') {
-        await exportSalesReportPDF(filters);
-      } else if (type === 'finance') {
-        await exportFinanceReportPDF(filters);
-      } else if (type === 'inventory') {
-        await exportInventoryReportPDF(filters);
-      } else if (type === 'aging') {
-        await exportAgingReportPDF(filters);
-      }
-    } catch (err) {
-      console.error('PDF Export Error:', err);
-    } finally {
-      setExporting(false);
-    }
+      const [{ jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
+      const doc = new jsPDF();
+      doc.setFontSize(16); doc.text(section.title, 14, 18);
+      doc.setFontSize(9); doc.text('Period: ' + report.period.label, 14, 26);
+      doc.text('Generated: ' + report.generatedAt, 14, 32);
+      const labels = [['Branch', 'branchId', 'branches'], ['Customer', 'customerId', 'customers'], ['Vendor', 'vendorId', 'vendors'], ['Product', 'productId', 'products']];
+      const selected = labels.map(([label, field, options]) => label + ': ' + (report.filters[options].find(option => option.id === report.appliedFilters[field])?.name || (report.appliedFilters[field] ? report.appliedFilters[field] : 'All'))).join(' | ');
+      const filterLines = doc.splitTextToSize(selected, 180);
+      doc.text(filterLines, 14, 39);
+      const notes = doc.splitTextToSize(section.scope, 180);
+      const noteY = 43 + filterLines.length * 4;
+      doc.text(notes, 14, noteY);
+      autoTable(doc, {
+        startY: noteY + notes.length * 4 + 5,
+        head: [['Metric', 'Value', 'Unit']],
+        body: section.metrics.map(metric => [metric.label, metric.value == null ? 'Not recorded' : Number(metric.value).toLocaleString('en-IN', { maximumFractionDigits: 2 }), metric.value == null ? '' : metric.unit]),
+        styles: { fontSize: 9, cellPadding: 3 }, headStyles: { fillColor: [37, 99, 235] },
+      });
+      saveBlob(doc.output('blob'), key + '-report-' + report.period.startDate + '-to-' + report.period.endDate + '.pdf');
+    } catch (error) {
+      setExportError(error.message || 'Unable to generate the PDF report.');
+    } finally { setExporting(false); }
   };
 
   const handleFilterChange = (field, value) => {
-    setFilters(prev => ({ ...prev, [field]: value }));
+    setFilters(prev => ({ ...prev, [field]: value, ...(field === 'rangePreset' && value !== 'CUSTOM' ? { startDate: '', endDate: '' } : {}) }));
   };
 
   const clearFilters = () => {
@@ -170,13 +162,8 @@ export default function BusinessReportsPage() {
     });
   };
 
-  const filterOptions = report?.filters || {};
+  const filterOptions = availableFilters;
   const period = report?.period || {};
-  const isDeptMatch = (deptName) => {
-    if (!filters.department || filters.department === '' || filters.department === 'All') return true;
-    return deptName.toLowerCase().includes(filters.department.toLowerCase()) || filters.department.toLowerCase().includes(deptName.toLowerCase());
-  };
-
   return (
     <div className="super-dashboard business-reports-wrapper">
       <style>{`
@@ -273,7 +260,7 @@ export default function BusinessReportsPage() {
           min-width: 0;
           overflow: hidden;
           text-overflow: ellipsis;
-          white-space: nowrap;
+          white-space: normal;
         }
         .business-reports-metric-value {
           font-weight: 750;
@@ -364,11 +351,11 @@ export default function BusinessReportsPage() {
             <div className="dashboard-heading-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <h1 className="business-reports-heading-title">Centralized Business Reports</h1>
               <span className="dashboard-badge badge-info" style={{ background: '#dbeafe', color: '#1e40af', fontWeight: 600, padding: '3px 8px', borderRadius: '16px', fontSize: '11px' }}>
-                Real-Time 8-Dept Telemetry
+                8-Department Database Report
               </span>
             </div>
             <p style={{ margin: '3px 0 0', color: '#64748b', fontSize: '12px' }}>
-              Live consolidated analytics across Sales · Production · Plant · Store · QC · Dispatch · Finance · HR
+              Consolidated records across Sales · Production · Plant · Store · QC · Dispatch · Finance · HR
             </p>
           </div>
         </div>
@@ -391,7 +378,7 @@ export default function BusinessReportsPage() {
 
           <button
             onClick={downloadCsv}
-            disabled={loading || exporting}
+            disabled={loading || exporting || !report}
             className="btn btn-primary"
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 14px', borderRadius: '8px', background: '#2563eb', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 4px rgba(37,99,235,0.2)', fontSize: '13px' }}
           >
@@ -563,309 +550,27 @@ export default function BusinessReportsPage() {
         </div>
       )}
 
-      {/* Main 8-Department Report Cards Grid */}
+      {exportError && <p role="alert" style={{ color: '#b91c1c' }}>{exportError}</p>}
       {!loading && !error && report && (
-        <div className="business-reports-grid">
-          
-          {/* 1. Sales & CRM */}
-          {isDeptMatch('Sales & CRM') && (
-            <div className="business-reports-dept-card">
-              <div className="business-reports-dept-header">
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#2563eb', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Lucide.TrendingUp size={18} /> Sales & CRM Performance
-                </h3>
-                <span style={{ fontSize: '11px', color: report.sales?.totalOrdersChangePercent >= 0 ? '#16a34a' : '#dc2626', fontWeight: 700 }}>
-                  {report.sales?.totalOrdersChangePercent >= 0 ? '↑' : '↓'} {Math.abs(report.sales?.totalOrdersChangePercent || 0)}% vs Prior
-                </span>
-              </div>
-              <div className="business-reports-metric-list">
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Total Confirmed Orders</span>
-                  <span className="business-reports-metric-value" style={{ color: '#1e293b' }}>{report.sales?.totalOrders ?? 0} Orders</span>
+        <>
+          <p style={{ color: '#64748b', fontSize: 13 }}>Commercial filters apply where records have those links. Vendor narrows procurement only; HR remains company-wide. Each card describes its date and filter scope. Missing measurements are shown as Not recorded.</p>
+          <div className="business-reports-grid">
+            {report.sections.map(section => (
+              <section className="business-reports-dept-card" key={section.key} aria-label={section.title}>
+                <div className="business-reports-dept-header">
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 750, color: '#2563eb' }}>{section.title}</h3>
                 </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Gross Revenue Collected</span>
-                  <span className="business-reports-metric-value" style={{ color: '#16a34a' }}>{formatCurrencyCompact(report.sales?.revenueCollected)}</span>
+                <div className="business-reports-metric-list">
+                  {section.metrics.map(metric => <div className="business-reports-metric-row" key={metric.key}>
+                    <span className="business-reports-metric-label" title={metric.label}>{metric.label}</span>
+                    <span className="business-reports-metric-value">{formatMetric(metric)}</span>
+                  </div>)}
                 </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Leads in Funnel</span>
-                  <span className="business-reports-metric-value" style={{ color: '#1e293b' }}>{report.sales?.leadsInFunnel ?? 0} Leads</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Active Quotations</span>
-                  <span className="business-reports-metric-value" style={{ color: '#2563eb' }}>{report.sales?.activeQuotations ?? 0} Quotes</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Samples Pending</span>
-                  <span className="business-reports-metric-value" style={{ color: '#d97706' }}>{report.sales?.samplesPending ?? 0} Samples</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Orders Closed / Dispatched</span>
-                  <span className="business-reports-metric-value" style={{ color: '#9333ea' }}>{report.sales?.ordersClosedOrDispatched ?? 0} Orders</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 2. Production Floor */}
-          {isDeptMatch('Production Floor') && (
-            <div className="business-reports-dept-card">
-              <div className="business-reports-dept-header">
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#d97706', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Lucide.Factory size={18} /> Production Floor Telemetry
-                </h3>
-                <span style={{ fontSize: '11px', color: '#475569', fontWeight: 700 }}>Yield: {formatPercent(report.production?.shopFloorYield)}</span>
-              </div>
-              <div className="business-reports-metric-list">
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Work Orders Released</span>
-                  <span className="business-reports-metric-value" style={{ color: '#1e293b' }}>{report.production?.workOrdersReleased ?? 0} Batches</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Currently Running</span>
-                  <span className="business-reports-metric-value" style={{ color: '#2563eb' }}>{report.production?.currentlyRunning ?? 0} Active</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Batches Completed</span>
-                  <span className="business-reports-metric-value" style={{ color: '#16a34a' }}>{report.production?.batchesCompleted ?? 0} Completed</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">QC Failures / Rework</span>
-                  <span className="business-reports-metric-value" style={{ color: '#dc2626' }}>{report.production?.qcFailuresOrRework ?? 0} Batches</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Avg. Batch Delay</span>
-                  <span className="business-reports-metric-value" style={{ color: report.production?.avgBatchDelayDays > 0 ? '#dc2626' : '#16a34a' }}>{report.production?.avgBatchDelayDays ?? 0} Days</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Shop Floor Yield</span>
-                  <span className="business-reports-metric-value" style={{ color: '#16a34a' }}>{formatPercent(report.production?.shopFloorYield)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 3. Plant Head Approvals */}
-          {isDeptMatch('Plant Head') && (
-            <div className="business-reports-dept-card">
-              <div className="business-reports-dept-header">
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#4338ca', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Lucide.ShieldCheck size={18} /> Plant Head Approvals
-                </h3>
-                <span style={{ fontSize: '11px', color: '#475569', fontWeight: 700 }}>Adherence: {formatPercent(report.plantHead?.scheduleAdherence)}</span>
-              </div>
-              <div className="business-reports-metric-list">
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Material Requests Pending</span>
-                  <span className="business-reports-metric-value" style={{ color: '#d97706' }}>{report.plantHead?.materialRequestsPending ?? 0} Pending</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Material Requests Approved</span>
-                  <span className="business-reports-metric-value" style={{ color: '#16a34a' }}>{report.plantHead?.materialRequestsApproved ?? 0} Approved</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">PO Approvals Pending</span>
-                  <span className="business-reports-metric-value" style={{ color: '#d97706' }}>{report.plantHead?.poApprovalsPending ?? 0} POs</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Total Clearances Issued</span>
-                  <span className="business-reports-metric-value" style={{ color: '#4338ca' }}>{report.plantHead?.totalClearancesIssued ?? 0} Issued</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Schedule Adherence</span>
-                  <span className="business-reports-metric-value" style={{ color: '#16a34a' }}>{formatPercent(report.plantHead?.scheduleAdherence)}</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Avg. Approval TAT</span>
-                  <span className="business-reports-metric-value" style={{ color: '#1e293b' }}>{report.plantHead?.avgApprovalTatDays ?? 0} Days</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 4. Store Inventory */}
-          {isDeptMatch('Store / Procurement') && (
-            <div className="business-reports-dept-card">
-              <div className="business-reports-dept-header">
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#059669', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Lucide.Boxes size={18} /> Store Raw Inventory
-                </h3>
-                <span style={{ fontSize: '11px', color: '#059669', fontWeight: 700 }}>Reconciled</span>
-              </div>
-              <div className="business-reports-metric-list">
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Total Raw Stock Items</span>
-                  <span className="business-reports-metric-value" style={{ color: '#1e293b' }}>{report.store?.totalRawStockItems ?? 0} Materials</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Raw Inventory Valuation</span>
-                  <span className="business-reports-metric-value" style={{ color: '#059669' }}>{formatCurrencyCompact(report.store?.rawInventoryValue)}</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Low Stock Alerts</span>
-                  <span className="business-reports-metric-value" style={{ color: report.store?.lowStockAlerts > 0 ? '#dc2626' : '#16a34a' }}>{report.store?.lowStockAlerts ?? 0} Items</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">PO Requests Raised</span>
-                  <span className="business-reports-metric-value" style={{ color: '#2563eb' }}>{report.store?.poRequestsRaised ?? 0} Requests</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Material Issuances</span>
-                  <span className="business-reports-metric-value" style={{ color: '#9333ea' }}>{report.store?.materialIssuances ?? 0} Outflows</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 5. Quality Control (QC) */}
-          {isDeptMatch('Quality Control') && (
-            <div className="business-reports-dept-card">
-              <div className="business-reports-dept-header">
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Lucide.FlaskConical size={18} /> Quality Control (QC)
-                </h3>
-                <span style={{ fontSize: '11px', color: '#475569', fontWeight: 700 }}>Pass: {formatPercent(report.qc?.firstPassYield)}</span>
-              </div>
-              <div className="business-reports-metric-list">
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Total Samples Logged</span>
-                  <span className="business-reports-metric-value" style={{ color: '#1e293b' }}>{report.qc?.totalSamplesLogged ?? 0} Samples</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Approved / Passed</span>
-                  <span className="business-reports-metric-value" style={{ color: '#16a34a' }}>{report.qc?.approvedPassed ?? 0} Passed</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Rejected / Failed</span>
-                  <span className="business-reports-metric-value" style={{ color: '#dc2626' }}>{report.qc?.rejectedFailed ?? 0} Failed</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">First Pass Yield</span>
-                  <span className="business-reports-metric-value" style={{ color: '#16a34a' }}>{formatPercent(report.qc?.firstPassYield)}</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Defect Rate</span>
-                  <span className="business-reports-metric-value" style={{ color: report.qc?.defectRate > 5 ? '#dc2626' : '#16a34a' }}>{formatPercent(report.qc?.defectRate)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 6. Dispatch & Logistics */}
-          {isDeptMatch('Dispatch & Logistics') && (
-            <div className="business-reports-dept-card">
-              <div className="business-reports-dept-header">
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#0284c7', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Lucide.Truck size={18} /> Dispatch & Logistics
-                </h3>
-                <span style={{ fontSize: '11px', color: '#475569', fontWeight: 700 }}>On-Time: {formatPercent(report.dispatch?.onTimeDeliveryRate)}</span>
-              </div>
-              <div className="business-reports-metric-list">
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Shipments Dispatched</span>
-                  <span className="business-reports-metric-value" style={{ color: '#1e293b' }}>{report.dispatch?.shipmentsDispatched ?? 0} Shipments</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Currently In Transit</span>
-                  <span className="business-reports-metric-value" style={{ color: '#0284c7' }}>{report.dispatch?.currentlyInTransit ?? 0} Active</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Total Delivered Value</span>
-                  <span className="business-reports-metric-value" style={{ color: '#16a34a' }}>{formatCurrencyCompact(report.dispatch?.totalDeliveredValue)}</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Total Freight Cost</span>
-                  <span className="business-reports-metric-value" style={{ color: '#d97706' }}>{formatCurrencyCompact(report.dispatch?.totalFreightCost)}</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">On-Time Delivery Rate</span>
-                  <span className="business-reports-metric-value" style={{ color: '#16a34a' }}>{formatPercent(report.dispatch?.onTimeDeliveryRate)}</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">POD Confirmations</span>
-                  <span className="business-reports-metric-value" style={{ color: '#16a34a' }}>{report.dispatch?.podConfirmations ?? 0} Confirmed</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 7. Finance Receivables */}
-          {isDeptMatch('Finance & Accounts') && (
-            <div className="business-reports-dept-card">
-              <div className="business-reports-dept-header">
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#4338ca', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Lucide.Landmark size={18} /> Finance Receivables & Inflows
-                </h3>
-                <span style={{ fontSize: '11px', color: '#4338ca', fontWeight: 700 }}>Reconciled</span>
-              </div>
-              <div className="business-reports-metric-list">
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Revenue Collected</span>
-                  <span className="business-reports-metric-value" style={{ color: '#16a34a' }}>{formatCurrencyCompact(report.finance?.revenueCollected)}</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Outstanding Receivables</span>
-                  <span className="business-reports-metric-value" style={{ color: '#dc2626' }}>{formatCurrencyCompact(report.finance?.outstandingReceivables)}</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Advance Payments Held</span>
-                  <span className="business-reports-metric-value" style={{ color: '#2563eb' }}>{formatCurrencyCompact(report.finance?.advancePaymentsHeld)}</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Invoices Verified</span>
-                  <span className="business-reports-metric-value" style={{ color: '#16a34a' }}>{report.finance?.invoicesVerified ?? 0} Invoices</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Pending Verification</span>
-                  <span className="business-reports-metric-value" style={{ color: '#d97706' }}>{report.finance?.pendingVerification ?? 0} Pending</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Collection Efficiency</span>
-                  <span className="business-reports-metric-value" style={{ color: '#16a34a' }}>{formatPercent(report.finance?.collectionEfficiency)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 8. HR Workforce Summary */}
-          {isDeptMatch('HR & Payroll') && (
-            <div className="business-reports-dept-card">
-              <div className="business-reports-dept-header">
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Lucide.Users size={18} /> HR Workforce Summary
-                </h3>
-                <span style={{ fontSize: '11px', color: '#475569', fontWeight: 700 }}>Users: {report.hr?.erpSystemUsers ?? 0}</span>
-              </div>
-              <div className="business-reports-metric-list">
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Total Employees</span>
-                  <span className="business-reports-metric-value" style={{ color: '#1e293b' }}>{report.hr?.totalEmployees ?? 0} Staff</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Currently Active</span>
-                  <span className="business-reports-metric-value" style={{ color: '#16a34a' }}>{report.hr?.currentlyActive ?? 0} Active</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">On Leave</span>
-                  <span className="business-reports-metric-value" style={{ color: '#d97706' }}>{report.hr?.onLeave ?? 0} On Leave</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Active Departments</span>
-                  <span className="business-reports-metric-value" style={{ color: '#7c3aed' }}>{report.hr?.activeDepartments ?? 0} Depts</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">Monthly Payroll Outflow</span>
-                  <span className="business-reports-metric-value" style={{ color: '#1e293b' }}>{formatCurrencyCompact(report.hr?.monthlyPayrollOutflow)}</span>
-                </div>
-                <div className="business-reports-metric-row">
-                  <span className="business-reports-metric-label">ERP System Users</span>
-                  <span className="business-reports-metric-value" style={{ color: '#2563eb' }}>{report.hr?.erpSystemUsers ?? 0} Accounts</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-        </div>
+                <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: '#64748b' }}>{section.scope}</p>
+              </section>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Executive Document Export Center */}
@@ -874,13 +579,13 @@ export default function BusinessReportsPage() {
           <Lucide.Printer size={18} color="#2563eb" /> Executive Document Export Center
         </h3>
         <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '12.5px' }}>
-          Generate formatted PDF executive documentation using active company filters and live reporting metrics.
+          Export the displayed report snapshot, including its active filters, exact values and scope notes. Choose All Departments to enable all three PDF reports.
         </p>
 
         <div className="business-reports-export-grid">
           <button
             onClick={() => handleDocumentExport('sales')}
-            disabled={exporting}
+            disabled={exporting || loading || !report?.sections.some(section => section.key === 'sales')}
             style={{ padding: '12px 14px', borderRadius: '8px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
           >
             <Lucide.FileText size={16} /> Sales Performance PDF
@@ -888,7 +593,7 @@ export default function BusinessReportsPage() {
 
           <button
             onClick={() => handleDocumentExport('finance')}
-            disabled={exporting}
+            disabled={exporting || loading || !report?.sections.some(section => section.key === 'finance')}
             style={{ padding: '12px 14px', borderRadius: '8px', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
           >
             <Lucide.Landmark size={16} /> Finance & Inflows PDF
@@ -896,7 +601,7 @@ export default function BusinessReportsPage() {
 
           <button
             onClick={() => handleDocumentExport('inventory')}
-            disabled={exporting}
+            disabled={exporting || loading || !report?.sections.some(section => section.key === 'store')}
             style={{ padding: '12px 14px', borderRadius: '8px', background: '#faf5ff', border: '1px solid #e9d5ff', color: '#6b21a8', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
           >
             <Lucide.Boxes size={16} /> Stock Levels & Store PDF
