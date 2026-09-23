@@ -6,6 +6,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Patch,
   Delete,
   Param,
@@ -202,6 +203,58 @@ export class InventoryController {
   @Delete('raw-materials/clear-all')
   clearAllRawMaterials(@CurrentUser() user: any) {
     return this.inventoryService.clearAllRawMaterials(user.companyId);
+  }
+
+  @RequirePermissions(
+    'inventory.inventory.read',
+    'store.inventory.read',
+    'store.read',
+    'store.view',
+    'store.materials.read',
+    'store.rawinventory.read',
+    'planthead.read',
+    'plant-head.read',
+  )
+  @Get('raw-materials')
+  getRawMaterials(@CurrentUser() user: any) {
+    return this.inventoryService.getRawMaterialSnapshot(user.companyId);
+  }
+
+  @RequirePermissions(
+    'inventory.inventory.create',
+    'inventory.create',
+    'store.inventory.create',
+    'store.create',
+    'store.materials.create',
+    'admin.products.create',
+    'products.create',
+    'planthead.create',
+    'plant-head.create',
+  )
+  @Post('raw-materials')
+  createRawMaterial(@CurrentUser() user: any, @Body() body: any) {
+    return this.inventoryService.createRawMaterial(user.companyId, body);
+  }
+
+  @RequirePermissions(
+    'inventory.inventory.update',
+    'inventory.update',
+    'store.inventory.update',
+    'store.update',
+    'store.materials.update',
+    'admin.products.update',
+    'products.update',
+    'planthead.update',
+    'plant-head.update',
+  )
+  @Put('raw-materials/:id')
+  @Patch('raw-materials/:id')
+  updateRawMaterial(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.inventoryService.updateRawMaterial(user.companyId, id, body);
   }
 
   @RequirePermissions(

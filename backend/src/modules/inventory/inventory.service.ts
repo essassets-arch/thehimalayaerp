@@ -1,4 +1,5 @@
 import { loadRawInventory } from './raw-material-read-model';
+import * as crypto from 'crypto';
 import {
   Injectable,
   NotFoundException,
@@ -2195,5 +2196,141 @@ export class InventoryService {
     });
 
     return { success: true, message: 'All raw materials and inventory data have been cleared successfully.' };
+  }
+
+  async createRawMaterial(companyId: string, data: any) {
+    const name = data.name || data.material || 'Unnamed Item';
+    const sku = data.sku || data.code || null;
+    const category = data.category || 'Raw Material';
+    const unit = data.unit || 'PCS';
+    const minimumStock = Number(data.minimumStock ?? data.reorderLevel ?? 0);
+    const unitPrice = Number(data.unitPrice ?? data.rate ?? 0);
+    const storageLocation = data.storageLocation || data.storage_location || data.description || null;
+    const randomId = crypto.randomBytes(5).toString('hex');
+
+    let rm: any = null;
+    if (sku) {
+      rm = await this.prisma.rawMaterial.findFirst({
+        where: { companyId, sku },
+      });
+    }
+
+    if (!rm) {
+      rm = await this.prisma.rawMaterial.create({
+        data: {
+          publicId: `RM-${randomId}`,
+          companyId,
+          name,
+          sku,
+          category,
+          unit,
+          minimumStock,
+          storageLocation,
+          isActive: true,
+        },
+      });
+    }
+
+    // Mirror Product
+    try {
+      const existingProd = sku
+        ? await this.prisma.product.findFirst({
+            where: { companyId, sku },
+          })
+        : null;
+
+      if (!existingProd) {
+        await this.prisma.product.create({
+          data: {
+            publicId: `PRD-${randomId}`,
+            companyId,
+            name,
+            sku,
+            description: data.description || storageLocation || null,
+            category,
+            productType: 'RAW_MATERIAL',
+            brand: 'HIMALAYA',
+            unit,
+            unitPrice,
+            minimumStock,
+            isActive: true,
+          },
+        });
+      }
+    } catch (err: any) {
+      console.warn('[InventoryService.createRawMaterial] Mirror product error:', err?.message);
+    }
+
+    return rm;
+  }
+
+  async updateRawMaterial(companyId: string, id: string, data: any) {
+    const targetName = data.name || data.material;
+    const targetSku = data.sku || data.code;
+    const targetCategory = data.category;
+    const targetUnit = data.unit;
+    const targetMinStock = data.minimumStock !== undefined ? Number(data.minimumStock) : data.reorderLevel !== undefined ? Number(data.reorderLevel) : undefined;
+    const targetRate = data.rate !== undefined ? Number(data.rate) : data.unitPrice !== undefined ? Number(data.unitPrice) : undefined;
+    const targetStorageLoc = data.storageLocation || data.storage_location || data.description;
+
+    const rm = await this.prisma.rawMaterial.findFirst({
+      where: {
+        OR: [
+          { id },
+          { publicId: id },
+          ...(targetSku ? [{ sku: targetSku }] : []),
+        ],
+      },
+    });
+
+    let updatedRm: any = null;
+    if (rm) {
+      const updatePayload: any = {};
+      if (targetName) updatePayload.name = targetName;
+      if (targetSku) updatePayload.sku = targetSku;
+      if (targetCategory) updatePayload.category = targetCategory;
+      if (targetUnit) updatePayload.unit = targetUnit;
+      if (targetMinStock !== undefined) updatePayload.minimumStock = targetMinStock;
+      if (targetStorageLoc !== undefined) updatePayload.storageLocation = targetStorageLoc;
+
+      updatedRm = await this.prisma.rawMaterial.update({
+        where: { id: rm.id },
+        data: updatePayload,
+      });
+    }
+
+    const prod = await this.prisma.product.findFirst({
+      where: {
+        OR: [
+          { id },
+          { publicId: id },
+          ...(targetSku ? [{ sku: targetSku }] : []),
+          ...(rm?.sku ? [{ sku: rm.sku }] : []),
+        ],
+      },
+    });
+
+    let updatedProd: any = null;
+    if (prod) {
+      const prodPayload: any = {};
+      if (targetName) prodPayload.name = targetName;
+      if (targetSku) prodPayload.sku = targetSku;
+      if (targetCategory) prodPayload.category = targetCategory;
+      if (targetUnit) prodPayload.unit = targetUnit;
+      if (targetMinStock !== undefined) prodPayload.minimumStock = targetMinStock;
+      if (targetRate !== undefined) prodPayload.unitPrice = targetRate;
+      if (data.description !== undefined) prodPayload.description = data.description;
+
+      updatedProd = await this.prisma.product.update({
+        where: { id: prod.id },
+        data: prodPayload,
+      });
+    }
+
+    if (!rm && !prod) {
+      throw new NotFoundException(`Raw material with ID ${id} not found.`);
+    }
+
+    return updatedRm || updatedProd;
   }
 }

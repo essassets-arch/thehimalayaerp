@@ -38,22 +38,63 @@ export class ProductsService {
 
     if (isRawMaterial) {
       const randomId = crypto.randomBytes(5).toString('hex');
-      return this.prisma.rawMaterial.create({
-        data: {
-          publicId: `RM-${randomId}`,
-          companyId,
-          name,
-          sku,
-          category,
-          unit,
-          minimumStock: dto.minimumStock || 0,
-          storageLocation:
-            dto.storageLocation ||
-            dto.storage_location ||
-            dto.description ||
-            null,
-        },
-      });
+      let rm: any = null;
+      if (sku) {
+        rm = await this.prisma.rawMaterial.findFirst({
+          where: { companyId, sku },
+        });
+      }
+      if (!rm) {
+        rm = await this.prisma.rawMaterial.create({
+          data: {
+            publicId: `RM-${randomId}`,
+            companyId,
+            name,
+            sku,
+            category: category || 'Raw Material',
+            unit,
+            minimumStock: dto.minimumStock || 0,
+            storageLocation:
+              dto.storageLocation ||
+              dto.storage_location ||
+              dto.description ||
+              null,
+            isActive: true,
+          },
+        });
+      }
+
+      // Also create/sync mirror Product record so POs, Indents, and Transactions referencing Product work seamlessly
+      try {
+        const existingProd = sku
+          ? await this.prisma.product.findFirst({
+              where: { companyId, sku },
+            })
+          : null;
+
+        if (!existingProd) {
+          await this.prisma.product.create({
+            data: {
+              publicId: `PRD-${randomId}`,
+              companyId,
+              name,
+              sku,
+              description: dto.description || dto.storageLocation || dto.storage_location || null,
+              category: category || 'Raw Material',
+              productType: 'RAW_MATERIAL',
+              brand: dto.brand || 'HIMALAYA',
+              unit,
+              unitPrice: dto.unitPrice || 0,
+              minimumStock: dto.minimumStock || 0,
+              isActive: true,
+            },
+          });
+        }
+      } catch (err: any) {
+        console.warn('[ProductsService.create] Mirror Product create warning:', err?.message);
+      }
+
+      return rm;
     }
 
     if (sku) {
@@ -397,19 +438,70 @@ export class ProductsService {
   async update(companyId: string, id: string, dto: UpdateProductDto) {
     const existing = await this.findOne(companyId, id);
 
-    if (existing.productType === 'RAW_MATERIAL') {
-      return this.prisma.rawMaterial.update({
-        where: { id: existing.id },
-        data: {
-          name: dto.name || dto.product_name,
-          sku: dto.sku || dto.product_code,
-          category: dto.category || dto.product_family,
-          unit: dto.unit || dto.unit_of_measure,
-          minimumStock: dto.minimumStock,
-          storageLocation:
-            dto.storageLocation || dto.storage_location || dto.description,
+    if (existing.productType === 'RAW_MATERIAL' || (existing as any).category === 'Raw Material') {
+      const targetName = dto.name || dto.product_name || existing.name;
+      const targetSku = dto.sku || dto.product_code || existing.sku;
+      const targetCategory = dto.category || dto.product_family || (existing as any).category || 'Raw Material';
+      const targetUnit = dto.unit || dto.unit_of_measure || existing.unit;
+      const targetMinStock = dto.minimumStock !== undefined ? dto.minimumStock : (existing as any).minimumStock;
+      const targetStorageLoc = dto.storageLocation || dto.storage_location || dto.description || (existing as any).storageLocation;
+
+      // 1. Find RawMaterial record (by id, publicId, or sku)
+      const rm = await this.prisma.rawMaterial.findFirst({
+        where: {
+          companyId,
+          OR: [
+            { id: existing.id },
+            { publicId: existing.id },
+            ...(existing.sku ? [{ sku: existing.sku }] : []),
+          ],
         },
       });
+
+      let updatedRm: any = null;
+      if (rm) {
+        updatedRm = await this.prisma.rawMaterial.update({
+          where: { id: rm.id },
+          data: {
+            name: targetName,
+            sku: targetSku,
+            category: targetCategory,
+            unit: targetUnit,
+            minimumStock: targetMinStock,
+            storageLocation: targetStorageLoc,
+          },
+        });
+      }
+
+      // 2. Find Product record (by id, publicId, or sku)
+      const prod = await this.prisma.product.findFirst({
+        where: {
+          companyId,
+          OR: [
+            { id: existing.id },
+            { publicId: existing.id },
+            ...(existing.sku ? [{ sku: existing.sku }] : []),
+            ...(rm?.sku ? [{ sku: rm.sku }] : []),
+          ],
+        },
+      });
+
+      if (prod) {
+        await this.prisma.product.update({
+          where: { id: prod.id },
+          data: {
+            name: targetName,
+            sku: targetSku,
+            category: targetCategory,
+            unit: targetUnit,
+            minimumStock: targetMinStock,
+            unitPrice: dto.unitPrice !== undefined ? dto.unitPrice : prod.unitPrice,
+            description: dto.description !== undefined ? dto.description : prod.description,
+          },
+        });
+      }
+
+      return updatedRm || prod || existing;
     }
 
     const updateData: any = {};

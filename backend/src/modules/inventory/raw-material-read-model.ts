@@ -50,13 +50,22 @@ export async function loadRawMaterialCatalog(db: Database, companyId: string) {
     aliases: [rm?.id, product?.id].filter((id): id is string => !!id),
   });
   const materials = raw.map(rm => {
-    // A shared SKU and unit identify the legacy Product mirror. Names alone do not.
-    const product = products.find(p => !used.has(p.id) && key(rm.sku) && key(p.sku) === key(rm.sku) && materialUnit(p.unit) === materialUnit(rm.unit));
+    // Match mirror product by SKU (or by Name if SKU is absent)
+    const product = products.find(p =>
+      !used.has(p.id) &&
+      (
+        (key(rm.sku) && key(p.sku) === key(rm.sku)) ||
+        (!key(rm.sku) && key(p.name) === key(rm.name))
+      ) &&
+      materialUnit(p.unit) === materialUnit(rm.unit)
+    );
     if (product) used.add(product.id);
     return make(rm, product);
   });
-  if (raw.length === 0) {
-    for (const product of products) if (!used.has(product.id)) materials.push(make(null, product));
+  for (const product of products) {
+    if (!used.has(product.id)) {
+      materials.push(make(null, product));
+    }
   }
   return materials.sort((a, b) => (a.sku || a.name).localeCompare(b.sku || b.name));
 }
