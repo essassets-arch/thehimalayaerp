@@ -113,7 +113,7 @@ export class EmployeeQueryDto {
   @IsInt()
   @Min(1)
   @Max(1000)
-  pageSize?: number = 20;
+  pageSize?: number;
 
   @IsOptional()
   @Type(() => Number)

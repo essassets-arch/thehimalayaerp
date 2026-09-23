@@ -26,18 +26,22 @@ export default function DataTable({
     if (!searchQuery) return true;
     if (!searchField) return true;
     
-    const fields = searchField.split('.');
-    let targetValue = item;
-    for (const field of fields) {
-      if (targetValue && targetValue[field] !== undefined) {
-        targetValue = targetValue[field];
-      } else {
-        targetValue = '';
+    const searchTerms = searchQuery.toLowerCase().trim();
+    const fieldList = searchField.split(',').map(s => s.trim()).filter(Boolean);
+    
+    return fieldList.some(fieldPath => {
+      const fields = fieldPath.split('.');
+      let targetValue = item;
+      for (const field of fields) {
+        if (targetValue && targetValue[field] !== undefined) {
+          targetValue = targetValue[field];
+        } else {
+          targetValue = '';
+        }
       }
-    }
-
-    const strVal = formatCellValue(targetValue);
-    return String(strVal).toLowerCase().includes(searchQuery.toLowerCase());
+      const strVal = formatCellValue(targetValue);
+      return String(strVal).toLowerCase().includes(searchTerms);
+    });
   });
 
   return (

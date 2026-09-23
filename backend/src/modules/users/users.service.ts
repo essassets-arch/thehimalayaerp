@@ -326,6 +326,76 @@ export class UsersService {
         where: { id: employeeToLink.id },
         data: { userId: user.id, workEmail: email },
       });
+    } else {
+      try {
+        const rows = await this.prisma.employee.findMany({
+          where: { companyId },
+          select: { employeeCode: true },
+        });
+        const highest = rows.reduce((max, { employeeCode }) => {
+          const trimmed = (employeeCode || '').trim();
+          const match = trimmed.match(/^EMP-(\d+)$/i) || trimmed.match(/^(\d+)$/);
+          return match ? Math.max(max, Number.parseInt(match[1], 10)) : max;
+        }, 0);
+        const nextEmpCode = `EMP-${highest + 1}`;
+
+        const names = (name || 'Staff Member').trim().split(/\s+/);
+        const firstName = names[0] || 'Staff';
+        const lastName = names.slice(1).join(' ') || 'Member';
+
+        let dept = await this.prisma.department.findFirst({
+          where: {
+            companyId,
+            name: { contains: data.department || role.name, mode: 'insensitive' },
+          },
+        });
+        if (!dept) {
+          dept = await this.prisma.department.findFirst({ where: { companyId } });
+        }
+        let loc = await this.prisma.workLocation.findFirst({ where: { companyId } });
+
+        if (dept && loc) {
+          employeeToLink = await this.prisma.employee.create({
+            data: {
+              publicId: nextEmpCode,
+              companyId,
+              userId: user.id,
+              employeeCode: nextEmpCode,
+              firstName,
+              lastName,
+              fullName: name,
+              dateOfBirth: new Date('1995-01-01'),
+              gender: 'OTHER',
+              jobTitle: role.name || 'Staff Member',
+              departmentId: dept.id,
+              workLocationId: loc.id,
+              employmentType: 'PERMANENT',
+              joiningDate: new Date(),
+              status: 'ACTIVE',
+              workEmail: email,
+              phoneNumber: data.phoneNumber || '9876543210',
+              residentialAddress: 'Ahmedabad',
+              emergencyContactName: 'HR Office',
+              emergencyContactPhone: '9876543210',
+              emergencyRelationship: 'Employer',
+              panNumber: `PANAUTO${Math.floor(1000 + Math.random() * 9000)}${highest + 1}`.slice(0, 10).toUpperCase(),
+              aadhaarNumberEncrypted: 'enc-auto',
+              aadhaarLastFour: '1234',
+              aadhaarHash: `hash-auto-${user.id}`,
+              bankName: 'State Bank of India',
+              accountHolderName: name,
+              bankAccountType: 'SAVINGS',
+              bankAccountEncrypted: 'enc-auto',
+              bankAccountLastFour: '1234',
+              bankAccountHash: `bhash-auto-${user.id}`,
+              ifscCode: 'SBIN0001234',
+              baseSalary: 0,
+            },
+          });
+        }
+      } catch (err: any) {
+        console.warn('Auto-create employee for user warning:', err?.message);
+      }
     }
 
     KNOWN_USER_PASSWORDS[email.toLowerCase()] = data.password || 'admin123';

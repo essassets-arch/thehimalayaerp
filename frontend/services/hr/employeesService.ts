@@ -22,10 +22,18 @@ const generateUUID = () => {
 };
 
 export const employeesService = {
-  listEmployees: (params: Record<string, unknown> = {}) =>
-    backendFetch<EmployeeListResponse>(`${base}?${query(params)}`, { cacheTtlMs: 0 }),
-  getPayrollOverview: (params: Record<string, unknown> = {}) =>
-    backendFetch<any[]>(`${base}/payroll-overview?${query(params)}`, { cacheTtlMs: 0 }),
+  listEmployees: (params: Record<string, unknown> = {}) => {
+    const p: Record<string, unknown> = { pageSize: 1000, limit: 1000, ...params };
+    if (params.limit && !params.pageSize) p.pageSize = params.limit;
+    if (params.pageSize && !params.limit) p.limit = params.pageSize;
+    return backendFetch<EmployeeListResponse>(`${base}?${query(p)}`, { cacheTtlMs: 0 });
+  },
+  getPayrollOverview: (params: Record<string, unknown> = {}) => {
+    const p: Record<string, unknown> = { pageSize: 1000, limit: 1000, ...params };
+    if (params.limit && !params.pageSize) p.pageSize = params.limit;
+    if (params.pageSize && !params.limit) p.limit = params.pageSize;
+    return backendFetch<any[]>(`${base}/payroll-overview?${query(p)}`, { cacheTtlMs: 0 });
+  },
   getEmployee: (id: string) => backendFetch<any>(`${base}/${id}`, { cacheTtlMs: 0 }),
   createEmployee: (formData: FormData, idempotencyKey = generateUUID()) =>
     backendFetch<any>(base, { method: 'POST', body: formData, idempotencyKey }),

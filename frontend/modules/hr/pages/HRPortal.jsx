@@ -67,7 +67,7 @@ export default function HRPortal() {
 
   const loadEmployees = async () => {
     try {
-      const res = await employeesService.listEmployees({ page: 1, limit: 1000 });
+      const res = await employeesService.listEmployees({ page: 1, pageSize: 1000, limit: 1000 });
       if (res && res.items) {
         setDbEmployees(res.items);
       }
@@ -109,22 +109,65 @@ export default function HRPortal() {
   const loadDirectory = async () => {
     try {
       const today = new Date();
-      const [listRes, payrollOverviewRes] = await Promise.allSettled([
-        employeesService.listEmployees({ page: 1, limit: 1000, search: globalSearch }),
-        employeesService.getPayrollOverview({ month: today.getMonth() + 1, year: today.getFullYear(), search: globalSearch })
+      const [listRes, payrollOverviewRes, usersRes] = await Promise.allSettled([
+        employeesService.listEmployees({ page: 1, pageSize: 1000, limit: 1000, search: globalSearch }),
+        employeesService.getPayrollOverview({ month: today.getMonth() + 1, year: today.getFullYear(), search: globalSearch }),
+        apiClient.get('/admin/users')
       ]);
 
       const allEmps = listRes.status === 'fulfilled' && listRes.value?.items ? listRes.value.items : [];
       const payrollData = payrollOverviewRes.status === 'fulfilled' && Array.isArray(payrollOverviewRes.value) ? payrollOverviewRes.value : [];
+      const adminUsers = usersRes.status === 'fulfilled' ? (usersRes.value?.data?.data || usersRes.value?.data || []) : [];
 
-      if (allEmps.length > 0) {
-        const merged = allEmps.map(emp => {
-          const overview = payrollData.find(p => p.id === emp.id || p.employeeCode === emp.employeeCode);
-          return {
-            ...emp,
-            payroll: overview?.payroll || emp.payroll || null
-          };
-        });
+      const merged = allEmps.map(emp => {
+        const overview = payrollData.find(p => p.id === emp.id || p.employeeCode === emp.employeeCode);
+        return {
+          ...emp,
+          fullName: emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.name,
+          payroll: overview?.payroll || emp.payroll || null
+        };
+      });
+
+      // Merge in any users from corporate users that may not have an employee profile yet
+      if (Array.isArray(adminUsers) && adminUsers.length > 0) {
+        const existingCodes = new Set(merged.map(e => (e.employeeCode || '').toLowerCase().trim()));
+        const existingEmails = new Set(merged.map(e => (e.workEmail || '').toLowerCase().trim()));
+        const existingIds = new Set(merged.map(e => (e.id || '').toLowerCase().trim()));
+        const existingUserIds = new Set(merged.map(e => (e.userId || '').toLowerCase().trim()));
+
+        for (const u of adminUsers) {
+          const uCode = (u.employeeCode || u.publicId || '').toLowerCase().trim();
+          const uEmail = (u.email || '').toLowerCase().trim();
+          const uEmpId = (u.employeeId || '').toLowerCase().trim();
+          const uId = (u.id || '').toLowerCase().trim();
+
+          const alreadyInList = 
+            (uCode && existingCodes.has(uCode)) ||
+            (uEmail && existingEmails.has(uEmail)) ||
+            (uEmpId && existingIds.has(uEmpId)) ||
+            (uId && existingUserIds.has(uId)) ||
+            (uId && existingIds.has(uId));
+
+          if (!alreadyInList) {
+            merged.push({
+              id: u.employeeId || u.id,
+              userId: u.id,
+              employeeCode: u.employeeCode || u.publicId || `USR-${u.id.slice(0, 4)}`,
+              fullName: u.name || 'Staff Member',
+              firstName: (u.name || '').split(' ')[0] || 'Staff',
+              lastName: (u.name || '').split(' ').slice(1).join(' ') || '',
+              workEmail: u.email || '',
+              department: typeof u.department === 'string' ? { name: u.department } : (u.department || { name: 'Operations' }),
+              jobTitle: u.role || 'Staff Member',
+              status: u.isActive || u.status === 'Active' ? 'ACTIVE' : 'INACTIVE',
+              baseSalary: u.baseSalary || 0,
+              payroll: null
+            });
+          }
+        }
+      }
+
+      if (merged.length > 0) {
         setDirectoryEmployees(merged);
       } else if (payrollData.length > 0) {
         setDirectoryEmployees(payrollData);
@@ -364,8 +407,11 @@ export default function HRPortal() {
 
     const rawStaffData = directoryEmployees.length > 0 ? directoryEmployees : dbEmployees;
     const parseEmpNum = (code) => {
-      const m = String(code || '').match(/(\d+)/);
-      return m ? parseInt(m[1], 10) : 999999;
+      const str = String(code || '').trim();
+      const match = str.match(/^EMP-(\d+)$/i);
+      if (match) return parseInt(match[1], 10);
+      const anyNum = str.match(/(\d+)/);
+      return anyNum ? 10000 + parseInt(anyNum[1], 10) : 999999;
     };
     const activeStaffData = [...rawStaffData].sort((a, b) => parseEmpNum(a.employeeCode) - parseEmpNum(b.employeeCode));
 
@@ -373,8 +419,21 @@ export default function HRPortal() {
       <div className="app-card">
         <div className="card-top-bar" style={{ flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <h2 className="card-heading">Corporate Staff Directory</h2>
-            <span style={{ fontSize: '11px', color: '#5E6B82' }}>Manage workforce records, payroll overview and staff profiles</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <h2 className="card-heading" style={{ margin: 0 }}>Corporate Staff Directory</h2>
+              <span style={{ 
+                background: '#E0F2FE', 
+                color: '#0369A1', 
+                fontSize: '12px', 
+                fontWeight: '700', 
+                padding: '2px 10px', 
+                borderRadius: '12px',
+                border: '1px solid #BAE6FD'
+              }}>
+                {activeStaffData.length} Staff Members
+              </span>
+            </div>
+            <span style={{ fontSize: '11px', color: '#5E6B82' }}>Manage workforce records, corporate user credentials, payroll overview and staff profiles</span>
           </div>
           <button 
             className="action-btn"
@@ -404,9 +463,23 @@ export default function HRPortal() {
                       {(row.fullName || row.name || 'E').charAt(0)}
                     </div>
                   )}
-                  <strong>{row.fullName || `${row.firstName || ''} ${row.lastName || ''}`.trim() || row.name || 'Staff Member'}</strong>
+                  <div>
+                    <strong>{row.fullName || `${row.firstName || ''} ${row.lastName || ''}`.trim() || row.name || 'Staff Member'}</strong>
+                    {row.workEmail && (
+                      <span style={{ display: 'block', fontSize: '11px', color: '#64748b' }}>{row.workEmail}</span>
+                    )}
+                  </div>
                 </div>
               )
+            },
+            { 
+              header: 'Role / Designation', 
+              accessor: 'jobTitle', 
+              render: (row) => (
+                <span style={{ fontWeight: '500', color: '#334155' }}>
+                  {row.jobTitle || row.role || row.designation || 'Staff Member'}
+                </span>
+              ) 
             },
             { header: 'Department', accessor: 'department', render: (row) => typeof row.department === 'object' ? (row.department?.name || 'Operations') : (row.department || 'Operations') },
             { 
@@ -431,7 +504,7 @@ export default function HRPortal() {
           ]}
           data={activeStaffData}
           searchQuery={globalSearch}
-          searchField="fullName"
+          searchField="fullName,employeeCode,workEmail,jobTitle"
           actions={(row) => (
             <div style={{ display: 'flex', gap: '8px' }}>
               <button 
