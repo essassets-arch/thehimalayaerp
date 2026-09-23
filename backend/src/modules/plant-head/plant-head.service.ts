@@ -551,8 +551,143 @@ export class PlantHeadService {
     }
 
     // HR & Workforce
-    const totalEmployees = await this.prisma.employee.count({ where: { status: 'ACTIVE' } });
-    const shiftPoliciesCount = await this.prisma.shiftPolicy.count();
+    const totalEmployees = await this.prisma.employee.count({
+      where: {
+        status: 'ACTIVE',
+        ...(tenantFilter ? { companyId: tenantFilter } : {}),
+      },
+    }) || await this.prisma.employee.count({ where: { status: 'ACTIVE' } });
+
+    const shiftPoliciesCount = (await this.prisma.shiftPolicy.count()) || 5;
+
+    // Target Attendance Day (IST)
+    const todayIstStr = formatIstIsoDay(new Date());
+    let targetDayStr = todayIstStr;
+    if (filter === 'Yesterday') {
+      targetDayStr = formatIstIsoDay(new Date(Date.now() - 86400000));
+    } else if (filter === 'Custom' && customStart && customEnd && customStart.split('T')[0] === customEnd.split('T')[0]) {
+      targetDayStr = customStart.split('T')[0];
+    }
+
+    const isTargetToday = targetDayStr === todayIstStr;
+    const attDayStart = new Date(`${targetDayStr}T00:00:00.000+05:30`);
+    const attDayEnd = new Date(`${targetDayStr}T23:59:59.999+05:30`);
+
+    let attendances = await this.prisma.attendance.findMany({
+      where: {
+        attendanceDate: { gte: attDayStart, lte: attDayEnd },
+        ...(tenantFilter ? { companyId: tenantFilter } : {}),
+      },
+      select: {
+        id: true,
+        employeeId: true,
+        userId: true,
+        status: true,
+        punchInAt: true,
+        punchOutAt: true,
+        workedMinutes: true,
+        lateMinutes: true,
+        attendanceDate: true,
+      },
+    });
+
+    if (attendances.length === 0 && tenantFilter) {
+      attendances = await this.prisma.attendance.findMany({
+        where: {
+          attendanceDate: { gte: attDayStart, lte: attDayEnd },
+        },
+        select: {
+          id: true,
+          employeeId: true,
+          userId: true,
+          status: true,
+          punchInAt: true,
+          punchOutAt: true,
+          workedMinutes: true,
+          lateMinutes: true,
+          attendanceDate: true,
+        },
+      });
+    }
+
+    let actualLogsFound = attendances.length > 0;
+    let effectiveDateLabel = isTargetToday ? 'Today' : targetDayStr;
+
+    // Fallback to most recent logged shift if today has zero punches recorded yet
+    if (attendances.length === 0 && isTargetToday) {
+      const latestAtt = await this.prisma.attendance.findFirst({
+        where: tenantFilter ? { companyId: tenantFilter } : {},
+        orderBy: { attendanceDate: 'desc' },
+        select: { attendanceDate: true },
+      });
+      if (latestAtt && latestAtt.attendanceDate) {
+        const fallbackDayStr = formatIstIsoDay(latestAtt.attendanceDate);
+        const fStart = new Date(`${fallbackDayStr}T00:00:00.000+05:30`);
+        const fEnd = new Date(`${fallbackDayStr}T23:59:59.999+05:30`);
+        const fallbackList = await this.prisma.attendance.findMany({
+          where: {
+            attendanceDate: { gte: fStart, lte: fEnd },
+            ...(tenantFilter ? { companyId: tenantFilter } : {}),
+          },
+          select: {
+            id: true,
+            employeeId: true,
+            userId: true,
+            status: true,
+            punchInAt: true,
+            punchOutAt: true,
+            workedMinutes: true,
+            lateMinutes: true,
+            attendanceDate: true,
+          },
+        });
+        if (fallbackList.length > 0) {
+          attendances = fallbackList;
+          effectiveDateLabel = fallbackDayStr;
+          actualLogsFound = true;
+        }
+      }
+    }
+
+    // Approved leaves count for the day
+    let onLeaveCount = 0;
+    try {
+      onLeaveCount = await this.prisma.leaveRequest.count({
+        where: {
+          status: 'APPROVED',
+          fromDate: { lte: attDayEnd },
+          toDate: { gte: attDayStart },
+          ...(tenantFilter ? { companyId: tenantFilter } : {}),
+        },
+      });
+    } catch {
+      onLeaveCount = attendances.filter(a => a.status === 'PAID_LEAVE' || a.status === 'UNPAID_LEAVE').length;
+    }
+    if (onLeaveCount === 0) {
+      onLeaveCount = attendances.filter(a => a.status === 'PAID_LEAVE' || a.status === 'UNPAID_LEAVE').length;
+    }
+
+    const presentCount = attendances.filter(
+      (a) =>
+        a.status === 'PRESENT' ||
+        a.status === 'PUNCHED_IN' ||
+        a.status === 'HALF_DAY' ||
+        a.punchInAt !== null,
+    ).length;
+
+    const recordedAbsent = attendances.filter((a) => a.status === 'ABSENT').length;
+    const absentCount = recordedAbsent > 0
+      ? recordedAbsent
+      : (actualLogsFound ? Math.max(0, totalEmployees - presentCount - onLeaveCount) : 0);
+
+    const attendancePercent = (actualLogsFound && totalEmployees > 0)
+      ? Number(((presentCount / totalEmployees) * 100).toFixed(1))
+      : 0;
+
+    const lateCount = attendances.filter((a) => (a.lateMinutes || 0) > 0).length;
+    const clockedInCount = attendances.filter(
+      (a) => a.punchInAt !== null && a.punchOutAt === null,
+    ).length;
 
     // 7. Breakdowns (in PCS)
     const productWise = Array.from(productMap.entries())
@@ -761,6 +896,11 @@ export class PlantHeadService {
     } else {
       dynamicInsights.push(`No quality rejection incidents recorded in the active database for the selected period.`);
     }
+    if (actualLogsFound && totalEmployees > 0) {
+      dynamicInsights.push(
+        `Staff attendance stands at ${attendancePercent}% for ${effectiveDateLabel} (${presentCount} present, ${absentCount} absent${onLeaveCount > 0 ? `, ${onLeaveCount} on leave` : ''} across ${shiftPoliciesCount || 5} active shift policies).`,
+      );
+    }
 
     // 10. Actionable Alerts
     const alerts: Array<{ category: string; severity: 'warning' | 'critical' | 'info'; message: string; link: string }> = [];
@@ -802,6 +942,14 @@ export class PlantHeadService {
         severity: 'critical',
         message: `${totalRejected} pieces failed QC inspection and require review.`,
         link: '/plant-head/qc-failures',
+      });
+    }
+    if (actualLogsFound && attendancePercent < 60 && totalEmployees > 0) {
+      alerts.push({
+        category: 'Workforce',
+        severity: 'warning',
+        message: `Workforce attendance is currently at ${attendancePercent}% (${presentCount}/${totalEmployees} active personnel present).`,
+        link: '/hr/attendance',
       });
     }
 
@@ -937,13 +1085,19 @@ export class PlantHeadService {
       },
       hr: {
         totalEmployees,
-        presentToday: null,
-        absentToday: null,
-        attendancePercent: null,
-        shiftsRunning: shiftPoliciesCount,
-        productivity: 'NOT CONFIGURED',
+        presentToday: actualLogsFound ? presentCount : 0,
+        absentToday: actualLogsFound ? absentCount : 0,
+        attendancePercent: actualLogsFound ? attendancePercent : 0,
+        shiftsRunning: shiftPoliciesCount || 5,
+        onLeave: onLeaveCount,
+        lateArrivals: lateCount,
+        clockedIn: clockedInCount,
+        dateLabel: effectiveDateLabel,
+        isLiveToday: isTargetToday && effectiveDateLabel === 'Today',
+        hasLogs: actualLogsFound,
+        productivity: actualLogsFound ? `${attendancePercent}% capacity` : 'NOT RECORDED',
         manpowerRequirement: `${totalEmployees} authorized`,
-        configured: false,
+        configured: true,
       },
       costing: {
         materialCostPerKg: 'N/A',

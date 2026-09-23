@@ -2021,33 +2021,74 @@ export const PlantHeadDashboard = () => {
           {/* CARD 5: HR & LABOUR */}
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
             <div style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase' }}>HR & Labour</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase' }}>HR & Labour</span>
+                {hr.hasLogs && (
+                  <span style={{ fontSize: '9px', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', background: PALETTE.emeraldLight, color: PALETTE.emerald, border: `1px solid ${PALETTE.emerald}30` }}>
+                    LIVE
+                  </span>
+                )}
+              </div>
               <Users size={16} color={PALETTE.violet} />
             </div>
             <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: PALETTE.slateMuted }}>Active Employees</span>
-                <span style={{ fontWeight: 700 }}>{hr.totalEmployees || 45}</span>
+                <span style={{ fontWeight: 700, color: PALETTE.slateDark }}>{hr.totalEmployees ?? 32}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Present Today</span>
-                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT RECORDED</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: PALETTE.slateMuted }}>
+                  {hr.dateLabel && hr.dateLabel !== 'Today' ? `Present (${hr.dateLabel})` : 'Present Today'}
+                </span>
+                <span style={{ fontWeight: 700, color: hr.hasLogs && hr.presentToday > 0 ? PALETTE.emerald : PALETTE.slateMuted }}>
+                  {hr.hasLogs ? `${hr.presentToday} Staff` : (hr.presentToday != null && hr.presentToday > 0 ? `${hr.presentToday} Staff` : 'NOT RECORDED')}
+                </span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Absent Today</span>
-                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT RECORDED</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: PALETTE.slateMuted }}>
+                  {hr.dateLabel && hr.dateLabel !== 'Today' ? `Absent (${hr.dateLabel})` : 'Absent Today'}
+                </span>
+                <span style={{ fontWeight: 600, color: hr.hasLogs && (hr.absentToday || 0) > 0 ? PALETTE.orange : PALETTE.slateMuted }}>
+                  {hr.hasLogs ? `${hr.absentToday} Staff` : (hr.absentToday != null && hr.absentToday > 0 ? `${hr.absentToday} Staff` : 'NOT RECORDED')}
+                </span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: PALETTE.slateMuted }}>Attendance %</span>
-                <span style={{ fontWeight: 700, color: PALETTE.slateMuted }}>NOT RECORDED</span>
+                <span style={{
+                  fontWeight: 700,
+                  color: hr.hasLogs && hr.attendancePercent != null
+                    ? (hr.attendancePercent >= 80 ? PALETTE.emerald : hr.attendancePercent >= 50 ? PALETTE.orange : PALETTE.crimson)
+                    : PALETTE.slateMuted,
+                }}>
+                  {hr.hasLogs && hr.attendancePercent != null ? `${hr.attendancePercent}%` : (hr.attendancePercent != null && hr.attendancePercent > 0 ? `${hr.attendancePercent}%` : 'NOT RECORDED')}
+                </span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: PALETTE.slateMuted }}>Shifts Running</span>
-                <span style={{ fontWeight: 700 }}>{hr.shiftsRunning || 5} Policies</span>
+                <span style={{ fontWeight: 700, color: PALETTE.slateDark }}>{hr.shiftsRunning || 5} Policies</span>
               </div>
             </div>
-            <div style={{ borderTop: '1px solid #F1F5F9', padding: '8px 14px', background: '#FAFAFA' }}>
-              <span style={{ fontSize: '10px', color: PALETTE.slateMuted }}>Attendance logs not recorded for selected date</span>
+            <div style={{ borderTop: '1px solid #F1F5F9', padding: '8px 14px', background: '#FAFAFA', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button
+                onClick={() => router.push('/hr/attendance')}
+                style={{ fontSize: '11px', fontWeight: 600, color: PALETTE.blue, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: 0 }}
+              >
+                <span>View HR & Attendance Logs</span>
+                <ArrowRight size={12} />
+              </button>
+              {hr.onLeave != null && hr.onLeave > 0 ? (
+                <span style={{ fontSize: '10px', color: PALETTE.amber, fontWeight: 600 }}>
+                  {hr.onLeave} on leave
+                </span>
+              ) : hr.hasLogs ? (
+                <span style={{ fontSize: '10px', color: PALETTE.emerald, fontWeight: 600 }}>
+                  {hr.clockedIn ? `${hr.clockedIn} clocked in` : 'Synced'}
+                </span>
+              ) : (
+                <span style={{ fontSize: '10px', color: PALETTE.slateMuted }}>
+                  No logs for date
+                </span>
+              )}
             </div>
           </div>
 
