@@ -43,7 +43,7 @@ export class SalesTargetService {
   }
 
   async findAll(salespersonId?: string) {
-    return this.prisma.salesTarget.findMany({
+    const targets = await this.prisma.salesTarget.findMany({
       where: salespersonId ? { salespersonId } : undefined,
       include: {
         salesperson: {
@@ -52,6 +52,56 @@ export class SalesTargetService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    const enriched = await Promise.all(
+      targets.map(async (t) => {
+        const orderAgg = await this.prisma.salesOrder.aggregate({
+          _sum: { totalAmount: true },
+          where: {
+            AND: [
+              {
+                OR: [
+                  { createdById: t.salespersonId },
+                  { salesExecutiveId: t.salespersonId },
+                ],
+              },
+              {
+                status: {
+                  in: [
+                    'CONFIRMED',
+                    'SENT_TO_PLANT',
+                    'SENT_TO_PLANT_HEAD',
+                    'PLANT_APPROVED',
+                    'READY_FOR_PRODUCTION',
+                    'IN_PRODUCTION',
+                    'READY_FOR_DISPATCH',
+                    'COMPLETED',
+                  ],
+                },
+              },
+              {
+                createdAt: {
+                  gte: t.startDate,
+                  lte: t.endDate,
+                },
+              },
+            ],
+          },
+        });
+        const achieved = Number(orderAgg._sum.totalAmount || 0);
+        const achievement =
+          Number(t.revenueTarget) > 0
+            ? Number(((achieved / Number(t.revenueTarget)) * 100).toFixed(1))
+            : 0;
+        return {
+          ...t,
+          achieved,
+          achievement,
+        };
+      }),
+    );
+
+    return enriched;
   }
 
   async history(userId: string) {
