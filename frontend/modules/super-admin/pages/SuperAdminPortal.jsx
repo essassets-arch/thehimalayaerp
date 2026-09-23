@@ -627,7 +627,7 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
     loadLiveUsers();
   }, [loadLiveUsers]);
 
-  const isAdminPortal = window.location.pathname.startsWith('/admin');
+  const isAdminPortal = typeof window !== 'undefined' ? window.location.pathname.startsWith('/admin') : false;
   const orders = isAdminPortal ? (state.adminDirectOrders || []) : (state.sales?.orders || []);
   const payments = state.payments || [];
   const employees = Array.isArray(adminData?.employees) ? adminData.employees : (state.employees || []);

@@ -52,6 +52,11 @@ export default function SalesTargetManagementView({
   const [periodFilter, setPeriodFilter] = useState('ALL'); // 'ALL' | 'Monthly' | 'Quarterly' | 'Yearly'
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'ACHIEVED' | 'ON_TRACK' | 'ATTENTION' | 'BEHIND'
   const [salespersonFilter, setSalespersonFilter] = useState('ALL'); // 'ALL' | 'CORE' | 'SUPER' | salespersonId
+  const [isClientMounted, setIsClientMounted] = useState(false);
+
+  useEffect(() => {
+    setIsClientMounted(true);
+  }, []);
 
   // Live Users & Orders fetched directly from backend to ensure 100% dynamic telemetry
   const [liveUsers, setLiveUsers] = useState([]);
@@ -77,7 +82,13 @@ export default function SalesTargetManagementView({
     if (apiClient && (!orders || orders.length === 0)) {
       apiClient.get('/sales/orders?limit=1000')
         .then(res => {
-          const raw = res.data?.data || res.data?.orders || res.data || [];
+          const raw = Array.isArray(res.data?.data?.data)
+            ? res.data.data.data
+            : (Array.isArray(res.data?.data)
+              ? res.data.data
+              : (Array.isArray(res.data?.orders)
+                ? res.data.orders
+                : (Array.isArray(res.data) ? res.data : [])));
           if (isMounted && Array.isArray(raw) && raw.length > 0) {
             setLiveOrders(raw);
           }
@@ -135,7 +146,8 @@ export default function SalesTargetManagementView({
   // Structured & Naturally Sorted Sales Personnel
   const salesPersonnelData = useMemo(() => {
     const isArchived = (u) => {
-      if (u.isArchived === true) return true;
+      if (!u) return true;
+      if (u.deletedAt || u.isArchived === true) return true;
       if (String(u.status || '').toLowerCase() === 'archived') return true;
       const email = String(u.email || '').toLowerCase();
       const name = String(u.name || '').toLowerCase();
@@ -144,10 +156,22 @@ export default function SalesTargetManagementView({
 
     const isSales = (u) => {
       if (isArchived(u)) return false;
-      const role = String(u.role?.name || u.role || '').toLowerCase();
+      const roleCode = String(u.role?.code || '').toUpperCase();
+      const roleName = String(u.role?.name || (typeof u.role === 'string' ? u.role : '')).toLowerCase();
       const email = String(u.email || '').toLowerCase();
       const name = String(u.name || '').toLowerCase();
-      return role.includes('sales') || role.includes('executive') || role.includes('manager') || email.includes('sales') || name.includes('sales');
+
+      // Explicitly reject non-sales roles
+      const nonSalesKeywords = ['store', 'dispatch', 'finance', 'account', 'production', 'planner', 'plant', 'hr', 'quality', 'qc', 'back office', 'back_office'];
+      if (nonSalesKeywords.some(kw => roleName.includes(kw) || roleCode.includes(kw.toUpperCase().replace(/\s+/g, '_')))) {
+        return false;
+      }
+
+      // True sales criteria
+      const isSalesRole = roleCode === 'SALES_EXECUTIVE' || roleCode === 'SUPER_SALES' || roleName.includes('sales');
+      const isSalesEmailOrName = email.includes('sales') || name.includes('sales') || email.includes('supersales') || name.includes('supersales') || email.includes('taher') || name.includes('taher');
+
+      return isSalesRole || isSalesEmailOrName;
     };
 
     const eligible = activeUsersSource.filter(isSales);
@@ -280,17 +304,27 @@ export default function SalesTargetManagementView({
     const existingTargets = Array.isArray(salesTargets) ? salesTargets.filter(Boolean) : [];
     const rows = [];
     const processedRepIds = new Set();
+    const processedEmails = new Set();
 
     // 1. Process all explicitly saved targets from database
     existingTargets.forEach(t => {
       const salespersonId = String(t.salespersonId || t.salesperson_id || t.userId || '');
       processedRepIds.add(salespersonId);
-      const repMatch = allReps.find(u => String(u.id) === salespersonId);
+      const repMatch = allReps.find(u =>
+        String(u.id) === salespersonId ||
+        (t.salesperson?.email && u.email && u.email.toLowerCase() === t.salesperson.email.toLowerCase()) ||
+        (t.salespersonName && u.name && u.name.toLowerCase() === t.salespersonName.toLowerCase())
+      );
+      if (repMatch) {
+        processedRepIds.add(String(repMatch.id));
+        if (repMatch.email) processedEmails.add(repMatch.email.toLowerCase());
+      }
       const salespersonName =
         (t.salespersonName && t.salespersonName !== 'Unknown')
           ? t.salespersonName
           : (t.salesperson?.name || repMatch?.name || 'Sales Representative');
       const salespersonEmail = t.salesperson?.email || repMatch?.email || '';
+      if (salespersonEmail) processedEmails.add(salespersonEmail.toLowerCase());
       const startDate = normalizeDate(t.startDate || t.start_date || t.periodStart) || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
       const endDate = normalizeDate(t.endDate || t.end_date || t.periodEnd) || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
       const targetAmount = Number(t.targetAmount || t.revenueTarget || 0);
@@ -364,6 +398,7 @@ export default function SalesTargetManagementView({
     // 2. For every active sales rep who doesn't have an explicit target yet, add their dynamic row!
     allReps.forEach(rep => {
       if (processedRepIds.has(String(rep.id))) return;
+      if (rep.email && processedEmails.has(rep.email.toLowerCase())) return;
 
       const now = new Date();
       const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
@@ -441,8 +476,9 @@ export default function SalesTargetManagementView({
   // Filtered target list
   const filteredTargets = useMemo(() => {
     return enrichedTargets.filter(t => {
+      const periodStr = String(t.period || 'Monthly').toLowerCase();
       // Period filter
-      if (periodFilter !== 'ALL' && t.period.toLowerCase() !== periodFilter.toLowerCase()) {
+      if (periodFilter !== 'ALL' && periodStr !== periodFilter.toLowerCase()) {
         return false;
       }
       // Status filter
@@ -465,9 +501,9 @@ export default function SalesTargetManagementView({
       // Search Query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchesName = t.salespersonName.toLowerCase().includes(q);
-        const matchesRemarks = (t.remarks || '').toLowerCase().includes(q);
-        const matchesPeriod = t.period.toLowerCase().includes(q);
+        const matchesName = String(t.salespersonName || '').toLowerCase().includes(q);
+        const matchesRemarks = String(t.remarks || '').toLowerCase().includes(q);
+        const matchesPeriod = periodStr.includes(q);
         if (!matchesName && !matchesRemarks && !matchesPeriod) return false;
       }
 
@@ -494,10 +530,10 @@ export default function SalesTargetManagementView({
   // Chart data for Target vs Actual
   const chartData = useMemo(() => {
     return enrichedTargets.slice(0, 8).map(t => ({
-      name: t.salespersonName.split(' ')[0] || 'Rep',
-      Target: t.targetAmount / 100000,
-      Achieved: t.achieved / 100000,
-      pct: t.pct
+      name: String(t.salespersonName || 'Rep').split(' ')[0] || 'Rep',
+      Target: (Number(t.targetAmount) || 0) / 100000,
+      Achieved: (Number(t.achieved) || 0) / 100000,
+      pct: t.pct || 0
     }));
   }, [enrichedTargets]);
 
@@ -633,7 +669,18 @@ export default function SalesTargetManagementView({
         }
         showToast(res.data?.message || 'Revenue target allocated successfully.', 'success');
         if (setSalesTargets && res.data?.data) {
-          setSalesTargets(prev => [res.data.data, ...prev]);
+          const repMatch = allReps.find(u => String(u.id) === String(formData.salespersonId));
+          const newTarget = {
+            ...res.data.data,
+            salespersonName: formData.salespersonName || repMatch?.name || 'Sales Representative',
+            salespersonEmail: repMatch?.email || '',
+            targetAmount: Number(res.data.data.revenueTarget || formData.targetAmount || 0),
+            period: res.data.data.targetPeriod || formData.period || 'Monthly',
+            startDate: normalizeDate(res.data.data.startDate || formData.startDate),
+            endDate: normalizeDate(res.data.data.endDate || formData.endDate),
+            status: 'ACTIVE'
+          };
+          setSalesTargets(prev => [newTarget, ...(prev || []).filter(x => x.id !== newTarget.id)]);
         }
       } else {
         const res = await apiClient.patch(`/backend/sales-targets/${formData.id}`, payload);
@@ -642,7 +689,16 @@ export default function SalesTargetManagementView({
         }
         showToast(res.data?.message || 'Revenue target updated successfully.', 'success');
         if (setSalesTargets && res.data?.data) {
-          setSalesTargets(prev => prev.map(t => t.id === formData.id ? { ...t, ...res.data.data } : t));
+          const updated = {
+            ...res.data.data,
+            salespersonName: formData.salespersonName || 'Sales Representative',
+            targetAmount: Number(res.data.data.revenueTarget || formData.targetAmount || 0),
+            period: res.data.data.targetPeriod || formData.period || 'Monthly',
+            startDate: normalizeDate(res.data.data.startDate || formData.startDate),
+            endDate: normalizeDate(res.data.data.endDate || formData.endDate),
+            status: 'ACTIVE'
+          };
+          setSalesTargets(prev => (prev || []).map(t => t.id === formData.id ? { ...t, ...updated } : t));
         }
       }
 
@@ -845,7 +901,11 @@ export default function SalesTargetManagementView({
             </div>
           </div>
           <div className="tm-card-body" style={{ height: '280px' }}>
-            {chartData.length === 0 ? (
+            {!isClientMounted ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>
+                Loading analytics telemetry...
+              </div>
+            ) : chartData.length === 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>
                 No active targets to display in telemetry chart.
               </div>
@@ -898,18 +958,18 @@ export default function SalesTargetManagementView({
                       <div className={`tm-leader-rank ${rankClass}`}>{medal}</div>
                       <div className="tm-leader-info">
                         <div className="tm-leader-avatar">
-                          {item.salespersonName.charAt(0).toUpperCase()}
+                          {(item.salespersonName || 'Sales Rep').charAt(0).toUpperCase()}
                         </div>
                         <div style={{ minWidth: 0 }}>
-                          <div className="tm-leader-name">{item.salespersonName}</div>
+                          <div className="tm-leader-name">{item.salespersonName || 'Sales Rep'}</div>
                           <div className="tm-leader-meta">
-                            {item.qualifyingOrders?.length || 0} Orders · {item.period}
+                            {item.qualifyingOrders?.length || 0} Orders · {item.period || 'Monthly'}
                           </div>
                         </div>
                       </div>
                       <div className="tm-leader-stats">
                         <div className="tm-leader-amount">{formatCurrency(item.achieved)}</div>
-                        <span className={`tm-badge ${item.status.class}`} style={{ fontSize: '10px', padding: '1px 6px' }}>
+                        <span className={`tm-badge ${item.status?.class || 'tm-badge-behind'}`} style={{ fontSize: '10px', padding: '1px 6px' }}>
                           {item.pct}%
                         </span>
                       </div>
@@ -1046,10 +1106,10 @@ export default function SalesTargetManagementView({
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <div className="tm-leader-avatar" style={{ width: '32px', height: '32px', fontSize: '12px' }}>
-                            {row.salespersonName.charAt(0).toUpperCase()}
+                            {(row.salespersonName || 'Sales Rep').charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <strong style={{ color: '#0f172a' }}>{row.salespersonName}</strong>
+                            <strong style={{ color: '#0f172a' }}>{row.salespersonName || 'Sales Rep'}</strong>
                             <div style={{ fontSize: '11px', color: '#64748b' }}>
                               {row.startDate} → {row.endDate}
                             </div>
@@ -1058,7 +1118,7 @@ export default function SalesTargetManagementView({
                       </td>
                       <td>
                         <span className="tm-filter-pill" style={{ padding: '3px 10px', fontSize: '11px', background: '#f8fafc' }}>
-                          {row.period}
+                          {row.period || 'Monthly'}
                         </span>
                       </td>
                       <td>
@@ -1118,8 +1178,8 @@ export default function SalesTargetManagementView({
                         </div>
                       </td>
                       <td>
-                        <span className={`tm-badge ${row.status.class}`}>
-                          {row.status.label}
+                        <span className={`tm-badge ${row.status?.class || 'tm-badge-behind'}`}>
+                          {row.status?.label || (typeof row.status === 'string' ? row.status : 'Active')}
                         </span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
@@ -1204,11 +1264,11 @@ export default function SalesTargetManagementView({
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <strong style={{ fontSize: '15px', color: '#0f172a' }}>{row.salespersonName}</strong>
-                    <div style={{ fontSize: '12px', color: '#64748b' }}>{row.period} · {row.startDate} to {row.endDate}</div>
+                    <strong style={{ fontSize: '15px', color: '#0f172a' }}>{row.salespersonName || 'Sales Rep'}</strong>
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>{row.period || 'Monthly'} · {row.startDate} to {row.endDate}</div>
                   </div>
-                  <span className={`tm-badge ${row.status.class}`}>
-                    {row.status.label}
+                  <span className={`tm-badge ${row.status?.class || 'tm-badge-behind'}`}>
+                    {row.status?.label || (typeof row.status === 'string' ? row.status : 'Active')}
                   </span>
                 </div>
 
@@ -1687,7 +1747,7 @@ export default function SalesTargetManagementView({
               </div>
 
               <div style={{ padding: '14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', fontSize: '13px', color: '#166534' }}>
-                💡 <strong>Target Benchmark:</strong> At the current confirmed revenue rate of <strong>{formatCurrency(selectedTarget.achieved)}</strong>, this representative is <strong>{selectedTarget.status.label}</strong> with {selectedTarget.qualifyingOrders?.length || 0} confirmed client purchases.
+                💡 <strong>Target Benchmark:</strong> At the current confirmed revenue rate of <strong>{formatCurrency(selectedTarget.achieved)}</strong>, this representative is <strong>{selectedTarget.status?.label || (typeof selectedTarget.status === 'string' ? selectedTarget.status : 'Active')}</strong> with {selectedTarget.qualifyingOrders?.length || 0} confirmed client purchases.
               </div>
             </div>
 

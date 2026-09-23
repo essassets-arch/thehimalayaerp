@@ -25,6 +25,11 @@ export default function ProductionTargetManagementView({
   const [searchQuery, setSearchQuery] = useState('');
   const [periodFilter, setPeriodFilter] = useState('ALL'); // 'ALL' | 'Monthly' | 'Quarterly' | 'Yearly'
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'ACHIEVED' | 'CANCELLED'
+  const [isClientMounted, setIsClientMounted] = useState(false);
+
+  useEffect(() => {
+    setIsClientMounted(true);
+  }, []);
 
   // Modal states
   const [showTargetModal, setShowTargetModal] = useState(false);
@@ -453,7 +458,11 @@ export default function ProductionTargetManagementView({
             </div>
           </div>
           <div className="tm-card-body" style={{ height: '280px' }}>
-            {chartData.length === 0 ? (
+            {!isClientMounted ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>
+                Loading production telemetry...
+              </div>
+            ) : chartData.length === 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>
                 No active production quotas recorded.
               </div>
@@ -670,8 +679,8 @@ export default function ProductionTargetManagementView({
                         )}
                       </td>
                       <td>
-                        <span className={`tm-badge ${row.status.class}`}>
-                          {row.status.label}
+                        <span className={`tm-badge ${row.status?.class || 'tm-badge-active'}`}>
+                          {row.status?.label || (typeof row.status === 'string' ? row.status : 'Active')}
                         </span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
@@ -735,8 +744,8 @@ export default function ProductionTargetManagementView({
                     <strong style={{ fontSize: '15px', color: '#0f172a' }}>{row.period} Quota</strong>
                     <div style={{ fontSize: '12px', color: '#64748b' }}>{row.plantId} · {row.startDate} to {row.endDate}</div>
                   </div>
-                  <span className={`tm-badge ${row.status.class}`}>
-                    {row.status.label}
+                  <span className={`tm-badge ${row.status?.class || 'tm-badge-active'}`}>
+                    {row.status?.label || (typeof row.status === 'string' ? row.status : 'Active')}
                   </span>
                 </div>
 

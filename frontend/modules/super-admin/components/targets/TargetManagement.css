@@ -744,7 +744,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: 99999;
   padding: 20px;
   animation: tmFadeIn 0.2s ease-out;
 }
@@ -753,7 +753,7 @@
   background: #ffffff;
   border-radius: var(--tm-radius-lg);
   width: 100%;
-  max-width: 560px;
+  max-width: 620px;
   max-height: 92vh;
   box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.35);
   overflow: hidden;
@@ -761,6 +761,16 @@
   flex-direction: column;
   border: 1px solid rgba(226, 232, 240, 0.95);
   animation: tmModalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  z-index: 10000;
+}
+
+.tm-modal-card form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 @keyframes tmModalPop {
