@@ -1243,8 +1243,6 @@ export const PlantHeadProductionAnalytics = () => {
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase' }}>
                   <th style={{ padding: '10px 12px' }}>Product Name</th>
-                  <th style={{ padding: '10px 12px' }}>Category</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>Rating</th>
                   <th style={{ padding: '10px 12px', textAlign: 'right' }}>Covers (pcs)</th>
                   <th style={{ padding: '10px 12px', textAlign: 'right' }}>Frames (pcs)</th>
                   <th style={{ padding: '10px 12px', textAlign: 'right' }}>Total Pieces (pcs)</th>
@@ -1256,12 +1254,6 @@ export const PlantHeadProductionAnalytics = () => {
                 {productsData.map((p, idx) => (
                   <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0f172a' }}>{p.name}</td>
-                    <td style={{ padding: '10px 12px', color: '#64748b' }}>{p.category}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                      <span style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '2px 7px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', color: '#334155' }}>
-                        {p.capacity || '—'}
-                      </span>
-                    </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '600', color: '#475569' }}>{fmt(p.covers)}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '600', color: '#475569' }}>{fmt(p.frames)}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{fmt(p.pieces)} pcs</td>
@@ -1966,8 +1958,6 @@ export const PlantHeadProductionAnalytics = () => {
               <thead>
                 <tr style={{ background: '#f1f5f9', color: '#0f172a', textAlign: 'left', fontWeight: '800' }}>
                   <th style={{ padding: '5px' }}>Product Name</th>
-                  <th style={{ padding: '5px' }}>Category</th>
-                  <th style={{ padding: '5px', textAlign: 'center' }}>Rating</th>
                   <th style={{ padding: '5px', textAlign: 'right' }}>Covers (pcs)</th>
                   <th style={{ padding: '5px', textAlign: 'right' }}>Frames (pcs)</th>
                   <th style={{ padding: '5px', textAlign: 'right' }}>Total Pieces (pcs)</th>
@@ -1979,8 +1969,6 @@ export const PlantHeadProductionAnalytics = () => {
                 {productsData.map((p, idx) => (
                   <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0', background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
                     <td style={{ padding: '4px 5px', fontWeight: '800', color: '#0f172a' }}>{p.name}</td>
-                    <td style={{ padding: '4px 5px', color: '#64748b' }}>{p.category}</td>
-                    <td style={{ padding: '4px 5px', textAlign: 'center', fontWeight: '700' }}>{p.capacity || '—'}</td>
                     <td style={{ padding: '4px 5px', textAlign: 'right' }}>{fmt(p.covers)}</td>
                     <td style={{ padding: '4px 5px', textAlign: 'right' }}>{fmt(p.frames)}</td>
                     <td style={{ padding: '4px 5px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{fmt(p.pieces)} pcs</td>
