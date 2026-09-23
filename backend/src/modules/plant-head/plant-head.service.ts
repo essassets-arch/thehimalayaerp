@@ -1709,8 +1709,8 @@ export class PlantHeadService {
     let activeCount = 0;
 
     const productMap = new Map<string, any>();
-    const sizeMap = new Map<string, number>();
-    const capacityMap = new Map<string, number>();
+    const sizeMap = new Map<string, { weight: number; pieces: number }>();
+    const capacityMap = new Map<string, { weight: number; pieces: number }>();
     const statusMap = new Map<string, { count: number; weight: number; pieces: number }>();
     const salespersonMap = new Map<string, any>();
     const customerMap = new Map<string, any>();
@@ -1828,8 +1828,15 @@ export class PlantHeadService {
       productMap.set(productName, productRow);
 
       // Sizes & Capacities buckets
-      sizeMap.set(sz, (sizeMap.get(sz) || 0) + weight);
-      capacityMap.set(cap, (capacityMap.get(cap) || 0) + weight);
+      if (!sizeMap.has(sz)) sizeMap.set(sz, { weight: 0, pieces: 0 });
+      const sEntry = sizeMap.get(sz)!;
+      sEntry.weight += weight;
+      sEntry.pieces += pieces;
+
+      if (!capacityMap.has(cap)) capacityMap.set(cap, { weight: 0, pieces: 0 });
+      const cEntry = capacityMap.get(cap)!;
+      cEntry.weight += weight;
+      cEntry.pieces += pieces;
 
       // Daily timeline map
       const woDate = wo.completedAt
@@ -1934,12 +1941,14 @@ export class PlantHeadService {
       });
     }
 
-    const serialiseBuckets = (map: Map<string, number>) =>
-      [...map.entries()].map(([name, weight]) => ({
+    const serialiseBuckets = (map: Map<string, { weight: number; pieces: number }>) =>
+      [...map.entries()].map(([name, val]) => ({
         name,
-        weight: Math.round(weight * 100) / 100,
-        share: totalWeight > 0 ? Math.round((weight / totalWeight) * 1000) / 10 : 0,
-      })).sort((a, b) => b.weight - a.weight);
+        weight: Math.round(val.weight * 100) / 100,
+        pieces: val.pieces,
+        share: totalPieces > 0 ? Math.round((val.pieces / totalPieces) * 1000) / 10 : 0,
+        weightShare: totalWeight > 0 ? Math.round((val.weight / totalWeight) * 1000) / 10 : 0,
+      })).sort((a, b) => b.pieces - a.pieces);
 
     const rankedCustomers = [...customerMap.values()]
       .map(row => ({
@@ -2011,8 +2020,13 @@ export class PlantHeadService {
       products: [...productMap.values()].map(p => ({
         ...p,
         weight: Math.round(p.weight * 10) / 10,
-        share: totalWeight > 0 ? Math.round((p.weight / totalWeight) * 1000) / 10 : 0,
-      })).sort((a, b) => b.weight - a.weight),
+        pieces: p.pieces,
+        covers: p.covers,
+        frames: p.frames,
+        share: totalPieces > 0 ? Math.round((p.pieces / totalPieces) * 1000) / 10 : 0,
+        pieceShare: totalPieces > 0 ? Math.round((p.pieces / totalPieces) * 1000) / 10 : 0,
+        weightShare: totalWeight > 0 ? Math.round((p.weight / totalWeight) * 1000) / 10 : 0,
+      })).sort((a, b) => b.pieces - a.pieces),
       sizes: serialiseBuckets(sizeMap),
       capacities: serialiseBuckets(capacityMap),
       salespeople: [...salespersonMap.values()].map(row => ({

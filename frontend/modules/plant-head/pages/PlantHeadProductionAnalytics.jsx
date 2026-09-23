@@ -137,7 +137,7 @@ export const PlantHeadProductionAnalytics = () => {
 
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'products', 'workorders', 'quality', 'machines', 'customers'
   const [searchQuery, setSearchQuery] = useState('');
-  const [metricMode, setMetricMode] = useState('weight'); // 'weight' or 'pieces'
+  const [metricMode, setMetricMode] = useState('pieces'); // 'pieces' or 'weight'
   const [selectedWorkOrderModal, setSelectedWorkOrderModal] = useState(null);
   const reportRef = useRef(null);
   const [downloadingImage, setDownloadingImage] = useState(false);
@@ -1106,7 +1106,7 @@ export const PlantHeadProductionAnalytics = () => {
             {/* Chart 1: Load Class Distribution */}
             <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
               <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0 0 14px 0' }}>
-                Load Capacity Rating Distribution (EN 124 Standard)
+                Load Capacity Rating Distribution (EN 124 Standard - {metricMode === 'weight' ? 'kg' : 'pcs'})
               </h4>
               <ResponsiveChartBox
                 height={260}
@@ -1151,9 +1151,9 @@ export const PlantHeadProductionAnalytics = () => {
                           border: 'none',
                           fontSize: `${Math.round(12 * (metrics?.scale || 1))}px`
                         }}
-                        formatter={(val) => [`${fmt(val)} kg (${capacitiesData.find(c => c.weight === val)?.share || 0}%)`, 'Volume']}
+                        formatter={(val) => [`${fmt(val)} ${metricMode === 'weight' ? 'kg' : 'pcs'} (${capacitiesData.find(c => (metricMode === 'weight' ? c.weight : c.pieces) === val)?.share || 0}%)`, metricMode === 'weight' ? 'Volume' : 'Pieces']}
                       />
-                      <Bar dataKey="weight" radius={[0, 6, 6, 0]}>
+                      <Bar dataKey={metricMode === 'weight' ? 'weight' : 'pieces'} radius={[0, 6, 6, 0]}>
                         {capacitiesData.map((entry, idx) => (
                           <Cell key={entry.name} fill={CAPACITY_COLORS[entry.name] || CHART_COLORS[idx % CHART_COLORS.length]} />
                         ))}
@@ -1173,7 +1173,7 @@ export const PlantHeadProductionAnalytics = () => {
             {/* Chart 2: Product Weight Donut */}
             <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
               <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0 0 14px 0' }}>
-                Top Product Output Contribution
+                Top Product Output Contribution ({metricMode === 'weight' ? 'Weight kg' : 'Pieces pcs'})
               </h4>
               <ResponsiveChartBox
                 height={260}
@@ -1194,7 +1194,7 @@ export const PlantHeadProductionAnalytics = () => {
                     <PieChart>
                       <Pie
                         data={productsData.slice(0, 6)}
-                        dataKey="weight"
+                        dataKey={metricMode === 'weight' ? 'weight' : 'pieces'}
                         nameKey="name"
                         cx="50%"
                         cy="50%"
@@ -1214,7 +1214,7 @@ export const PlantHeadProductionAnalytics = () => {
                           border: 'none',
                           fontSize: `${Math.round(12 * (metrics?.scale || 1))}px`
                         }}
-                        formatter={(val) => [`${fmt(val)} kg`, 'Weight']}
+                        formatter={(val) => [`${fmt(val)} ${metricMode === 'weight' ? 'kg' : 'pcs'}`, metricMode === 'weight' ? 'Weight' : 'Pieces']}
                       />
                       <Legend wrapperStyle={{ fontSize: `${Math.max(9, Math.round(11 * (metrics?.scale || 1)))}px`, paddingTop: '8px' }} />
                     </PieChart>
@@ -1224,22 +1224,31 @@ export const PlantHeadProductionAnalytics = () => {
             </div>
           </div>
 
-          {/* Product Master Table */}
+          {/* Product Master Table - ONLY PCS (No KG) */}
           <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', overflowX: 'auto' }}>
-            <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0 0 14px 0' }}>
-              Detailed Manufacturing Mix by Product Specifications
-            </h4>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
+                  Detailed Manufacturing Mix by Product Specifications
+                </h4>
+                <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
+                  Live piece-level manufacturing output, cover &amp; frame breakdown, and share % (All units in Pieces / PCS)
+                </p>
+              </div>
+              <span style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
+                Unit: Pieces (PCS) Only
+              </span>
+            </div>
             <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase' }}>
                   <th style={{ padding: '10px 12px' }}>Product Name</th>
                   <th style={{ padding: '10px 12px' }}>Category</th>
                   <th style={{ padding: '10px 12px', textAlign: 'center' }}>Rating</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Total Weight</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Weight Share</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Covers</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Frames</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Total Pieces</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Covers (pcs)</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Frames (pcs)</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Total Pieces (pcs)</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Piece Share</th>
                   <th style={{ padding: '10px 12px', textAlign: 'right' }}>WOs</th>
                 </tr>
               </thead>
@@ -1253,12 +1262,11 @@ export const PlantHeadProductionAnalytics = () => {
                         {p.capacity || '—'}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{fmt(p.weight)} kg</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '600', color: '#475569' }}>{fmt(p.covers)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '600', color: '#475569' }}>{fmt(p.frames)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{fmt(p.pieces)} pcs</td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700', color: '#0369a1' }}>{p.share}%</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>{fmt(p.covers)}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>{fmt(p.frames)}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>{fmt(p.pieces)}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>{p.workOrders}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700', color: '#0f172a' }}>{p.workOrders}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1952,7 +1960,7 @@ export const PlantHeadProductionAnalytics = () => {
         {productsData.length > 0 && (
           <div className="print-card" style={{ marginBottom: '22px' }}>
             <h3 style={{ fontSize: '12.5px', fontWeight: '900', color: '#0f172a', margin: '0 0 8px 0', textTransform: 'uppercase' }}>
-              2. Product &amp; Mould Component Breakdown
+              2. Product &amp; Mould Component Breakdown (Only PCS)
             </h3>
             <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9.5px' }}>
               <thead>
@@ -1960,11 +1968,10 @@ export const PlantHeadProductionAnalytics = () => {
                   <th style={{ padding: '5px' }}>Product Name</th>
                   <th style={{ padding: '5px' }}>Category</th>
                   <th style={{ padding: '5px', textAlign: 'center' }}>Rating</th>
-                  <th style={{ padding: '5px', textAlign: 'right' }}>Total Weight (kg)</th>
-                  <th style={{ padding: '5px', textAlign: 'right' }}>Share %</th>
-                  <th style={{ padding: '5px', textAlign: 'right' }}>Covers</th>
-                  <th style={{ padding: '5px', textAlign: 'right' }}>Frames</th>
-                  <th style={{ padding: '5px', textAlign: 'right' }}>Total Pieces</th>
+                  <th style={{ padding: '5px', textAlign: 'right' }}>Covers (pcs)</th>
+                  <th style={{ padding: '5px', textAlign: 'right' }}>Frames (pcs)</th>
+                  <th style={{ padding: '5px', textAlign: 'right' }}>Total Pieces (pcs)</th>
+                  <th style={{ padding: '5px', textAlign: 'right' }}>Piece Share %</th>
                   <th style={{ padding: '5px', textAlign: 'right' }}>Work Orders</th>
                 </tr>
               </thead>
@@ -1974,11 +1981,10 @@ export const PlantHeadProductionAnalytics = () => {
                     <td style={{ padding: '4px 5px', fontWeight: '800', color: '#0f172a' }}>{p.name}</td>
                     <td style={{ padding: '4px 5px', color: '#64748b' }}>{p.category}</td>
                     <td style={{ padding: '4px 5px', textAlign: 'center', fontWeight: '700' }}>{p.capacity || '—'}</td>
-                    <td style={{ padding: '4px 5px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{fmt(p.weight)} kg</td>
-                    <td style={{ padding: '4px 5px', textAlign: 'right', fontWeight: '700' }}>{p.share}%</td>
                     <td style={{ padding: '4px 5px', textAlign: 'right' }}>{fmt(p.covers)}</td>
                     <td style={{ padding: '4px 5px', textAlign: 'right' }}>{fmt(p.frames)}</td>
-                    <td style={{ padding: '4px 5px', textAlign: 'right', fontWeight: '800' }}>{fmt(p.pieces)}</td>
+                    <td style={{ padding: '4px 5px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{fmt(p.pieces)} pcs</td>
+                    <td style={{ padding: '4px 5px', textAlign: 'right', fontWeight: '700' }}>{p.share}%</td>
                     <td style={{ padding: '4px 5px', textAlign: 'right' }}>{p.workOrders}</td>
                   </tr>
                 ))}
