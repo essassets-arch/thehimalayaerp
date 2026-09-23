@@ -145,23 +145,38 @@ export class NotificationsController {
   }
 
   /**
-   * Super Admin broadcast endpoint.
+   * Super Admin & HR broadcast endpoint.
    */
   @RequirePermissions('admin.notifications.create')
   @Post('broadcast')
   async broadcast(@Body() body: any, @Req() req: any) {
     const companyId = req.user?.companyId || req.headers['x-company-id'];
-    return this.notificationsService.broadcast(body, companyId);
+    const userId = this.getUserId(req);
+    const userRole = String(req.user?.role || '').toUpperCase();
+    const userName = req.user?.name || req.user?.email;
+    return this.notificationsService.broadcast(body, companyId, {
+      actorUserId: userId,
+      actorRole: userRole,
+      actorName: userName,
+    });
   }
 
   /**
-   * Broadcast history.
+   * Broadcast history (filtered by sender module, e.g. SUPER_ADMIN or HR).
    */
   @RequirePermissions('admin.notifications.read')
   @Get('broadcast-history')
-  async getBroadcastHistory(@Req() req: any) {
+  async getBroadcastHistory(
+    @Req() req: any,
+    @Query('sender') sender?: string,
+    @Query('module') moduleParam?: string,
+  ) {
     const companyId = req.user?.companyId || req.headers['x-company-id'];
-    return this.notificationsService.getBroadcastHistory(companyId);
+    const userRole = req.user?.role;
+    return this.notificationsService.getBroadcastHistory(
+      companyId,
+      sender || moduleParam || userRole,
+    );
   }
 
   /**

@@ -178,7 +178,7 @@ export default function HRNotificationsView() {
   const fetchBroadcastHistory = useCallback(async () => {
     try {
       setLoadingHistory(true);
-      const res = await apiClient.get('/notifications/broadcast-history');
+      const res = await apiClient.get('/notifications/broadcast-history?sender=HR');
       if (res && res.success && Array.isArray(res.data)) {
         setBroadcastHistory(res.data);
       } else if (Array.isArray(res)) {
@@ -260,7 +260,9 @@ export default function HRNotificationsView() {
         title: notifComposer.title.trim(),
         message: notifComposer.message.trim(),
         priority: notifComposer.priority || 'High',
-        route: notifComposer.route || '/notifications'
+        route: notifComposer.route || '/notifications',
+        sender: 'HR',
+        module: 'HR'
       };
 
       if (recipientMode === 'USER_WISE') {
@@ -376,7 +378,9 @@ export default function HRNotificationsView() {
     return al.type === activeTab;
   });
 
-  const filteredHistory = broadcastHistory.filter(item => {
+  const filteredHistory = (broadcastHistory || []).filter(item => {
+    if (item.type && item.type !== 'BROADCAST') return false;
+    if (item.module && item.module !== 'HR') return false;
     if (historyFilter === 'ALL') return true;
     if (historyFilter === 'READ') return item.status === 'READ' || item.isRead;
     if (historyFilter === 'UNREAD') return item.status !== 'READ' && !item.isRead;
@@ -881,28 +885,39 @@ export default function HRNotificationsView() {
               ) : filteredHistory.length === 0 ? (
                 <div style={{ padding: '60px 0', textAlign: 'center', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>
                   <Bell size={32} color="#cbd5e1" style={{ display: 'block', margin: '0 auto 10px auto' }} />
-                  No notification history records found.
+                  No announcements dispatched yet by HR.
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '540px', overflowY: 'auto', paddingRight: '4px', width: '100%', minWidth: 0 }}>
                   {filteredHistory.map((notif, idx) => {
+                    if (!notif) return null;
                     const isRead = notif.status === 'READ' || notif.isRead;
+                    const createdAtDate = notif.createdAt ? new Date(notif.createdAt) : null;
+                    const dateStr = createdAtDate && !isNaN(createdAtDate.getTime())
+                      ? createdAtDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                      : '—';
+                    const recipientNameStr = typeof notif.recipientName === 'object' ? (notif.recipientName?.name || 'Staff Member') : String(notif.recipientName || 'Staff Member');
+                    const recipientRoleStr = typeof notif.recipientRole === 'object' ? (notif.recipientRole?.name || '') : String(notif.recipientRole || '');
+
                     return (
                       <div key={idx} style={{ padding: '14px 16px', border: '1px solid #e2e8f0', borderRadius: '10px', background: isRead ? '#f8fafc' : '#ffffff', display: 'flex', flexDirection: 'column', gap: '6px', minHeight: 'fit-content', flexShrink: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                          <strong style={{ fontSize: '13.5px', color: '#0f172a', fontWeight: '800' }}>{notif.title}</strong>
+                          <strong style={{ fontSize: '13.5px', color: '#0f172a', fontWeight: '800' }}>{notif.title || 'Announcement'}</strong>
                           <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                            {new Date(notif.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            {dateStr}
                           </span>
                         </div>
                         
                         <p style={{ fontSize: '12.5px', color: '#475569', margin: 0, lineHeight: '1.4', wordBreak: 'break-word' }}>
-                          {notif.message}
+                          {notif.message || '—'}
                         </p>
                         
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '8px', marginTop: '4px', fontSize: '11.5px', color: '#64748b', fontWeight: '600' }}>
-                          <div>
-                            Recipient: <strong style={{ color: '#334155' }}>{notif.recipientName || 'Staff Member'}</strong> {notif.recipientRole ? `(${notif.recipientRole})` : ''}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span>Recipient: <strong style={{ color: '#334155' }}>{recipientNameStr}</strong> {recipientRoleStr ? `(${recipientRoleStr})` : ''}</span>
+                            <span style={{ fontSize: '10px', background: '#dcfce7', color: '#15803d', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                              HR Broadcast
+                            </span>
                           </div>
                           <div>
                             <span style={{ background: isRead ? '#dcfce7' : '#fee2e2', color: isRead ? '#15803d' : '#b91c1c', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: '800' }}>

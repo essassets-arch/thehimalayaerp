@@ -672,11 +672,23 @@ export class NotificationsService {
     });
   }
 
-  async broadcast(body: any, companyId: string) {
-    const { roleCodes, userIds, employeeIds, title, message, route, priority } = body;
+  async broadcast(
+    body: any,
+    companyId: string,
+    actorMeta?: { actorUserId?: string; actorRole?: string; actorName?: string },
+  ) {
+    const { roleCodes, userIds, employeeIds, title, message, route, priority, sender, module: reqModule } = body;
     const targetRoles = Array.isArray(roleCodes) ? roleCodes : roleCodes ? [roleCodes] : [];
     let specificUserIds = Array.isArray(userIds) ? userIds : userIds ? [userIds] : [];
     const specificEmpIds = Array.isArray(employeeIds) ? employeeIds : employeeIds ? [employeeIds] : [];
+
+    // Determine sender module: 'HR' vs 'SUPER_ADMIN'
+    const declaredSender = String(sender || reqModule || actorMeta?.actorRole || '').toUpperCase();
+    const isHRSender = declaredSender === 'HR' || declaredSender.includes('HR');
+    const senderModule = isHRSender ? 'HR' : 'SUPER_ADMIN';
+    const defaultActorName = isHRSender ? 'HR Department' : 'Super Admin';
+    const actorName = actorMeta?.actorName || defaultActorName;
+    const actorUserId = actorMeta?.actorUserId;
 
     // Map employeeIds / employeeCodes to userIds if provided
     if (specificEmpIds.length > 0) {
@@ -746,10 +758,13 @@ export class NotificationsService {
         companyId,
         userId: u.id,
         type: 'BROADCAST',
+        module: senderModule,
         priority: parsedPriority,
-        title: title || 'Corporate Announcement',
+        title: title || (isHRSender ? 'HR Notice' : 'Corporate Announcement'),
         message: message || '',
         route: route || '/notifications',
+        actorUserId,
+        actorName,
       });
     }
 
@@ -760,11 +775,25 @@ export class NotificationsService {
     };
   }
 
-  async getBroadcastHistory(companyId: string) {
+  async getBroadcastHistory(companyId: string, senderRole?: string) {
+    const norm = String(senderRole || '').toUpperCase();
+    const isHR = norm === 'HR' || norm.includes('HR');
+    const isSuperAdmin = norm === 'SUPER_ADMIN' || norm === 'ADMIN' || norm.includes('ADMIN');
+
+    // ONLY return broadcasts dispatched via broadcast tools, NEVER automated order/delivery/dispatch transactions!
+    const whereClause: any = {
+      companyId,
+      type: 'BROADCAST',
+    };
+
+    if (isHR) {
+      whereClause.module = 'HR';
+    } else if (isSuperAdmin) {
+      whereClause.module = { not: 'HR' };
+    }
+
     const notifications = await this.prisma.notification.findMany({
-      where: {
-        companyId,
-      },
+      where: whereClause,
       orderBy: {
         createdAt: 'desc',
       },
@@ -797,6 +826,7 @@ export class NotificationsService {
         recipientName: u?.name || 'Unknown Recipient',
         recipientEmail: u?.email || 'N/A',
         recipientRole: u?.roleName || 'N/A',
+        senderName: notif.actorName || (notif.module === 'HR' ? 'HR Department' : 'Super Admin'),
       };
     });
   }

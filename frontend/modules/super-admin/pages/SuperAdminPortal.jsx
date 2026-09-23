@@ -499,7 +499,7 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
   const fetchBroadcastHistory = useCallback(async () => {
     try {
       setLoadingHistory(true);
-      const res = await apiClient.get('/notifications/broadcast-history');
+      const res = await apiClient.get('/notifications/broadcast-history?sender=SUPER_ADMIN');
       if (res && res.success && Array.isArray(res.data)) {
         setBroadcastHistory(res.data);
       } else if (Array.isArray(res)) {
@@ -1418,7 +1418,9 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
         title: notifComposer.title.trim(),
         message: notifComposer.message.trim(),
         priority: notifComposer.priority || 'High',
-        route: notifComposer.route || '/notifications'
+        route: notifComposer.route || '/notifications',
+        sender: 'SUPER_ADMIN',
+        module: 'SUPER_ADMIN'
       };
 
       if (notifRecipientMode === 'USER_WISE') {
@@ -5636,6 +5638,8 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
     };
 
     const filteredBroadcastHistory = (broadcastHistory || []).filter(item => {
+      if (item.type && item.type !== 'BROADCAST') return false;
+      if (item.module && item.module !== 'SUPER_ADMIN' && item.module !== 'SYSTEM') return false;
       if (notifHistoryFilter === 'ALL') return true;
       if (notifHistoryFilter === 'READ') return item.status === 'READ' || item.isRead;
       if (notifHistoryFilter === 'UNREAD') return item.status !== 'READ' && !item.isRead;
@@ -5976,7 +5980,7 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
             ) : filteredBroadcastHistory.length === 0 ? (
               <div style={{ padding: '60px 0', textAlign: 'center', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>
                 <Bell size={32} color="#cbd5e1" style={{ display: 'block', margin: '0 auto 10px auto' }} />
-                No notifications logged yet.
+                No announcements dispatched yet by Super Admin.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '540px', overflowY: 'auto', paddingRight: '4px', width: '100%', minWidth: 0 }}>
@@ -6003,8 +6007,11 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
                       </p>
                       
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '8px', marginTop: '4px', fontSize: '11.5px', color: '#64748b', fontWeight: '600' }}>
-                        <div>
-                          Recipient: <strong style={{ color: '#334155' }}>{recipientNameStr}</strong> {recipientRoleStr ? `(${recipientRoleStr})` : ''}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span>Recipient: <strong style={{ color: '#334155' }}>{recipientNameStr}</strong> {recipientRoleStr ? `(${recipientRoleStr})` : ''}</span>
+                          <span style={{ fontSize: '10px', background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                            Super Admin
+                          </span>
                         </div>
                         <div>
                           <span style={{ background: isRead ? '#dcfce7' : '#fee2e2', color: isRead ? '#15803d' : '#b91c1c', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: '800' }}>
