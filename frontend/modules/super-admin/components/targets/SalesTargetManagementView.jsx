@@ -47,6 +47,7 @@ export default function SalesTargetManagementView({
   const [searchQuery, setSearchQuery] = useState('');
   const [periodFilter, setPeriodFilter] = useState('ALL'); // 'ALL' | 'Monthly' | 'Quarterly' | 'Yearly'
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'ACHIEVED' | 'ON_TRACK' | 'ATTENTION' | 'BEHIND'
+  const [salespersonFilter, setSalespersonFilter] = useState('ALL'); // 'ALL' | 'CORE' | 'SUPER' | salespersonId
 
   // Modals state
   const [showTargetModal, setShowTargetModal] = useState(false);
@@ -77,25 +78,134 @@ export default function SalesTargetManagementView({
     }).format(Number(val) || 0);
   }, []);
 
-  // Filter Sales Personnel list
-  const salesPersonnel = useMemo(() => {
-    const list = (usersList || [])
-      .filter(u => {
-        const role = String(u.role?.name || u.role || '').toLowerCase();
-        return role.includes('sales') || role.includes('executive') || role.includes('manager');
-      })
-      .map(u => ({ id: u.id, name: u.name, email: u.email }));
+  const WORD_TO_NUM = {
+    one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+    eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20
+  };
 
-    if (list.length === 0) {
-      return [
-        { id: 'rahul-patel', name: 'Rahul Patel', email: 'rahul@himalaya.com' },
-        { id: 'amit-shah', name: 'Amit Shah', email: 'amit@himalaya.com' },
-        { id: 'neha-patel', name: 'Neha Patel', email: 'neha@himalaya.com' },
-        { id: 'taher-super', name: 'Taher Sir', email: 'taher@himalaya.com' }
-      ];
-    }
-    return list;
+  // Structured & Naturally Sorted Sales Personnel
+  const salesPersonnelData = useMemo(() => {
+    const isArchived = (u) => {
+      if (u.isArchived === true) return true;
+      if (String(u.status || '').toLowerCase() === 'archived') return true;
+      const email = String(u.email || '').toLowerCase();
+      const name = String(u.name || '').toLowerCase();
+      return email.includes('archived') || name.includes('archived');
+    };
+
+    const isSales = (u) => {
+      if (isArchived(u)) return false;
+      const role = String(u.role?.name || u.role || '').toLowerCase();
+      const email = String(u.email || '').toLowerCase();
+      const name = String(u.name || '').toLowerCase();
+      return role.includes('sales') || role.includes('executive') || role.includes('manager') || email.includes('sales') || name.includes('sales');
+    };
+
+    const eligible = (usersList || []).filter(isSales);
+
+    const list = eligible.length > 0 ? eligible : [
+      { id: 'sales-1', name: 'Sales One', email: 'sales1@himalayaerp.com' },
+      { id: 'sales-2', name: 'Sales Two', email: 'sales2@himalayaerp.com' },
+      { id: 'sales-3', name: 'Sales Three', email: 'sales3@himalayaerp.com' },
+      { id: 'sales-4', name: 'Sales Four', email: 'sales4@himalayaerp.com' },
+      { id: 'sales-5', name: 'Sales Five', email: 'sales5@himalayaerp.com' },
+      { id: 'sales-6', name: 'Sales Six', email: 'sales6@himalayaerp.com' },
+      { id: 'sales-7', name: 'Sales Seven', email: 'sales7@himalayaerp.com' },
+      { id: 'sales-11', name: 'Sales Eleven', email: 'sales11@himalayaerp.com' },
+      { id: 'sales-12', name: 'Jyoti Sales 12', email: 'sales12@himalayaerp.com' },
+      { id: 'sales-13', name: 'Sales Thirteen', email: 'sales13@himalayaerp.com' },
+      { id: 'sales-14', name: 'Sales Fourteen', email: 'sales14@himalayaerp.com' },
+      { id: 'supersales-1', name: 'SuperSales One', email: 'supersales1@himalayaerp.com' },
+      { id: 'supersales-2', name: 'SuperSales Two', email: 'supersales2@himalayaerp.com' },
+      { id: 'taher-super', name: 'Taher Sir', email: 'taher@himalaya.com' }
+    ];
+
+    const core = [];
+    const superList = [];
+    const other = [];
+
+    list.forEach(u => {
+      const name = String(u.name || '').trim();
+      const email = String(u.email || '').trim().toLowerCase();
+      const nameLower = name.toLowerCase();
+
+      // Check Super Sales
+      const isSuper = email.includes('supersales') || nameLower.includes('super sales') || nameLower.includes('supersales') || nameLower.includes('taher');
+      if (isSuper) {
+        let num = 99;
+        const matchNum = email.match(/supersales(\d+)/) || nameLower.match(/supersales\s*(\d+)/) || email.match(/sales(\d+)/);
+        if (matchNum) {
+          num = parseInt(matchNum[1], 10);
+        } else {
+          for (const [w, n] of Object.entries(WORD_TO_NUM)) {
+            if (nameLower.includes(w) || email.includes(w)) {
+              num = n;
+              break;
+            }
+          }
+        }
+        superList.push({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          num,
+          group: 'SUPER',
+          displayLabel: `SuperSales ${num < 99 ? num : ''} — ${name} (${email || 'rep'})`.replace(/\s+/g, ' ')
+        });
+        return;
+      }
+
+      // Check Core Sales (Sales 1 - 14)
+      let coreNum = null;
+      const matchCore = email.match(/^sales(\d+)@/) || email.match(/sales(\d+)/) || nameLower.match(/sales\s*(\d+)/);
+      if (matchCore) {
+        coreNum = parseInt(matchCore[1], 10);
+      } else {
+        for (const [w, n] of Object.entries(WORD_TO_NUM)) {
+          if (nameLower.includes(`sales ${w}`) || nameLower === `sales ${w}` || nameLower.endsWith(` ${w}`) || email.includes(`sales${n}`)) {
+            coreNum = n;
+            break;
+          }
+        }
+      }
+
+      if (coreNum !== null) {
+        core.push({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          num: coreNum,
+          group: 'CORE',
+          displayLabel: `Sales ${coreNum} — ${name} (${email || 'rep'})`
+        });
+        return;
+      }
+
+      // Other Sales Representatives
+      other.push({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        num: 999,
+        group: 'OTHER',
+        displayLabel: `${name} (${email || 'Sales Rep'})`
+      });
+    });
+
+    // Natural numeric sorting
+    core.sort((a, b) => a.num - b.num);
+    superList.sort((a, b) => a.num - b.num);
+    other.sort((a, b) => a.name.localeCompare(b.name));
+
+    return {
+      all: [...core, ...superList, ...other],
+      core,
+      superList,
+      other
+    };
   }, [usersList]);
+
+  const salesPersonnel = salesPersonnelData.all;
 
   // Date String Normalizer
   const normalizeDate = (d) => {
@@ -201,6 +311,17 @@ export default function SalesTargetManagementView({
       if (statusFilter === 'ATTENTION' && (t.pct < 50 || t.pct >= 80)) return false;
       if (statusFilter === 'BEHIND' && t.pct >= 50) return false;
 
+      // Salesperson filter
+      if (salespersonFilter === 'CORE') {
+        const isCore = salesPersonnelData.core.some(c => String(c.id) === String(t.salespersonId));
+        if (!isCore) return false;
+      } else if (salespersonFilter === 'SUPER') {
+        const isSuper = salesPersonnelData.superList.some(s => String(s.id) === String(t.salespersonId));
+        if (!isSuper) return false;
+      } else if (salespersonFilter !== 'ALL') {
+        if (String(t.salespersonId) !== String(salespersonFilter)) return false;
+      }
+
       // Search Query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -212,7 +333,7 @@ export default function SalesTargetManagementView({
 
       return true;
     });
-  }, [enrichedTargets, periodFilter, statusFilter, searchQuery]);
+  }, [enrichedTargets, periodFilter, statusFilter, salespersonFilter, searchQuery, salesPersonnelData]);
 
   // Aggregate Metrics
   const totalTarget = useMemo(() => enrichedTargets.reduce((s, t) => s + t.targetAmount, 0), [enrichedTargets]);
@@ -242,7 +363,7 @@ export default function SalesTargetManagementView({
 
   // Open Create Modal
   const handleOpenCreate = () => {
-    const defaultPerson = salesPersonnel[0] || { id: 'sales-1', name: 'Sales Rep' };
+    const defaultPerson = salesPersonnelData.core[0] || salesPersonnelData.all[0] || { id: 'sales-1', name: 'Sales One' };
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
@@ -292,6 +413,64 @@ export default function SalesTargetManagementView({
     };
 
     try {
+      if (modalMode === 'create' && (formData.salespersonId === 'ALL_SALES' || formData.salespersonId === 'ALL_SUPERSALES')) {
+        const targetReps = formData.salespersonId === 'ALL_SUPERSALES'
+          ? salesPersonnelData.superList
+          : [...salesPersonnelData.core, ...salesPersonnelData.other];
+
+        if (targetReps.length === 0) {
+          throw new Error('No sales representatives found in this selection.');
+        }
+
+        let successCount = 0;
+        let alreadyActiveCount = 0;
+        const createdTargets = [];
+
+        for (const rep of targetReps) {
+          try {
+            const repPayload = {
+              ...payload,
+              salespersonId: rep.id
+            };
+            const res = await apiClient.post('/backend/sales-targets', repPayload);
+            if (res.success && res.data?.data) {
+              successCount++;
+              createdTargets.push(res.data.data);
+            }
+          } catch (repErr) {
+            const msg = repErr.response?.data?.message || repErr.message || '';
+            if (msg.includes('already exists') || msg.includes('overlapping')) {
+              alreadyActiveCount++;
+            }
+          }
+        }
+
+        if (setSalesTargets && createdTargets.length > 0) {
+          setSalesTargets(prev => [...createdTargets, ...prev]);
+        }
+
+        if (queryClient) {
+          queryClient.invalidateQueries({ queryKey: ['sales-target-dashboard'] });
+        }
+        setShowTargetModal(false);
+        if (onRefresh) onRefresh();
+
+        if (successCount > 0) {
+          showToast(
+            `Allocated revenue quota across ${successCount} sales personnel.` +
+            (alreadyActiveCount > 0 ? ` (${alreadyActiveCount} already had active targets)` : ''),
+            'success'
+          );
+        } else if (alreadyActiveCount > 0) {
+          fireSwal({
+            title: 'Targets Already Active',
+            text: `All ${alreadyActiveCount} selected sales representatives already have active targets during this date window.`,
+            icon: 'info'
+          });
+        }
+        return;
+      }
+
       if (modalMode === 'create') {
         const res = await apiClient.post('/backend/sales-targets', payload);
         if (!res.success) {
@@ -613,6 +792,39 @@ export default function SalesTargetManagementView({
               {s.label}
             </button>
           ))}
+
+          <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', margin: '0 6px 0 12px' }}>SALESPERSON:</span>
+          <select
+            className="tm-form-select"
+            style={{ width: 'auto', minWidth: '190px', padding: '5px 12px', borderRadius: '9999px', fontSize: '12px', fontWeight: '600' }}
+            value={salespersonFilter}
+            onChange={(e) => setSalespersonFilter(e.target.value)}
+          >
+            <option value="ALL">All Sales Users</option>
+            <option value="CORE">👤 Core Sales (Sales 1 - 14)</option>
+            <option value="SUPER">⚡ Super Sales Only</option>
+            {salesPersonnelData.core.length > 0 && (
+              <optgroup label="Core Sales Reps">
+                {salesPersonnelData.core.map(p => (
+                  <option key={p.id} value={p.id}>{p.displayLabel}</option>
+                ))}
+              </optgroup>
+            )}
+            {salesPersonnelData.superList.length > 0 && (
+              <optgroup label="Super Sales Reps">
+                {salesPersonnelData.superList.map(p => (
+                  <option key={p.id} value={p.id}>{p.displayLabel}</option>
+                ))}
+              </optgroup>
+            )}
+            {salesPersonnelData.other.length > 0 && (
+              <optgroup label="Other Sales">
+                {salesPersonnelData.other.map(p => (
+                  <option key={p.id} value={p.id}>{p.displayLabel}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -893,19 +1105,67 @@ export default function SalesTargetManagementView({
                     required
                     value={formData.salespersonId}
                     onChange={(e) => {
-                      const sel = salesPersonnel.find(p => p.id === e.target.value);
-                      setFormData({
-                        ...formData,
-                        salespersonId: e.target.value,
-                        salespersonName: sel?.name || ''
-                      });
+                      const val = e.target.value;
+                      if (val === 'ALL_SALES') {
+                        setFormData({
+                          ...formData,
+                          salespersonId: 'ALL_SALES',
+                          salespersonName: 'All Sales Personnel (Team-Wide Quota)'
+                        });
+                      } else if (val === 'ALL_SUPERSALES') {
+                        setFormData({
+                          ...formData,
+                          salespersonId: 'ALL_SUPERSALES',
+                          salespersonName: 'All Super Sales Team (SuperSales 1 & 2)'
+                        });
+                      } else {
+                        const sel = salesPersonnel.find(p => String(p.id) === String(val));
+                        setFormData({
+                          ...formData,
+                          salespersonId: val,
+                          salespersonName: sel?.name || ''
+                        });
+                      }
                     }}
                   >
-                    {salesPersonnel.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.email || 'Sales Rep'})
+                    <optgroup label="⭐ Team-Wide Quota Presets">
+                      <option value="ALL_SALES">
+                        ⭐ All Sales Personnel ({salesPersonnelData.core.length + salesPersonnelData.other.length} Reps)
                       </option>
-                    ))}
+                      <option value="ALL_SUPERSALES">
+                        ⚡ All Super Sales ({salesPersonnelData.superList.length} Reps)
+                      </option>
+                    </optgroup>
+
+                    {salesPersonnelData.core.length > 0 && (
+                      <optgroup label="👤 Core Sales Representatives (Sales 1 - 14)">
+                        {salesPersonnelData.core.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.displayLabel}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+
+                    {salesPersonnelData.superList.length > 0 && (
+                      <optgroup label="🚀 Super Sales Executive Team">
+                        {salesPersonnelData.superList.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.displayLabel}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+
+                    {salesPersonnelData.other.length > 0 && (
+                      <optgroup label="💼 Other Sales Personnel">
+                        {salesPersonnelData.other.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.displayLabel}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
 
@@ -995,7 +1255,11 @@ export default function SalesTargetManagementView({
                       Live Pacing &amp; Velocity Telemetry
                     </span>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
-                      Auto-calculated
+                      {formData.salespersonId === 'ALL_SALES'
+                        ? `Allocating across ${salesPersonnelData.core.length + salesPersonnelData.other.length} Reps`
+                        : formData.salespersonId === 'ALL_SUPERSALES'
+                        ? `Allocating across ${salesPersonnelData.superList.length} Super Sales`
+                        : 'Auto-calculated'}
                     </span>
                   </div>
                   <div className="tm-velocity-grid">
@@ -1005,16 +1269,30 @@ export default function SalesTargetManagementView({
                       <span className="tm-velocity-pill-sub">Target period</span>
                     </div>
                     <div className="tm-velocity-pill">
-                      <span className="tm-velocity-pill-label">Target Revenue</span>
+                      <span className="tm-velocity-pill-label">
+                        {formData.salespersonId === 'ALL_SALES' || formData.salespersonId === 'ALL_SUPERSALES'
+                          ? 'Target / Rep'
+                          : 'Target Revenue'}
+                      </span>
                       <span className="tm-velocity-pill-value highlight-primary">{formatCurrency(formData.targetAmount)}</span>
-                      <span className="tm-velocity-pill-sub">Total quota</span>
+                      <span className="tm-velocity-pill-sub">
+                        {formData.salespersonId === 'ALL_SALES'
+                          ? `Pool: ${formatCurrency(formData.targetAmount * (salesPersonnelData.core.length + salesPersonnelData.other.length))}`
+                          : formData.salespersonId === 'ALL_SUPERSALES'
+                          ? `Pool: ${formatCurrency(formData.targetAmount * salesPersonnelData.superList.length)}`
+                          : 'Total quota'}
+                      </span>
                     </div>
                     <div className="tm-velocity-pill">
                       <span className="tm-velocity-pill-label">Required Velocity</span>
                       <span className="tm-velocity-pill-value highlight-emerald">
                         {formatCurrency(modalLiveVelocity.dailyRequired)}
                       </span>
-                      <span className="tm-velocity-pill-sub">Per day required</span>
+                      <span className="tm-velocity-pill-sub">
+                        {formData.salespersonId === 'ALL_SALES' || formData.salespersonId === 'ALL_SUPERSALES'
+                          ? 'Per rep / day'
+                          : 'Per day required'}
+                      </span>
                     </div>
                   </div>
                 </div>
