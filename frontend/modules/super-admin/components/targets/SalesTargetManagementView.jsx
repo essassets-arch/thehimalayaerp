@@ -21,12 +21,16 @@ const ELIGIBLE_ORDER_STATUSES = [
   'PLANT_APPROVED',
   'PLANT_HEAD_ACCEPTED',
   'PRODUCTION_PLANNED',
+  'READY_FOR_PRODUCTION',
   'WORK_ORDER_CREATED',
   'PRODUCTION_STARTED',
+  'IN_PRODUCTION',
   'PRODUCTION_COMPLETED',
   'QC_PENDING',
   'QC_APPROVED',
+  'READY_FOR_DISPATCH',
   'DISPATCH_CREATED',
+  'DISPATCHED',
   'IN_TRANSIT',
   'DELIVERED',
   'ORDER_CLOSED',
@@ -48,6 +52,51 @@ export default function SalesTargetManagementView({
   const [periodFilter, setPeriodFilter] = useState('ALL'); // 'ALL' | 'Monthly' | 'Quarterly' | 'Yearly'
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'ACHIEVED' | 'ON_TRACK' | 'ATTENTION' | 'BEHIND'
   const [salespersonFilter, setSalespersonFilter] = useState('ALL'); // 'ALL' | 'CORE' | 'SUPER' | salespersonId
+
+  // Live Users & Orders fetched directly from backend to ensure 100% dynamic telemetry
+  const [liveUsers, setLiveUsers] = useState([]);
+  const [liveOrders, setLiveOrders] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (apiClient) {
+      apiClient.get('/admin/users')
+        .then(res => {
+          const raw = res.data?.data || res.data?.users || res.data || [];
+          if (isMounted && Array.isArray(raw) && raw.length > 0) {
+            setLiveUsers(raw);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => { isMounted = false; };
+  }, [apiClient]);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (apiClient && (!orders || orders.length === 0)) {
+      apiClient.get('/sales/orders?limit=1000')
+        .then(res => {
+          const raw = res.data?.data || res.data?.orders || res.data || [];
+          if (isMounted && Array.isArray(raw) && raw.length > 0) {
+            setLiveOrders(raw);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => { isMounted = false; };
+  }, [apiClient, orders]);
+
+  // Combined source of users & orders
+  const activeUsersSource = useMemo(() => {
+    if (liveUsers.length > 0) return liveUsers;
+    return Array.isArray(usersList) && usersList.length > 0 ? usersList : [];
+  }, [liveUsers, usersList]);
+
+  const activeOrdersSource = useMemo(() => {
+    if (Array.isArray(orders) && orders.length > 0) return orders;
+    return liveOrders;
+  }, [orders, liveOrders]);
 
   // Modals state
   const [showTargetModal, setShowTargetModal] = useState(false);
@@ -101,7 +150,7 @@ export default function SalesTargetManagementView({
       return role.includes('sales') || role.includes('executive') || role.includes('manager') || email.includes('sales') || name.includes('sales');
     };
 
-    const eligible = (usersList || []).filter(isSales);
+    const eligible = activeUsersSource.filter(isSales);
 
     const list = eligible.length > 0 ? eligible : [
       { id: 'sales-1', name: 'Sales One', email: 'sales1@himalayaerp.com' },
@@ -129,11 +178,11 @@ export default function SalesTargetManagementView({
       const email = String(u.email || '').trim().toLowerCase();
       const nameLower = name.toLowerCase();
 
-      // Check Super Sales
+      // 1. Check Super Sales
       const isSuper = email.includes('supersales') || nameLower.includes('super sales') || nameLower.includes('supersales') || nameLower.includes('taher');
       if (isSuper) {
         let num = 99;
-        const matchNum = email.match(/supersales(\d+)/) || nameLower.match(/supersales\s*(\d+)/) || email.match(/sales(\d+)/);
+        const matchNum = email.match(/supersales(\d+)/) || nameLower.match(/supersales\s*(\d+)/);
         if (matchNum) {
           num = parseInt(matchNum[1], 10);
         } else {
@@ -155,16 +204,21 @@ export default function SalesTargetManagementView({
         return;
       }
 
-      // Check Core Sales (Sales 1 - 14)
+      // 2. Check Core Sales (strictly Sales 1 to 14)
       let coreNum = null;
-      const matchCore = email.match(/^sales(\d+)@/) || email.match(/sales(\d+)/) || nameLower.match(/sales\s*(\d+)/);
-      if (matchCore) {
-        coreNum = parseInt(matchCore[1], 10);
-      } else {
-        for (const [w, n] of Object.entries(WORD_TO_NUM)) {
-          if (nameLower.includes(`sales ${w}`) || nameLower === `sales ${w}` || nameLower.endsWith(` ${w}`) || email.includes(`sales${n}`)) {
-            coreNum = n;
-            break;
+      const matchCoreEmail = email.match(/^sales(\d+)@/);
+      if (matchCoreEmail) {
+        coreNum = parseInt(matchCoreEmail[1], 10);
+      } else if (nameLower.startsWith('sales ') || nameLower.includes(' sales ') || nameLower === 'sales') {
+        const matchNameNum = nameLower.match(/sales\s*(\d+)/);
+        if (matchNameNum) {
+          coreNum = parseInt(matchNameNum[1], 10);
+        } else {
+          for (const [w, n] of Object.entries(WORD_TO_NUM)) {
+            if (nameLower === `sales ${w}` || nameLower.startsWith(`sales ${w} `) || nameLower.endsWith(` sales ${w}`) || nameLower.endsWith(` ${w}`)) {
+              coreNum = n;
+              break;
+            }
           }
         }
       }
@@ -181,7 +235,7 @@ export default function SalesTargetManagementView({
         return;
       }
 
-      // Other Sales Representatives
+      // 3. Other Sales Representatives
       other.push({
         id: u.id,
         name: u.name,
@@ -203,7 +257,7 @@ export default function SalesTargetManagementView({
       superList,
       other
     };
-  }, [usersList]);
+  }, [activeUsersSource]);
 
   const salesPersonnel = salesPersonnelData.all;
 
@@ -218,32 +272,39 @@ export default function SalesTargetManagementView({
     }
   };
 
-  // Enriched Target Rows with Live Qualifying Orders & Velocity
+  // Enriched Target Rows with Live Qualifying Orders & Velocity across ALL sales personnel
   const enrichedTargets = useMemo(() => {
-    if (!Array.isArray(salesTargets)) return [];
+    const allReps = salesPersonnelData.all;
+    if (allReps.length === 0) return [];
 
-    return salesTargets.filter(Boolean).map(t => {
-      const startDate = normalizeDate(t.startDate || t.start_date || t.periodStart);
-      const endDate = normalizeDate(t.endDate || t.end_date || t.periodEnd);
+    const existingTargets = Array.isArray(salesTargets) ? salesTargets.filter(Boolean) : [];
+    const rows = [];
+    const processedRepIds = new Set();
+
+    // 1. Process all explicitly saved targets from database
+    existingTargets.forEach(t => {
       const salespersonId = String(t.salespersonId || t.salesperson_id || t.userId || '');
-      const userMatch = (usersList || []).find(u => String(u.id) === salespersonId);
+      processedRepIds.add(salespersonId);
+      const repMatch = allReps.find(u => String(u.id) === salespersonId);
       const salespersonName =
         (t.salespersonName && t.salespersonName !== 'Unknown')
           ? t.salespersonName
-          : (t.salesperson?.name || userMatch?.name || 'Sales Representative');
-      const salespersonEmail = t.salesperson?.email || userMatch?.email || '';
+          : (t.salesperson?.name || repMatch?.name || 'Sales Representative');
+      const salespersonEmail = t.salesperson?.email || repMatch?.email || '';
+      const startDate = normalizeDate(t.startDate || t.start_date || t.periodStart) || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+      const endDate = normalizeDate(t.endDate || t.end_date || t.periodEnd) || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
       const targetAmount = Number(t.targetAmount || t.revenueTarget || 0);
 
       // Find qualifying orders
-      const qualifyingOrders = (orders || []).filter(o => {
+      const qualifyingOrders = (activeOrdersSource || []).filter(o => {
         if (!o || typeof o !== 'object') return false;
 
-        const orderSalesId = String(o.salespersonId || o.salesperson_id || o.createdById || o.salesExecutiveId || '');
-        const orderSalesName = String(o.salesperson || o.salesExecutive || o.createdByName || '').toLowerCase();
-        const matchesSalesperson = (orderSalesId && orderSalesId === salespersonId) ||
-          (salespersonName && orderSalesName.includes(salespersonName.toLowerCase()));
+        const orderSalesId = String(o.salespersonId || o.salesperson_id || o.salesExecutiveId || o.salesExecutive?.id || o.createdById || '');
+        const orderSalesName = String(o.salesperson || o.salesExecutive?.name || o.salesExecutive || o.createdByName || '').toLowerCase();
+        const matchesSalesperson = (orderSalesId && (orderSalesId === salespersonId || (salespersonEmail && o.salesExecutive?.email === salespersonEmail))) ||
+          (salespersonName && orderSalesName && (orderSalesName.includes(salespersonName.toLowerCase()) || salespersonName.toLowerCase().includes(orderSalesName)));
 
-        const orderDate = normalizeDate(o.createdAt || o.date || o.orderDate);
+        const orderDate = normalizeDate(o.orderDate || o.createdAt || o.date);
         const inPeriod = Boolean(orderDate && startDate && endDate && orderDate >= startDate && orderDate <= endDate);
 
         const currentStatus = String(o.orderLifecycleStatus || o.workflowStatus || o.status || '').toUpperCase();
@@ -253,7 +314,7 @@ export default function SalesTargetManagementView({
       });
 
       const calculatedAchieved = qualifyingOrders.reduce((sum, o) => {
-        return sum + Number(o.grandTotal || o.totalAmount || o.amount || 0);
+        return sum + Number(o.totalAmount || o.grandTotal || o.amount || 0);
       }, 0);
 
       const achieved = calculatedAchieved > 0 ? calculatedAchieved : Number(t.achieved || 0);
@@ -268,7 +329,7 @@ export default function SalesTargetManagementView({
       const daysRemaining = Math.max(0, Math.round((endD - now) / 86400000));
       const requiredDaily = daysRemaining > 0 ? Math.round(remaining / daysRemaining) : remaining;
 
-      let statusInfo = { label: 'Behind', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)', class: 'tm-badge-behind' };
+      let statusInfo = { label: 'Behind Pace', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)', class: 'tm-badge-behind' };
       if (pct >= 100) {
         statusInfo = { label: 'Achieved', color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', class: 'tm-badge-achieved' };
       } else if (pct >= 80) {
@@ -277,11 +338,12 @@ export default function SalesTargetManagementView({
         statusInfo = { label: 'Needs Attention', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)', class: 'tm-badge-attention' };
       }
 
-      return {
+      rows.push({
         ...t,
         id: t.id,
         salespersonId,
         salespersonName,
+        salespersonEmail,
         period: t.period || t.targetPeriod || 'Monthly',
         startDate,
         endDate,
@@ -293,10 +355,88 @@ export default function SalesTargetManagementView({
         daysRemaining,
         requiredDaily,
         status: statusInfo,
-        qualifyingOrders
-      };
+        qualifyingOrders,
+        hasExplicitTarget: true,
+        remarks: t.remarks || ''
+      });
     });
-  }, [salesTargets, orders]);
+
+    // 2. For every active sales rep who doesn't have an explicit target yet, add their dynamic row!
+    allReps.forEach(rep => {
+      if (processedRepIds.has(String(rep.id))) return;
+
+      const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+      // Find qualifying orders in current month window
+      const qualifyingOrders = (activeOrdersSource || []).filter(o => {
+        if (!o || typeof o !== 'object') return false;
+
+        const orderSalesId = String(o.salespersonId || o.salesperson_id || o.salesExecutiveId || o.salesExecutive?.id || o.createdById || '');
+        const orderSalesName = String(o.salesperson || o.salesExecutive?.name || o.salesExecutive || o.createdByName || '').toLowerCase();
+        const repName = (rep.name || '').toLowerCase();
+        const matchesSalesperson = (orderSalesId && (orderSalesId === String(rep.id) || (rep.email && o.salesExecutive?.email === rep.email))) ||
+          (repName && orderSalesName && (orderSalesName.includes(repName) || repName.includes(orderSalesName)));
+
+        const orderDate = normalizeDate(o.orderDate || o.createdAt || o.date);
+        const inPeriod = Boolean(orderDate && startDate && endDate && orderDate >= startDate && orderDate <= endDate);
+
+        const currentStatus = String(o.orderLifecycleStatus || o.workflowStatus || o.status || '').toUpperCase();
+        const isEligible = ELIGIBLE_ORDER_STATUSES.includes(currentStatus) && currentStatus !== 'CANCELLED' && currentStatus !== 'REJECTED';
+
+        return matchesSalesperson && inPeriod && isEligible;
+      });
+
+      const achieved = qualifyingOrders.reduce((sum, o) => {
+        return sum + Number(o.totalAmount || o.grandTotal || o.amount || 0);
+      }, 0);
+
+      const targetAmount = 5000000; // default ₹50 Lakhs benchmark
+      const remaining = Math.max(0, targetAmount - achieved);
+      const pct = Math.round((achieved / targetAmount) * 100);
+
+      const s = new Date(startDate);
+      const e = new Date(endDate);
+      const totalDays = Math.max(1, Math.round((e - s) / 86400000) + 1);
+      const daysRemaining = Math.max(0, Math.round((e - now) / 86400000));
+      const requiredDaily = daysRemaining > 0 ? Math.round(remaining / daysRemaining) : 0;
+
+      let statusInfo = { label: 'Benchmark Pace', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)', class: 'tm-badge-ontrack' };
+      if (pct >= 100) {
+        statusInfo = { label: 'Achieved', color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', class: 'tm-badge-achieved' };
+      } else if (pct >= 80) {
+        statusInfo = { label: 'On Track', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)', class: 'tm-badge-ontrack' };
+      } else if (pct >= 50) {
+        statusInfo = { label: 'Needs Attention', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)', class: 'tm-badge-attention' };
+      } else {
+        statusInfo = { label: 'Behind Pace', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)', class: 'tm-badge-behind' };
+      }
+
+      rows.push({
+        id: `dyn-${rep.id}`,
+        salespersonId: rep.id,
+        salespersonName: rep.name,
+        salespersonEmail: rep.email,
+        period: 'Monthly',
+        startDate,
+        endDate,
+        targetAmount,
+        achieved,
+        remaining,
+        pct,
+        totalDays,
+        daysRemaining,
+        requiredDaily,
+        status: statusInfo,
+        qualifyingOrders,
+        hasExplicitTarget: false,
+        remarks: 'Dynamic Monthly Benchmark'
+      });
+    });
+
+    return rows;
+  }, [salesTargets, activeOrdersSource, salesPersonnelData]);
 
   // Filtered target list
   const filteredTargets = useMemo(() => {
@@ -382,8 +522,23 @@ export default function SalesTargetManagementView({
     setShowTargetModal(true);
   };
 
-  // Open Edit Modal
+  // Open Edit / Assign Modal
   const handleOpenEdit = (row) => {
+    if (!row.hasExplicitTarget) {
+      setFormData({
+        id: '',
+        salespersonId: row.salespersonId,
+        salespersonName: row.salespersonName,
+        period: row.period || 'Monthly',
+        startDate: row.startDate,
+        endDate: row.endDate,
+        targetAmount: row.targetAmount || 5000000,
+        remarks: ''
+      });
+      setModalMode('create');
+      setShowTargetModal(true);
+      return;
+    }
     setFormData({
       id: row.id,
       salespersonId: row.salespersonId,
@@ -509,6 +664,11 @@ export default function SalesTargetManagementView({
 
   // Delete Target API
   const handleDeleteTarget = async (row) => {
+    if (!row.hasExplicitTarget) {
+      showToast('This row is a live dynamic benchmark. To assign a custom target quota, click "+"', 'info');
+      return;
+    }
+
     const confirmed = await fireSwal({
       title: 'Remove Target?',
       text: `Are you sure you want to delete the revenue target for ${row.salespersonName}?`,
@@ -902,7 +1062,24 @@ export default function SalesTargetManagementView({
                         </span>
                       </td>
                       <td>
-                        <strong style={{ color: '#0f172a' }}>{formatCurrency(row.targetAmount)}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <strong style={{ color: '#0f172a' }}>{formatCurrency(row.targetAmount)}</strong>
+                          {!row.hasExplicitTarget && (
+                            <span style={{
+                              fontSize: '10px',
+                              padding: '1.5px 6px',
+                              borderRadius: '9999px',
+                              background: '#eff6ff',
+                              color: '#2563eb',
+                              fontWeight: '700',
+                              border: '1px solid #bfdbfe',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em'
+                            }}>
+                              Benchmark
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <strong style={{ color: '#10b981' }}>{formatCurrency(row.achieved)}</strong>
@@ -967,20 +1144,33 @@ export default function SalesTargetManagementView({
                           >
                             <TrendingUp size={14} />
                           </button>
-                          <button
-                            className="tm-action-btn tm-action-edit"
-                            onClick={() => handleOpenEdit(row)}
-                            title="Edit Target Allocation"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                          <button
-                            className="tm-action-btn tm-action-delete"
-                            onClick={() => handleDeleteTarget(row)}
-                            title="Delete Target"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {row.hasExplicitTarget ? (
+                            <>
+                              <button
+                                className="tm-action-btn tm-action-edit"
+                                onClick={() => handleOpenEdit(row)}
+                                title="Edit Target Allocation"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                className="tm-action-btn tm-action-delete"
+                                onClick={() => handleDeleteTarget(row)}
+                                title="Delete Target"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              className="tm-action-btn tm-action-edit"
+                              style={{ background: 'rgba(37, 99, 235, 0.12)', color: '#2563eb', borderColor: 'rgba(37, 99, 235, 0.3)' }}
+                              onClick={() => handleOpenEdit(row)}
+                              title="Assign Custom Target Quota"
+                            >
+                              <Plus size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1024,7 +1214,9 @@ export default function SalesTargetManagementView({
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>
                   <div>
-                    <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 'bold' }}>TARGET</div>
+                    <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 'bold' }}>
+                      TARGET {!row.hasExplicitTarget && <span style={{ color: '#2563eb' }}>(BENCHMARK)</span>}
+                    </div>
                     <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#0f172a' }}>{formatCurrency(row.targetAmount)}</div>
                   </div>
                   <div>
@@ -1049,21 +1241,37 @@ export default function SalesTargetManagementView({
                     <button
                       className="tm-action-btn tm-action-orders"
                       onClick={() => { setSelectedTarget(row); setShowOrdersModal(true); }}
+                      title="View Confirmed Orders"
                     >
                       <Eye size={14} />
                     </button>
-                    <button
-                      className="tm-action-btn tm-action-edit"
-                      onClick={() => handleOpenEdit(row)}
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                    <button
-                      className="tm-action-btn tm-action-delete"
-                      onClick={() => handleDeleteTarget(row)}
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {row.hasExplicitTarget ? (
+                      <>
+                        <button
+                          className="tm-action-btn tm-action-edit"
+                          onClick={() => handleOpenEdit(row)}
+                          title="Edit Target"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          className="tm-action-btn tm-action-delete"
+                          onClick={() => handleDeleteTarget(row)}
+                          title="Delete Target"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="tm-action-btn tm-action-edit"
+                        style={{ background: 'rgba(37, 99, 235, 0.12)', color: '#2563eb', borderColor: 'rgba(37, 99, 235, 0.3)' }}
+                        onClick={() => handleOpenEdit(row)}
+                        title="Assign Custom Quota"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
