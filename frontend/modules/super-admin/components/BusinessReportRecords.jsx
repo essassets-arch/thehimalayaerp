@@ -76,6 +76,7 @@ export default function BusinessReportRecords({ catalog, params, refreshKey }) {
   return <section className="business-reports-export-card" aria-label="Detailed module reports">
     <h2 style={{ fontSize: 18, margin: '0 0 8px' }}>Detailed Module Reports</h2>
     <p style={{ color: '#64748b', fontSize: 13 }}>Browse {catalog.length} operational reports across the selected departments. All statuses are included. Exports include every matching record.</p>
+    <p style={{ color: '#64748b', fontSize: 12 }}>Records must belong to this company. Legacy inventory and machine masters without company ownership are not included. Manual registers include attributable records only; each report explains its scope. Product filters on document reports include the entire matching document; use item reports for individual product quantities and amounts.</p>
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
       <label>Report <select aria-label="Detailed report" value={dataset} onChange={event => { setSelection(event.target.value); setPage(1); }} style={{ ...control, maxWidth: '100%' }}>
         {departments.map(department => <optgroup key={department} label={department}>{catalog.filter(r => r.department === department).map(r => <option key={r.key} value={r.key}>{r.title}</option>)}</optgroup>)}
