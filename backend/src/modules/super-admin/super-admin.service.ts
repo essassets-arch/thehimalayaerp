@@ -1,4 +1,5 @@
 import { loadCentralizedReport, reportSections, centralizedCsv } from './centralized-reports';
+import { loadBusinessRegister, registerCatalog, registerCsv } from './business-report-registers';
 import { hrPeriod, hrDay, hrTime, hrCelebrations, attendanceCounts, employedStatuses } from './hr-analytics';
 import { BadRequestException, Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
@@ -4212,7 +4213,24 @@ export class SuperAdminService implements OnApplicationBootstrap {
       { isolationLevel: 'RepeatableRead', timeout: 60000 },
     );
     const result = { ...report, sections: reportSections(report, query?.department) };
-    return { ...result, csv: centralizedCsv(result) };
+    return { ...result, registers: registerCatalog(query?.department), csv: centralizedCsv(result) };
+  }
+
+  async getBusinessRegister(query: any, companyId: string, exporting = false) {
+    return this.prisma.$transaction(async db => {
+      const report = await loadBusinessRegister(db, query, companyId, exporting);
+      return exporting ? { ...report, csv: registerCsv(report) } : report;
+    }, { isolationLevel: 'RepeatableRead', timeout: 60000 });
+  }
+
+  async exportBusinessWorkbook(query: any, companyId: string) {
+    return this.prisma.$transaction(async db => {
+      const reports: Awaited<ReturnType<typeof loadBusinessRegister>>[] = [];
+      for (const register of registerCatalog(query.department)) {
+        reports.push(await loadBusinessRegister(db, { ...query, dataset: register.key }, companyId, true));
+      }
+      return { generatedAt: new Date().toISOString(), reports };
+    }, { isolationLevel: 'RepeatableRead', timeout: 120000 });
   }
 
   async getDispatchAnalytics(query: any, companyId: string) {

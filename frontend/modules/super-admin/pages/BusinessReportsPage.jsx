@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as Lucide from 'lucide-react';
 import { backendFetch } from '@/lib/backendFetch';
+import BusinessReportRecords from '../components/BusinessReportRecords';
 import "../components/dashboard.css";
 
 function formatMetric(metric) {
@@ -20,6 +21,7 @@ function saveBlob(blob, filename) {
 }
 
 const PRESET_OPTIONS = [
+  { value: 'ALL_TIME', label: 'All Time' },
   { value: 'THIS_MONTH', label: 'This Month' },
   { value: 'TODAY', label: 'Today' },
   { value: 'YESTERDAY', label: 'Yesterday' },
@@ -46,7 +48,7 @@ const DEPARTMENT_OPTIONS = [
 
 export default function BusinessReportsPage() {
   const [filters, setFilters] = useState({
-    rangePreset: 'THIS_MONTH',
+    rangePreset: 'ALL_TIME',
     startDate: '',
     endDate: '',
     branchId: '',
@@ -88,7 +90,7 @@ export default function BusinessReportsPage() {
       }
       const params = buildReportParams();
       const payload = await backendFetch(`/api/backend/super-admin/reports?${params}`, { cacheTtlMs: 0 });
-      if (!Array.isArray(payload?.sections) || !payload?.generatedAt || !payload?.csv || !payload?.period || !payload?.filters) throw new Error('The server returned an incomplete report.');
+      if (!Array.isArray(payload?.sections) || !Array.isArray(payload?.registers) || !payload?.generatedAt || !payload?.csv || !payload?.period || !payload?.filters) throw new Error('The server returned an incomplete report.');
       if (request === requestSequence.current) {
         setReport(payload);
         setAvailableFilters(payload.filters);
@@ -116,12 +118,14 @@ export default function BusinessReportsPage() {
 
   const handleDocumentExport = async (type) => {
     const key = type === 'inventory' ? 'store' : type;
-    const section = report?.sections.find(section => section.key === key);
-    if (!section || loading) return;
+    const sections = report?.sections.filter(section => type === 'all' || section.key === key);
+    if (!sections?.length || loading) return;
     setExporting(true); setExportError(null);
     try {
       const [{ jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
       const doc = new jsPDF();
+      for (const [index, section] of sections.entries()) {
+      if (index) doc.addPage();
       doc.setFontSize(16); doc.text(section.title, 14, 18);
       doc.setFontSize(9); doc.text('Period: ' + report.period.label, 14, 26);
       doc.text('Generated: ' + report.generatedAt, 14, 32);
@@ -138,6 +142,7 @@ export default function BusinessReportsPage() {
         body: section.metrics.map(metric => [metric.label, metric.value == null ? 'Not recorded' : Number(metric.value).toLocaleString('en-IN', { maximumFractionDigits: 2 }), metric.value == null ? '' : metric.unit]),
         styles: { fontSize: 9, cellPadding: 3 }, headStyles: { fillColor: [37, 99, 235] },
       });
+      }
       saveBlob(doc.output('blob'), key + '-report-' + report.period.startDate + '-to-' + report.period.endDate + '.pdf');
     } catch (error) {
       setExportError(error.message || 'Unable to generate the PDF report.');
@@ -150,7 +155,7 @@ export default function BusinessReportsPage() {
 
   const clearFilters = () => {
     setFilters({
-      rangePreset: 'THIS_MONTH',
+      rangePreset: 'ALL_TIME',
       startDate: '',
       endDate: '',
       branchId: '',
@@ -570,6 +575,7 @@ export default function BusinessReportsPage() {
               </section>
             ))}
           </div>
+          <BusinessReportRecords key={buildReportParams().toString()} catalog={report.registers} params={buildReportParams().toString()} refreshKey={report.generatedAt} />
         </>
       )}
 
@@ -579,10 +585,12 @@ export default function BusinessReportsPage() {
           <Lucide.Printer size={18} color="#2563eb" /> Executive Document Export Center
         </h3>
         <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '12.5px' }}>
-          Export the displayed report snapshot, including its active filters, exact values and scope notes. Choose All Departments to enable all three PDF reports.
+          Export the displayed summaries with active filters, recorded values and scope notes. Use Detailed Module Reports above to export every matching record.
         </p>
 
         <div className="business-reports-export-grid">
+          <button style={{ padding: '12px 14px', borderRadius: 8 }} disabled={exporting || loading || !report} onClick={() => handleDocumentExport('all')}>All Displayed Summaries PDF</button>
+          {report?.sections.filter(section => !['sales', 'finance', 'store'].includes(section.key)).map(section => <button key={section.key} style={{ padding: '12px 14px', borderRadius: 8 }} disabled={exporting || loading} onClick={() => handleDocumentExport(section.key)}>{section.title} PDF</button>)}
           <button
             onClick={() => handleDocumentExport('sales')}
             disabled={exporting || loading || !report?.sections.some(section => section.key === 'sales')}

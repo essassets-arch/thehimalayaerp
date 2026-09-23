@@ -71,6 +71,7 @@ export function businessReportPeriod(query: any, now = new Date()) {
   const day = (d: Date) => d.toISOString().slice(0, 10);
   const shift = (n: number) => day(new Date(date.getTime() + n * 86400000));
   const preset = (query.rangePreset || 'THIS_MONTH').toUpperCase();
+  const allTime = preset === 'ALL_TIME';
   let from = day(new Date(Date.UTC(y, m, 1))), to = today;
   if (preset === 'CUSTOM' || (!query.rangePreset && (query.startDate || query.from || query.endDate || query.to))) {
     from = query.startDate || query.from; to = query.endDate || query.to;
@@ -88,22 +89,22 @@ export function businessReportPeriod(query: any, now = new Date()) {
     const startYear = y - (m < 3 ? 1 : 0) - (preset === 'LAST_FINANCIAL_YEAR' ? 1 : 0);
     from = `${startYear}-04-01`;
     if (preset === 'LAST_FINANCIAL_YEAR') to = `${startYear + 1}-03-31`;
-  } else if (preset !== 'THIS_MONTH') throw new BadRequestException('Unsupported report period');
+  } else if (preset !== 'THIS_MONTH' && !allTime) throw new BadRequestException('Unsupported report period');
   const { start, end } = hrPeriod({ from, to }, now);
   const previousEnd = new Date(start.getTime() - 1);
   const previousStart = new Date(start.getTime() - (end.getTime() - start.getTime() + 1));
   const clean = (key: string) => query[key] && query[key] !== 'All' ? query[key] : undefined;
   return {
-    start, end, inRange: { gte: start, lte: end }, priorRange: { gte: previousStart, lte: previousEnd },
+    start, end, allTime, inRange: allTime ? {} : { gte: start, lte: end }, priorRange: { gte: previousStart, lte: previousEnd },
     branchId: clean('branchId'), customerId: clean('customerId'), productId: clean('productId'), vendorId: clean('vendorId'), department: clean('department'),
-    period: { startDate: from, endDate: to, comparisonStartDate: hrDay(previousStart), comparisonEndDate: hrDay(previousEnd), label: `${from} to ${to} (India time)` },
+    period: { startDate: allTime ? 'all-time' : from, endDate: to, comparisonStartDate: allTime ? null : hrDay(previousStart), comparisonEndDate: allTime ? null : hrDay(previousEnd), label: allTime ? 'All recorded dates (stock through today)' : `${from} to ${to} (India time)` },
   };
 }
 
 export async function loadCentralizedReport(db: Prisma.TransactionClient, query: any, companyId: string, now = new Date()) {
   if (!companyId || ['null', 'undefined'].includes(companyId)) throw new BadRequestException('Company context is required');
   const f = businessReportPeriod(query, now);
-  const within = (value: Date | null | undefined) => !!value && value >= f.start && value <= f.end;
+  const within = (value: Date | null | undefined) => !!value && (f.allTime || (value >= f.start && value <= f.end));
   const [branches, customers, vendors, products, warehouses] = await Promise.all([
     db.branch.findMany({ where: { companyId, deletedAt: null }, select: { id: true, name: true } }),
     db.customer.findMany({ where: { companyId, deletedAt: null }, select: { id: true, companyName: true, branchId: true } }),
@@ -118,7 +119,7 @@ export async function loadCentralizedReport(db: Prisma.TransactionClient, query:
   const indentWhere: Prisma.PurchaseIndentWhereInput = { companyId, ...(f.branchId ? { warehouseId: { in: warehouses.map(w => w.id) } } : {}), ...(f.productId ? { items: { some: { productId: f.productId } } } : {}), ...(f.vendorId ? { purchaseOrders: { some: { companyId, supplierId: f.vendorId } } } : {}) };
   const [orders, priorOrders, payments, invoices, leads, quotes, samples, work, inspections, materials, indents, purchaseOrders, rawMaterials, transactions, employees, departments, users, payroll] = await Promise.all([
     db.salesOrder.findMany({ where: { ...orderWhere, orderDate: f.inRange }, select: { id: true, status: true, totalAmount: true, paidAmount: true } }),
-    db.salesOrder.count({ where: { ...orderWhere, orderDate: f.priorRange, status: { in: confirmed as any } } }),
+    f.allTime ? Promise.resolve(0) : db.salesOrder.count({ where: { ...orderWhere, orderDate: f.priorRange, status: { in: confirmed as any } } }),
     db.customerPayment.findMany({ where: { customer: { companyId }, customerId: { in: customerIds } }, include: { allocations: true } }),
     db.salesInvoice.findMany({ where: { salesOrder: orderWhere, status: { in: ['POSTED', 'PARTIALLY_PAID', 'PAID'] } }, include: { paymentAllocations: { include: { payment: { select: { status: true } } } } } }),
     db.lead.count({ where: { companyId, deletedAt: null, convertedAt: null, lostAt: null, createdAt: f.inRange, ...((f.customerId || f.branchId) ? { customerId: { in: customerIds } } : {}) } }),

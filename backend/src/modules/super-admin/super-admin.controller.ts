@@ -269,6 +269,21 @@ export class SuperAdminController {
     return res.send(result.content);
   }
 
+  @Get('reports/records')
+  async getBusinessRegister(@Query() query: any, @CurrentUser() user: any) {
+    return this.superAdminService.getBusinessRegister(query, user.companyId);
+  }
+
+  @Get('reports/records/export')
+  async exportBusinessRegister(@Query() query: any, @CurrentUser() user: any) {
+    return this.superAdminService.getBusinessRegister(query, user.companyId, true);
+  }
+
+  @Get('reports/workbook')
+  async exportBusinessWorkbook(@Query() query: any, @CurrentUser() user: any) {
+    return this.superAdminService.exportBusinessWorkbook(query, user.companyId);
+  }
+
   @Get('user-types')
   async getUserTypes() {
     return this.superAdminService.getUserTypes();

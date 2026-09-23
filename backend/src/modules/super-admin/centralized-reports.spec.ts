@@ -43,6 +43,17 @@ describe('Centralized business reports, isolated database fixtures', () => {
     await expect(loadCentralizedReport(db, query, '', now)).rejects.toThrow('Company context');
   });
 
+  it('includes historical records in All Time without inventing a comparison period', async () => {
+    const db = setup();
+    db.salesOrder.findMany.mockResolvedValue([{ id: 'old-order', status: 'CONFIRMED' }]);
+    db.customerPayment.findMany.mockResolvedValue([{ receivedAt: new Date('2010-01-01'), amount: 125, status: 'VERIFIED', allocations: [] }]);
+    const report = await loadCentralizedReport(db, { rangePreset: 'ALL_TIME' }, 'tenant', now);
+    expect(report.sales).toMatchObject({ totalOrders: 1, revenueCollected: 125, totalOrdersChangePercent: null });
+    expect(report.period).toMatchObject({ startDate: 'all-time', comparisonStartDate: null, comparisonEndDate: null });
+    expect(db.salesOrder.count).not.toHaveBeenCalled();
+    expect(db.salesOrder.findMany.mock.calls[0][0].where.orderDate).toEqual({});
+  });
+
   it('uses real QC outcomes in the same period and first inspections across rework', async () => {
     const db = setup();
     db.qCInspection.findMany.mockResolvedValue([
