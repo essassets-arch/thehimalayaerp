@@ -60,7 +60,6 @@ export const PlantHeadDailySummary = () => {
     rawInventory: true,
     finishedGoods: true,
     replacementsReturns: true,
-    activity: false,
     comparison: false,
   });
 
@@ -1596,36 +1595,6 @@ export const PlantHeadDailySummary = () => {
         )}
       </div>
 
-      {/* ── SECTION 13 — TARGET DATE ACTIVITY TIMELINE ── */}
-      <div id="activity-timeline" style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', marginBottom: '24px', border: '1px solid #e2e8f0' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => toggleSection('activity')}>
-            {collapsedSections.activity ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-            <h3 style={{ fontSize: '16px', fontWeight: '900', color: '#0f172a', margin: 0 }}>⏱️ Operational Activity Timeline</h3>
-          </div>
-        </div>
-
-        {!collapsedSections.activity && (
-          <div style={{ marginTop: '16px' }}>
-            {data?.activityTimeline && data.activityTimeline.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {data.activityTimeline.map((act, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#0284c7', background: '#e0f2fe', padding: '2px 8px', borderRadius: '4px', minWidth: '65px', textAlign: 'center' }}>
-                      {act.time}
-                    </span>
-                    <span style={{ fontSize: '12.5px', color: '#334155', fontWeight: '600' }}>
-                      {act.description}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ padding: '16px', textAlign: 'center', color: '#94a3b8' }}>No activity records found for this date.</div>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* ── INTERACTIVE ITEM INSPECTION MODAL ── */}
       {inspectedItem && (
