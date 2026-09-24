@@ -188,7 +188,7 @@ export default function BackOfficeArSheetView({
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
+      setIsMobile(window.innerWidth <= 1024);
     };
     handleResize();
     window.addEventListener('resize', handleResize);
@@ -678,14 +678,17 @@ export default function BackOfficeArSheetView({
   };
 
   return (
-    <div style={{
-      padding: isMobile ? '12px 10px 80px' : '24px',
-      maxWidth: '1720px',
+    <div className="ar-sheet-root" style={{
+      width: '100%',
+      maxWidth: '100%',
+      minWidth: 0,
+      boxSizing: 'border-box',
+      padding: isMobile ? '8px 6px 80px' : '0 0 32px 0',
       margin: '0 auto',
       color: '#1e293b',
       fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     }}>
-      {/* Scoped Mobile Responsive & Interaction Styles */}
+            {/* Scoped Mobile Responsive & Interaction Styles */}
       <style>{`
         @keyframes arFadeIn {
           from { opacity: 0; transform: translateY(4px); }
@@ -694,6 +697,12 @@ export default function BackOfficeArSheetView({
         @keyframes arSlideUp {
           from { transform: translateY(100%); }
           to { transform: translateY(0); }
+        }
+        .ar-sheet-root {
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          box-sizing: border-box !important;
         }
         .ar-btn-touch {
           touch-action: manipulation;
@@ -709,7 +718,29 @@ export default function BackOfficeArSheetView({
         .ar-card-item:active {
           transform: scale(0.995);
         }
-        @media (max-width: 768px) {
+        .ar-scroll-x {
+          -webkit-overflow-scrolling: touch;
+          overflow-x: auto !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          box-sizing: border-box !important;
+        }
+        .ar-scroll-x::-webkit-scrollbar {
+          height: 7px;
+        }
+        .ar-scroll-x::-webkit-scrollbar-track {
+          background: #f1f5f9;
+          border-radius: 4px;
+        }
+        .ar-scroll-x::-webkit-scrollbar-thumb {
+          background: #94a3b8;
+          border-radius: 4px;
+        }
+        .ar-scroll-x::-webkit-scrollbar-thumb:hover {
+          background: #64748b;
+        }
+        @media (max-width: 1024px) {
           .ar-mobile-input {
             font-size: 16px !important;
           }
@@ -717,22 +748,10 @@ export default function BackOfficeArSheetView({
             padding: 8px 10px !important;
             font-size: 11px !important;
           }
-        }
-        .ar-scroll-x {
-          -webkit-overflow-scrolling: touch;
-        }
-        .ar-scroll-x::-webkit-scrollbar {
-          height: 5px;
-        }
-        .ar-scroll-x::-webkit-scrollbar-track {
-          background: #f1f5f9;
-        }
-        .ar-scroll-x::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
-          border-radius: 4px;
-        }
-        .ar-scroll-x::-webkit-scrollbar-thumb:hover {
-          background: #94a3b8;
+          .ar-header-actions {
+            width: 100% !important;
+            justify-content: space-between !important;
+          }
         }
       `}</style>
 
@@ -768,13 +787,17 @@ export default function BackOfficeArSheetView({
       )}
 
       {/* 1. Header Toolbar */}
-      <div style={{
+      <div className="ar-header-bar" style={{
         display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
+        flexWrap: 'wrap',
         justifyContent: 'space-between',
         alignItems: isMobile ? 'stretch' : 'center',
-        gap: '14px',
-        marginBottom: isMobile ? '14px' : '20px'
+        gap: '12px',
+        marginBottom: isMobile ? '12px' : '18px',
+        width: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box'
       }}>
         {/* Title Area */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -816,13 +839,15 @@ export default function BackOfficeArSheetView({
         </div>
 
         {/* Action Controls */}
-        <div style={{
+        <div className="ar-header-actions" style={{
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
           flexWrap: 'wrap',
           justifyContent: isMobile ? 'space-between' : 'flex-end',
-          width: isMobile ? '100%' : 'auto'
+          width: isMobile ? '100%' : 'auto',
+          minWidth: 0,
+          boxSizing: 'border-box'
         }}>
           {/* View Mode Switcher */}
           <div style={{ display: 'flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
@@ -943,11 +968,14 @@ export default function BackOfficeArSheetView({
       </div>
 
       {/* 2. KPI Summary Cards (Optimized 2x2 + full width for mobile) */}
-      <div style={{
+      <div className="ar-kpi-grid" style={{
         display: 'grid',
-        gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: isMobile ? '8px' : '14px',
-        marginBottom: isMobile ? '14px' : '18px'
+        gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: isMobile ? '8px' : '12px',
+        marginBottom: isMobile ? '12px' : '16px',
+        width: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box'
       }}>
         <div style={{ background: '#fff', padding: isMobile ? '10px 12px' : '14px 18px', borderRadius: '10px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
           <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px' }}>Invoices</div>
@@ -979,7 +1007,7 @@ export default function BackOfficeArSheetView({
           <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '1px' }}>Collections</div>
         </div>
 
-        <div style={{
+        <div className="ar-kpi-outstanding" style={{
           background: '#fff',
           padding: isMobile ? '10px 14px' : '14px 18px',
           borderRadius: '10px',
@@ -1080,7 +1108,10 @@ export default function BackOfficeArSheetView({
         {(!isMobile || showMobileFilters) && (
           <div style={{
             display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(160px, 1fr))',
+            gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(135px, 1fr))',
+            width: '100%',
+            minWidth: 0,
+            boxSizing: 'border-box',
             gap: isMobile ? '8px' : '12px',
             alignItems: 'center',
             marginTop: '12px',
@@ -1520,7 +1551,7 @@ export default function BackOfficeArSheetView({
             maxHeight: isMobile ? '560px' : '720px',
             WebkitOverflowScrolling: 'touch'
           }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '12px', textAlign: 'left', whiteSpace: 'nowrap' }}>
+            <table className="ar-table-sheet" style={{ width: '100%', minWidth: '2200px', borderCollapse: 'separate', borderSpacing: 0, fontSize: '12px', textAlign: 'left', whiteSpace: 'nowrap' }}>
               <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 20, borderBottom: '2px solid #cbd5e1' }}>
                 <tr>
                   {/* Sticky Action Column on left */}
