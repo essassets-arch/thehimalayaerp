@@ -85,6 +85,29 @@ export default function ReceiptsView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, fontFamily: "'Outfit', sans-serif" }}>
+      <style>{`
+        .receipts-desktop-table {
+          display: block;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          border: 1px solid #E2E8F0;
+          border-radius: 10px;
+        }
+        .receipts-mobile-cards {
+          display: none;
+        }
+        @media (max-width: 768px) {
+          .receipts-desktop-table {
+            display: none !important;
+          }
+          .receipts-mobile-cards {
+            display: flex !important;
+            flex-direction: column;
+            gap: 12px;
+          }
+        }
+      `}</style>
+
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 800, color: '#1E293B', margin: 0 }}>Customer Payment Receipts</h1>
         <p style={{ color: '#64748B', fontSize: 13.5, margin: '4px 0 0' }}>Verified customer payments from the Finance workflow.</p>
@@ -109,8 +132,9 @@ export default function ReceiptsView() {
 
         {error && <div style={{ padding: 14, marginBottom: 14, borderRadius: 8, background: '#FEF2F2', color: '#B91C1C' }}>{error.message || 'Unable to load receipts.'}</div>}
 
-        <div style={{ overflowX: 'auto', border: '1px solid #E2E8F0', borderRadius: 10 }}>
-          <table style={{ width: '100%', minWidth: 880, borderCollapse: 'collapse', textAlign: 'left' }}>
+        {/* Desktop Table View */}
+        <div className="receipts-desktop-table">
+          <table className="no-mobile-stack" style={{ width: '100%', minWidth: 880, borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead style={{ background: '#F8FAFC', fontSize: 12, color: '#475569' }}>
               <tr>
                 {['Receipt Number', 'Order / Invoice', 'Customer', 'Verified Amount', 'Payment Mode', 'Verified Date', 'Actions'].map((heading) => (
@@ -125,13 +149,13 @@ export default function ReceiptsView() {
                 <tr><td colSpan={7} style={{ padding: 28, textAlign: 'center', color: '#94A3B8' }}>No verified payment receipts found.</td></tr>
               ) : filteredReceipts.map((receipt) => (
                 <tr key={receipt.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                  <td style={{ padding: '12px 14px', fontWeight: 800, color: '#1E3A8A' }}>{receipt.receiptNumber}</td>
-                  <td style={{ padding: '12px 14px' }}><strong>{receipt.orderId}</strong><div style={{ color: '#64748B', marginTop: 2 }}>{receipt.invoiceNumber}</div></td>
-                  <td style={{ padding: '12px 14px', fontWeight: 600 }}>{receipt.customerName}</td>
-                  <td style={{ padding: '12px 14px', fontWeight: 800, color: '#047857' }}>{money(receipt.paymentAmount)}</td>
-                  <td style={{ padding: '12px 14px' }}>{receipt.paymentMode}</td>
-                  <td style={{ padding: '12px 14px' }}>{date(receipt.paymentDate)}</td>
-                  <td style={{ padding: '12px 14px' }}>
+                  <td data-label="Receipt Number" style={{ padding: '12px 14px', fontWeight: 800, color: '#1E3A8A' }}>{receipt.receiptNumber}</td>
+                  <td data-label="Order / Invoice" style={{ padding: '12px 14px' }}><strong>{receipt.orderId}</strong><div style={{ color: '#64748B', marginTop: 2 }}>{receipt.invoiceNumber}</div></td>
+                  <td data-label="Customer" style={{ padding: '12px 14px', fontWeight: 600 }}>{receipt.customerName}</td>
+                  <td data-label="Verified Amount" style={{ padding: '12px 14px', fontWeight: 800, color: '#047857' }}>{money(receipt.paymentAmount)}</td>
+                  <td data-label="Payment Mode" style={{ padding: '12px 14px' }}>{receipt.paymentMode}</td>
+                  <td data-label="Verified Date" style={{ padding: '12px 14px' }}>{date(receipt.paymentDate)}</td>
+                  <td data-label="Actions" style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
                       <button onClick={() => handleReceipt(receipt)} className="btn-small btn-primary-small" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Printer size={13} /> View / Print</button>
                       {receipt.proofUrl && <button onClick={() => window.open(getBackendAssetUrl(receipt.proofUrl), '_blank', 'noopener,noreferrer')} className="btn-small btn-outline-small" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><ImageIcon size={13} /> Proof</button>}
@@ -142,7 +166,131 @@ export default function ReceiptsView() {
             </tbody>
           </table>
         </div>
+
+        {/* Dedicated Mobile Cards List */}
+        <div className="receipts-mobile-cards">
+          {isLoading ? (
+            <div style={{ padding: 28, textAlign: 'center', color: '#64748B' }}>Loading verified receipts...</div>
+          ) : filteredReceipts.length === 0 ? (
+            <div style={{ padding: 28, textAlign: 'center', color: '#94A3B8' }}>No verified payment receipts found.</div>
+          ) : (
+            filteredReceipts.map((receipt) => (
+              <div
+                key={receipt.id}
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderLeft: '4px solid #10B981',
+                  borderRadius: 14,
+                  padding: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                  boxSizing: 'border-box',
+                  width: '100%'
+                }}
+              >
+                {/* Header: Receipt Number & Status */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <div>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: '#1E3A8A', fontFamily: 'monospace' }}>
+                      {receipt.receiptNumber}
+                    </span>
+                    <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>
+                      Verified: {date(receipt.paymentDate)}
+                    </div>
+                  </div>
+                  <span style={{
+                    background: '#DCFCE7',
+                    color: '#15803D',
+                    fontSize: 10.5,
+                    fontWeight: 800,
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                    textTransform: 'uppercase',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    ✓ Verified
+                  </span>
+                </div>
+
+                {/* Customer & Order Details */}
+                <div style={{ background: '#F8FAFC', padding: '10px 12px', borderRadius: 10, border: '1px solid #F1F5F9' }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A' }}>{receipt.customerName}</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 11.5, color: '#475569', marginTop: 4 }}>
+                    <span>Order: <strong style={{ color: '#002E5D', fontFamily: 'monospace' }}>{receipt.orderId}</strong></span>
+                    {receipt.invoiceNumber !== '—' && (
+                      <>
+                        <span>•</span>
+                        <span>Inv: <strong style={{ color: '#475569' }}>{receipt.invoiceNumber}</strong></span>
+                      </>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, borderTop: '1px dashed #E2E8F0', paddingTop: 6, fontSize: 11.5 }}>
+                    <span style={{ color: '#64748B' }}>Method: <strong style={{ color: '#334155' }}>{receipt.paymentMode}</strong></span>
+                    <span style={{ color: '#64748B', fontFamily: 'monospace', fontSize: 11 }}>Ref: {receipt.transactionReference}</span>
+                  </div>
+                </div>
+
+                {/* Amount Received Box */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ECFDF5', padding: '10px 14px', borderRadius: 10, border: '1px solid #A7F3D0' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#065F46' }}>Verified Amount</span>
+                  <span style={{ fontSize: 17, fontWeight: 900, color: '#047857' }}>{money(receipt.paymentAmount)}</span>
+                </div>
+
+                {/* Actions Row */}
+                <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                  <button
+                    onClick={() => handleReceipt(receipt)}
+                    style={{
+                      flex: 1,
+                      padding: '10px',
+                      background: '#2563EB',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: 8,
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <Printer size={14} /> View / Print Receipt
+                  </button>
+                  {receipt.proofUrl && (
+                    <button
+                      onClick={() => window.open(getBackendAssetUrl(receipt.proofUrl), '_blank', 'noopener,noreferrer')}
+                      style={{
+                        padding: '10px 14px',
+                        background: '#FFFFFF',
+                        color: '#334155',
+                        border: '1px solid #CBD5E1',
+                        borderRadius: 8,
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 5
+                      }}
+                    >
+                      <ImageIcon size={14} /> Proof
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
 }
+
+
+

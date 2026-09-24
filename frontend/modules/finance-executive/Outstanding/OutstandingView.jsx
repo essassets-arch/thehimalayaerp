@@ -507,6 +507,54 @@ export default function OutstandingView() {
           width: 100%;
           box-sizing: border-box;
         }
+
+        .finance-outstanding-desktop-table {
+          display: block;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+        }
+
+        .finance-outstanding-mobile-cards {
+          display: none;
+        }
+
+        @media (max-width: 768px) {
+          .finance-outstanding-desktop-table {
+            display: none !important;
+          }
+          .finance-outstanding-mobile-cards {
+            display: flex !important;
+            flex-direction: column;
+            gap: 12px;
+          }
+          .finance-outstanding-table-card {
+            padding: 14px !important;
+            border-radius: 14px !important;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .finance-outstanding-header {
+            flex-direction: column;
+            align-items: stretch !important;
+            gap: 12px !important;
+          }
+          .finance-outstanding-header > div:last-child {
+            width: 100%;
+            justify-content: space-between;
+          }
+          .finance-outstanding-search-wrap {
+            width: 100% !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          .finance-outstanding-search-box {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+        }
       `}</style>
 
       {/* Header Title & Actions */}
@@ -651,20 +699,21 @@ export default function OutstandingView() {
             </div>
 
             {/* Search and Advanced Filter Trigger */}
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <div style={{ position: 'relative', width: '260px' }}>
+            <div className="finance-outstanding-search-wrap" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <div className="finance-outstanding-search-box" style={{ position: 'relative', width: '260px' }}>
                 <Search style={{ position: 'absolute', left: '10px', top: '10px', width: '15px', height: '15px', color: '#94a3b8' }} />
                 <input
                   type="text"
                   placeholder="Search customer, order, invoice..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px 8px 32px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                  style={{ width: '100%', padding: '8px 10px 8px 32px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
                 />
               </div>
 
               <button
                 onClick={() => setShowAdvancedFilters((prev) => !prev)}
+                className="finance-outstanding-filter-btn"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -751,9 +800,9 @@ export default function OutstandingView() {
             </div>
           )}
 
-          {/* Outstanding Table */}
-          <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          {/* Desktop Table View */}
+          <div className="finance-outstanding-desktop-table">
+            <table className="no-mobile-stack" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead style={{ background: '#f8fafc', fontSize: '11.5px', fontWeight: '800', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                 <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
                   <th style={{ padding: '12px 16px' }}>Customer & Order</th>
@@ -790,12 +839,11 @@ export default function OutstandingView() {
                 ) : (
                   filteredList.map((item) => {
                     const isCriticallyOverdue = item.daysOverdue > 90;
-                    const isLate = item.daysOverdue > 30;
                     return (
                       <tr key={item.invoiceId} style={{ borderBottom: '1px solid #f1f5f9', background: isCriticallyOverdue ? '#fffdfd' : '#ffffff' }}>
                         
                         {/* Customer & Order Reference */}
-                        <td style={{ padding: '12px 16px' }}>
+                        <td data-label="Customer & Order" style={{ padding: '12px 16px' }}>
                           <div style={{ fontWeight: '800', color: '#0f172a', fontSize: '13.5px' }}>{item.customerName}</div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
                             <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#0284c7', fontWeight: '700' }}>
@@ -815,22 +863,22 @@ export default function OutstandingView() {
                         </td>
 
                         {/* Invoice Number */}
-                        <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: '#475569', fontSize: '12.5px' }}>
+                        <td data-label="Invoice No" style={{ padding: '12px 16px', fontFamily: 'monospace', color: '#475569', fontSize: '12.5px' }}>
                           {item.invoiceNumber}
                         </td>
 
                         {/* Total Amount */}
-                        <td style={{ padding: '12px 16px', fontWeight: '700', color: '#0f172a' }}>
+                        <td data-label="Total Amount" style={{ padding: '12px 16px', fontWeight: '700', color: '#0f172a' }}>
                           {formatINR(item.totalAmount)}
                         </td>
 
                         {/* Verified Paid Amount */}
-                        <td style={{ padding: '12px 16px', fontWeight: '700', color: '#16a34a' }}>
+                        <td data-label="Paid Amount" style={{ padding: '12px 16px', fontWeight: '700', color: '#16a34a' }}>
                           {formatINR(item.paidAmount)}
                         </td>
 
                         {/* Outstanding Amount */}
-                        <td style={{ padding: '12px 16px' }}>
+                        <td data-label="Outstanding Dues" style={{ padding: '12px 16px' }}>
                           <div style={{ fontWeight: '900', fontSize: '14.5px', color: '#dc2626' }}>
                             {formatINR(item.outstanding)}
                           </div>
@@ -842,7 +890,7 @@ export default function OutstandingView() {
                         </td>
 
                         {/* Terms & Due Date */}
-                        <td style={{ padding: '12px 16px' }}>
+                        <td data-label="Terms & Due Date" style={{ padding: '12px 16px' }}>
                           <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>
                             {item.dueDate?.split('T')[0] || '—'}
                           </div>
@@ -852,7 +900,7 @@ export default function OutstandingView() {
                         </td>
 
                         {/* Days Overdue */}
-                        <td style={{ padding: '12px 16px' }}>
+                        <td data-label="Aging Overdue" style={{ padding: '12px 16px' }}>
                           <span style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -869,15 +917,13 @@ export default function OutstandingView() {
                         </td>
 
                         {/* Sales Executive */}
-                        <td style={{ padding: '12px 16px', color: '#475569', fontSize: '12px' }}>
+                        <td data-label="Sales Executive" style={{ padding: '12px 16px', color: '#475569', fontSize: '12px' }}>
                           {item.salesPerson}
                         </td>
 
                         {/* Action Buttons */}
-                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                        <td data-label="Actions" style={{ padding: '12px 16px', textAlign: 'right' }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', alignItems: 'center' }}>
-                            
-                            {/* Schedule / Add Follow-up */}
                             <button
                               onClick={() => handleScheduleReminder(item)}
                               title="Schedule Reminder / Add Follow-up"
@@ -899,7 +945,6 @@ export default function OutstandingView() {
                               Follow-up
                             </button>
 
-                            {/* Record Customer Payment */}
                             <button
                               onClick={() => router.push(`/sales/create-payment?orderId=${encodeURIComponent(item.orderNumber)}`)}
                               title="Log / Confirm Payment Collection"
@@ -921,7 +966,6 @@ export default function OutstandingView() {
                               <CreditCard size={13} />
                               Pay
                             </button>
-
                           </div>
                         </td>
 
@@ -931,6 +975,186 @@ export default function OutstandingView() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Dedicated Mobile Cards List */}
+          <div className="finance-outstanding-mobile-cards">
+            {(ordersLoading || paymentsLoading) ? (
+              <div style={{ padding: '36px', textAlign: 'center', color: '#64748b' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  <span style={{ fontWeight: '700', fontSize: '13.5px' }}>Loading live receivables and outstanding records...</span>
+                </div>
+              </div>
+            ) : filteredList.length === 0 ? (
+              <div style={{ padding: '36px 16px', textAlign: 'center', color: '#94a3b8', background: '#F8FAFC', borderRadius: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                  <CheckCircle2 size={32} className="text-emerald-500" />
+                  <span style={{ fontWeight: '700', fontSize: '14px', color: '#334155' }}>No outstanding dues found matching criteria</span>
+                  <span style={{ fontSize: '12px' }}>All matched accounts have been settled or no entries exist.</span>
+                </div>
+              </div>
+            ) : (
+              filteredList.map((item) => {
+                const isCriticallyOverdue = item.daysOverdue > 90;
+                const isLate = item.daysOverdue > 30;
+                const isOverdue = item.daysOverdue > 0;
+                const accentColor = isCriticallyOverdue ? '#dc2626' : (isLate ? '#ea580c' : (isOverdue ? '#d97706' : '#10b981'));
+
+                return (
+                  <div
+                    key={item.invoiceId}
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderLeft: `4px solid ${accentColor}`,
+                      borderRadius: '14px',
+                      padding: '16px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      boxSizing: 'border-box',
+                      width: '100%'
+                    }}
+                  >
+                    {/* Header: Customer Name, Order No & Badges */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0F172A', lineHeight: 1.35, wordBreak: 'break-word' }}>
+                          {item.customerName}
+                        </h3>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+                          <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#0284C7', fontWeight: 700 }}>
+                            {item.orderNumber}
+                          </span>
+                          <span style={{
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            background: item.orderStatus === 'DELIVERED' ? '#DCFCE7' : '#F1F5F9',
+                            color: item.orderStatus === 'DELIVERED' ? '#15803D' : '#475569'
+                          }}>
+                            {item.orderStatus}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Aging Status Badge */}
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        background: item.daysOverdue > 90 ? '#FEE2E2' : (item.daysOverdue > 30 ? '#FFEDD5' : (item.daysOverdue > 0 ? '#FEF3C7' : '#DCFCE7')),
+                        color: item.daysOverdue > 90 ? '#991B1B' : (item.daysOverdue > 30 ? '#C2410C' : (item.daysOverdue > 0 ? '#B45309' : '#15803D')),
+                        flexShrink: 0,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {item.daysOverdue > 0 ? `${item.daysOverdue}d Overdue` : 'Not Due'}
+                      </span>
+                    </div>
+
+                    {/* Metadata Box: Invoice, Salesperson, Terms, Due Date */}
+                    <div style={{ background: '#F8FAFC', padding: '10px 12px', borderRadius: '10px', border: '1px solid #F1F5F9', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <div>
+                          <span style={{ color: '#64748B', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Invoice No</span>
+                          <span style={{ fontFamily: 'monospace', color: '#334155', fontWeight: 600 }}>{item.invoiceNumber || '—'}</span>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ color: '#64748B', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Sales Executive</span>
+                          <span style={{ color: '#334155', fontWeight: 600 }}>{item.salesPerson || '—'}</span>
+                        </div>
+                      </div>
+
+                      <div style={{ borderTop: '1px dashed #E2E8F0', paddingTop: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#64748B', fontSize: '11.5px' }}>
+                          Due Date: <strong style={{ color: '#1E293B' }}>{item.dueDate?.split('T')[0] || '—'}</strong>
+                        </span>
+                        <span style={{ color: '#64748B', fontSize: '11.5px' }}>
+                          Terms: <strong style={{ color: '#1E293B' }}>{item.paymentTerms || '—'}</strong>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Financial Summary: 3 Columns (Total, Paid, Outstanding) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '6px', background: '#F8FAFC', padding: '10px', borderRadius: '10px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <div>
+                        <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Total</span>
+                        <strong style={{ fontSize: '12.5px', color: '#0F172A', display: 'block', marginTop: '2px' }}>{formatINR(item.totalAmount)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Paid</span>
+                        <strong style={{ fontSize: '12.5px', color: '#16A34A', display: 'block', marginTop: '2px' }}>{formatINR(item.paidAmount)}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Outstanding</span>
+                        <strong style={{ fontSize: '13.5px', color: '#DC2626', fontWeight: 900, display: 'block', marginTop: '2px' }}>{formatINR(item.outstanding)}</strong>
+                      </div>
+                    </div>
+
+                    {item.paidAmount > 0 && item.outstanding > 0 && (
+                      <div style={{ textAlign: 'center', marginTop: '-4px' }}>
+                        <span style={{ fontSize: '10.5px', color: '#D97706', fontWeight: '700', background: '#FEF3C7', padding: '2px 8px', borderRadius: '4px' }}>
+                          Partially Settled • Remaining Dues
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Touch-Friendly Action Buttons */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', paddingTop: '2px' }}>
+                      <button
+                        onClick={() => handleScheduleReminder(item)}
+                        style={{
+                          padding: '10px',
+                          background: '#F1F5F9',
+                          color: '#334155',
+                          border: '1px solid #CBD5E1',
+                          borderRadius: '8px',
+                          fontSize: '12.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <Calendar size={14} />
+                        Follow-up
+                      </button>
+                      <button
+                        onClick={() => router.push(`/sales/create-payment?orderId=${encodeURIComponent(item.orderNumber)}`)}
+                        style={{
+                          padding: '10px',
+                          background: '#2563EB',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '12.5px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
+                        }}
+                      >
+                        <CreditCard size={14} />
+                        Pay
+                      </button>
+                    </div>
+
+                  </div>
+                );
+              })
+            )}
           </div>
 
         </div>

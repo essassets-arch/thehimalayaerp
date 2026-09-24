@@ -563,7 +563,7 @@ export default function FinanceSalesConfirmationView() {
 
         {/* ── Payment Table (Section 13 & 14) ────────────────────────────────── */}
         <div className="finance-verification-table-wrap">
-          <table className="payment-verification-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <table className="payment-verification-table no-mobile-stack" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontWeight: 700 }}>
                 <th style={{ padding: '12px 14px', minWidth: '150px' }}>Order Number</th>
@@ -1561,7 +1561,7 @@ export default function FinanceSalesConfirmationView() {
                       </div>
                     ) : (
                       <div style={{ border: '1px solid #E2E8F0', borderRadius: '12px', overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                        <table className="no-mobile-stack" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
                           <thead style={{ background: '#F8FAFC', color: '#475569', fontWeight: 700, borderBottom: '1px solid #E2E8F0' }}>
                             <tr>
                               <th style={{ padding: '10px 12px', minWidth: '95px' }}>Date</th>

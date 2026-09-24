@@ -490,7 +490,7 @@ export default function PaymentVerificationView() {
           <div>
             <h4 style="margin: 0 0 6px 0; font-size: 11px; text-transform: uppercase; color: #64748B; font-weight: 700;">Revision & Versioning Logs</h4>
             <div style="overflow-x: auto;">
-              <table style="width: 100%; border-collapse: collapse; text-align: left;">
+              <table class="no-mobile-stack" style="width: 100%; border-collapse: collapse; text-align: left;">
                 <thead>
                   <tr style="border-bottom: 2px solid #CBD5E1; color: #475569; font-size: 11px;">
                     <th style="padding: 6px;">Date</th>
@@ -515,33 +515,63 @@ export default function PaymentVerificationView() {
   const isActorFinance = can(user, 'canFinalVerifyPayment');
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', fontFamily: "'Outfit', sans-serif" }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', fontFamily: "'Outfit', sans-serif" }}>
+      <style>{`
+        .pv-desktop-table {
+          display: block;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          border: 1px solid #F1F5F9;
+          border-radius: 12px;
+        }
+        .pv-mobile-cards {
+          display: none;
+        }
+        @media (max-width: 768px) {
+          .pv-desktop-table {
+            display: none !important;
+          }
+          .pv-mobile-cards {
+            display: flex !important;
+            flex-direction: column;
+            gap: 12px;
+          }
+          .pv-header-wrap {
+            flex-direction: column;
+            align-items: stretch !important;
+          }
+          .pv-search-box {
+            width: 100% !important;
+          }
+        }
+      `}</style>
       
       {/* Page Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+      <div className="pv-header-wrap" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
         <div>
-          <h1 style={{ fontSize: '26px', fontWeight: '800', color: '#24345C', letterSpacing: '-0.5px', margin: 0 }}>
+          <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#24345C', letterSpacing: '-0.5px', margin: 0 }}>
             Payment Collection & Verification
           </h1>
-          <p style={{ color: '#64748B', fontSize: '13.5px', marginTop: '4px', margin: 0 }}>
+          <p style={{ color: '#64748B', fontSize: '13px', marginTop: '4px', margin: 0 }}>
             Record customer collections, submit confirmations, and track verification flows.
           </p>
         </div>
       </div>
 
       {/* Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #E2E8F0', paddingBottom: '0px' }}>
+      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #E2E8F0', paddingBottom: '0px', overflowX: 'auto' }}>
         <button
           onClick={() => setActiveTab('verification')}
           style={{
-            padding: '10px 20px',
+            padding: '10px 18px',
             background: activeTab === 'verification' ? '#0ea5e9' : 'transparent',
             color: activeTab === 'verification' ? 'white' : '#64748B',
             border: 'none',
             borderRadius: '8px 8px 0 0',
             fontWeight: '700',
-            fontSize: '14px',
+            fontSize: '13.5px',
             cursor: 'pointer',
+            whiteSpace: 'nowrap',
             transition: 'all 0.2s ease'
           }}
         >
@@ -550,14 +580,15 @@ export default function PaymentVerificationView() {
         <button
           onClick={() => setActiveTab('remaining')}
           style={{
-            padding: '10px 20px',
+            padding: '10px 18px',
             background: activeTab === 'remaining' ? '#0ea5e9' : 'transparent',
             color: activeTab === 'remaining' ? 'white' : '#64748B',
             border: 'none',
             borderRadius: '8px 8px 0 0',
             fontWeight: '700',
-            fontSize: '14px',
+            fontSize: '13.5px',
             cursor: 'pointer',
+            whiteSpace: 'nowrap',
             transition: 'all 0.2s ease'
           }}
         >
@@ -566,7 +597,7 @@ export default function PaymentVerificationView() {
       </div>
 
       {activeTab === 'verification' ? (
-        <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Filters Bar */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -591,21 +622,21 @@ export default function PaymentVerificationView() {
               ))}
             </div>
             
-            <div style={{ position: 'relative', width: '260px' }}>
+            <div className="pv-search-box" style={{ position: 'relative', width: '260px' }}>
               <Search style={{ position: 'absolute', left: '10px', top: '10px', width: '14px', height: '14px', color: '#94A3B8' }} />
               <input
                 type="text"
                 placeholder="Search Order, Client, UTR..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: '100%', padding: '8px 8px 8px 32px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px' }}
+                style={{ width: '100%', padding: '8px 8px 8px 32px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', boxSizing: 'border-box' }}
               />
             </div>
           </div>
 
-          {/* Table */}
-          <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '12px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          {/* Desktop Table View */}
+          <div className="pv-desktop-table">
+            <table className="no-mobile-stack" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead style={{ background: '#F8FAFC', fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>
                 <tr style={{ borderBottom: '1px solid #E2E8F0' }}>
                   <th style={{ padding: '12px 16px' }}>ID</th>
@@ -628,18 +659,18 @@ export default function PaymentVerificationView() {
                 ) : (
                   filteredPayments.map((p) => (
                     <tr key={p.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <td style={{ padding: '12px 16px', fontWeight: 'bold' }}>{p.id}</td>
-                      <td style={{ padding: '12px 16px', fontFamily: 'monospace' }}>{p.orderId}</td>
-                      <td style={{ padding: '12px 16px', fontWeight: '600' }}>{p.customerName}</td>
-                      <td style={{ padding: '12px 16px', fontWeight: '800', color: '#0ea5e9' }}>₹{p.paymentAmount.toLocaleString('en-IN')}</td>
-                      <td style={{ padding: '12px 16px' }}>{p.paymentDate}</td>
-                      <td style={{ padding: '12px 16px' }}>
+                      <td data-label="ID" style={{ padding: '12px 16px', fontWeight: 'bold' }}>{p.id}</td>
+                      <td data-label="Order Ref" style={{ padding: '12px 16px', fontFamily: 'monospace' }}>{p.orderId}</td>
+                      <td data-label="Customer" style={{ padding: '12px 16px', fontWeight: '600' }}>{p.customerName}</td>
+                      <td data-label="Amount" style={{ padding: '12px 16px', fontWeight: '800', color: '#0ea5e9' }}>₹{p.paymentAmount.toLocaleString('en-IN')}</td>
+                      <td data-label="Date" style={{ padding: '12px 16px' }}>{p.paymentDate}</td>
+                      <td data-label="Mode / Ref" style={{ padding: '12px 16px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11.5px', color: '#64748B' }}>
                           <span style={{ fontWeight: 'bold' }}>{p.paymentMode}</span>
                           <span style={{ fontFamily: 'monospace' }}>{p.transactionReference || p.chequeNumber || 'N/A'}</span>
                         </div>
                       </td>
-                      <td style={{ padding: '12px 16px' }}>
+                      <td data-label="Status" style={{ padding: '12px 16px' }}>
                         <span style={{
                           padding: '4px 10px',
                           borderRadius: '12px',
@@ -655,7 +686,7 @@ export default function PaymentVerificationView() {
                           {p.verificationStatus?.replace(/_/g, ' ')}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                      <td data-label="Actions" style={{ padding: '12px 16px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
                           <button
                             onClick={() => handleViewDetails(p)}
@@ -751,27 +782,219 @@ export default function PaymentVerificationView() {
               </tbody>
             </table>
           </div>
+
+          {/* Dedicated Mobile Cards: Verification Queue */}
+          <div className="pv-mobile-cards">
+            {filteredPayments.length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: '#94A3B8', background: '#F8FAFC', borderRadius: '12px' }}>
+                No payments found matching filters in the verification queue.
+              </div>
+            ) : (
+              filteredPayments.map((p) => {
+                const statusBg = p.verificationStatus === 'FINANCE_VERIFIED' ? '#D1FAE5' :
+                  p.verificationStatus === 'FINANCE_VERIFICATION_PENDING' ? '#FEF3C7' :
+                  p.verificationStatus === 'FINANCE_EXECUTIVE_RECORDED' ? '#DBEAFE' : '#FEE2E2';
+                const statusColor = p.verificationStatus === 'FINANCE_VERIFIED' ? '#065F46' :
+                  p.verificationStatus === 'FINANCE_VERIFICATION_PENDING' ? '#92400E' :
+                  p.verificationStatus === 'FINANCE_EXECUTIVE_RECORDED' ? '#1E40AF' : '#991B1B';
+
+                return (
+                  <div
+                    key={p.id}
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderLeft: `4px solid ${statusColor}`,
+                      borderRadius: '14px',
+                      padding: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                      boxSizing: 'border-box',
+                      width: '100%'
+                    }}
+                  >
+                    {/* Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <div>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', fontFamily: 'monospace' }}>
+                          ID: #{p.id}
+                        </span>
+                        <h3 style={{ margin: '2px 0 0 0', fontSize: '15px', fontWeight: 800, color: '#0F172A' }}>
+                          {p.customerName}
+                        </h3>
+                        <div style={{ fontSize: '12px', color: '#0284C7', fontFamily: 'monospace', fontWeight: 700, marginTop: '2px' }}>
+                          Order: {p.orderId}
+                        </div>
+                      </div>
+                      <span style={{
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        fontSize: '10.5px',
+                        fontWeight: 800,
+                        background: statusBg,
+                        color: statusColor,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {p.verificationStatus?.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+
+                    {/* Payment details grid */}
+                    <div style={{ background: '#F8FAFC', padding: '10px 12px', borderRadius: '10px', border: '1px solid #F1F5F9', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748B' }}>Mode:</span>
+                        <strong style={{ color: '#1E293B' }}>{p.paymentMode}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748B' }}>Date:</span>
+                        <span style={{ color: '#334155' }}>{p.paymentDate}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748B' }}>Reference / UTR:</span>
+                        <span style={{ fontFamily: 'monospace', color: '#334155' }}>{p.transactionReference || p.chequeNumber || 'N/A'}</span>
+                      </div>
+                    </div>
+
+                    {/* Amount box */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F0F9FF', padding: '10px 14px', borderRadius: '10px', border: '1px solid #BAE6FD' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#0369A1' }}>Payment Amount</span>
+                      <span style={{ fontSize: '17px', fontWeight: 900, color: '#0284C7' }}>₹{p.paymentAmount.toLocaleString('en-IN')}</span>
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '2px' }}>
+                      <button
+                        onClick={() => handleViewDetails(p)}
+                        style={{
+                          flex: 1,
+                          padding: '9px',
+                          background: '#F1F5F9',
+                          border: '1px solid #CBD5E1',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px',
+                          color: '#334155'
+                        }}
+                      >
+                        <Info size={14} /> Details
+                      </button>
+
+                      {p.verificationStatus === 'FINANCE_EXECUTIVE_RECORDED' && !isActorFinance && (
+                        <button
+                          onClick={() => handleSubmitToFinance(p.id)}
+                          style={{
+                            flex: 1,
+                            padding: '9px',
+                            background: '#0ea5e9',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontWeight: 700,
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Submit to Finance
+                        </button>
+                      )}
+
+                      {p.verificationStatus === 'FINANCE_REJECTED' && (
+                        <button
+                          onClick={() => handleCorrectPayment(p)}
+                          style={{
+                            flex: 1,
+                            padding: '9px',
+                            background: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontWeight: 700,
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Correct Details
+                        </button>
+                      )}
+
+                      {p.verificationStatus === 'FINANCE_VERIFICATION_PENDING' && isActorFinance && (
+                        <>
+                          <button
+                            onClick={() => handleVerifyPayment(p.id)}
+                            style={{
+                              flex: 1,
+                              padding: '9px',
+                              background: '#10b981',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '8px',
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <CheckCircle2 size={14} /> Verify
+                          </button>
+                          <button
+                            onClick={() => handleRejectPayment(p.id)}
+                            style={{
+                              flex: 1,
+                              padding: '9px',
+                              background: '#ef4444',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '8px',
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <XCircle size={14} /> Reject
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       ) : (
-        <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Outstanding Headers */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#24345C', margin: 0 }}>Delivered & Pending Payment Orders</h2>
-            <div style={{ position: 'relative', width: '260px' }}>
+            <div className="pv-search-box" style={{ position: 'relative', width: '260px' }}>
               <Search style={{ position: 'absolute', left: '10px', top: '10px', width: '14px', height: '14px', color: '#94A3B8' }} />
               <input
                 type="text"
                 placeholder="Search outstanding orders..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: '100%', padding: '8px 8px 8px 32px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px' }}
+                style={{ width: '100%', padding: '8px 8px 8px 32px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', boxSizing: 'border-box' }}
               />
             </div>
           </div>
 
-          {/* Table */}
-          <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '12px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          {/* Desktop Table View */}
+          <div className="pv-desktop-table">
+            <table className="no-mobile-stack" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead style={{ background: '#F8FAFC', fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>
                 <tr style={{ borderBottom: '1px solid #E2E8F0' }}>
                   <th style={{ padding: '12px 16px' }}>Order ID</th>
@@ -793,12 +1016,12 @@ export default function PaymentVerificationView() {
                 ) : (
                   remainingPayments.map((o) => (
                     <tr key={o.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <td style={{ padding: '12px 16px', fontWeight: 'bold', fontFamily: 'monospace' }}>{o.id}</td>
-                      <td style={{ padding: '12px 16px', fontWeight: '600' }}>{o.customerName}</td>
-                      <td style={{ padding: '12px 16px' }}>₹{o.total.toLocaleString('en-IN')}</td>
-                      <td style={{ padding: '12px 16px', color: '#10b981', fontWeight: '600' }}>₹{o.verified.toLocaleString('en-IN')}</td>
-                      <td style={{ padding: '12px 16px', color: '#EF4444', fontWeight: '800' }}>₹{o.balance.toLocaleString('en-IN')}</td>
-                      <td style={{ padding: '12px 16px' }}>
+                      <td data-label="Order ID" style={{ padding: '12px 16px', fontWeight: 'bold', fontFamily: 'monospace' }}>{o.id}</td>
+                      <td data-label="Customer" style={{ padding: '12px 16px', fontWeight: '600' }}>{o.customerName}</td>
+                      <td data-label="Grand Total" style={{ padding: '12px 16px' }}>₹{o.total.toLocaleString('en-IN')}</td>
+                      <td data-label="Verified Paid" style={{ padding: '12px 16px', color: '#10b981', fontWeight: '600' }}>₹{o.verified.toLocaleString('en-IN')}</td>
+                      <td data-label="Outstanding Balance" style={{ padding: '12px 16px', color: '#EF4444', fontWeight: '800' }}>₹{o.balance.toLocaleString('en-IN')}</td>
+                      <td data-label="Status" style={{ padding: '12px 16px' }}>
                         <span style={{
                           padding: '4px 10px',
                           borderRadius: '12px',
@@ -810,7 +1033,7 @@ export default function PaymentVerificationView() {
                           {o.dispatchStatus || 'OPEN'}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                      <td data-label="Actions" style={{ padding: '12px 16px', textAlign: 'right' }}>
                         <button
                           onClick={() => handleRecordPayment(o)}
                           style={{
@@ -836,6 +1059,92 @@ export default function PaymentVerificationView() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Dedicated Mobile Cards: Outstanding Orders */}
+          <div className="pv-mobile-cards">
+            {remainingPayments.length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: '#94A3B8', background: '#F8FAFC', borderRadius: '12px' }}>
+                All orders are fully paid! No outstanding payments left.
+              </div>
+            ) : (
+              remainingPayments.map((o) => (
+                <div
+                  key={o.id}
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderLeft: '4px solid #EF4444',
+                    borderRadius: '14px',
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                    boxSizing: 'border-box',
+                    width: '100%'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                    <div>
+                      <span style={{ fontSize: '11px', fontFamily: 'monospace', fontWeight: 800, color: '#0284C7' }}>
+                        {o.id}
+                      </span>
+                      <h3 style={{ margin: '2px 0 0 0', fontSize: '15px', fontWeight: 800, color: '#0F172A' }}>
+                        {o.customerName}
+                      </h3>
+                    </div>
+                    <span style={{
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      fontSize: '10.5px',
+                      fontWeight: 800,
+                      background: o.dispatchStatus === 'DELIVERED' ? '#D1FAE5' : '#F1F5F9',
+                      color: o.dispatchStatus === 'DELIVERED' ? '#065F46' : '#475569'
+                    }}>
+                      {o.dispatchStatus || 'OPEN'}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '6px', background: '#F8FAFC', padding: '10px', borderRadius: '10px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                    <div>
+                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Total</span>
+                      <strong style={{ fontSize: '12.5px', color: '#0F172A' }}>₹{o.total.toLocaleString('en-IN')}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Paid</span>
+                      <strong style={{ fontSize: '12.5px', color: '#16A34A' }}>₹{o.verified.toLocaleString('en-IN')}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Outstanding</span>
+                      <strong style={{ fontSize: '13px', color: '#EF4444', fontWeight: 900 }}>₹{o.balance.toLocaleString('en-IN')}</strong>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleRecordPayment(o)}
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      background: '#0ea5e9',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: 800,
+                      fontSize: '12.5px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <PlusCircle size={15} />
+                    Record Collection
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}

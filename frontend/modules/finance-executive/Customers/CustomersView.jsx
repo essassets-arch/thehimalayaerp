@@ -299,7 +299,7 @@ export default function CustomersView() {
 
         {/* Desktop Table View */}
         <div className="cust-desktop-table">
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+          <table className="no-mobile-stack" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#002E5D', borderBottom: '1px solid #E2E8F0', color: '#FFFFFF', fontWeight: 800 }}>
                 <th style={{ padding: '12px 14px', fontSize: '11.5px' }}>Customer ID</th>
@@ -328,13 +328,13 @@ export default function CustomersView() {
               ) : (
                 filteredList.map((cust) => (
                   <tr key={cust.customerId} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                    <td style={{ padding: '12px 14px', fontFamily: 'monospace', fontWeight: 700, color: '#002E5D' }}>{cust.customerCode}</td>
-                    <td style={{ padding: '12px 14px', fontWeight: '700', color: '#0F172A' }}>{cust.customerName}</td>
-                    <td style={{ padding: '12px 14px', color: '#64748B', fontSize: '12px' }}>{cust.phoneEmail}</td>
-                    <td style={{ padding: '12px 14px', fontWeight: '700', textAlign: 'right', color: '#334155' }}>{formatCurrency(cust.totalBusiness)}</td>
-                    <td style={{ padding: '12px 14px', color: '#16A34A', fontWeight: '700', textAlign: 'right' }}>{formatCurrency(cust.totalPaid)}</td>
-                    <td style={{ padding: '12px 14px', color: cust.outstandingAmount > 0 ? '#DC2626' : '#16A34A', fontWeight: '900', textAlign: 'right' }}>{formatCurrency(cust.outstandingAmount)}</td>
-                    <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                    <td data-label="Customer ID" style={{ padding: '12px 14px', fontFamily: 'monospace', fontWeight: 700, color: '#002E5D' }}>{cust.customerCode}</td>
+                    <td data-label="Customer Name" style={{ padding: '12px 14px', fontWeight: '700', color: '#0F172A' }}>{cust.customerName}</td>
+                    <td data-label="Contact Info" style={{ padding: '12px 14px', color: '#64748B', fontSize: '12px' }}>{cust.phoneEmail}</td>
+                    <td data-label="Total Business" style={{ padding: '12px 14px', fontWeight: '700', textAlign: 'right', color: '#334155' }}>{formatCurrency(cust.totalBusiness)}</td>
+                    <td data-label="Total Paid" style={{ padding: '12px 14px', color: '#16A34A', fontWeight: '700', textAlign: 'right' }}>{formatCurrency(cust.totalPaid)}</td>
+                    <td data-label="Outstanding" style={{ padding: '12px 14px', color: cust.outstandingAmount > 0 ? '#DC2626' : '#16A34A', fontWeight: '900', textAlign: 'right' }}>{formatCurrency(cust.outstandingAmount)}</td>
+                    <td data-label="Risk Level" style={{ padding: '12px 14px', textAlign: 'center' }}>
                       <span style={{
                         padding: '3px 8px',
                         borderRadius: '4px',
@@ -346,7 +346,7 @@ export default function CustomersView() {
                         {cust.paymentRisk}
                       </span>
                     </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                    <td data-label="Action" style={{ padding: '12px 14px', textAlign: 'right' }}>
                       <button
                         onClick={() => handleViewLedger(cust)}
                         style={{ padding: '6px 12px', background: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', color: '#002E5D' }}
@@ -370,58 +370,62 @@ export default function CustomersView() {
               No customers found.
             </div>
           ) : (
-            filteredList.map((cust) => (
-              <div key={cust.customerId} className="cust-card-item">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                  <div>
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#002E5D', background: '#F1F5F9', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace' }}>
-                      {cust.customerCode}
+            filteredList.map((cust) => {
+              const riskBorder = cust.paymentRisk === 'CRITICAL' || cust.paymentRisk === 'HIGH' ? '4px solid #DC2626' : (cust.paymentRisk === 'MEDIUM' ? '4px solid #EA580C' : '4px solid #10B981');
+              return (
+                <div key={cust.customerId} className="cust-card-item" style={{ borderLeft: riskBorder, borderRadius: '14px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: '#002E5D', background: '#F1F5F9', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace' }}>
+                        {cust.customerCode}
+                      </span>
+                      <h3 style={{ margin: '4px 0 0 0', fontSize: '15px', fontWeight: 800, color: '#0F172A', wordBreak: 'break-word' }}>
+                        {cust.customerName}
+                      </h3>
+                    </div>
+                    <span style={{
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      fontSize: '10.5px',
+                      fontWeight: 800,
+                      background: cust.paymentRisk === 'CRITICAL' || cust.paymentRisk === 'HIGH' ? '#FEE2E2' : (cust.paymentRisk === 'MEDIUM' ? '#FFEDD5' : '#D1FAE5'),
+                      color: cust.paymentRisk === 'CRITICAL' || cust.paymentRisk === 'HIGH' ? '#991B1B' : (cust.paymentRisk === 'MEDIUM' ? '#C2410C' : '#065F46'),
+                      flexShrink: 0
+                    }}>
+                      {cust.paymentRisk}
                     </span>
-                    <h3 style={{ margin: '4px 0 0 0', fontSize: '14.5px', fontWeight: 800, color: '#0F172A' }}>
-                      {cust.customerName}
-                    </h3>
                   </div>
-                  <span style={{
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    fontSize: '10.5px',
-                    fontWeight: 800,
-                    background: cust.paymentRisk === 'CRITICAL' || cust.paymentRisk === 'HIGH' ? '#FEE2E2' : (cust.paymentRisk === 'MEDIUM' ? '#FFEDD5' : '#D1FAE5'),
-                    color: cust.paymentRisk === 'CRITICAL' || cust.paymentRisk === 'HIGH' ? '#991B1B' : (cust.paymentRisk === 'MEDIUM' ? '#C2410C' : '#065F46')
-                  }}>
-                    {cust.paymentRisk}
-                  </span>
-                </div>
 
-                <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-                  📞 {cust.phoneEmail}
-                </div>
+                  <div style={{ fontSize: '12px', color: '#64748B', background: '#F8FAFC', padding: '8px 12px', borderRadius: '8px', border: '1px solid #F1F5F9' }}>
+                    📞 <span style={{ color: '#334155' }}>{cust.phoneEmail}</span>
+                  </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '6px', background: '#F8FAFC', padding: '8px 10px', borderRadius: '8px', border: '1px solid #F1F5F9', textAlign: 'center' }}>
-                  <div>
-                    <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Business</span>
-                    <strong style={{ fontSize: '12.5px', color: '#0F172A' }}>{formatCurrency(cust.totalBusiness)}</strong>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '6px', background: '#F8FAFC', padding: '10px', borderRadius: '10px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                    <div>
+                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Business</span>
+                      <strong style={{ fontSize: '12.5px', color: '#0F172A', display: 'block', marginTop: '2px' }}>{formatCurrency(cust.totalBusiness)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Paid</span>
+                      <strong style={{ fontSize: '12.5px', color: '#16A34A', display: 'block', marginTop: '2px' }}>{formatCurrency(cust.totalPaid)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Outstanding</span>
+                      <strong style={{ fontSize: '13px', color: cust.outstandingAmount > 0 ? '#DC2626' : '#16A34A', fontWeight: 900, display: 'block', marginTop: '2px' }}>{formatCurrency(cust.outstandingAmount)}</strong>
+                    </div>
                   </div>
-                  <div>
-                    <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Paid</span>
-                    <strong style={{ fontSize: '12.5px', color: '#16A34A' }}>{formatCurrency(cust.totalPaid)}</strong>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Outstanding</span>
-                    <strong style={{ fontSize: '12.5px', color: cust.outstandingAmount > 0 ? '#DC2626' : '#16A34A' }}>{formatCurrency(cust.outstandingAmount)}</strong>
-                  </div>
-                </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '4px' }}>
-                  <button
-                    onClick={() => handleViewLedger(cust)}
-                    style={{ padding: '7px 14px', background: '#0284C7', color: '#FFFFFF', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', width: '100%' }}
-                  >
-                    View Statement Ledger
-                  </button>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '2px' }}>
+                    <button
+                      onClick={() => handleViewLedger(cust)}
+                      style={{ padding: '10px 14px', background: '#0284C7', color: '#FFFFFF', border: 'none', borderRadius: '8px', fontSize: '12.5px', fontWeight: 800, cursor: 'pointer', width: '100%', boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)' }}
+                    >
+                      View Statement Ledger
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -458,7 +462,7 @@ export default function CustomersView() {
 
             {/* Modal Body */}
             <div style={{ padding: '24px', maxHeight: '50vh', overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+              <table className="no-mobile-stack" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #CBD5E1', color: '#475569', fontWeight: 'bold' }}>
                     <th style={{ padding: '10px 8px' }}>Date</th>
@@ -479,8 +483,8 @@ export default function CustomersView() {
                   ) : (
                     ledgerData.map((e) => (
                       <tr key={e.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                        <td style={{ padding: '10px 8px' }}>{e.created_at.split('T')[0]}</td>
-                        <td style={{ padding: '10px 8px' }}>
+                        <td data-label="Date" style={{ padding: '10px 8px' }}>{e.created_at.split('T')[0]}</td>
+                        <td data-label="Type" style={{ padding: '10px 8px' }}>
                           <span style={{
                             padding: '2px 6px',
                             borderRadius: '4px',
@@ -492,14 +496,14 @@ export default function CustomersView() {
                             {e.entry_type}
                           </span>
                         </td>
-                        <td style={{ padding: '10px 8px', fontFamily: 'monospace' }}>{e.reference}</td>
-                        <td style={{ padding: '10px 8px', textAlign: 'right', color: '#EF4444', fontWeight: '600' }}>
+                        <td data-label="Reference" style={{ padding: '10px 8px', fontFamily: 'monospace' }}>{e.reference}</td>
+                        <td data-label="Debit (+)" style={{ padding: '10px 8px', textAlign: 'right', color: '#EF4444', fontWeight: '600' }}>
                           {e.debit > 0 ? formatCurrency(e.debit) : '-'}
                         </td>
-                        <td style={{ padding: '10px 8px', textAlign: 'right', color: '#10B981', fontWeight: '600' }}>
+                        <td data-label="Credit (-)" style={{ padding: '10px 8px', textAlign: 'right', color: '#10B981', fontWeight: '600' }}>
                           {e.credit > 0 ? formatCurrency(e.credit) : '-'}
                         </td>
-                        <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '700' }}>
+                        <td data-label="Running Balance" style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '700' }}>
                           {formatCurrency(e.balance)}
                         </td>
                       </tr>
