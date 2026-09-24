@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Truck, ClipboardList } from "lucide-react";
+import { Truck, ClipboardList, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import Swal from "sweetalert2";
 
@@ -81,6 +81,142 @@ function normalizeKey(str?: string | null): string {
 function cleanWorkOrderId(str?: string | null): string {
   if (!str) return "";
   return String(str).replace(/^(wo-|fg-|so-wo-|alloc-|fallback-)/i, "").toLowerCase();
+}
+
+export interface DispatchDraft {
+  salesOrderId?: string | null;
+  orderNumber?: string | null;
+  salesOrderItemId?: string | null;
+  workOrderId?: string | null;
+  timestamp: number;
+  formattedTime: string;
+  invoiceNumber: string;
+  challanNumber: string;
+  totalWeight: number | string;
+  vehicleNumber: string;
+  driverName: string;
+  driverPhone: string;
+  dispatchRemarks: string;
+  transporterName: string;
+  ewayBillNumber: string;
+  expectedDeliveryDate: string;
+  actualFreightPaidAmount: number | string;
+  userEditedFreight?: boolean;
+  deliveryAddresses: Record<string, string>;
+  selectedIds?: string[];
+  dispatchQuantities?: Record<string, number>;
+}
+
+function getDraftStorageKey(
+  soId?: string | null,
+  oNo?: string | null,
+  soItemId?: string | null,
+  woId?: string | null
+): string {
+  if (soId) return `himalaya_dispatch_draft_so_${String(soId).toLowerCase()}`;
+  if (oNo) return `himalaya_dispatch_draft_ord_${normalizeKey(oNo).toLowerCase()}`;
+  if (soItemId) return `himalaya_dispatch_draft_item_${String(soItemId).toLowerCase()}`;
+  if (woId) return `himalaya_dispatch_draft_wo_${String(woId).toLowerCase()}`;
+  return "himalaya_dispatch_draft_general";
+}
+
+function clearAllDraftStorageKeys(
+  soId?: string | null,
+  oNo?: string | null,
+  soItemId?: string | null,
+  woId?: string | null
+) {
+  if (typeof window === "undefined") return;
+  try {
+    const keysToClear = [
+      getDraftStorageKey(soId, oNo, soItemId, woId),
+      soId ? `himalaya_dispatch_draft_so_${String(soId).toLowerCase()}` : null,
+      oNo ? `himalaya_dispatch_draft_ord_${normalizeKey(oNo).toLowerCase()}` : null,
+      soItemId ? `himalaya_dispatch_draft_item_${String(soItemId).toLowerCase()}` : null,
+      woId ? `himalaya_dispatch_draft_wo_${String(woId).toLowerCase()}` : null,
+      "himalaya_dispatch_draft_general",
+    ].filter(Boolean) as string[];
+
+    keysToClear.forEach((k) => localStorage.removeItem(k));
+
+    const rawLatest = localStorage.getItem("himalaya_dispatch_draft_latest");
+    if (rawLatest) {
+      try {
+        const parsed = JSON.parse(rawLatest);
+        const matchesThisOrder =
+          (soId && (parsed.salesOrderId === soId || String(parsed.salesOrderId).toLowerCase() === String(soId).toLowerCase())) ||
+          (oNo && normalizeKey(parsed.orderNumber) === normalizeKey(oNo)) ||
+          (soItemId && parsed.salesOrderItemId === soItemId);
+        if (matchesThisOrder) {
+          localStorage.removeItem("himalaya_dispatch_draft_latest");
+        }
+      } catch {}
+    }
+  } catch (err) {
+    console.warn("Failed clearing dispatch draft keys:", err);
+  }
+}
+
+function findExistingDraft(
+  soId?: string | null,
+  oNo?: string | null,
+  soItemId?: string | null,
+  woId?: string | null
+): DispatchDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const candidateKeys = [
+      soId ? `himalaya_dispatch_draft_so_${String(soId).toLowerCase()}` : null,
+      oNo ? `himalaya_dispatch_draft_ord_${normalizeKey(oNo).toLowerCase()}` : null,
+      soItemId ? `himalaya_dispatch_draft_item_${String(soItemId).toLowerCase()}` : null,
+      woId ? `himalaya_dispatch_draft_wo_${String(woId).toLowerCase()}` : null,
+    ].filter(Boolean) as string[];
+
+    for (const key of candidateKeys) {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object") return parsed;
+        } catch {}
+      }
+    }
+
+    const rawLatest = localStorage.getItem("himalaya_dispatch_draft_latest");
+    if (rawLatest) {
+      try {
+        const parsed = JSON.parse(rawLatest);
+        const matchesThisOrder =
+          (soId && (parsed.salesOrderId === soId || String(parsed.salesOrderId).toLowerCase() === String(soId).toLowerCase())) ||
+          (oNo && normalizeKey(parsed.orderNumber) === normalizeKey(oNo)) ||
+          (soItemId && parsed.salesOrderItemId === soItemId) ||
+          (!soId && !oNo);
+        if (matchesThisOrder) return parsed;
+      } catch {}
+    }
+  } catch (err) {
+    console.warn("Error reading dispatch draft:", err);
+  }
+  return null;
+}
+
+function hasMeaningfulDraftData(draft?: DispatchDraft | null): boolean {
+  if (!draft) return false;
+  return Boolean(
+    (draft.invoiceNumber && draft.invoiceNumber.trim()) ||
+    (draft.challanNumber && draft.challanNumber.trim()) ||
+    (Number(draft.totalWeight) > 0) ||
+    (draft.vehicleNumber && draft.vehicleNumber.trim()) ||
+    (draft.driverName && draft.driverName.trim()) ||
+    (draft.driverPhone && draft.driverPhone.trim()) ||
+    (draft.dispatchRemarks && draft.dispatchRemarks.trim()) ||
+    (draft.transporterName && draft.transporterName.trim()) ||
+    (draft.ewayBillNumber && draft.ewayBillNumber.trim()) ||
+    (draft.expectedDeliveryDate && draft.expectedDeliveryDate.trim()) ||
+    draft.userEditedFreight ||
+    (Number(draft.actualFreightPaidAmount) > 0) ||
+    (draft.deliveryAddresses && Object.values(draft.deliveryAddresses).some((a) => a && typeof a === "string" && a.trim()))
+  );
 }
 
 function isValidCustomerName(name?: any): boolean {
@@ -464,6 +600,16 @@ export default function CreateDispatchPage() {
   const [fileError, setFileError] = useState<string | null>(null);
   const initialSelectionSet = React.useRef(false);
   const userEditedFreight = React.useRef(false);
+
+  // Draft recovery and autosave state
+  const [availableDraft, setAvailableDraft] = useState<DispatchDraft | null>(null);
+  const [restoredDraftInfo, setRestoredDraftInfo] = useState<{
+    formattedTime: string;
+    details: string[];
+  } | null>(null);
+  const [lastAutoSavedAt, setLastAutoSavedAt] = useState<string | null>(null);
+  const isDraftReady = React.useRef(false);
+  const restoredDraftRef = React.useRef<DispatchDraft | null>(null);
 
   // Fetch existing dispatches for duplicate Invoice + Challan validation
   const { data: existingDispatches = EMPTY_ARRAY } = useQuery<any[]>({
@@ -1125,6 +1271,19 @@ export default function CreateDispatchPage() {
 
   useEffect(() => {
     if (!filteredWorkOrders.length || initialSelectionSet.current) return;
+
+    if (restoredDraftRef.current?.selectedIds && restoredDraftRef.current.selectedIds.length > 0) {
+      const draftIds = restoredDraftRef.current.selectedIds;
+      const validIds = draftIds.filter((id) => filteredWorkOrders.some((wo) => wo.id === id));
+      const finalIds = validIds.length > 0 ? validIds : draftIds;
+      setSelectedIds(finalIds);
+      if (restoredDraftRef.current.dispatchQuantities) {
+        setDispatchQuantities(restoredDraftRef.current.dispatchQuantities);
+      }
+      initialSelectionSet.current = true;
+      return;
+    }
+
     let toSelect: WorkOrder[] = [];
 
     if (requestedWorkOrderIds.length > 0) {
@@ -1267,6 +1426,12 @@ export default function CreateDispatchPage() {
       let hasChanges = false;
       const updated = { ...current };
       for (const order of selectedSalesOrders) {
+        const draftAddr =
+          restoredDraftRef.current?.deliveryAddresses?.[order.id] ||
+          restoredDraftRef.current?.deliveryAddresses?.[order.orderNumber] ||
+          (salesOrderId && restoredDraftRef.current?.deliveryAddresses?.[salesOrderId]) ||
+          (orderNumber && restoredDraftRef.current?.deliveryAddresses?.[orderNumber]);
+
         const fallbackParam =
           deliveryAddressParam &&
           deliveryAddressParam.trim() &&
@@ -1274,12 +1439,13 @@ export default function CreateDispatchPage() {
           deliveryAddressParam !== "—"
             ? deliveryAddressParam.trim()
             : "";
-        const resolvedAddr = formatAddress(order, order.customer) || fallbackParam;
+        const resolvedAddr = draftAddr || formatAddress(order, order.customer) || fallbackParam;
         if (
           updated[order.id] === undefined ||
           !updated[order.id].trim() ||
           updated[order.id] === "Customer Designated Delivery Site" ||
-          updated[order.id] === "Factory Staging Area"
+          updated[order.id] === "Factory Staging Area" ||
+          (draftAddr && updated[order.id] !== draftAddr)
         ) {
           if (resolvedAddr) {
             updated[order.id] = resolvedAddr;
@@ -1293,17 +1459,259 @@ export default function CreateDispatchPage() {
       return hasChanges ? updated : current;
     });
 
-    // Prefill date using the first selected sales order if available
+    // Prefill date using draft or the first selected sales order if available
     setExpectedDeliveryDate((currentDate) => {
       if (currentDate) return currentDate;
+      if (restoredDraftRef.current?.expectedDeliveryDate) {
+        return restoredDraftRef.current.expectedDeliveryDate;
+      }
       const firstOrderWithDate = selectedSalesOrders.find((o) => o.requestedDeliveryDate);
       return firstOrderWithDate ? new Date(firstOrderWithDate.requestedDeliveryDate || Date.now()).toISOString().slice(0, 10) : "";
     });
 
     if (!userEditedFreight.current && transportationCost !== undefined && transportationCost >= 0) {
-      setActualFreightPaidAmount(transportationCost);
+      if (restoredDraftRef.current?.actualFreightPaidAmount !== undefined && restoredDraftRef.current?.userEditedFreight) {
+        setActualFreightPaidAmount(Number(restoredDraftRef.current.actualFreightPaidAmount));
+        userEditedFreight.current = true;
+      } else {
+        setActualFreightPaidAmount(transportationCost);
+      }
     }
-  }, [selectedSalesOrders, transportationCost, deliveryAddressParam]);
+  }, [selectedSalesOrders, transportationCost, deliveryAddressParam, salesOrderId, orderNumber]);
+
+  const applyDraftToState = React.useCallback(
+    (draft: DispatchDraft, isManual: boolean) => {
+      restoredDraftRef.current = draft;
+
+      if (draft.invoiceNumber) setInvoiceNumber(draft.invoiceNumber);
+      if (draft.challanNumber) setChallanNumber(draft.challanNumber);
+      if (draft.totalWeight !== undefined && draft.totalWeight !== null && draft.totalWeight !== "") {
+        setTotalWeight(Number(draft.totalWeight) || 0);
+      }
+      if (draft.vehicleNumber) setVehicleNumber(draft.vehicleNumber.toUpperCase());
+      if (draft.driverName) setDriverName(draft.driverName);
+      if (draft.driverPhone) setDriverPhone(draft.driverPhone);
+      if (draft.dispatchRemarks) setDispatchRemarks(draft.dispatchRemarks);
+      if (draft.transporterName) setTransporterName(draft.transporterName);
+      if (draft.ewayBillNumber) setEwayBillNumber(draft.ewayBillNumber.toUpperCase());
+      if (draft.expectedDeliveryDate) setExpectedDeliveryDate(draft.expectedDeliveryDate);
+      if (draft.actualFreightPaidAmount !== undefined && draft.actualFreightPaidAmount !== null) {
+        setActualFreightPaidAmount(Number(draft.actualFreightPaidAmount) || 0);
+        userEditedFreight.current = true;
+      }
+      if (draft.deliveryAddresses && typeof draft.deliveryAddresses === "object") {
+        setDeliveryAddresses((curr) => {
+          const merged = { ...curr, ...draft.deliveryAddresses };
+          if (salesOrderId && draft.deliveryAddresses[salesOrderId]) {
+            merged[salesOrderId] = draft.deliveryAddresses[salesOrderId];
+          }
+          if (orderNumber && draft.deliveryAddresses[orderNumber]) {
+            merged[orderNumber] = draft.deliveryAddresses[orderNumber];
+          }
+          return merged;
+        });
+      }
+      if (Array.isArray(draft.selectedIds) && draft.selectedIds.length > 0) {
+        setSelectedIds(draft.selectedIds);
+        initialSelectionSet.current = true;
+      }
+      if (draft.dispatchQuantities && typeof draft.dispatchQuantities === "object") {
+        setDispatchQuantities((curr) => ({ ...curr, ...draft.dispatchQuantities }));
+      }
+
+      const chips: string[] = [];
+      if (draft.invoiceNumber) chips.push(`Invoice: ${draft.invoiceNumber}`);
+      if (draft.challanNumber) chips.push(`Challan: ${draft.challanNumber}`);
+      if (draft.vehicleNumber) chips.push(`Vehicle: ${draft.vehicleNumber}`);
+      if (draft.driverName) chips.push(`Driver: ${draft.driverName}`);
+      if (Number(draft.totalWeight) > 0) chips.push(`Weight: ${draft.totalWeight} Tons`);
+      if (draft.transporterName) chips.push(`Transporter: ${draft.transporterName}`);
+      if (draft.expectedDeliveryDate) chips.push(`Exp. Date: ${draft.expectedDeliveryDate}`);
+      const hasAddr = draft.deliveryAddresses && Object.values(draft.deliveryAddresses).some((a) => a && a.trim());
+      if (hasAddr) chips.push("Delivery Address Restored");
+
+      setAvailableDraft(draft);
+      setRestoredDraftInfo({
+        formattedTime: draft.formattedTime || "previous session",
+        details: chips,
+      });
+
+      if (isManual) {
+        toast.success("Consignment draft restored successfully!");
+      } else {
+        toast.success("Recovered unsaved dispatch draft from your previous session!");
+      }
+    },
+    [salesOrderId, orderNumber]
+  );
+
+  // 1. Initial mount effect: Check and auto-restore any unsubmitted draft
+  useEffect(() => {
+    const existingDraft = findExistingDraft(salesOrderId, orderNumber, salesOrderItemId, workOrderId);
+    if (existingDraft && hasMeaningfulDraftData(existingDraft)) {
+      applyDraftToState(existingDraft, false);
+    }
+    isDraftReady.current = true;
+  }, [salesOrderId, orderNumber, salesOrderItemId, workOrderId, applyDraftToState]);
+
+  // 2. Persist current draft to localStorage
+  const persistCurrentDraft = React.useCallback(() => {
+    if (!isDraftReady.current) return;
+
+    const hasData =
+      Boolean(invoiceNumber?.trim()) ||
+      Boolean(challanNumber?.trim()) ||
+      Boolean(totalWeight && totalWeight > 0) ||
+      Boolean(vehicleNumber?.trim()) ||
+      Boolean(driverName?.trim()) ||
+      Boolean(driverPhone?.trim()) ||
+      Boolean(dispatchRemarks?.trim()) ||
+      Boolean(transporterName?.trim()) ||
+      Boolean(ewayBillNumber?.trim()) ||
+      Boolean(expectedDeliveryDate?.trim()) ||
+      Boolean(userEditedFreight.current) ||
+      Object.values(deliveryAddresses).some((a) => a && typeof a === "string" && a.trim());
+
+    if (!hasData) return;
+
+    try {
+      const now = Date.now();
+      const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const draftObj: DispatchDraft = {
+        salesOrderId: salesOrderId || null,
+        orderNumber: orderNumber || null,
+        salesOrderItemId: salesOrderItemId || null,
+        workOrderId: workOrderId || null,
+        timestamp: now,
+        formattedTime: `${timeStr}, ${new Date().toLocaleDateString([], { day: "numeric", month: "short" })}`,
+        invoiceNumber,
+        challanNumber,
+        totalWeight,
+        vehicleNumber,
+        driverName,
+        driverPhone,
+        dispatchRemarks,
+        transporterName,
+        ewayBillNumber,
+        expectedDeliveryDate,
+        actualFreightPaidAmount,
+        userEditedFreight: userEditedFreight.current,
+        deliveryAddresses,
+        selectedIds,
+        dispatchQuantities,
+      };
+
+      const primaryKey = getDraftStorageKey(salesOrderId, orderNumber, salesOrderItemId, workOrderId);
+      localStorage.setItem(primaryKey, JSON.stringify(draftObj));
+      localStorage.setItem("himalaya_dispatch_draft_latest", JSON.stringify(draftObj));
+      setAvailableDraft(draftObj);
+      setLastAutoSavedAt(timeStr);
+    } catch (err) {
+      console.warn("Failed to persist dispatch draft:", err);
+    }
+  }, [
+    invoiceNumber,
+    challanNumber,
+    totalWeight,
+    vehicleNumber,
+    driverName,
+    driverPhone,
+    dispatchRemarks,
+    transporterName,
+    ewayBillNumber,
+    expectedDeliveryDate,
+    actualFreightPaidAmount,
+    deliveryAddresses,
+    selectedIds,
+    dispatchQuantities,
+    salesOrderId,
+    orderNumber,
+    salesOrderItemId,
+    workOrderId,
+  ]);
+
+  // 3. Debounced auto-save on input changes
+  useEffect(() => {
+    if (!isDraftReady.current) return;
+    const timer = setTimeout(() => {
+      persistCurrentDraft();
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [persistCurrentDraft]);
+
+  // 4. Mobile APK / Browser lifecycle hooks (crucial when switching apps or pressing Home)
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden" && isDraftReady.current) {
+        persistCurrentDraft();
+      }
+    };
+    const onPageExit = () => {
+      if (isDraftReady.current) {
+        persistCurrentDraft();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", onPageExit);
+    window.addEventListener("beforeunload", onPageExit);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", onPageExit);
+      window.removeEventListener("beforeunload", onPageExit);
+    };
+  }, [persistCurrentDraft]);
+
+  // 5. Manual restore handler
+  const handleManualRestore = () => {
+    if (availableDraft) {
+      applyDraftToState(availableDraft, true);
+    } else {
+      const draft = findExistingDraft(salesOrderId, orderNumber, salesOrderItemId, workOrderId);
+      if (draft && hasMeaningfulDraftData(draft)) {
+        applyDraftToState(draft, true);
+      } else {
+        toast.info("No unsubmitted draft found for this consignment.");
+      }
+    }
+  };
+
+  // 6. Discard draft handler
+  const handleDiscardDraft = async () => {
+    const result = await Swal.fire({
+      title: "Discard Saved Draft?",
+      text: "Are you sure you want to discard your unsubmitted dispatch details? All recovered fields will be cleared.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#ef4444",
+      cancelButtonColor: "#64748b",
+      confirmButtonText: "Yes, Discard Draft",
+      cancelButtonText: "Keep Draft",
+      customClass: { popup: "swal-rounded-modal" },
+    });
+
+    if (result.isConfirmed) {
+      clearAllDraftStorageKeys(salesOrderId, orderNumber, salesOrderItemId, workOrderId);
+      restoredDraftRef.current = null;
+      setInvoiceNumber("");
+      setChallanNumber("");
+      setTotalWeight(0);
+      setVehicleNumber("");
+      setDriverName("");
+      setDriverPhone("");
+      setDispatchRemarks("");
+      setTransporterName("");
+      setEwayBillNumber("");
+      setExpectedDeliveryDate("");
+      setActualFreightPaidAmount(transportationCost || 0);
+      userEditedFreight.current = false;
+      setRestoredDraftInfo(null);
+      setAvailableDraft(null);
+      setLastAutoSavedAt(null);
+      toast.info("Saved draft was discarded.");
+    }
+  };
 
   const validateForm = React.useCallback(() => {
     const errors: Record<string, string> = {};
@@ -1870,6 +2278,13 @@ export default function CreateDispatchPage() {
           ? "Dispatch created and marked In Transit"
           : `${orderGroups.size} sales orders added to this dispatch run`,
       );
+
+      // Clear draft since dispatch consignment has been successfully booked
+      clearAllDraftStorageKeys(salesOrderId, orderNumber, salesOrderItemId, workOrderId);
+      restoredDraftRef.current = null;
+      setRestoredDraftInfo(null);
+      setAvailableDraft(null);
+
       queryClient.invalidateQueries({ queryKey: ["pending-dispatch-unified-items"] });
       queryClient.invalidateQueries({ queryKey: ["in-transit-dispatches"] });
       queryClient.invalidateQueries({ queryKey: ["delivery-run-dispatches"] });
@@ -1942,6 +2357,23 @@ export default function CreateDispatchPage() {
             </p>
           </div>
           <div className={styles.heroActions}>
+            {lastAutoSavedAt && (
+              <div className={styles.draftSaveStatus}>
+                <span className={styles.draftPulseDot} />
+                <span>Auto-saved {lastAutoSavedAt}</span>
+              </div>
+            )}
+            {availableDraft && (
+              <button
+                type="button"
+                className={styles.restoreDraftHeroBtn}
+                onClick={handleManualRestore}
+                title="Restore unsubmitted draft details"
+              >
+                <RotateCcw size={13} />
+                <span>Restore Draft</span>
+              </button>
+            )}
             <button
               type="button"
               className={styles.cancelBtn}
@@ -1954,6 +2386,48 @@ export default function CreateDispatchPage() {
       </div>
 
       <div className={styles.card}>
+        {/* ── Unsubmitted Draft Restored Alert Banner ── */}
+        {restoredDraftInfo && (
+          <div className={styles.draftAlertBanner}>
+            <div className={styles.draftAlertContent}>
+              <div className={styles.draftAlertIcon}>
+                <RotateCcw size={18} />
+              </div>
+              <div>
+                <div className={styles.draftAlertTitle}>
+                  Unsubmitted Consignment Draft Restored
+                  <span className={styles.draftAlertBadge}>Auto-Recovered</span>
+                </div>
+                <div className={styles.draftAlertText}>
+                  Details saved on {restoredDraftInfo.formattedTime} have been automatically restored so your work was not lost when leaving the app.
+                </div>
+                {restoredDraftInfo.details && restoredDraftInfo.details.length > 0 && (
+                  <div className={styles.draftChipsRow}>
+                    {restoredDraftInfo.details.map((chip, idx) => (
+                      <span key={idx} className={styles.draftChip}>{chip}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className={styles.draftAlertActions}>
+              <button
+                type="button"
+                onClick={handleManualRestore}
+                className={styles.draftRestoreBtn}
+              >
+                <RotateCcw size={13} /> Re-apply Draft
+              </button>
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                className={styles.draftDiscardBtn}
+              >
+                <Trash2 size={13} /> Discard Draft
+              </button>
+            </div>
+          </div>
+        )}
         {/* ── Top Section: Cargo Summary ── */}
         <div className={styles.topSection}>
           {/* Cargo & Ordered Items Summary */}
