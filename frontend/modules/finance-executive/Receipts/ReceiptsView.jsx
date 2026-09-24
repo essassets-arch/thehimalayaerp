@@ -1,11 +1,11 @@
 'use client';
-
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import { Image as ImageIcon, Printer, RefreshCw, Search } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { backendFetch } from '../../../lib/backendFetch';
 import { getBackendAssetUrl } from '../../../lib/assetUrl';
+import PaginationControl from '../../../shared/components/PaginationControl';
 
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
 const date = (value) => value ? new Date(value).toLocaleDateString('en-IN') : '—';
@@ -54,6 +54,19 @@ export default function ReceiptsView() {
       receipt.transactionReference,
     ].some((value) => String(value || '').toLowerCase().includes(query)));
   }, [receipts, searchQuery]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredReceipts.length / pageSize));
+  const paginatedReceipts = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredReceipts.slice(start, start + pageSize);
+  }, [filteredReceipts, currentPage, pageSize]);
 
   const handleReceipt = async (receipt) => {
     const result = await Swal.fire({
@@ -147,7 +160,7 @@ export default function ReceiptsView() {
                 <tr><td colSpan={7} style={{ padding: 28, textAlign: 'center', color: '#64748B' }}>Loading verified receipts...</td></tr>
               ) : filteredReceipts.length === 0 ? (
                 <tr><td colSpan={7} style={{ padding: 28, textAlign: 'center', color: '#94A3B8' }}>No verified payment receipts found.</td></tr>
-              ) : filteredReceipts.map((receipt) => (
+              ) : paginatedReceipts.map((receipt) => (
                 <tr key={receipt.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
                   <td data-label="Receipt Number" style={{ padding: '12px 14px', fontWeight: 800, color: '#1E3A8A' }}>{receipt.receiptNumber}</td>
                   <td data-label="Order / Invoice" style={{ padding: '12px 14px' }}><strong>{receipt.orderId}</strong><div style={{ color: '#64748B', marginTop: 2 }}>{receipt.invoiceNumber}</div></td>
@@ -174,7 +187,7 @@ export default function ReceiptsView() {
           ) : filteredReceipts.length === 0 ? (
             <div style={{ padding: 28, textAlign: 'center', color: '#94A3B8' }}>No verified payment receipts found.</div>
           ) : (
-            filteredReceipts.map((receipt) => (
+            paginatedReceipts.map((receipt) => (
               <div
                 key={receipt.id}
                 style={{
@@ -287,6 +300,22 @@ export default function ReceiptsView() {
             ))
           )}
         </div>
+
+        {/* Pagination Controls */}
+        {filteredReceipts.length > 0 && (
+          <PaginationControl
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredReceipts.length}
+            pageSize={pageSize}
+            pageSizeOptions={[10, 25, 50, 100]}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+          />
+        )}
       </div>
     </div>
   );

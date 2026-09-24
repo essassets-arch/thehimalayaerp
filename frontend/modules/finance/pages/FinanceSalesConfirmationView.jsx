@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, CheckCircle2, XCircle, Eye, FileText, Download, DollarSign, Clock, AlertTriangle,
   TrendingDown, ShieldCheck, AlertCircle, Calendar, ArrowUpRight, Filter, RefreshCw, ChevronRight, User, Check
@@ -10,6 +10,7 @@ import Swal from 'sweetalert2';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { backendFetch } from '../../../lib/backendFetch';
 import { getBackendAssetUrl } from '../../../lib/assetUrl';
+import PaginationControl from '../../../shared/components/PaginationControl';
 
 const formatINR = (value) => {
   const num = Number(value || 0);
@@ -76,6 +77,19 @@ export default function FinanceSalesConfirmationView() {
   };
 
   const rows = queueData?.rows || [];
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  // Reset page when any filter criteria changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery, paymentTermsFilter, dueStateFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return rows.slice(start, start + pageSize);
+  }, [rows, currentPage, pageSize]);
 
   // ── Action: Handle Payment Verification ───────────────────────────────────
   const handleVerify = async (paymentId, orderRef) => {
@@ -602,7 +616,7 @@ export default function FinanceSalesConfirmationView() {
                   </td>
                 </tr>
               ) : (
-                rows.map((r, idx) => {
+                paginatedRows.map((r, idx) => {
                   const hasPending = (r.pendingPayments || []).length > 0;
                   const firstPending = r.pendingPayments?.[0];
                   const remDays = r.daysRemaining;
@@ -872,7 +886,7 @@ export default function FinanceSalesConfirmationView() {
               <span style={{ fontWeight: 600, fontSize: '14px' }}>No orders found matching the filter criteria.</span>
             </div>
           ) : (
-            rows.map((r, idx) => {
+            paginatedRows.map((r, idx) => {
               const hasPending = (r.pendingPayments || []).length > 0;
               const firstPending = r.pendingPayments?.[0];
               const remDays = r.daysRemaining;
@@ -1033,6 +1047,22 @@ export default function FinanceSalesConfirmationView() {
             })
           )}
         </div>
+
+        {/* Pagination Controls */}
+        {rows.length > 0 && (
+          <PaginationControl
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={rows.length}
+            pageSize={pageSize}
+            pageSizeOptions={[10, 25, 50, 100]}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+          />
+        )}
       </div>
 
       {/* ── Verify Payment Confirmation Modal (Section 16) ─────────────────── */}

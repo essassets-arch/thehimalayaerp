@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, ClipboardList, RefreshCw } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { backendFetch } from '../../../lib/backendFetch';
+import PaginationControl from '../../../shared/components/PaginationControl';
 
 export default function CustomersView() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,6 +75,19 @@ export default function CustomersView() {
       c.phoneEmail?.toLowerCase().includes(q)
     );
   }, [customerSummaries, searchQuery]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredList.length / pageSize));
+  const paginatedList = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredList.slice(start, start + pageSize);
+  }, [filteredList, currentPage, pageSize]);
 
   // Derive ledger statements dynamically
   const ledgerData = useMemo(() => {
@@ -326,7 +340,7 @@ export default function CustomersView() {
                   </td>
                 </tr>
               ) : (
-                filteredList.map((cust) => (
+                paginatedList.map((cust) => (
                   <tr key={cust.customerId} style={{ borderBottom: '1px solid #F1F5F9' }}>
                     <td data-label="Customer ID" style={{ padding: '12px 14px', fontFamily: 'monospace', fontWeight: 700, color: '#002E5D' }}>{cust.customerCode}</td>
                     <td data-label="Customer Name" style={{ padding: '12px 14px', fontWeight: '700', color: '#0F172A' }}>{cust.customerName}</td>
@@ -370,7 +384,7 @@ export default function CustomersView() {
               No customers found.
             </div>
           ) : (
-            filteredList.map((cust) => {
+            paginatedList.map((cust) => {
               const riskBorder = cust.paymentRisk === 'CRITICAL' || cust.paymentRisk === 'HIGH' ? '4px solid #DC2626' : (cust.paymentRisk === 'MEDIUM' ? '4px solid #EA580C' : '4px solid #10B981');
               return (
                 <div key={cust.customerId} className="cust-card-item" style={{ borderLeft: riskBorder, borderRadius: '14px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -429,6 +443,21 @@ export default function CustomersView() {
           )}
         </div>
 
+        {/* Pagination Controls */}
+        {filteredList.length > 0 && (
+          <PaginationControl
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredList.length}
+            pageSize={pageSize}
+            pageSizeOptions={[10, 25, 50, 100]}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+          />
+        )}
       </div>
 
       {/* Ledger Modal */}

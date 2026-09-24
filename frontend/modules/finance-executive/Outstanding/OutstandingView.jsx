@@ -28,6 +28,7 @@ import { useERPStore } from '../../../store/erpStore';
 import { useAuthStore } from '../../../store/authStore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { backendFetch } from '../../../lib/backendFetch';
+import PaginationControl from '../../../shared/components/PaginationControl';
 
 const formatINR = (value) => {
   const num = Number(value || 0);
@@ -285,6 +286,30 @@ export default function OutstandingView() {
     salesmanFilter,
     sortBy,
   ]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    searchQuery,
+    activePreset,
+    minOutstanding,
+    maxOutstanding,
+    dueFrom,
+    dueTo,
+    collectionStatus,
+    reminderStatus,
+    salesmanFilter,
+    sortBy,
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredList.length / pageSize));
+  const paginatedList = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredList.slice(start, start + pageSize);
+  }, [filteredList, currentPage, pageSize]);
 
   const handleRefreshAll = () => {
     refetchOrders();
@@ -837,7 +862,7 @@ export default function OutstandingView() {
                     </td>
                   </tr>
                 ) : (
-                  filteredList.map((item) => {
+                  paginatedList.map((item) => {
                     const isCriticallyOverdue = item.daysOverdue > 90;
                     return (
                       <tr key={item.invoiceId} style={{ borderBottom: '1px solid #f1f5f9', background: isCriticallyOverdue ? '#fffdfd' : '#ffffff' }}>
@@ -995,7 +1020,7 @@ export default function OutstandingView() {
                 </div>
               </div>
             ) : (
-              filteredList.map((item) => {
+              paginatedList.map((item) => {
                 const isCriticallyOverdue = item.daysOverdue > 90;
                 const isLate = item.daysOverdue > 30;
                 const isOverdue = item.daysOverdue > 0;
@@ -1157,6 +1182,21 @@ export default function OutstandingView() {
             )}
           </div>
 
+          {/* Pagination Controls */}
+          {filteredList.length > 0 && (
+            <PaginationControl
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredList.length}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 25, 50, 100]}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setCurrentPage(1);
+              }}
+            />
+          )}
         </div>
 
     </div>
