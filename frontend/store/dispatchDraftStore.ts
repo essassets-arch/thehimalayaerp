@@ -81,108 +81,111 @@ export function generateSafeId(): string {
 }
 
 export function dataURLtoFile(dataurl: string, filename: string): File {
-  const arr = dataurl.split(",");
-  const mime = arr[0].match(/:(.*?);/)?.[1] || "image/jpeg";
-  const bstr = atob(arr[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8Array(n);
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
+  try {
+    const arr = dataurl.split(",");
+    const mime = arr[0]?.match(/:(.*?);/)?.[1] || "image/jpeg";
+    const bstr = atob(arr[1] || "");
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    try {
+      return new File([u8arr], filename, { type: mime });
+    } catch (_) {
+      // In mobile WebViews where new File(...) throws Illegal constructor
+      const blob = new Blob([u8arr], { type: mime }) as any;
+      blob.name = filename;
+      blob.lastModified = Date.now();
+      return blob as File;
+    }
+  } catch (err) {
+    console.warn("dataURLtoFile fallback:", err);
+    return new Blob([], { type: "image/jpeg" }) as any as File;
   }
-  return new File([u8arr], filename, { type: mime });
 }
 
 export async function compressImageForDraft(file: File): Promise<{ file: File; dataUrl: string }> {
-  const isImage =
-    (file.type && file.type.startsWith("image/")) ||
-    /\.(jpg|jpeg|png|webp|gif|bmp|heic)$/i.test(file.name || "") ||
-    !file.type;
-  if (!isImage) {
+  const isPdf = file.type === "application/pdf" || file.name?.toLowerCase().endsWith(".pdf");
+  if (isPdf) {
     return { file, dataUrl: "" };
   }
 
   return new Promise((resolve) => {
-    let objectUrl = "";
-    const cleanUp = () => {
-      if (objectUrl && typeof window !== "undefined" && window.URL && window.URL.revokeObjectURL) {
-        try {
-          window.URL.revokeObjectURL(objectUrl);
-        } catch (_) {}
-      }
-    };
+    // 4-second safety guard so compression never hangs or stalls mobile WebView
+    const timer = setTimeout(() => {
+      resolve({ file, dataUrl: "" });
+    }, 4000);
 
-    const doCanvasCompress = (imageSource: string) => {
-      const img = new window.Image();
-      img.onload = () => {
-        try {
-          const MAX_DIM = 900;
-          let width = img.width || 800;
-          let height = img.height || 600;
-
-          if (width > height) {
-            if (width > MAX_DIM) {
-              height = Math.round((height * MAX_DIM) / width);
-              width = MAX_DIM;
-            }
-          } else {
-            if (height > MAX_DIM) {
-              width = Math.round((width * MAX_DIM) / height);
-              height = MAX_DIM;
-            }
-          }
-
-          const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(0, 0, width, height);
-            ctx.drawImage(img, 0, 0, width, height);
-            const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.6);
-            const cleanName = (file.name || `photo_${Date.now()}.jpg`).replace(/\.[^/.]+$/, "") + ".jpg";
-            const compressedFile = dataURLtoFile(compressedDataUrl, cleanName);
-            cleanUp();
-            resolve({ file: compressedFile, dataUrl: compressedDataUrl });
-            return;
-          }
-          cleanUp();
-          resolve({ file, dataUrl: imageSource.startsWith("data:") ? imageSource : "" });
-        } catch (err) {
-          console.warn("Canvas compression error:", err);
-          cleanUp();
-          resolve({ file, dataUrl: imageSource.startsWith("data:") ? imageSource : "" });
-        }
-      };
-      img.onerror = () => {
-        cleanUp();
-        resolve({ file, dataUrl: imageSource.startsWith("data:") ? imageSource : "" });
-      };
-      img.src = imageSource;
-    };
-
-    try {
-      if (typeof window !== "undefined" && window.URL && window.URL.createObjectURL) {
-        objectUrl = window.URL.createObjectURL(file);
-        doCanvasCompress(objectUrl);
-        return;
-      }
-    } catch (_) {}
-
-    // Fallback to FileReader if createObjectURL fails
     try {
       const reader = new FileReader();
       reader.onload = (e) => {
-        const resultStr = (e.target?.result as string) || "";
-        if (!resultStr) {
+        const rawDataUrl = (e.target?.result as string) || "";
+        if (!rawDataUrl) {
+          clearTimeout(timer);
           resolve({ file, dataUrl: "" });
           return;
         }
-        doCanvasCompress(resultStr);
+
+        // Downscale image via canvas to keep draft storage lean (~40-60 KB)
+        try {
+          const img = new window.Image();
+          img.onload = () => {
+            clearTimeout(timer);
+            try {
+              const MAX_DIM = 900;
+              let width = img.width || 800;
+              let height = img.height || 600;
+
+              if (width > height) {
+                if (width > MAX_DIM) {
+                  height = Math.round((height * MAX_DIM) / width);
+                  width = MAX_DIM;
+                }
+              } else {
+                if (height > MAX_DIM) {
+                  width = Math.round((width * MAX_DIM) / height);
+                  height = MAX_DIM;
+                }
+              }
+
+              const canvas = document.createElement("canvas");
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext("2d");
+              if (ctx) {
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+                const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.65);
+                const cleanName = (file.name || `photo_${Date.now()}.jpg`).replace(/\.[^/.]+$/, "") + ".jpg";
+                const compressedFile = dataURLtoFile(compressedDataUrl, cleanName);
+                resolve({ file: compressedFile, dataUrl: compressedDataUrl });
+                return;
+              }
+              resolve({ file, dataUrl: rawDataUrl });
+            } catch (canvasErr) {
+              console.warn("Canvas compression error, using raw:", canvasErr);
+              resolve({ file, dataUrl: rawDataUrl });
+            }
+          };
+          img.onerror = () => {
+            clearTimeout(timer);
+            resolve({ file, dataUrl: rawDataUrl });
+          };
+          img.src = rawDataUrl;
+        } catch (_) {
+          clearTimeout(timer);
+          resolve({ file, dataUrl: rawDataUrl });
+        }
       };
-      reader.onerror = () => resolve({ file, dataUrl: "" });
+      reader.onerror = () => {
+        clearTimeout(timer);
+        resolve({ file, dataUrl: "" });
+      };
       reader.readAsDataURL(file);
     } catch (_) {
+      clearTimeout(timer);
       resolve({ file, dataUrl: "" });
     }
   });
@@ -402,7 +405,7 @@ export const useDispatchDraftStore = create<DispatchDraftState>()(
         lastSavedAt: state.lastSavedAt,
         photos: state.photos.map((p) => ({
           id: p.id,
-          dataUrl: p.dataUrl,
+          dataUrl: p.dataUrl || (p.previewUrl?.startsWith("data:") ? p.previewUrl : undefined),
           name: p.name,
           size: p.size,
           type: p.type,

@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Truck, ClipboardList, RotateCcw, Trash2, Camera, Image as ImageIcon, X } from "lucide-react";
+// @ts-ignore
+import { Truck, ClipboardList, RotateCcw, Trash2, Camera, Image as ImageIcon, X, Eye } from "lucide-react";
 import { toast } from "sonner";
 import Swal from "sweetalert2";
 
@@ -629,6 +630,7 @@ export default function CreateDispatchPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
   const [fileError, setFileError] = useState<string | null>(null);
+  const [previewModalPhoto, setPreviewModalPhoto] = useState<DispatchPhoto | null>(null);
   const initialSelectionSet = React.useRef(false);
 
   const cameraInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -1824,7 +1826,8 @@ export default function CreateDispatchPage() {
   };
 
   const handleCameraPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+    const inputEl = e.target;
+    const files = Array.from(inputEl.files ?? []);
     if (!files.length) return;
 
     for (const file of files) {
@@ -1834,15 +1837,20 @@ export default function CreateDispatchPage() {
       }
       try {
         const { file: compressedFile, dataUrl } = await compressImageForDraft(file);
-        const previewUrl = dataUrl || (typeof window !== "undefined" && window.URL ? URL.createObjectURL(compressedFile || file) : "");
+        let previewUrl = dataUrl;
+        if (!previewUrl && typeof window !== "undefined" && window.URL) {
+          try {
+            previewUrl = URL.createObjectURL(compressedFile || file);
+          } catch (_) {}
+        }
         addPhoto({
           id: generateSafeId(),
           file: compressedFile || file,
-          previewUrl: previewUrl,
-          dataUrl: dataUrl || "",
+          previewUrl: previewUrl || dataUrl || "",
+          dataUrl: dataUrl || (previewUrl?.startsWith("data:") ? previewUrl : ""),
           name: file.name || `camera_photo_${Date.now()}.jpg`,
-          size: (compressedFile || file).size,
-          type: (compressedFile || file).type || "image/jpeg",
+          size: (compressedFile || file).size || file.size,
+          type: (compressedFile || file).type || file.type || "image/jpeg",
           source: "camera",
         });
         toast.success("Camera photo captured and saved to draft!");
@@ -1855,7 +1863,8 @@ export default function CreateDispatchPage() {
         addPhoto({
           id: generateSafeId(),
           file,
-          previewUrl,
+          previewUrl: previewUrl || "",
+          dataUrl: previewUrl?.startsWith("data:") ? previewUrl : "",
           name: file.name || `photo_${Date.now()}.jpg`,
           size: file.size,
           type: file.type || "image/jpeg",
@@ -1864,12 +1873,15 @@ export default function CreateDispatchPage() {
         toast.success("Camera photo captured and saved!");
       }
     }
-    // Only clear the hidden FILE INPUT DOM value. NEVER reset the dispatch form!
-    e.target.value = "";
+    // Safely clear the file input DOM value so taking new photo works repeatedly
+    try {
+      inputEl.value = "";
+    } catch (_) {}
   };
 
   const handleGalleryPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+    const inputEl = e.target;
+    const files = Array.from(inputEl.files ?? []);
     if (!files.length) return;
 
     for (const file of files) {
@@ -1881,15 +1893,20 @@ export default function CreateDispatchPage() {
       if (isImg) {
         try {
           const { file: compressedFile, dataUrl } = await compressImageForDraft(file);
-          const previewUrl = dataUrl || (typeof window !== "undefined" && window.URL ? URL.createObjectURL(compressedFile || file) : "");
+          let previewUrl = dataUrl;
+          if (!previewUrl && typeof window !== "undefined" && window.URL) {
+            try {
+              previewUrl = URL.createObjectURL(compressedFile || file);
+            } catch (_) {}
+          }
           addPhoto({
             id: generateSafeId(),
             file: compressedFile || file,
-            previewUrl: previewUrl,
-            dataUrl: dataUrl || "",
+            previewUrl: previewUrl || dataUrl || "",
+            dataUrl: dataUrl || (previewUrl?.startsWith("data:") ? previewUrl : ""),
             name: file.name || `gallery_image_${Date.now()}.jpg`,
-            size: (compressedFile || file).size,
-            type: (compressedFile || file).type || "image/jpeg",
+            size: (compressedFile || file).size || file.size,
+            type: (compressedFile || file).type || file.type || "image/jpeg",
             source: "gallery",
           });
         } catch (err) {
@@ -1900,7 +1917,8 @@ export default function CreateDispatchPage() {
           addPhoto({
             id: generateSafeId(),
             file,
-            previewUrl,
+            previewUrl: previewUrl || "",
+            dataUrl: previewUrl?.startsWith("data:") ? previewUrl : "",
             name: file.name || `gallery_image_${Date.now()}.jpg`,
             size: file.size,
             type: file.type || "image/jpeg",
@@ -1913,6 +1931,7 @@ export default function CreateDispatchPage() {
           id: generateSafeId(),
           file,
           previewUrl: "",
+          dataUrl: "",
           name: file.name || `document_${Date.now()}.pdf`,
           size: file.size,
           type: file.type || "application/pdf",
@@ -1921,8 +1940,10 @@ export default function CreateDispatchPage() {
       }
     }
     toast.success(`${files.length === 1 ? "Document" : `${files.length} documents`} attached and saved to draft!`);
-    // Only clear the hidden FILE INPUT DOM value. NEVER reset the dispatch form!
-    e.target.value = "";
+    // Safely clear the file input DOM value so re-selecting works repeatedly
+    try {
+      inputEl.value = "";
+    } catch (_) {}
   };
 
   const handleSubmit = async () => {
@@ -2857,9 +2878,9 @@ export default function CreateDispatchPage() {
 
             {/* Camera and Gallery option buttons */}
             <div className={styles.docButtonRow}>
-              <div
+              <label
                 className={styles.cameraOptionBtn}
-                style={{ position: "relative", overflow: "hidden", cursor: "pointer" }}
+                style={{ position: "relative", overflow: "hidden", cursor: "pointer", display: "inline-flex" }}
                 title="Open Camera directly to snap a photo of invoice / bill / LR"
               >
                 <Camera size={17} />
@@ -2875,20 +2896,17 @@ export default function CreateDispatchPage() {
                     left: 0,
                     width: "100%",
                     height: "100%",
-                    opacity: 0,
+                    opacity: 0.001,
                     cursor: "pointer",
                     zIndex: 10,
                   }}
                   onChange={handleCameraPhotoSelected}
-                  onClick={(e) => {
-                    (e.target as HTMLInputElement).value = "";
-                  }}
                 />
-              </div>
+              </label>
 
-              <div
+              <label
                 className={styles.galleryOptionBtn}
-                style={{ position: "relative", overflow: "hidden", cursor: "pointer" }}
+                style={{ position: "relative", overflow: "hidden", cursor: "pointer", display: "inline-flex" }}
                 title="Select existing photo or PDF from gallery / files"
               >
                 <ImageIcon size={17} />
@@ -2904,16 +2922,13 @@ export default function CreateDispatchPage() {
                     left: 0,
                     width: "100%",
                     height: "100%",
-                    opacity: 0,
+                    opacity: 0.001,
                     cursor: "pointer",
                     zIndex: 10,
                   }}
                   onChange={handleGalleryPhotoSelected}
-                  onClick={(e) => {
-                    (e.target as HTMLInputElement).value = "";
-                  }}
                 />
-              </div>
+              </label>
             </div>
 
             {fileError && (
@@ -2935,11 +2950,25 @@ export default function CreateDispatchPage() {
                           {p.source === "camera" ? "Camera" : "Gallery / File"}
                         </span>
                         {imgSrc ? (
-                          <img
-                            src={imgSrc}
-                            alt={p.name || "Dispatch photo"}
-                            className={styles.docThumbnail}
-                          />
+                          <div
+                            className={styles.thumbnailWrapper}
+                            onClick={() => setPreviewModalPhoto(p)}
+                            title="Tap to preview image in full size"
+                          >
+                            <img
+                              src={imgSrc}
+                              alt={p.name || "Dispatch photo"}
+                              className={styles.docThumbnail}
+                              onError={(e) => {
+                                if (p.dataUrl && (e.currentTarget as HTMLImageElement).src !== p.dataUrl) {
+                                  (e.currentTarget as HTMLImageElement).src = p.dataUrl;
+                                }
+                              }}
+                            />
+                            <div className={styles.thumbnailZoomHint}>
+                              <Eye size={14} />
+                            </div>
+                          </div>
                         ) : isPdf ? (
                           <div className={styles.pdfIconBadge}>PDF</div>
                         ) : (
@@ -2957,15 +2986,28 @@ export default function CreateDispatchPage() {
                               : "Saved in Draft"}
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          className={styles.docRemoveBtn}
-                          onClick={() => removePhoto(p.id)}
-                          title="Remove attachment"
-                        >
-                          <Trash2 size={13} />
-                          <span>Remove</span>
-                        </button>
+                        <div className={styles.photoCardActions}>
+                          {imgSrc && (
+                            <button
+                              type="button"
+                              className={styles.docViewBtn}
+                              onClick={() => setPreviewModalPhoto(p)}
+                              title="View full preview"
+                            >
+                              <Eye size={13} />
+                              <span>View</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className={styles.docRemoveBtn}
+                            onClick={() => removePhoto(p.id)}
+                            title="Remove attachment"
+                          >
+                            <Trash2 size={13} />
+                            <span>Remove</span>
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -3015,6 +3057,67 @@ export default function CreateDispatchPage() {
           </button>
         </div>
       </div>
+
+      {/* ── Fullscreen Image Preview Lightbox Modal ── */}
+      {previewModalPhoto && (
+        <div
+          className={styles.previewModalOverlay}
+          onClick={() => setPreviewModalPhoto(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className={styles.previewModalContent} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.previewModalHeader}>
+              <div className={styles.previewModalTitle}>
+                <span
+                  className={`${styles.photoSourceBadge} ${previewModalPhoto.source === "gallery" ? styles.gallery : ""}`}
+                  style={{ position: "static", marginRight: 8, display: "inline-block" }}
+                >
+                  {previewModalPhoto.source === "camera" ? "Camera Photo" : "Gallery / File"}
+                </span>
+                <span className={styles.previewModalFileName}>{previewModalPhoto.name}</span>
+              </div>
+              <button
+                type="button"
+                className={styles.previewModalCloseBtn}
+                onClick={() => setPreviewModalPhoto(null)}
+                title="Close Preview"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className={styles.previewModalBody}>
+              {previewModalPhoto.previewUrl || previewModalPhoto.dataUrl ? (
+                <img
+                  src={previewModalPhoto.previewUrl || previewModalPhoto.dataUrl}
+                  alt={previewModalPhoto.name}
+                  className={styles.previewModalImage}
+                />
+              ) : (
+                <div className={styles.previewModalPdfPlaceholder}>
+                  Document: {previewModalPhoto.name}
+                </div>
+              )}
+            </div>
+            <div className={styles.previewModalFooter}>
+              <span>
+                {previewModalPhoto.size
+                  ? previewModalPhoto.size > 1024 * 1024
+                    ? `${(previewModalPhoto.size / (1024 * 1024)).toFixed(2)} MB`
+                    : `${(previewModalPhoto.size / 1024).toFixed(1)} KB`
+                  : "Saved"}
+              </span>
+              <button
+                type="button"
+                className={styles.previewModalDoneBtn}
+                onClick={() => setPreviewModalPhoto(null)}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
