@@ -71,6 +71,15 @@ export interface DispatchDraftState {
   }) => void;
 }
 
+export function generateSafeId(): string {
+  if (typeof window !== "undefined" && window.crypto && typeof window.crypto.randomUUID === "function") {
+    try {
+      return window.crypto.randomUUID();
+    } catch (_) {}
+  }
+  return "doc_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 9);
+}
+
 export function dataURLtoFile(dataurl: string, filename: string): File {
   const arr = dataurl.split(",");
   const mime = arr[0].match(/:(.*?);/)?.[1] || "image/jpeg";
@@ -84,51 +93,137 @@ export function dataURLtoFile(dataurl: string, filename: string): File {
 }
 
 export async function compressImageForDraft(file: File): Promise<{ file: File; dataUrl: string }> {
-  if (!file.type.startsWith("image/")) {
+  const isImage =
+    (file.type && file.type.startsWith("image/")) ||
+    /\.(jpg|jpeg|png|webp|gif|bmp|heic)$/i.test(file.name || "") ||
+    !file.type;
+  if (!isImage) {
     return { file, dataUrl: "" };
   }
+
   return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
+    let objectUrl = "";
+    const cleanUp = () => {
+      if (objectUrl && typeof window !== "undefined" && window.URL && window.URL.revokeObjectURL) {
+        try {
+          window.URL.revokeObjectURL(objectUrl);
+        } catch (_) {}
+      }
+    };
+
+    const doCanvasCompress = (imageSource: string) => {
       const img = new window.Image();
       img.onload = () => {
-        const MAX_DIM = 1200;
-        let width = img.width;
-        let height = img.height;
+        try {
+          const MAX_DIM = 900;
+          let width = img.width || 800;
+          let height = img.height || 600;
 
-        if (width > height) {
-          if (width > MAX_DIM) {
-            height = Math.round((height * MAX_DIM) / width);
-            width = MAX_DIM;
+          if (width > height) {
+            if (width > MAX_DIM) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            }
+          } else {
+            if (height > MAX_DIM) {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
           }
-        } else {
-          if (height > MAX_DIM) {
-            width = Math.round((width * MAX_DIM) / height);
-            height = MAX_DIM;
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.6);
+            const cleanName = (file.name || `photo_${Date.now()}.jpg`).replace(/\.[^/.]+$/, "") + ".jpg";
+            const compressedFile = dataURLtoFile(compressedDataUrl, cleanName);
+            cleanUp();
+            resolve({ file: compressedFile, dataUrl: compressedDataUrl });
+            return;
           }
+          cleanUp();
+          resolve({ file, dataUrl: imageSource.startsWith("data:") ? imageSource : "" });
+        } catch (err) {
+          console.warn("Canvas compression error:", err);
+          cleanUp();
+          resolve({ file, dataUrl: imageSource.startsWith("data:") ? imageSource : "" });
         }
+      };
+      img.onerror = () => {
+        cleanUp();
+        resolve({ file, dataUrl: imageSource.startsWith("data:") ? imageSource : "" });
+      };
+      img.src = imageSource;
+    };
 
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7);
-          const cleanName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
-          const compressedFile = dataURLtoFile(compressedDataUrl, cleanName);
-          resolve({ file: compressedFile, dataUrl: compressedDataUrl });
+    try {
+      if (typeof window !== "undefined" && window.URL && window.URL.createObjectURL) {
+        objectUrl = window.URL.createObjectURL(file);
+        doCanvasCompress(objectUrl);
+        return;
+      }
+    } catch (_) {}
+
+    // Fallback to FileReader if createObjectURL fails
+    try {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const resultStr = (e.target?.result as string) || "";
+        if (!resultStr) {
+          resolve({ file, dataUrl: "" });
           return;
         }
-        resolve({ file, dataUrl: e.target?.result as string });
+        doCanvasCompress(resultStr);
       };
-      img.onerror = () => resolve({ file, dataUrl: e.target?.result as string });
-      img.src = e.target?.result as string;
-    };
-    reader.onerror = () => resolve({ file, dataUrl: "" });
-    reader.readAsDataURL(file);
+      reader.onerror = () => resolve({ file, dataUrl: "" });
+      reader.readAsDataURL(file);
+    } catch (_) {
+      resolve({ file, dataUrl: "" });
+    }
   });
 }
+
+// Resilient localStorage wrapper that handles quota exceeded errors gracefully
+const safeLocalStorage = {
+  getItem: (name: string): string | null => {
+    try {
+      if (typeof window === "undefined") return null;
+      return localStorage.getItem(name);
+    } catch (_) {
+      return null;
+    }
+  },
+  setItem: (name: string, value: string): void => {
+    try {
+      if (typeof window === "undefined") return;
+      localStorage.setItem(name, value);
+    } catch (e: any) {
+      console.warn("[dispatchDraftStore] localStorage.setItem error (handling quota exceeded):", e);
+      try {
+        // Fallback: strip heavy base64 dataUrl from photos so textual draft is never lost
+        const parsed = JSON.parse(value);
+        if (parsed?.state?.photos?.length) {
+          parsed.state.photos = parsed.state.photos.map((p: any) => ({
+            ...p,
+            dataUrl: undefined,
+          }));
+          localStorage.setItem(name, JSON.stringify(parsed));
+        }
+      } catch (_) {}
+    }
+  },
+  removeItem: (name: string): void => {
+    try {
+      if (typeof window === "undefined") return;
+      localStorage.removeItem(name);
+    } catch (_) {}
+  },
+};
 
 export const useDispatchDraftStore = create<DispatchDraftState>()(
   persist(
@@ -280,9 +375,7 @@ export const useDispatchDraftStore = create<DispatchDraftState>()(
     }),
     {
       name: "himalaya_dispatch_create_draft_v2",
-      storage: createJSONStorage(() => localStorage),
-      // Partialize safely so non-serializable raw File instances are omitted from localStorage
-      // while preserving dataUrl, name, size, type, and source
+      storage: createJSONStorage(() => safeLocalStorage),
       partialize: (state) => ({
         salesOrderId: state.salesOrderId,
         orderNumber: state.orderNumber,
@@ -309,7 +402,6 @@ export const useDispatchDraftStore = create<DispatchDraftState>()(
         lastSavedAt: state.lastSavedAt,
         photos: state.photos.map((p) => ({
           id: p.id,
-          previewUrl: p.previewUrl,
           dataUrl: p.dataUrl,
           name: p.name,
           size: p.size,
@@ -319,14 +411,16 @@ export const useDispatchDraftStore = create<DispatchDraftState>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        // Reconstruct File objects from preserved dataUrls if missing
         if (Array.isArray(state.photos)) {
           state.photos.forEach((photo) => {
-            if (!photo.file && photo.dataUrl) {
-              try {
-                photo.file = dataURLtoFile(photo.dataUrl, photo.name || "recovered_dispatch_photo.jpg");
-              } catch (e) {
-                console.warn("[dispatchDraftStore] Could not reconstruct File from dataUrl:", e);
+            if (photo.dataUrl) {
+              photo.previewUrl = photo.dataUrl;
+              if (!photo.file) {
+                try {
+                  photo.file = dataURLtoFile(photo.dataUrl, photo.name || "recovered_dispatch_photo.jpg");
+                } catch (e) {
+                  console.warn("[dispatchDraftStore] Could not reconstruct File from dataUrl:", e);
+                }
               }
             }
           });

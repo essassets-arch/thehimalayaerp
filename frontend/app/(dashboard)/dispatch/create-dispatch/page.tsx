@@ -13,6 +13,9 @@ import {
   useDispatchDraftStore,
   DispatchPhoto,
   DispatchDraftState,
+  generateSafeId,
+  compressImageForDraft,
+  dataURLtoFile,
 } from "@/store/dispatchDraftStore";
 
 interface Customer {
@@ -116,64 +119,6 @@ export interface DispatchDraft {
   documentFileType?: string | null;
 }
 
-function dataURLtoFile(dataurl: string, filename: string): File {
-  const arr = dataurl.split(",");
-  const mime = arr[0].match(/:(.*?);/)?.[1] || "image/jpeg";
-  const bstr = atob(arr[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8Array(n);
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
-  }
-  return new File([u8arr], filename, { type: mime });
-}
-
-async function compressImageForDraft(file: File): Promise<{ file: File; dataUrl: string }> {
-  if (!file.type.startsWith("image/")) {
-    return { file, dataUrl: "" };
-  }
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new window.Image();
-      img.onload = () => {
-        const MAX_DIM = 1200;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_DIM) {
-            height = Math.round((height * MAX_DIM) / width);
-            width = MAX_DIM;
-          }
-        } else {
-          if (height > MAX_DIM) {
-            width = Math.round((width * MAX_DIM) / height);
-            height = MAX_DIM;
-          }
-        }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7);
-          const cleanName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
-          const compressedFile = dataURLtoFile(compressedDataUrl, cleanName);
-          resolve({ file: compressedFile, dataUrl: compressedDataUrl });
-          return;
-        }
-        resolve({ file, dataUrl: e.target?.result as string });
-      };
-      img.onerror = () => resolve({ file, dataUrl: e.target?.result as string });
-      img.src = e.target?.result as string;
-    };
-    reader.onerror = () => resolve({ file, dataUrl: "" });
-    reader.readAsDataURL(file);
-  });
-}
 
 function getDraftStorageKey(
   soId?: string | null,
@@ -1612,7 +1557,7 @@ export default function CreateDispatchPage() {
         });
         if (legacyDraft.documentPreview) {
           addPhoto({
-            id: crypto.randomUUID(),
+            id: generateSafeId(),
             previewUrl: legacyDraft.documentPreview,
             dataUrl: legacyDraft.documentPreview,
             name: legacyDraft.documentFileName || "recovered_dispatch_doc.jpg",
@@ -1889,27 +1834,31 @@ export default function CreateDispatchPage() {
       }
       try {
         const { file: compressedFile, dataUrl } = await compressImageForDraft(file);
+        const previewUrl = dataUrl || (typeof window !== "undefined" && window.URL ? URL.createObjectURL(compressedFile || file) : "");
         addPhoto({
-          id: crypto.randomUUID(),
-          file: compressedFile,
-          previewUrl: dataUrl,
-          dataUrl,
-          name: file.name,
-          size: compressedFile.size,
-          type: "image/jpeg",
+          id: generateSafeId(),
+          file: compressedFile || file,
+          previewUrl: previewUrl,
+          dataUrl: dataUrl || "",
+          name: file.name || `camera_photo_${Date.now()}.jpg`,
+          size: (compressedFile || file).size,
+          type: (compressedFile || file).type || "image/jpeg",
           source: "camera",
         });
         toast.success("Camera photo captured and saved to draft!");
       } catch (err) {
         console.warn("Failed to compress camera photo:", err);
-        const previewUrl = URL.createObjectURL(file);
+        let previewUrl = "";
+        try {
+          previewUrl = URL.createObjectURL(file);
+        } catch (_) {}
         addPhoto({
-          id: crypto.randomUUID(),
+          id: generateSafeId(),
           file,
           previewUrl,
-          name: file.name,
+          name: file.name || `photo_${Date.now()}.jpg`,
           size: file.size,
-          type: file.type,
+          type: file.type || "image/jpeg",
           source: "camera",
         });
         toast.success("Camera photo captured and saved!");
@@ -1928,38 +1877,43 @@ export default function CreateDispatchPage() {
         toast.error(`File "${file.name}" exceeds 50 MB limit.`);
         continue;
       }
-      if (file.type.startsWith("image/")) {
+      const isImg = (file.type && file.type.startsWith("image/")) || /\.(jpg|jpeg|png|webp|gif|bmp|heic)$/i.test(file.name || "") || !file.type;
+      if (isImg) {
         try {
           const { file: compressedFile, dataUrl } = await compressImageForDraft(file);
+          const previewUrl = dataUrl || (typeof window !== "undefined" && window.URL ? URL.createObjectURL(compressedFile || file) : "");
           addPhoto({
-            id: crypto.randomUUID(),
-            file: compressedFile,
-            previewUrl: dataUrl,
-            dataUrl,
-            name: file.name,
-            size: compressedFile.size,
-            type: "image/jpeg",
+            id: generateSafeId(),
+            file: compressedFile || file,
+            previewUrl: previewUrl,
+            dataUrl: dataUrl || "",
+            name: file.name || `gallery_image_${Date.now()}.jpg`,
+            size: (compressedFile || file).size,
+            type: (compressedFile || file).type || "image/jpeg",
             source: "gallery",
           });
         } catch (err) {
-          const previewUrl = URL.createObjectURL(file);
+          let previewUrl = "";
+          try {
+            previewUrl = URL.createObjectURL(file);
+          } catch (_) {}
           addPhoto({
-            id: crypto.randomUUID(),
+            id: generateSafeId(),
             file,
             previewUrl,
-            name: file.name,
+            name: file.name || `gallery_image_${Date.now()}.jpg`,
             size: file.size,
-            type: file.type,
+            type: file.type || "image/jpeg",
             source: "gallery",
           });
         }
       } else {
         // PDF or other allowed document
         addPhoto({
-          id: crypto.randomUUID(),
+          id: generateSafeId(),
           file,
           previewUrl: "",
-          name: file.name,
+          name: file.name || `document_${Date.now()}.pdf`,
           size: file.size,
           type: file.type || "application/pdf",
           source: "gallery",
@@ -1969,22 +1923,6 @@ export default function CreateDispatchPage() {
     toast.success(`${files.length === 1 ? "Document" : `${files.length} documents`} attached and saved to draft!`);
     // Only clear the hidden FILE INPUT DOM value. NEVER reset the dispatch form!
     e.target.value = "";
-  };
-
-  const handleTriggerCamera = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (cameraInputRef.current) {
-      cameraInputRef.current.value = "";
-      cameraInputRef.current.click();
-    }
-  };
-
-  const handleTriggerGallery = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (galleryInputRef.current) {
-      galleryInputRef.current.value = "";
-      galleryInputRef.current.click();
-    }
   };
 
   const handleSubmit = async () => {
@@ -2917,44 +2855,65 @@ export default function CreateDispatchPage() {
               <span style={{ fontSize: "11px", fontWeight: "normal", color: "#64748b" }}>(Max 50 MB)</span>
             </label>
 
-            {/* Hidden file inputs for Camera and Gallery */}
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              style={{ display: "none" }}
-              onChange={handleCameraPhotoSelected}
-            />
-            <input
-              ref={galleryInputRef}
-              type="file"
-              accept="image/jpeg,image/jpg,image/png,application/pdf"
-              multiple
-              style={{ display: "none" }}
-              onChange={handleGalleryPhotoSelected}
-            />
-
             {/* Camera and Gallery option buttons */}
             <div className={styles.docButtonRow}>
-              <button
-                type="button"
+              <div
                 className={styles.cameraOptionBtn}
-                onClick={handleTriggerCamera}
+                style={{ position: "relative", overflow: "hidden", cursor: "pointer" }}
                 title="Open Camera directly to snap a photo of invoice / bill / LR"
               >
                 <Camera size={17} />
                 <span>Take Camera Photo</span>
-              </button>
-              <button
-                type="button"
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    opacity: 0,
+                    cursor: "pointer",
+                    zIndex: 10,
+                  }}
+                  onChange={handleCameraPhotoSelected}
+                  onClick={(e) => {
+                    (e.target as HTMLInputElement).value = "";
+                  }}
+                />
+              </div>
+
+              <div
                 className={styles.galleryOptionBtn}
-                onClick={handleTriggerGallery}
+                style={{ position: "relative", overflow: "hidden", cursor: "pointer" }}
                 title="Select existing photo or PDF from gallery / files"
               >
                 <ImageIcon size={17} />
                 <span>Select from Gallery / PDF</span>
-              </button>
+                <input
+                  ref={galleryInputRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  multiple
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    opacity: 0,
+                    cursor: "pointer",
+                    zIndex: 10,
+                  }}
+                  onChange={handleGalleryPhotoSelected}
+                  onClick={(e) => {
+                    (e.target as HTMLInputElement).value = "";
+                  }}
+                />
+              </div>
             </div>
 
             {fileError && (
@@ -2964,19 +2923,20 @@ export default function CreateDispatchPage() {
             )}
 
             {/* Multi-Photo / Document Grid */}
-            {photos.length > 0 ? (
+            {photos && photos.length > 0 ? (
               <div className={styles.photosContainer}>
                 <div className={styles.photoGrid}>
                   {photos.map((p) => {
-                    const isPdf = p.type?.toLowerCase().includes("pdf") || p.name.toLowerCase().endsWith(".pdf");
+                    const isPdf = p.type?.toLowerCase().includes("pdf") || p.name?.toLowerCase().endsWith(".pdf");
+                    const imgSrc = p.previewUrl || p.dataUrl;
                     return (
                       <div key={p.id} className={styles.photoCard}>
                         <span className={`${styles.photoSourceBadge} ${p.source === "gallery" ? styles.gallery : ""}`}>
                           {p.source === "camera" ? "Camera" : "Gallery / File"}
                         </span>
-                        {p.previewUrl ? (
+                        {imgSrc ? (
                           <img
-                            src={p.previewUrl}
+                            src={imgSrc}
                             alt={p.name || "Dispatch photo"}
                             className={styles.docThumbnail}
                           />
