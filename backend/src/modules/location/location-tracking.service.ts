@@ -479,13 +479,17 @@ export class LocationTrackingService {
           userId,
           employeeId: session.employeeId,
           sessionId: session.id,
-          latitude: latestAcceptedPoint.latitude,
-          longitude: latestAcceptedPoint.longitude,
+          latitude: Number(latestAcceptedPoint.latitude),
+          longitude: Number(latestAcceptedPoint.longitude),
+          accuracy: latestAcceptedPoint.accuracy,
           speed: latestAcceptedPoint.speed,
           heading: latestAcceptedPoint.heading,
           batteryLevel: latestAcceptedPoint.batteryLevel,
-          totalDistanceKm: updatedDistanceKm,
+          totalDistanceKm: Number(updatedDistanceKm),
+          totalPointsCount,
+          totalStopsCount,
           recordedAt: latestAcceptedPoint.recordedAt,
+          serverReceivedAt: new Date(),
           status: 'LIVE',
         };
         this.locationGateway.server
@@ -650,7 +654,7 @@ export class LocationTrackingService {
         points: {
           where: { isFilteredJump: false },
           orderBy: { recordedAt: 'asc' },
-          take: 500, // Return latest 500 points for live path rendering
+          take: 2000, // Return up to 2000 points for complete live shift path
           select: {
             id: true,
             latitude: true,
@@ -661,6 +665,7 @@ export class LocationTrackingService {
             batteryLevel: true,
             isMockLocation: true,
             recordedAt: true,
+            serverReceivedAt: true,
           },
         },
         stops: {
@@ -673,8 +678,9 @@ export class LocationTrackingService {
     const now = new Date();
 
     return activeSessions.map((s) => {
-      const latestPoint = s.points[s.points.length - 1] || null;
-      let stalenessStatus: 'LIVE' | 'GPS_STALE' | 'CONNECTION_DEGRADED' = 'LIVE';
+      // Find newest accepted GPS point
+      const latestPoint = s.points.length > 0 ? s.points[s.points.length - 1] : null;
+      let stalenessStatus: 'LIVE' | 'GPS_STALE' | 'CONNECTION_DEGRADED' | 'AWAITING_GPS' = 'AWAITING_GPS';
       let minutesSinceLastGps = 0;
 
       if (latestPoint) {
@@ -684,6 +690,8 @@ export class LocationTrackingService {
           stalenessStatus = 'CONNECTION_DEGRADED';
         } else if (minutesSinceLastGps > 5) {
           stalenessStatus = 'GPS_STALE';
+        } else {
+          stalenessStatus = 'LIVE';
         }
       }
 
@@ -691,6 +699,20 @@ export class LocationTrackingService {
       const elapsedHours = Math.floor(elapsedMs / (1000 * 3600));
       const elapsedMins = Math.floor((elapsedMs % (1000 * 3600)) / (1000 * 60));
       const durationFormatted = `${String(elapsedHours).padStart(2, '0')}h ${String(elapsedMins).padStart(2, '0')}m`;
+
+      const latestLocation = latestPoint
+        ? {
+            latitude: Number(latestPoint.latitude),
+            longitude: Number(latestPoint.longitude),
+            accuracy: latestPoint.accuracy,
+            speed: latestPoint.speed,
+            heading: latestPoint.heading,
+            batteryLevel: latestPoint.batteryLevel,
+            isMockLocation: latestPoint.isMockLocation,
+            recordedAt: latestPoint.recordedAt,
+            serverReceivedAt: latestPoint.serverReceivedAt || latestPoint.recordedAt,
+          }
+        : null;
 
       return {
         sessionId: s.id,
@@ -701,38 +723,36 @@ export class LocationTrackingService {
         department: s.employee?.department?.name || 'Operations',
         punchInAt: s.punchInAt,
         punchInAddress: s.punchInAddress,
+        punchIn: {
+          latitude: Number(s.punchInLatitude),
+          longitude: Number(s.punchInLongitude),
+          recordedAt: s.punchInAt,
+          address: s.punchInAddress,
+          accuracy: s.punchInAccuracy,
+        },
         punchInCoordinates: {
           latitude: Number(s.punchInLatitude),
           longitude: Number(s.punchInLongitude),
         },
         status: stalenessStatus,
+        hasGpsFix: Boolean(latestPoint),
         minutesSinceLastGps,
         durationFormatted,
         totalDistanceKm: Number(s.totalDistanceKm),
+        distanceKm: Number(s.totalDistanceKm),
         totalPointsCount: s.totalPointsCount,
         totalStopsCount: s.stops.length,
-        currentLocation: latestPoint
-          ? {
-              latitude: Number(latestPoint.latitude),
-              longitude: Number(latestPoint.longitude),
-              accuracy: latestPoint.accuracy,
-              speed: latestPoint.speed,
-              heading: latestPoint.heading,
-              batteryLevel: latestPoint.batteryLevel,
-              isMockLocation: latestPoint.isMockLocation,
-              recordedAt: latestPoint.recordedAt,
-            }
-          : {
-              latitude: Number(s.punchInLatitude),
-              longitude: Number(s.punchInLongitude),
-              recordedAt: s.punchInAt,
-            },
+        latestLocation,
+        currentLocation: latestLocation, // Truthful: null if no GPS point yet. NEVER falls back to punch-in coordinates!
         routePoints: s.points.map((p) => ({
+          id: p.id,
           latitude: Number(p.latitude),
           longitude: Number(p.longitude),
+          accuracy: p.accuracy,
           speed: p.speed,
           heading: p.heading,
           recordedAt: p.recordedAt,
+          serverReceivedAt: p.serverReceivedAt,
         })),
         stops: s.stops.map((st, idx) => ({
           stopNumber: idx + 1,

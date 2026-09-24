@@ -367,7 +367,8 @@ export default function SuperAdminLiveMapPage() {
   // Google Maps Refs
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const markersRef = useRef({}); // id -> Marker
+  const markersRef = useRef({}); // id -> LIVE Marker
+  const liveStartMarkersRef = useRef({}); // sessionId -> Start Marker (S at Punch In)
   const stopMarkersRef = useRef([]); // Stop Markers
   const activePolylineRef = useRef(null); // Route Polyline
   const startMarkerRef = useRef(null);
@@ -457,6 +458,8 @@ export default function SuperAdminLiveMapPage() {
   const clearLiveMarkers = useCallback(() => {
     Object.values(markersRef.current).forEach((m) => m.setMap(null));
     markersRef.current = {};
+    Object.values(liveStartMarkersRef.current).forEach((m) => m.setMap(null));
+    liveStartMarkersRef.current = {};
   }, []);
 
   // ─── 1. FETCH LIVE SHIFT ROUTES (/location/routes/live) ──────────────────────
@@ -656,29 +659,35 @@ export default function SuperAdminLiveMapPage() {
         return prev.map((s) => {
           if (s.employeeId !== data.employeeId && s.sessionId !== data.sessionId) return s;
           const newPoint = {
+            id: `rt-${Date.now()}`,
             latitude: Number(data.latitude),
             longitude: Number(data.longitude),
+            accuracy: data.accuracy,
             speed: data.speed,
             heading: data.heading,
             batteryLevel: data.batteryLevel,
             recordedAt: data.recordedAt,
+            serverReceivedAt: data.serverReceivedAt || new Date().toISOString(),
           };
           const updatedPoints = [...(s.routePoints || []), newPoint];
 
-          // If this session is currently active and selected, update polyline
+          // If this session is currently active and selected, update polyline immediately
           if (selectedLiveSessionId === s.sessionId && mapInstanceRef.current && window.google?.maps) {
             if (activePolylineRef.current) {
-              const path = activePolylineRef.current.getPath();
-              path.push(new window.google.maps.LatLng(newPoint.latitude, newPoint.longitude));
+              const polyPath = activePolylineRef.current.getPath();
+              polyPath.push(new window.google.maps.LatLng(newPoint.latitude, newPoint.longitude));
             }
-            showAccuracyCircle(newPoint.latitude, newPoint.longitude, 15, '#2563EB');
+            showAccuracyCircle(newPoint.latitude, newPoint.longitude, newPoint.accuracy || 15, '#2563EB');
           }
 
           return {
             ...s,
+            latestLocation: newPoint,
             currentLocation: newPoint,
+            hasGpsFix: true,
             routePoints: updatedPoints,
             totalDistanceKm: data.totalDistanceKm != null ? data.totalDistanceKm : s.totalDistanceKm,
+            totalPointsCount: data.totalPointsCount != null ? data.totalPointsCount : (s.totalPointsCount || 0) + 1,
             status: data.status || 'LIVE',
             minutesSinceLastGps: 0,
           };
@@ -702,19 +711,28 @@ export default function SuperAdminLiveMapPage() {
     const cat = getCategoryForRole(session.role);
     const cfg = ROLE_CONFIG[cat] || ROLE_CONFIG['Other'];
 
-    if (points.length < 2) {
-      const lat = session.currentLocation?.latitude || session.punchInCoordinates?.latitude;
-      const lng = session.currentLocation?.longitude || session.punchInCoordinates?.longitude;
-      if (lat && lng) {
-        mapInstanceRef.current.panTo({ lat, lng });
-        mapInstanceRef.current.setZoom(16);
-        showAccuracyCircle(lat, lng, session.currentLocation?.accuracy || 20, cfg.color);
+    // Construct continuous path: starts from Punch In (S) coordinates, connects through all accepted points
+    const path = [];
+    const punchLat = session.punchInCoordinates?.latitude || session.punchIn?.latitude;
+    const punchLng = session.punchInCoordinates?.longitude || session.punchIn?.longitude;
+    if (punchLat && punchLng) {
+      path.push(new window.google.maps.LatLng(punchLat, punchLng));
+    }
+    points.forEach((p) => {
+      if (p.latitude && p.longitude) {
+        path.push(new window.google.maps.LatLng(p.latitude, p.longitude));
       }
+    });
+
+    if (path.length === 0) return;
+
+    if (path.length === 1) {
+      mapInstanceRef.current.panTo(path[0]);
+      mapInstanceRef.current.setZoom(16);
       return;
     }
 
-    const path = points.map((p) => new window.google.maps.LatLng(p.latitude, p.longitude));
-
+    // Path has 2 or more coordinates (e.g. S -> GPS 1 -> GPS 2 -> ... -> Latest)
     const polyline = new window.google.maps.Polyline({
       path,
       geodesic: true,
@@ -724,20 +742,6 @@ export default function SuperAdminLiveMapPage() {
       map: mapInstanceRef.current,
     });
     activePolylineRef.current = polyline;
-
-    // Render Start Pin at punch-in point
-    const startLoc = points[0];
-    const startMarker = new window.google.maps.Marker({
-      position: new window.google.maps.LatLng(startLoc.latitude, startLoc.longitude),
-      map: mapInstanceRef.current,
-      title: `Punch In (${new Date(session.punchInAt).toLocaleTimeString()})`,
-      icon: {
-        url: getStartPinSvg(),
-        scaledSize: new window.google.maps.Size(32, 38),
-        anchor: new window.google.maps.Point(16, 38),
-      },
-    });
-    startMarkerRef.current = startMarker;
 
     // Render Stop Pins
     if (session.stops && session.stops.length > 0) {
@@ -782,60 +786,82 @@ export default function SuperAdminLiveMapPage() {
     path.forEach((p) => bounds.extend(p));
     mapInstanceRef.current.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
 
-    const latest = points[points.length - 1];
-    if (latest) {
+    const latest = session.latestLocation || (points.length > 0 ? points[points.length - 1] : null);
+    if (latest?.latitude && latest?.longitude) {
       showAccuracyCircle(latest.latitude, latest.longitude, latest.accuracy || 15, cfg.color);
     }
   }, [mapsLoaded, clearAllOverlays]);
 
   // ─── 8. DRAW HISTORICAL SHIFT ROUTE & STOPS ─────────────────────────────────
   const drawHistoryRoute = useCallback((points, stops, session) => {
-    if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps || points.length === 0) return;
+    if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps) return;
 
     clearAllOverlays();
 
-    const path = points.map((p) => new window.google.maps.LatLng(p.latitude, p.longitude));
-
-    const polyline = new window.google.maps.Polyline({
-      path,
-      geodesic: true,
-      strokeColor: '#0284C7',
-      strokeOpacity: 0.85,
-      strokeWeight: 5,
-      map: mapInstanceRef.current,
+    const path = [];
+    const punchInLat = session?.punchInCoordinates?.latitude || session?.punchIn?.latitude;
+    const punchInLng = session?.punchInCoordinates?.longitude || session?.punchIn?.longitude;
+    if (punchInLat && punchInLng) {
+      path.push(new window.google.maps.LatLng(punchInLat, punchInLng));
+    }
+    (points || []).forEach((p) => {
+      if (p.latitude && p.longitude) {
+        path.push(new window.google.maps.LatLng(p.latitude, p.longitude));
+      }
     });
-    activePolylineRef.current = polyline;
+    const punchOutLat = session?.punchOutCoordinates?.latitude || session?.punchOut?.latitude;
+    const punchOutLng = session?.punchOutCoordinates?.longitude || session?.punchOut?.longitude;
+    if (punchOutLat && punchOutLng && session?.status === 'COMPLETED') {
+      path.push(new window.google.maps.LatLng(punchOutLat, punchOutLng));
+    }
+
+    if (path.length === 0) return;
+
+    if (path.length >= 2) {
+      const polyline = new window.google.maps.Polyline({
+        path,
+        geodesic: true,
+        strokeColor: '#0284C7',
+        strokeOpacity: 0.85,
+        strokeWeight: 5,
+        map: mapInstanceRef.current,
+      });
+      activePolylineRef.current = polyline;
+    }
 
     const bounds = new window.google.maps.LatLngBounds();
     path.forEach((p) => bounds.extend(p));
     mapInstanceRef.current.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
 
     // 1. START Marker (Punch In)
-    const startLoc = points[0];
-    const startMarker = new window.google.maps.Marker({
-      position: new window.google.maps.LatLng(startLoc.latitude, startLoc.longitude),
-      map: mapInstanceRef.current,
-      title: 'Shift Punch In',
-      icon: {
-        url: getStartPinSvg(),
-        scaledSize: new window.google.maps.Size(34, 42),
-        anchor: new window.google.maps.Point(17, 42),
-      },
-    });
-    startMarker.addListener('click', () => {
-      if (!infoWindowRef.current) return;
-      infoWindowRef.current.setContent(`
-        <div style="font-family: system-ui, sans-serif; padding: 6px;">
-          <div style="font-weight: 700; color: #16A34A; font-size: 13px;">🟢 Shift Punch In</div>
-          <div style="font-size: 11.5px; color: #475569; margin-top: 3px;">
-            <strong>Time:</strong> ${new Date(startLoc.recordedAt).toLocaleTimeString()}<br/>
-            ${session?.punchInAddress ? `<strong>Address:</strong> ${session.punchInAddress}` : ''}
+    const startLat = punchInLat || (points && points[0] ? points[0].latitude : null);
+    const startLng = punchInLng || (points && points[0] ? points[0].longitude : null);
+    if (startLat && startLng) {
+      const startMarker = new window.google.maps.Marker({
+        position: new window.google.maps.LatLng(startLat, startLng),
+        map: mapInstanceRef.current,
+        title: 'Shift Punch In (Start)',
+        icon: {
+          url: getStartPinSvg(),
+          scaledSize: new window.google.maps.Size(34, 42),
+          anchor: new window.google.maps.Point(17, 42),
+        },
+      });
+      startMarker.addListener('click', () => {
+        if (!infoWindowRef.current) return;
+        infoWindowRef.current.setContent(`
+          <div style="font-family: system-ui, sans-serif; padding: 6px;">
+            <div style="font-weight: 700; color: #16A34A; font-size: 13px;">🟢 Shift Punch In (START)</div>
+            <div style="font-size: 11.5px; color: #475569; margin-top: 3px;">
+              <strong>Time:</strong> ${new Date(session?.punchInAt || (points[0] ? points[0].recordedAt : Date.now())).toLocaleTimeString()}<br/>
+              ${session?.punchInAddress ? `<strong>Address:</strong> ${session.punchInAddress}` : ''}
+            </div>
           </div>
-        </div>
-      `);
-      infoWindowRef.current.open(mapInstanceRef.current, startMarker);
-    });
-    startMarkerRef.current = startMarker;
+        `);
+        infoWindowRef.current.open(mapInstanceRef.current, startMarker);
+      });
+      startMarkerRef.current = startMarker;
+    }
 
     // 2. STOP Markers
     if (stops && stops.length > 0) {
@@ -873,34 +899,38 @@ export default function SuperAdminLiveMapPage() {
     }
 
     // 3. END Marker (Punch Out)
-    const endLoc = points[points.length - 1];
-    const isCompleted = session?.status === 'COMPLETED';
-    const endMarker = new window.google.maps.Marker({
-      position: new window.google.maps.LatLng(endLoc.latitude, endLoc.longitude),
-      map: mapInstanceRef.current,
-      title: isCompleted ? 'Shift Punch Out' : 'Current Position',
-      icon: {
-        url: isCompleted ? getEndPinSvg() : getStartPinSvg(),
-        scaledSize: new window.google.maps.Size(34, 42),
-        anchor: new window.google.maps.Point(17, 42),
-      },
-    });
-    endMarker.addListener('click', () => {
-      if (!infoWindowRef.current) return;
-      infoWindowRef.current.setContent(`
-        <div style="font-family: system-ui, sans-serif; padding: 6px;">
-          <div style="font-weight: 700; color: ${isCompleted ? '#DC2626' : '#2563EB'}; font-size: 13px;">
-            ${isCompleted ? '🔴 Shift Punch Out' : '📍 Current Shift Position'}
+    const endLat = punchOutLat || (points && points.length > 0 ? points[points.length - 1].latitude : startLat);
+    const endLng = punchOutLng || (points && points.length > 0 ? points[points.length - 1].longitude : startLng);
+    if (endLat && endLng) {
+      const isCompleted = session?.status === 'COMPLETED';
+      const endMarker = new window.google.maps.Marker({
+        position: new window.google.maps.LatLng(endLat, endLng),
+        map: mapInstanceRef.current,
+        title: isCompleted ? 'Shift Punch Out (End)' : 'Current Position',
+        icon: {
+          url: isCompleted ? getEndPinSvg() : getStartPinSvg(),
+          scaledSize: new window.google.maps.Size(34, 42),
+          anchor: new window.google.maps.Point(17, 42),
+        },
+      });
+      endMarker.addListener('click', () => {
+        if (!infoWindowRef.current) return;
+        const endTime = session?.punchOutAt ? new Date(session.punchOutAt).toLocaleTimeString() : (points && points.length > 0 ? new Date(points[points.length - 1].recordedAt).toLocaleTimeString() : 'Recorded');
+        infoWindowRef.current.setContent(`
+          <div style="font-family: system-ui, sans-serif; padding: 6px;">
+            <div style="font-weight: 700; color: ${isCompleted ? '#DC2626' : '#2563EB'}; font-size: 13px;">
+              ${isCompleted ? '🔴 Shift Punch Out (END)' : '📍 Current Shift Position'}
+            </div>
+            <div style="font-size: 11.5px; color: #475569; margin-top: 3px;">
+              <strong>Time:</strong> ${endTime}<br/>
+              ${session?.punchOutAddress ? `<strong>Address:</strong> ${session.punchOutAddress}` : ''}
+            </div>
           </div>
-          <div style="font-size: 11.5px; color: #475569; margin-top: 3px;">
-            <strong>Time:</strong> ${new Date(endLoc.recordedAt).toLocaleTimeString()}<br/>
-            ${session?.punchOutAddress ? `<strong>Address:</strong> ${session.punchOutAddress}` : ''}
-          </div>
-        </div>
-      `);
-      infoWindowRef.current.open(mapInstanceRef.current, endMarker);
-    });
-    endMarkerRef.current = endMarker;
+        `);
+        infoWindowRef.current.open(mapInstanceRef.current, endMarker);
+      });
+      endMarkerRef.current = endMarker;
+    }
   }, [mapsLoaded, clearAllOverlays]);
 
   // Load History for an employee and date
@@ -995,54 +1025,131 @@ export default function SuperAdminLiveMapPage() {
         const sId = shift.sessionId;
         activeIds.add(sId);
 
-        const lat = shift.currentLocation?.latitude || shift.punchInCoordinates?.latitude;
-        const lng = shift.currentLocation?.longitude || shift.punchInCoordinates?.longitude;
-        if (!lat || !lng) return;
-
         const cat = getCategoryForRole(shift.role);
         const cfg = ROLE_CONFIG[cat] || ROLE_CONFIG['Other'];
         const isSelected = selectedLiveSessionId === sId;
         const isOnline = shift.status === 'LIVE';
 
-        const latLng = new window.google.maps.LatLng(lat, lng);
-        const iconUrl = generatePinSvg(cat, isOnline, isSelected);
+        // ── 1. RENDER FIXED PUNCH-IN START MARKER ("S") ────────────────────────
+        // Authoritative Attendance Punch-In location is the permanent START reference
+        const punchLat = shift.punchInCoordinates?.latitude || shift.punchIn?.latitude;
+        const punchLng = shift.punchInCoordinates?.longitude || shift.punchIn?.longitude;
+        if (punchLat && punchLng) {
+          const punchLatLng = new window.google.maps.LatLng(punchLat, punchLng);
+          let startMarker = liveStartMarkersRef.current[sId];
+          if (!startMarker) {
+            startMarker = new window.google.maps.Marker({
+              position: punchLatLng,
+              map: mapInstanceRef.current,
+              title: `Punch In (Shift Start): ${shift.employeeName} (${new Date(shift.punchInAt).toLocaleTimeString()})`,
+              icon: {
+                url: getStartPinSvg(),
+                scaledSize: new window.google.maps.Size(32, 38),
+                anchor: new window.google.maps.Point(16, 38),
+              },
+              zIndex: 90,
+            });
+            startMarker.addListener('click', () => {
+              setSelectedLiveSessionId(sId);
+              drawLiveRouteOnMap(shift);
+              if (infoWindowRef.current) {
+                infoWindowRef.current.setContent(`
+                  <div style="font-family: system-ui, sans-serif; padding: 6px;">
+                    <div style="font-weight: 700; color: #16A34A; font-size: 13px;">🟢 Shift Punch In (START)</div>
+                    <div style="font-size: 11.5px; color: #475569; margin-top: 3px;">
+                      <strong>Employee:</strong> ${shift.employeeName} (${shift.role})<br/>
+                      <strong>Punch In:</strong> ${new Date(shift.punchInAt).toLocaleTimeString()}<br/>
+                      ${shift.punchInAddress ? `<strong>Address:</strong> ${shift.punchInAddress}<br/>` : ''}
+                      <strong>Tracking:</strong> ${shift.latestLocation ? '📱 Native background tracking ACTIVE' : '⚠️ Awaiting mobile GPS telemetry'}
+                    </div>
+                  </div>
+                `);
+                infoWindowRef.current.open(mapInstanceRef.current, startMarker);
+              }
+            });
+            liveStartMarkersRef.current[sId] = startMarker;
+          } else {
+            startMarker.setPosition(punchLatLng);
+          }
+        }
 
-        let marker = markersRef.current[sId];
-        if (!marker) {
-          marker = new window.google.maps.Marker({
-            position: latLng,
-            map: mapInstanceRef.current,
-            title: `${shift.employeeName} (${shift.role})`,
-            icon: {
+        // ── 2. RENDER LIVE EMPLOYEE MARKER (🟢) ─────────────────────────────────
+        // MANDATORY RULE: Marker MUST use latest accepted EmployeeLocationPoint (NOT Punch-In)
+        // If employee has no accepted GPS points yet, DO NOT render live marker!
+        const liveLocation = shift.latestLocation || (shift.hasGpsFix ? shift.currentLocation : null);
+        const liveLat = liveLocation?.latitude;
+        const liveLng = liveLocation?.longitude;
+
+        if (liveLat != null && liveLng != null) {
+          const latLng = new window.google.maps.LatLng(liveLat, liveLng);
+          const iconUrl = generatePinSvg(cat, isOnline, isSelected);
+
+          let marker = markersRef.current[sId];
+          if (!marker) {
+            marker = new window.google.maps.Marker({
+              position: latLng,
+              map: mapInstanceRef.current,
+              title: `${shift.employeeName} - LIVE LOCATION (${shift.role})`,
+              icon: {
+                url: iconUrl,
+                scaledSize: new window.google.maps.Size(40, 52),
+                anchor: new window.google.maps.Point(20, 50),
+              },
+              zIndex: isSelected ? 999 : 100,
+            });
+
+            marker.addListener('click', () => {
+              setSelectedLiveSessionId(sId);
+              drawLiveRouteOnMap(shift);
+              if (infoWindowRef.current) {
+                const recordedTime = liveLocation.recordedAt ? new Date(liveLocation.recordedAt).toLocaleTimeString() : 'Recent';
+                infoWindowRef.current.setContent(`
+                  <div style="font-family: system-ui, sans-serif; padding: 6px;">
+                    <div style="font-weight: 700; color: ${cfg.color}; font-size: 13px;">🟢 ${shift.employeeName} (LIVE)</div>
+                    <div style="font-size: 11.5px; color: #475569; margin-top: 3px;">
+                      <strong>Role:</strong> ${shift.role} (${cat})<br/>
+                      <strong>Recorded:</strong> ${recordedTime}<br/>
+                      <strong>Speed:</strong> ${liveLocation.speed != null ? `${Math.round(liveLocation.speed)} km/h` : '0 km/h'}<br/>
+                      <strong>Accuracy:</strong> ±${Math.round(liveLocation.accuracy || 10)}m<br/>
+                      <strong>Shift Distance:</strong> ${shift.totalDistanceKm || 0} km
+                    </div>
+                  </div>
+                `);
+                infoWindowRef.current.open(mapInstanceRef.current, marker);
+              }
+            });
+
+            markersRef.current[sId] = marker;
+          } else {
+            marker.setPosition(latLng);
+            marker.setIcon({
               url: iconUrl,
               scaledSize: new window.google.maps.Size(40, 52),
               anchor: new window.google.maps.Point(20, 50),
-            },
-            zIndex: isSelected ? 999 : 100,
-          });
-
-          marker.addListener('click', () => {
-            setSelectedLiveSessionId(sId);
-            drawLiveRouteOnMap(shift);
-          });
-
-          markersRef.current[sId] = marker;
+            });
+            marker.setZIndex(isSelected ? 999 : 100);
+          }
         } else {
-          marker.setPosition(latLng);
-          marker.setIcon({
-            url: iconUrl,
-            scaledSize: new window.google.maps.Size(40, 52),
-            anchor: new window.google.maps.Point(20, 50),
-          });
-          marker.setZIndex(isSelected ? 999 : 100);
+          // If no GPS points have arrived yet, remove live marker if it exists.
+          // Map shows ONLY the Punch-In 'S' marker!
+          if (markersRef.current[sId]) {
+            markersRef.current[sId].setMap(null);
+            delete markersRef.current[sId];
+          }
         }
       });
 
-      // Remove obsolete markers
+      // Remove obsolete markers for sessions that punched out
       Object.keys(markersRef.current).forEach((id) => {
         if (!activeIds.has(id)) {
           markersRef.current[id].setMap(null);
           delete markersRef.current[id];
+        }
+      });
+      Object.keys(liveStartMarkersRef.current).forEach((id) => {
+        if (!activeIds.has(id)) {
+          liveStartMarkersRef.current[id].setMap(null);
+          delete liveStartMarkersRef.current[id];
         }
       });
     } else if (mode === 'DEVICE_SESSIONS') {
@@ -1110,10 +1217,16 @@ export default function SuperAdminLiveMapPage() {
 
     if (mode === 'LIVE_NOW') {
       liveRoutes.forEach((s) => {
-        const lat = s.currentLocation?.latitude || s.punchInCoordinates?.latitude;
-        const lng = s.currentLocation?.longitude || s.punchInCoordinates?.longitude;
-        if (lat && lng) {
-          bounds.extend(new window.google.maps.LatLng(lat, lng));
+        const liveLat = s.latestLocation?.latitude || (s.hasGpsFix ? s.currentLocation?.latitude : null);
+        const liveLng = s.latestLocation?.longitude || (s.hasGpsFix ? s.currentLocation?.longitude : null);
+        if (liveLat && liveLng) {
+          bounds.extend(new window.google.maps.LatLng(liveLat, liveLng));
+          count++;
+        }
+        const punchLat = s.punchInCoordinates?.latitude || s.punchIn?.latitude;
+        const punchLng = s.punchInCoordinates?.longitude || s.punchIn?.longitude;
+        if (punchLat && punchLng) {
+          bounds.extend(new window.google.maps.LatLng(punchLat, punchLng));
           count++;
         }
       });
@@ -1537,53 +1650,141 @@ export default function SuperAdminLiveMapPage() {
                           </div>
 
                           {/* Staleness Badge */}
-                          <div style={{
-                            fontSize: '10px',
-                            fontWeight: 700,
-                            padding: '3px 8px',
-                            borderRadius: '12px',
-                            background: shift.status === 'LIVE' ? '#DCFCE7' : shift.status === 'GPS_STALE' ? '#FEF3C7' : '#FFEDD5',
-                            color: shift.status === 'LIVE' ? '#15803D' : shift.status === 'GPS_STALE' ? '#B45309' : '#C2410C',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            whiteSpace: 'nowrap',
-                          }}>
-                            {shift.status === 'LIVE' ? (
-                              <span>🟢 LIVE ({shift.currentLocation?.recordedAt ? new Date(shift.currentLocation.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Now'})</span>
-                            ) : shift.status === 'GPS_STALE' ? (
-                              <span>🟡 STALE ({shift.minutesSinceLastGps || 5}m ago)</span>
-                            ) : (
-                              <span>🟠 DEGRADED (&gt;30m)</span>
-                            )}
-                          </div>
+                          {(() => {
+                            const hasGps = Boolean(shift.latestLocation?.latitude && shift.latestLocation?.longitude);
+                            const lastRecordedAt = shift.latestLocation?.recordedAt || (shift.hasGpsFix ? shift.currentLocation?.recordedAt : null);
+                            const gpsAgeSec = lastRecordedAt ? Math.max(0, Math.floor((Date.now() - new Date(lastRecordedAt).getTime()) / 1000)) : null;
+                            const isLive = hasGps && gpsAgeSec != null && gpsAgeSec <= 300; // <= 5 min
+                            const isStale = hasGps && gpsAgeSec != null && gpsAgeSec > 300 && gpsAgeSec <= 1800; // 5-30 min
+                            const isDegraded = hasGps && gpsAgeSec != null && gpsAgeSec > 1800; // > 30 min
+
+                            if (!hasGps) {
+                              return (
+                                <div style={{
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  padding: '3px 8px',
+                                  borderRadius: '12px',
+                                  background: '#FEF3C7',
+                                  color: '#B45309',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  whiteSpace: 'nowrap',
+                                }}>
+                                  <span>⚠️ NO CURRENT GPS</span>
+                                </div>
+                              );
+                            }
+
+                            if (isLive) {
+                              return (
+                                <div style={{
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  padding: '3px 8px',
+                                  borderRadius: '12px',
+                                  background: '#DCFCE7',
+                                  color: '#15803D',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  whiteSpace: 'nowrap',
+                                }}>
+                                  <span>🟢 LIVE ({new Date(lastRecordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })})</span>
+                                </div>
+                              );
+                            }
+
+                            if (isStale) {
+                              return (
+                                <div style={{
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  padding: '3px 8px',
+                                  borderRadius: '12px',
+                                  background: '#FEF3C7',
+                                  color: '#B45309',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  whiteSpace: 'nowrap',
+                                }}>
+                                  <span>🟡 STALE ({Math.floor(gpsAgeSec / 60)}m ago)</span>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div style={{
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                padding: '3px 8px',
+                                borderRadius: '12px',
+                                background: '#FEE2E2',
+                                color: '#B91C1C',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                whiteSpace: 'nowrap',
+                              }}>
+                                <span>🔴 DEGRADED ({Math.floor(gpsAgeSec / 60)}m ago)</span>
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         {/* Tracking Truth Indicator */}
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '4px 8px',
-                          borderRadius: '6px',
-                          fontSize: '10.5px',
-                          fontWeight: 600,
-                          background: (shift.totalPointsCount > 0 || (shift.routePoints && shift.routePoints.length > 0)) ? '#F0FDF4' : '#FFFBEB',
-                          border: `1px solid ${(shift.totalPointsCount > 0 || (shift.routePoints && shift.routePoints.length > 0)) ? '#BBF7D0' : '#FDE68A'}`,
-                          color: (shift.totalPointsCount > 0 || (shift.routePoints && shift.routePoints.length > 0)) ? '#15803D' : '#B45309',
-                        }}>
-                          {(shift.totalPointsCount > 0 || (shift.routePoints && shift.routePoints.length > 0)) ? (
-                            <>
-                              <Lucide.Smartphone size={13} color="#16A34A" />
-                              <span>📱 Native background tracking ACTIVE</span>
-                            </>
-                          ) : (
-                            <>
+                        {(() => {
+                          const hasGps = Boolean(shift.latestLocation?.latitude && shift.latestLocation?.longitude);
+                          const lastRecordedAt = shift.latestLocation?.recordedAt || (shift.hasGpsFix ? shift.currentLocation?.recordedAt : null);
+                          const gpsAgeSec = lastRecordedAt ? Math.max(0, Math.floor((Date.now() - new Date(lastRecordedAt).getTime()) / 1000)) : null;
+
+                          if (hasGps) {
+                            return (
+                              <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '3px',
+                                padding: '5px 8px',
+                                borderRadius: '6px',
+                                fontSize: '10.5px',
+                                fontWeight: 600,
+                                background: '#F0FDF4',
+                                border: '1px solid #BBF7D0',
+                                color: '#15803D',
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  <Lucide.Smartphone size={13} color="#16A34A" />
+                                  <span>📱 Native background tracking ACTIVE</span>
+                                </div>
+                                <div style={{ fontSize: '9.5px', color: '#475569', display: 'flex', gap: '8px', fontWeight: 500 }}>
+                                  <span><strong>GPS age:</strong> {gpsAgeSec != null ? (gpsAgeSec < 60 ? `${gpsAgeSec}s` : `${Math.floor(gpsAgeSec / 60)}m`) : 'N/A'}</span>
+                                  <span><strong>Accuracy:</strong> {shift.latestLocation?.accuracy ? `±${Math.round(shift.latestLocation.accuracy)}m` : '8m'}</span>
+                                  <span><strong>Speed:</strong> {shift.latestLocation?.speed != null ? `${Math.round(shift.latestLocation.speed)} km/h` : '0 km/h'}</span>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '5px 8px',
+                              borderRadius: '6px',
+                              fontSize: '10.5px',
+                              fontWeight: 600,
+                              background: '#FFFBEB',
+                              border: '1px solid #FDE68A',
+                              color: '#B45309',
+                            }}>
                               <Lucide.AlertTriangle size={13} color="#D97706" />
                               <span>⚠️ BROWSER PRESENCE ONLY (Awaiting mobile GPS)</span>
-                            </>
-                          )}
-                        </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* Shift Key Stats Row */}
                         <div style={{
@@ -1602,7 +1803,7 @@ export default function SuperAdminLiveMapPage() {
                           </div>
                           <div>
                             <span style={{ color: '#64748B', display: 'block', fontSize: '9px', fontWeight: 600 }}>DISTANCE</span>
-                            <strong style={{ color: '#0284C7' }}>{shift.totalDistanceKm} km</strong>
+                            <strong style={{ color: '#0284C7' }}>{shift.totalDistanceKm || 0} km</strong>
                           </div>
                           <div>
                             <span style={{ color: '#64748B', display: 'block', fontSize: '9px', fontWeight: 600 }}>POINTS</span>
@@ -1618,7 +1819,7 @@ export default function SuperAdminLiveMapPage() {
                         <div style={{ fontSize: '11px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <Lucide.MapPin size={12} color="#0284C7" />
                           <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {shift.punchInAddress || 'Location recorded'}
+                            {shift.latestLocation ? 'Live GPS telemetry streaming' : (shift.punchInAddress ? `Start: ${shift.punchInAddress}` : 'Punch In location recorded')}
                           </span>
                         </div>
                       </div>

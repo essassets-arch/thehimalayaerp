@@ -390,4 +390,136 @@ describe('Employee Live Route Tracking Subsystem (Production Safety & Acceptance
       expect(savedPoint.isFilteredJump).toBe(true);
     });
   });
+
+  describe('ACCEPTANCE TEST 5: Live Map Route Truthfulness & Latest GPS Location', () => {
+    it('should return latestLocation from newest EmployeeLocationPoint and NEVER fall back to Punch In coordinates', async () => {
+      const activeSessionWithPoints = {
+        id: 'session-live-1',
+        companyId: testCompanyId,
+        employeeId: testEmployeeId,
+        userId: testUserId,
+        punchInAt: new Date('2026-09-24T09:00:00Z'),
+        punchInLatitude: 23.0225,
+        punchInLongitude: 72.5714,
+        punchInAccuracy: 10,
+        punchInAddress: 'Office HQ (Punch In Location)',
+        status: 'ACTIVE',
+        totalDistanceKm: 5.4,
+        totalPointsCount: 2,
+        stops: [],
+        employee: {
+          id: testEmployeeId,
+          fullName: 'Rahul Sharma',
+          employeeCode: 'EMP-01',
+          jobTitle: 'Sales Officer',
+          department: { name: 'Field Sales' },
+        },
+        user: {
+          id: testUserId,
+          name: 'Rahul Sharma',
+          email: 'rahul@himalayaerp.com',
+          role: { name: 'SALES' },
+        },
+        points: [
+          {
+            id: 'pt-1',
+            latitude: 23.0250,
+            longitude: 72.5740,
+            accuracy: 8,
+            speed: 15,
+            heading: 90,
+            batteryLevel: 0.9,
+            isMockLocation: false,
+            recordedAt: new Date('2026-09-24T09:10:00Z'),
+            serverReceivedAt: new Date('2026-09-24T09:10:02Z'),
+          },
+          {
+            id: 'pt-2',
+            latitude: 23.0310, // MOVED 1+ km away
+            longitude: 72.5800,
+            accuracy: 6,
+            speed: 25,
+            heading: 120,
+            batteryLevel: 0.88,
+            isMockLocation: false,
+            recordedAt: new Date('2026-09-24T09:20:00Z'),
+            serverReceivedAt: new Date('2026-09-24T09:20:02Z'),
+          },
+        ],
+      };
+
+      jest.spyOn(prisma.employeeLocationSession, 'findMany').mockResolvedValue([activeSessionWithPoints as any]);
+
+      const liveRoutes = await trackingService.getLiveRoutes(testCompanyId);
+
+      expect(liveRoutes).toHaveLength(1);
+      const shift = liveRoutes[0];
+
+      // 1. Authoritative Punch-In coordinates remain fixed as the START location
+      expect(shift.punchIn.latitude).toBe(23.0225);
+      expect(shift.punchIn.longitude).toBe(72.5714);
+      expect(shift.punchInCoordinates.latitude).toBe(23.0225);
+      expect(shift.punchInCoordinates.longitude).toBe(72.5714);
+
+      // 2. Live marker location MUST come from the newest accepted EmployeeLocationPoint (pt-2)
+      expect(shift.hasGpsFix).toBe(true);
+      expect(shift.latestLocation).toBeDefined();
+      expect(shift.latestLocation?.latitude).toBe(23.0310);
+      expect(shift.latestLocation?.longitude).toBe(72.5800);
+      expect(shift.latestLocation?.speed).toBe(25);
+      expect(shift.latestLocation?.accuracy).toBe(6);
+
+      // 3. currentLocation matches latestLocation and is NOT the punch-in coordinate
+      expect(shift.currentLocation?.latitude).toBe(23.0310);
+      expect(shift.currentLocation?.latitude).not.toBe(shift.punchInCoordinates.latitude);
+    });
+
+    it('should return latestLocation = null and status = AWAITING_GPS when no GPS points exist yet', async () => {
+      const activeSessionNoPoints = {
+        id: 'session-awaiting-1',
+        companyId: testCompanyId,
+        employeeId: testEmployeeId,
+        userId: testUserId,
+        punchInAt: new Date(),
+        punchInLatitude: 23.0225,
+        punchInLongitude: 72.5714,
+        punchInAccuracy: 10,
+        punchInAddress: 'Office HQ',
+        status: 'ACTIVE',
+        totalDistanceKm: 0,
+        totalPointsCount: 0,
+        stops: [],
+        employee: {
+          id: testEmployeeId,
+          fullName: 'New Punched In Staff',
+          employeeCode: 'EMP-02',
+          jobTitle: 'Field Staff',
+          department: { name: 'Operations' },
+        },
+        user: {
+          id: testUserId,
+          name: 'New Punched In Staff',
+          email: 'staff@himalayaerp.com',
+          role: { name: 'STAFF' },
+        },
+        points: [], // Zero GPS points uploaded so far
+      };
+
+      jest.spyOn(prisma.employeeLocationSession, 'findMany').mockResolvedValue([activeSessionNoPoints as any]);
+
+      const liveRoutes = await trackingService.getLiveRoutes(testCompanyId);
+
+      expect(liveRoutes).toHaveLength(1);
+      const shift = liveRoutes[0];
+
+      // Punch In is available as START location
+      expect(shift.punchInCoordinates.latitude).toBe(23.0225);
+
+      // Latest GPS must be null (NEVER falsely claim Punch-In is live GPS!)
+      expect(shift.hasGpsFix).toBe(false);
+      expect(shift.latestLocation).toBeNull();
+      expect(shift.currentLocation).toBeNull();
+      expect(shift.status).toBe('AWAITING_GPS');
+    });
+  });
 });
