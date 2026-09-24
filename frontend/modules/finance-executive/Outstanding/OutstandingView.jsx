@@ -22,7 +22,11 @@ import {
   User,
   Building2,
   DollarSign,
-  ChevronRight
+  ChevronRight,
+  RotateCcw,
+  ArrowUpDown,
+  Filter,
+  Check
 } from 'lucide-react';
 import { useERPStore } from '../../../store/erpStore';
 import { useAuthStore } from '../../../store/authStore';
@@ -220,30 +224,71 @@ export default function OutstandingView({ readOnly = false }) {
     }, { total: 0, current: 0, bracket1_30: 0, bracket31_60: 0, bracket61_90: 0, bracket90_plus: 0 });
   }, [outstandingList]);
 
+  // Count active advanced filters
+  const advancedFilterCount = useMemo(() => {
+    let count = 0;
+    if (minOutstanding !== '') count++;
+    if (maxOutstanding !== '') count++;
+    if (dueFrom !== '') count++;
+    if (dueTo !== '') count++;
+    if (collectionStatus !== 'All') count++;
+    if (salesmanFilter !== 'All Salesmen' && salesmanFilter !== 'All') count++;
+    if (sortBy !== 'Outstanding: High to Low') count++;
+    return count;
+  }, [minOutstanding, maxOutstanding, dueFrom, dueTo, collectionStatus, salesmanFilter, sortBy]);
+
   // Filtered and Sorted list
   const filteredList = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const minVal = minOutstanding !== '' && !isNaN(Number(minOutstanding)) ? Number(minOutstanding) : null;
+    const maxVal = maxOutstanding !== '' && !isNaN(Number(maxOutstanding)) ? Number(maxOutstanding) : null;
+
     const filtered = outstandingList.filter((o) => {
-      const matchesSearch = 
-        o.invoiceNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        String(o.orderNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        o.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        o.salesPerson?.toLowerCase().includes(searchQuery.toLowerCase());
+      // 1. Text Search
+      if (q) {
+        const matchesSearch = 
+          (o.invoiceNumber && String(o.invoiceNumber).toLowerCase().includes(q)) ||
+          (o.orderNumber && String(o.orderNumber).toLowerCase().includes(q)) ||
+          (o.customerName && String(o.customerName).toLowerCase().includes(q)) ||
+          (o.salesPerson && String(o.salesPerson).toLowerCase().includes(q));
+        if (!matchesSearch) return false;
+      }
       
-      if (!matchesSearch) return false;
-      if (minOutstanding !== '' && o.outstanding < Number(minOutstanding)) return false;
-      if (maxOutstanding !== '' && o.outstanding > Number(maxOutstanding)) return false;
-      const dueDateValue = String(o.dueDate || '').slice(0, 10);
-      if (dueFrom && dueDateValue < dueFrom) return false;
-      if (dueTo && dueDateValue > dueTo) return false;
+      // 2. Minimum Amount
+      if (minVal !== null && (Number(o.outstanding) || 0) < minVal) return false;
+
+      // 3. Maximum Amount
+      if (maxVal !== null && (Number(o.outstanding) || 0) > maxVal) return false;
+
+      // 4. Due Date Range
+      if (dueFrom || dueTo) {
+        if (!o.dueDate) return false;
+        const itemDate = new Date(o.dueDate);
+        if (isNaN(itemDate.getTime())) return false;
+        const itemDateISO = itemDate.toISOString().slice(0, 10);
+        if (dueFrom && itemDateISO < dueFrom) return false;
+        if (dueTo && itemDateISO > dueTo) return false;
+      }
+
+      // 5. Payment Status
       if (collectionStatus === 'Unpaid' && o.paidAmount > 0) return false;
       if (collectionStatus === 'Partially Paid' && !(o.paidAmount > 0 && o.outstanding > 0)) return false;
-      if (reminderStatus === 'Scheduled' && !o.reminderSent) return false;
-      if (reminderStatus === 'Not Scheduled' && o.reminderSent) return false;
-      if (salesmanFilter !== 'All Salesmen' && o.salesPerson !== salesmanFilter) return false;
+      if (collectionStatus === 'Overdue Only' && o.daysOverdue <= 0) return false;
+      if (collectionStatus === 'Critical Overdue (90+ Days)' && o.daysOverdue <= 90) return false;
 
+      // 6. Sales Executive
+      if (salesmanFilter && salesmanFilter !== 'All Salesmen' && salesmanFilter !== 'All') {
+        if (salesmanFilter === 'Unassigned') {
+          if (o.salesPerson && o.salesPerson !== 'Unassigned' && o.salesPerson !== 'N/A') return false;
+        } else if (o.salesPerson !== salesmanFilter) {
+          return false;
+        }
+      }
+
+      // 7. Preset Aging Brackets
       switch (activePreset) {
         case 'Reminders':
-          return o.reminderSent;
+          return Boolean(o.reminderSent);
         case 'Not Due':
           return o.daysOverdue === 0;
         case '1-30 Days':
@@ -251,7 +296,7 @@ export default function OutstandingView({ readOnly = false }) {
         case '31-60 Days':
           return o.daysOverdue >= 31 && o.daysOverdue <= 60;
         case '61-90 Days':
-          return o.daysOverdue > 60 && o.daysOverdue <= 90;
+          return o.daysOverdue >= 61 && o.daysOverdue <= 90;
         case '90+ Days Overdue':
           return o.daysOverdue > 90;
         default:
@@ -259,18 +304,31 @@ export default function OutstandingView({ readOnly = false }) {
       }
     });
 
+    // 8. Sorting
     return filtered.sort((left, right) => {
       switch (sortBy) {
         case 'Outstanding: Low to High':
-          return left.outstanding - right.outstanding;
+          return (Number(left.outstanding) || 0) - (Number(right.outstanding) || 0);
         case 'Most Overdue':
-          return right.daysOverdue - left.daysOverdue;
-        case 'Due Date: Earliest':
-          return new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime();
+          return (Number(right.daysOverdue) || 0) - (Number(left.daysOverdue) || 0);
+        case 'Least Overdue':
+          return (Number(left.daysOverdue) || 0) - (Number(right.daysOverdue) || 0);
+        case 'Due Date: Earliest': {
+          const tA = left.dueDate ? new Date(left.dueDate).getTime() : 0;
+          const tB = right.dueDate ? new Date(right.dueDate).getTime() : 0;
+          return (isNaN(tA) ? 0 : tA) - (isNaN(tB) ? 0 : tB);
+        }
+        case 'Due Date: Latest': {
+          const tA = left.dueDate ? new Date(left.dueDate).getTime() : 0;
+          const tB = right.dueDate ? new Date(right.dueDate).getTime() : 0;
+          return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
+        }
         case 'Customer: A to Z':
-          return left.customerName.localeCompare(right.customerName);
-        default:
-          return right.outstanding - left.outstanding;
+          return String(left.customerName || '').localeCompare(String(right.customerName || ''));
+        case 'Customer: Z to A':
+          return String(right.customerName || '').localeCompare(String(left.customerName || ''));
+        default: // 'Outstanding: High to Low'
+          return (Number(right.outstanding) || 0) - (Number(left.outstanding) || 0);
       }
     });
   }, [
@@ -282,10 +340,27 @@ export default function OutstandingView({ readOnly = false }) {
     dueFrom,
     dueTo,
     collectionStatus,
-    reminderStatus,
     salesmanFilter,
     sortBy,
   ]);
+
+  // Total filtered outstanding amount
+  const filteredTotal = useMemo(() => {
+    return filteredList.reduce((sum, item) => sum + (Number(item.outstanding) || 0), 0);
+  }, [filteredList]);
+
+  // Reset all filters
+  const resetAdvancedFilters = () => {
+    setMinOutstanding('');
+    setMaxOutstanding('');
+    setDueFrom('');
+    setDueTo('');
+    setCollectionStatus('All');
+    setSalesmanFilter('All Salesmen');
+    setSortBy('Outstanding: High to Low');
+    setSearchQuery('');
+    setActivePreset('All');
+  };
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -426,28 +501,6 @@ export default function OutstandingView({ readOnly = false }) {
     document.body.removeChild(link);
   };
 
-  const advancedFilterCount = [
-    minOutstanding,
-    maxOutstanding,
-    dueFrom,
-    dueTo,
-    collectionStatus !== 'All',
-    reminderStatus !== 'All',
-    salesmanFilter !== 'All Salesmen',
-    sortBy !== 'Outstanding: High to Low',
-  ].filter(Boolean).length;
-
-  const resetAdvancedFilters = () => {
-    setMinOutstanding('');
-    setMaxOutstanding('');
-    setDueFrom('');
-    setDueTo('');
-    setCollectionStatus('All');
-    setReminderStatus('All');
-    setSalesmanFilter('All Salesmen');
-    setSortBy('Outstanding: High to Low');
-  };
-
   return (
     <div className="finance-outstanding-page">
       <style>{`
@@ -579,6 +632,84 @@ export default function OutstandingView({ readOnly = false }) {
             width: 100% !important;
             max-width: 100% !important;
           }
+        }
+
+        .finance-outstanding-drawer {
+          background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+          border: 1px solid #e2e8f0;
+          border-radius: 14px;
+          padding: 18px 20px;
+          box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          animation: drawerSlideDown 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes drawerSlideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-6px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .filter-field-label {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 11px;
+          font-weight: 800;
+          color: #475569;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          margin-bottom: 6px;
+        }
+
+        .filter-control-input {
+          width: 100%;
+          height: 38px;
+          padding: 7px 12px;
+          border: 1px solid #cbd5e1;
+          border-radius: 8px;
+          background: #ffffff;
+          font-size: 13px;
+          color: #0f172a;
+          box-sizing: border-box;
+          transition: all 0.15s ease;
+          font-family: inherit;
+        }
+
+        .filter-control-input:focus {
+          outline: none;
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        }
+
+        .quick-chip-btn {
+          padding: 4px 11px;
+          border-radius: 6px;
+          font-size: 11px;
+          font-weight: 700;
+          border: 1px solid #cbd5e1;
+          background: #ffffff;
+          color: #475569;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+
+        .quick-chip-btn:hover {
+          background: #f1f5f9;
+          color: #0f172a;
+        }
+
+        .quick-chip-btn.active {
+          background: #eff6ff;
+          color: #1d4ed8;
+          border-color: #93c5fd;
         }
       `}</style>
 
@@ -717,40 +848,75 @@ export default function OutstandingView({ readOnly = false }) {
           {/* Filter Bar */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             
-            {/* Presets */}
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {['All', 'Not Due', '1-30 Days', '31-60 Days', '61-90 Days', '90+ Days Overdue', 'Reminders'].map((preset) => (
-                <button
-                  key={preset}
-                  onClick={() => setActivePreset(preset)}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: '20px',
-                    border: 'none',
-                    background: activePreset === preset ? '#2563eb' : '#f1f5f9',
-                    color: activePreset === preset ? '#ffffff' : '#475569',
-                    fontWeight: '700',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {preset}
-                </button>
-              ))}
+            {/* Aging & Status Presets */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {['All', 'Not Due', '1-30 Days', '31-60 Days', '61-90 Days', '90+ Days Overdue', 'Reminders'].map((preset) => {
+                const isActive = activePreset === preset;
+                return (
+                  <button
+                    key={preset}
+                    onClick={() => setActivePreset(preset)}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '20px',
+                      border: isActive ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                      background: isActive ? '#2563eb' : '#ffffff',
+                      color: isActive ? '#ffffff' : '#475569',
+                      fontWeight: '700',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      boxShadow: isActive ? '0 2px 6px rgba(37, 99, 235, 0.25)' : 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px'
+                    }}
+                  >
+                    {preset}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Search and Advanced Filter Trigger */}
             <div className="finance-outstanding-search-wrap" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <div className="finance-outstanding-search-box" style={{ position: 'relative', width: '260px' }}>
-                <Search style={{ position: 'absolute', left: '10px', top: '10px', width: '15px', height: '15px', color: '#94a3b8' }} />
+              <div className="finance-outstanding-search-box" style={{ position: 'relative', width: '280px' }}>
+                <Search style={{ position: 'absolute', left: '10px', top: '11px', width: '15px', height: '15px', color: '#94a3b8' }} />
                 <input
                   type="text"
                   placeholder="Search customer, order, invoice..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px 8px 32px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 30px 8px 32px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '13px',
+                    boxSizing: 'border-box',
+                    background: '#ffffff'
+                  }}
                 />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    title="Clear search"
+                    style={{
+                      position: 'absolute',
+                      right: '8px',
+                      top: '9px',
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      color: '#94a3b8',
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '2px'
+                    }}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
               </div>
 
               <button
@@ -759,21 +925,34 @@ export default function OutstandingView({ readOnly = false }) {
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  padding: '8px 14px',
-                  background: showAdvancedFilters ? '#eff6ff' : '#ffffff',
-                  color: showAdvancedFilters ? '#1d4ed8' : '#475569',
-                  border: '1px solid #cbd5e1',
+                  gap: '7px',
+                  padding: '8px 16px',
+                  background: showAdvancedFilters || advancedFilterCount > 0 ? '#eff6ff' : '#ffffff',
+                  color: showAdvancedFilters || advancedFilterCount > 0 ? '#1d4ed8' : '#334155',
+                  border: showAdvancedFilters || advancedFilterCount > 0 ? '1px solid #93c5fd' : '1px solid #cbd5e1',
                   borderRadius: '8px',
                   fontSize: '13px',
                   fontWeight: '700',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: showAdvancedFilters ? '0 0 0 2px rgba(37, 99, 235, 0.15)' : 'none'
                 }}
               >
                 <SlidersHorizontal size={14} />
                 Filters
                 {advancedFilterCount > 0 && (
-                  <span style={{ minWidth: '18px', height: '18px', padding: '0 5px', borderRadius: '9px', background: '#2563eb', color: '#fff', display: 'inline-grid', placeItems: 'center', fontSize: '10px' }}>
+                  <span style={{
+                    minWidth: '18px',
+                    height: '18px',
+                    padding: '0 6px',
+                    borderRadius: '9px',
+                    background: '#2563eb',
+                    color: '#ffffff',
+                    display: 'inline-grid',
+                    placeItems: 'center',
+                    fontSize: '10.5px',
+                    fontWeight: '800'
+                  }}>
                     {advancedFilterCount}
                   </span>
                 )}
@@ -781,63 +960,382 @@ export default function OutstandingView({ readOnly = false }) {
             </div>
           </div>
 
-          {/* Advanced Filters Expandable Drawer */}
+          {/* Active Filter Chips Pill Row (when drawer is closed but filters are active) */}
+          {!showAdvancedFilters && advancedFilterCount > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingTop: '2px' }}>
+              <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>
+                Active Filters:
+              </span>
+              {minOutstanding !== '' && (
+                <span className="quick-chip-btn active" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  Min: {formatINR(minOutstanding)}
+                  <X size={12} style={{ cursor: 'pointer' }} onClick={() => setMinOutstanding('')} />
+                </span>
+              )}
+              {maxOutstanding !== '' && (
+                <span className="quick-chip-btn active" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  Max: {formatINR(maxOutstanding)}
+                  <X size={12} style={{ cursor: 'pointer' }} onClick={() => setMaxOutstanding('')} />
+                </span>
+              )}
+              {dueFrom !== '' && (
+                <span className="quick-chip-btn active" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  From: {dueFrom}
+                  <X size={12} style={{ cursor: 'pointer' }} onClick={() => setDueFrom('')} />
+                </span>
+              )}
+              {dueTo !== '' && (
+                <span className="quick-chip-btn active" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  To: {dueTo}
+                  <X size={12} style={{ cursor: 'pointer' }} onClick={() => setDueTo('')} />
+                </span>
+              )}
+              {collectionStatus !== 'All' && (
+                <span className="quick-chip-btn active" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  Status: {collectionStatus}
+                  <X size={12} style={{ cursor: 'pointer' }} onClick={() => setCollectionStatus('All')} />
+                </span>
+              )}
+              {salesmanFilter !== 'All Salesmen' && (
+                <span className="quick-chip-btn active" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  Salesman: {salesmanFilter}
+                  <X size={12} style={{ cursor: 'pointer' }} onClick={() => setSalesmanFilter('All Salesmen')} />
+                </span>
+              )}
+              {sortBy !== 'Outstanding: High to Low' && (
+                <span className="quick-chip-btn active" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  Sort: {sortBy}
+                  <X size={12} style={{ cursor: 'pointer' }} onClick={() => setSortBy('Outstanding: High to Low')} />
+                </span>
+              )}
+              <button
+                onClick={resetAdvancedFilters}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#dc2626',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  padding: '2px 6px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px'
+                }}
+              >
+                <RotateCcw size={11} /> Clear All
+              </button>
+            </div>
+          )}
+
+          {/* Redesigned Advanced Filters Expandable Drawer */}
           {showAdvancedFilters && (
-            <div style={{ padding: '16px', borderRadius: '10px', border: '1px solid #bfdbfe', background: '#f8fbff' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <strong style={{ color: '#1e3a8a', fontSize: '13px' }}>Advanced Filter Controls</strong>
-                <button onClick={() => setShowAdvancedFilters(false)} aria-label="Close filters" style={{ border: 0, background: 'transparent', color: '#64748b', cursor: 'pointer' }}>
-                  <X size={16} />
-                </button>
+            <div className="finance-outstanding-drawer">
+              {/* Drawer Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    color: '#2563eb',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <SlidersHorizontal size={16} />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <strong style={{ color: '#0f172a', fontSize: '14px', fontWeight: '800' }}>
+                        Advanced Filter Controls
+                      </strong>
+                      {advancedFilterCount > 0 && (
+                        <span style={{
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          background: '#dbeafe',
+                          color: '#1d4ed8',
+                          fontSize: '11px',
+                          fontWeight: '800'
+                        }}>
+                          {advancedFilterCount} Active
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ color: '#64748b', fontSize: '12px' }}>
+                      Filter by amount thresholds, due dates, payment status, or sales executive
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    onClick={resetAdvancedFilters}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '6px 12px',
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      color: '#475569',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      fontWeight: '700',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <RotateCcw size={13} />
+                    Reset Filters
+                  </button>
+                  <button
+                    onClick={() => setShowAdvancedFilters(false)}
+                    aria-label="Close filters"
+                    style={{
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      background: '#ffffff',
+                      color: '#64748b',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569' }}>
-                  Minimum Amount
-                  <input type="number" min="0" value={minOutstanding} onChange={(e) => setMinOutstanding(e.target.value)} placeholder="₹ 0" style={{ width: '100%', marginTop: '4px', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px' }} />
-                </label>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569' }}>
-                  Maximum Amount
-                  <input type="number" min="0" value={maxOutstanding} onChange={(e) => setMaxOutstanding(e.target.value)} placeholder="No maximum" style={{ width: '100%', marginTop: '4px', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px' }} />
-                </label>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569' }}>
-                  Due Date From
-                  <input type="date" value={dueFrom} onChange={(e) => setDueFrom(e.target.value)} style={{ width: '100%', marginTop: '4px', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px' }} />
-                </label>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569' }}>
-                  Due Date To
-                  <input type="date" value={dueTo} onChange={(e) => setDueTo(e.target.value)} style={{ width: '100%', marginTop: '4px', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px' }} />
-                </label>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569' }}>
-                  Payment Status
-                  <select value={collectionStatus} onChange={(e) => setCollectionStatus(e.target.value)} style={{ width: '100%', marginTop: '4px', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#fff', fontSize: '13px' }}>
-                    <option>All</option>
-                    <option>Unpaid</option>
-                    <option>Partially Paid</option>
-                  </select>
-                </label>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569' }}>
-                  Sales Executive
-                  <select value={salesmanFilter} onChange={(e) => setSalesmanFilter(e.target.value)} style={{ width: '100%', marginTop: '4px', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#fff', fontSize: '13px' }}>
-                    <option>All Salesmen</option>
-                    {salesmen.map((salesman) => <option key={salesman} value={salesman}>{salesman}</option>)}
-                  </select>
-                </label>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569' }}>
-                  Sort Order
-                  <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ width: '100%', marginTop: '4px', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#fff', fontSize: '13px' }}>
-                    <option>Outstanding: High to Low</option>
-                    <option>Outstanding: Low to High</option>
-                    <option>Most Overdue</option>
-                    <option>Due Date: Earliest</option>
-                    <option>Customer: A to Z</option>
-                  </select>
-                </label>
+
+              {/* Quick Amount Thresholds Strip */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingTop: '4px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>
+                  Quick Amounts:
+                </span>
+                {[
+                  { label: 'All', min: '', max: '' },
+                  { label: '< ₹25,000', min: '', max: '25000' },
+                  { label: '₹25,000 - ₹1,00,000', min: '25000', max: '100000' },
+                  { label: '₹1,00,000 - ₹5,00,000', min: '100000', max: '500000' },
+                  { label: '> ₹5,00,000', min: '500000', max: '' },
+                ].map((preset) => {
+                  const isActive = minOutstanding === preset.min && maxOutstanding === preset.max;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => {
+                        setMinOutstanding(preset.min);
+                        setMaxOutstanding(preset.max);
+                      }}
+                      className={`quick-chip-btn ${isActive ? 'active' : ''}`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                <span style={{ color: '#64748b', fontSize: '12px' }}>Showing {filteredList.length} of {outstandingList.length} accounts</span>
-                <button onClick={resetAdvancedFilters} style={{ padding: '4px 10px', background: 'transparent', border: '1px solid #cbd5e1', borderRadius: '6px', color: '#475569', fontSize: '12px', cursor: 'pointer', fontWeight: '700' }}>
-                  Reset Filters
-                </button>
+
+              {/* Inputs Responsive Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
+                
+                {/* 1. Minimum Amount */}
+                <div>
+                  <label className="filter-field-label">
+                    <DollarSign size={13} className="text-blue-600" />
+                    Minimum Amount
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={minOutstanding}
+                    onChange={(e) => setMinOutstanding(e.target.value)}
+                    placeholder="₹ 0"
+                    className="filter-control-input"
+                  />
+                </div>
+
+                {/* 2. Maximum Amount */}
+                <div>
+                  <label className="filter-field-label">
+                    <DollarSign size={13} className="text-blue-600" />
+                    Maximum Amount
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={maxOutstanding}
+                    onChange={(e) => setMaxOutstanding(e.target.value)}
+                    placeholder="No maximum"
+                    className="filter-control-input"
+                  />
+                </div>
+
+                {/* 3. Due Date From */}
+                <div>
+                  <label className="filter-field-label">
+                    <Calendar size={13} className="text-blue-600" />
+                    Due Date From
+                  </label>
+                  <input
+                    type="date"
+                    value={dueFrom}
+                    onChange={(e) => setDueFrom(e.target.value)}
+                    className="filter-control-input"
+                  />
+                </div>
+
+                {/* 4. Due Date To */}
+                <div>
+                  <label className="filter-field-label">
+                    <Calendar size={13} className="text-blue-600" />
+                    Due Date To
+                  </label>
+                  <input
+                    type="date"
+                    value={dueTo}
+                    onChange={(e) => setDueTo(e.target.value)}
+                    className="filter-control-input"
+                  />
+                </div>
+
+                {/* 5. Payment Status */}
+                <div>
+                  <label className="filter-field-label">
+                    <Filter size={13} className="text-blue-600" />
+                    Payment Status
+                  </label>
+                  <select
+                    value={collectionStatus}
+                    onChange={(e) => setCollectionStatus(e.target.value)}
+                    className="filter-control-input"
+                  >
+                    <option value="All">All Statuses</option>
+                    <option value="Unpaid">Unpaid (Zero Paid)</option>
+                    <option value="Partially Paid">Partially Paid</option>
+                    <option value="Overdue Only">Overdue Only</option>
+                    <option value="Critical Overdue (90+ Days)">Critical Overdue (90+ Days)</option>
+                  </select>
+                </div>
+
+                {/* 6. Sales Executive */}
+                <div>
+                  <label className="filter-field-label">
+                    <User size={13} className="text-blue-600" />
+                    Sales Executive
+                  </label>
+                  <select
+                    value={salesmanFilter}
+                    onChange={(e) => setSalesmanFilter(e.target.value)}
+                    className="filter-control-input"
+                  >
+                    <option value="All Salesmen">All Salesmen</option>
+                    {salesmen.map((salesman) => (
+                      <option key={salesman} value={salesman}>{salesman}</option>
+                    ))}
+                    <option value="Unassigned">Unassigned</option>
+                  </select>
+                </div>
+
+                {/* 7. Sort Order */}
+                <div>
+                  <label className="filter-field-label">
+                    <ArrowUpDown size={13} className="text-blue-600" />
+                    Sort Order
+                  </label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="filter-control-input"
+                  >
+                    <option value="Outstanding: High to Low">Outstanding: High to Low</option>
+                    <option value="Outstanding: Low to High">Outstanding: Low to High</option>
+                    <option value="Most Overdue">Most Overdue (Days)</option>
+                    <option value="Least Overdue">Least Overdue</option>
+                    <option value="Due Date: Earliest">Due Date: Earliest First</option>
+                    <option value="Due Date: Latest">Due Date: Latest First</option>
+                    <option value="Customer: A to Z">Customer: A to Z</option>
+                    <option value="Customer: Z to A">Customer: Z to A</option>
+                  </select>
+                </div>
+
+              </div>
+
+              {/* Drawer Footer Summary Bar */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingTop: '12px',
+                borderTop: '1px solid #e2e8f0',
+                marginTop: '4px',
+                flexWrap: 'wrap',
+                gap: '10px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                  <span style={{ color: '#475569', fontSize: '12.5px' }}>
+                    Showing <strong style={{ color: '#0f172a' }}>{filteredList.length}</strong> of <strong style={{ color: '#0f172a' }}>{outstandingList.length}</strong> accounts
+                  </span>
+                  <span style={{
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    fontSize: '12px',
+                    color: '#991b1b',
+                    fontWeight: '700'
+                  }}>
+                    Filtered Total: {formatINR(filteredTotal)}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    onClick={resetAdvancedFilters}
+                    style={{
+                      padding: '7px 14px',
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '7px',
+                      color: '#475569',
+                      fontSize: '12.5px',
+                      cursor: 'pointer',
+                      fontWeight: '700',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <RotateCcw size={13} />
+                    Reset Filters
+                  </button>
+                  <button
+                    onClick={() => setShowAdvancedFilters(false)}
+                    style={{
+                      padding: '7px 18px',
+                      background: '#2563eb',
+                      border: 'none',
+                      borderRadius: '7px',
+                      color: '#ffffff',
+                      fontSize: '12.5px',
+                      cursor: 'pointer',
+                      fontWeight: '800',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
+                    }}
+                  >
+                    <Check size={14} />
+                    Done
+                  </button>
+                </div>
               </div>
             </div>
           )}

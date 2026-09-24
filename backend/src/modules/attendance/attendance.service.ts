@@ -886,6 +886,7 @@ export class AttendanceService {
       return {
         id: item.id,
         date: formatDate(item.attendanceDate),
+        attendanceDate: item.attendanceDate.toISOString(),
         punchInAt: item.punchInAt,
         punchOutAt: item.punchOutAt,
         punchInTime: formatTime(item.punchInAt),

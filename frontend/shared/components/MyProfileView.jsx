@@ -16,6 +16,7 @@ import { complaintsService } from '../../services/hr/complaintsService';
 import { expenseService } from '../../services/expenseService';
 import { SalarySlipDocument } from '../../components/payroll/SalarySlipDocument';
 import { useSearchParams } from 'next/navigation';
+import { loadPunchHistory, filterPunchHistory, countPunches } from '../../lib/profilePunchHistory.mjs';
 
 export default function MyProfileView() {
   const searchParams = useSearchParams();
@@ -31,23 +32,33 @@ export default function MyProfileView() {
   const [viewingSlip, setViewingSlip] = useState(null);
   const [expenses, setExpenses] = useState([]);
 
-  // Local punch log from NestJS database & localStorage
+  // Full attendance history from the database, shared by every role's profile.
   const [localPunchLog, setLocalPunchLog] = useState([]);
   const [filterPeriod, setFilterPeriod] = useState('today');
+  const [loadingPunchLogs, setLoadingPunchLogs] = useState(false);
+  const [punchLogError, setPunchLogError] = useState('');
 
   const fetchPunchLogsFromDB = useCallback(async () => {
+    setLoadingPunchLogs(true);
+    setPunchLogError('');
     try {
-      const response = await apiClient.get('/attendance/me');
-      if (response && response.success !== false) {
-        setLocalPunchLog(response.data?.data || response.data || []);
-      }
+      setLocalPunchLog(await loadPunchHistory(apiClient));
     } catch (e) {
       console.error('Failed to fetch punch logs:', e);
+      setPunchLogError('Unable to refresh punch records. Please try again.');
+    } finally {
+      setLoadingPunchLogs(false);
     }
   }, []);
 
+  const filteredPunchLogs = React.useMemo(
+    () => filterPunchHistory(localPunchLog, filterPeriod),
+    [localPunchLog, filterPeriod]
+  );
+  const punchStats = countPunches(filteredPunchLogs);
+
   const formattedLogs = React.useMemo(() => {
-    const mapped = localPunchLog.map(item => ({
+    return filteredPunchLogs.map(item => ({
       id: profile?.employee?.employeeCode || profile?.employeeId || 'EMP-MOCK-001',
       name: profile?.name || 'Employee',
       date: item.date,
@@ -60,29 +71,13 @@ export default function MyProfileView() {
       timestamp: item.timestamp
     }));
 
-    const now = new Date();
-    return mapped.filter(log => {
-      if (filterPeriod === 'all') return true;
-      const logDate = log.timestamp ? new Date(log.timestamp) : new Date(log.date || now);
-      const diffTime = Math.abs(now.getTime() - logDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (filterPeriod === 'today') {
-        return logDate.toDateString() === now.toDateString();
-      } else if (filterPeriod === 'monthly') {
-        return diffDays <= 30;
-      } else if (filterPeriod === 'yearly') {
-        return diffDays <= 365;
-      }
-      return true;
-    });
-  }, [localPunchLog, profile, filterPeriod]);
+  }, [filteredPunchLogs, profile]);
 
   useEffect(() => {
     if (profile) {
       fetchPunchLogsFromDB();
     }
-  }, [profile, activeTab]);
+  }, [profile, activeTab, fetchPunchLogsFromDB]);
 
   useEffect(() => {
     const handlePunchUpdate = () => {
@@ -741,6 +736,7 @@ export default function MyProfileView() {
                       fetchPunchLogsFromDB();
                     }}
                     className="punch-refresh-btn"
+                    disabled={loadingPunchLogs}
                     style={{
                       background: '#f8fafc', border: '1px solid #cbd5e1',
                       borderRadius: '8px', padding: '6px 12px',
@@ -748,25 +744,25 @@ export default function MyProfileView() {
                       cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px',
                     }}
                   >
-                    <RefreshCw size={12} /> Refresh
+                    <RefreshCw size={12} /> {loadingPunchLogs ? 'Loading...' : 'Refresh'}
                   </button>
                 </div>
               </div>
 
               {/* Stats row */}
-              {localPunchLog.length > 0 && (
+              {punchLogError && <div role="alert" style={{ padding: '12px 20px', color: '#dc2626' }}>{punchLogError}</div>}
                 <div className="punch-stats-grid">
                   {[
                     {
-                      label: 'Total Punches', value: localPunchLog.length,
+                      label: 'Total Punches', value: punchStats.total,
                       color: '#4f46e5', icon: <Fingerprint size={15} color="#4f46e5" />
                     },
                     {
-                      label: 'Punch Ins', value: localPunchLog.filter(e => e.type === 'PUNCH_IN').length,
+                      label: 'Punch Ins', value: punchStats.punchIns,
                       color: '#16a34a', icon: <LogIn size={15} color="#16a34a" />
                     },
                     {
-                      label: 'Punch Outs', value: localPunchLog.filter(e => e.type === 'PUNCH_OUT').length,
+                      label: 'Punch Outs', value: punchStats.punchOuts,
                       color: '#dc2626', icon: <LogOut size={15} color="#dc2626" />
                     },
                   ].map((s, i) => (
@@ -779,7 +775,6 @@ export default function MyProfileView() {
                     </div>
                   ))}
                 </div>
-              )}
 
               {/* Log list */}
               <div style={{ padding: '16px 20px', maxHeight: '420px', overflowY: 'auto' }}>
@@ -792,7 +787,7 @@ export default function MyProfileView() {
                     }}>
                       <Fingerprint size={24} color="#4f46e5" />
                     </div>
-                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#64748b' }}>No punch records yet</div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#64748b' }}>{loadingPunchLogs ? 'Loading punch records...' : punchLogError ? 'Punch records unavailable' : 'No punch records yet'}</div>
                     <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>Use the Punch In / Punch Out button in the header to record attendance</div>
                   </div>
                 ) : (
