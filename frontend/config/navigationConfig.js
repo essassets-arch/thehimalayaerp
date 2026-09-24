@@ -363,24 +363,28 @@ export const navigationConfig = {
     { id: 'sample-tracker', label: 'Sample Tracker', icon: Package, path: '/back-office/sample-tracker' },
     { id: 'outward-register', label: 'Outward Register', icon: Boxes, path: '/back-office/outward-register' },
     { id: 'payment-follow-ups', label: 'Payment Follow Ups', icon: Receipt, path: '/back-office/payment-follow-ups' },
+    { id: 'outstanding', label: 'Outstanding', icon: DollarSign, path: '/back-office/outstanding' },
   ],
   'BACK_OFFICE': [
     { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
     { id: 'sample-tracker', label: 'Sample Tracker', icon: Package, path: '/back-office/sample-tracker' },
     { id: 'outward-register', label: 'Outward Register', icon: Boxes, path: '/back-office/outward-register' },
     { id: 'payment-follow-ups', label: 'Payment Follow Ups', icon: Receipt, path: '/back-office/payment-follow-ups' },
+    { id: 'outstanding', label: 'Outstanding', icon: DollarSign, path: '/back-office/outstanding' },
   ],
   'back-office': [
     { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
     { id: 'sample-tracker', label: 'Sample Tracker', icon: Package, path: '/back-office/sample-tracker' },
     { id: 'outward-register', label: 'Outward Register', icon: Boxes, path: '/back-office/outward-register' },
     { id: 'payment-follow-ups', label: 'Payment Follow Ups', icon: Receipt, path: '/back-office/payment-follow-ups' },
+    { id: 'outstanding', label: 'Outstanding', icon: DollarSign, path: '/back-office/outstanding' },
   ],
   'Back Office / Admin': [
     { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
     { id: 'sample-tracker', label: 'Sample Tracker', icon: Package, path: '/back-office/sample-tracker' },
     { id: 'outward-register', label: 'Outward Register', icon: Boxes, path: '/back-office/outward-register' },
     { id: 'payment-follow-ups', label: 'Payment Follow Ups', icon: Receipt, path: '/back-office/payment-follow-ups' },
+    { id: 'outstanding', label: 'Outstanding', icon: DollarSign, path: '/back-office/outstanding' },
   ],
 
   'Admin': [

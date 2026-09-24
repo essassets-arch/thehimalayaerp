@@ -788,6 +788,25 @@ export class PermissionsGuard implements CanActivate {
       ].forEach((p) => userPermSet.add(p));
     }
 
+    if (
+      normalizedRole === 'BACK_OFFICE' ||
+      normalizedRole.includes('BACK_OFFICE') ||
+      normalizedRole === 'BACK_OFFICE_LEAD' ||
+      normalizedRole.includes('BACK_OFFICE_LEAD')
+    ) {
+      [
+        'finance.read',
+        'finance.payment.read',
+        'finance.payments.read',
+        'sales.orders.read',
+        'sales.read',
+        'backoffice.report.create',
+        'backoffice.report.read',
+        'backoffice.report.manage',
+        'user.read',
+      ].forEach((p) => userPermSet.add(p));
+    }
+
     const allUserPerms = Array.from(userPermSet);
 
     const PERMISSION_ALIASES: Record<string, string[]> = {

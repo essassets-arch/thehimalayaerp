@@ -39,7 +39,7 @@ const formatINR = (value) => {
   }).format(num);
 };
 
-export default function OutstandingView() {
+export default function OutstandingView({ readOnly = false }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const state = useERPStore((s) => s.state);
@@ -585,14 +585,31 @@ export default function OutstandingView() {
       {/* Header Title & Actions */}
       <div className="finance-outstanding-header">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <DollarSign className="text-blue-600" size={24} />
             <h1 style={{ fontSize: '22px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
               Outstanding Collections & Receivables
             </h1>
+            {readOnly && (
+              <span style={{
+                background: '#f1f5f9',
+                color: '#475569',
+                border: '1px solid #cbd5e1',
+                padding: '3px 10px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: '700',
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase'
+              }}>
+                Read-Only
+              </span>
+            )}
           </div>
           <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>
-            Live monitoring of customer balances, aging brackets, collection follow-ups, and payment records
+            {readOnly
+              ? 'Live monitoring of customer balances, aging brackets, and payment records (Read-Only)'
+              : 'Live monitoring of customer balances, aging brackets, collection follow-ups, and payment records'}
           </p>
         </div>
 
@@ -838,13 +855,15 @@ export default function OutstandingView() {
                   <th style={{ padding: '12px 16px' }}>Terms & Due Date</th>
                   <th style={{ padding: '12px 16px' }}>Aging Overdue</th>
                   <th style={{ padding: '12px 16px' }}>Sales Executive</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+                  {!readOnly && (
+                    <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody style={{ fontSize: '13px', color: '#1e293b' }}>
                 {(ordersLoading || paymentsLoading) ? (
                   <tr>
-                    <td colSpan={9} style={{ padding: '36px', textAlign: 'center', color: '#64748b' }}>
+                    <td colSpan={readOnly ? 8 : 9} style={{ padding: '36px', textAlign: 'center', color: '#64748b' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                         <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
                         <span style={{ fontWeight: '700' }}>Loading live receivables and outstanding records...</span>
@@ -853,7 +872,7 @@ export default function OutstandingView() {
                   </tr>
                 ) : filteredList.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={{ padding: '36px', textAlign: 'center', color: '#94a3b8' }}>
+                    <td colSpan={readOnly ? 8 : 9} style={{ padding: '36px', textAlign: 'center', color: '#94a3b8' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
                         <CheckCircle2 size={32} className="text-emerald-500" />
                         <span style={{ fontWeight: '700', fontSize: '14px', color: '#334155' }}>No outstanding dues found matching criteria</span>
@@ -947,52 +966,54 @@ export default function OutstandingView() {
                         </td>
 
                         {/* Action Buttons */}
-                        <td data-label="Actions" style={{ padding: '12px 16px', textAlign: 'right' }}>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', alignItems: 'center' }}>
-                            <button
-                              onClick={() => handleScheduleReminder(item)}
-                              title="Schedule Reminder / Add Follow-up"
-                              style={{
-                                padding: '6px 10px',
-                                background: '#f1f5f9',
-                                color: '#334155',
-                                border: '1px solid #cbd5e1',
-                                borderRadius: '6px',
-                                fontSize: '12px',
-                                fontWeight: '700',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                              }}
-                            >
-                              <Calendar size={13} />
-                              Follow-up
-                            </button>
+                        {!readOnly && (
+                          <td data-label="Actions" style={{ padding: '12px 16px', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', alignItems: 'center' }}>
+                              <button
+                                onClick={() => handleScheduleReminder(item)}
+                                title="Schedule Reminder / Add Follow-up"
+                                style={{
+                                  padding: '6px 10px',
+                                  background: '#f1f5f9',
+                                  color: '#334155',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '6px',
+                                  fontSize: '12px',
+                                  fontWeight: '700',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                <Calendar size={13} />
+                                Follow-up
+                              </button>
 
-                            <button
-                              onClick={() => router.push(`/sales/create-payment?orderId=${encodeURIComponent(item.orderNumber)}`)}
-                              title="Log / Confirm Payment Collection"
-                              style={{
-                                padding: '6px 12px',
-                                background: '#2563eb',
-                                color: '#ffffff',
-                                border: 'none',
-                                borderRadius: '6px',
-                                fontSize: '12px',
-                                fontWeight: '800',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
-                              }}
-                            >
-                              <CreditCard size={13} />
-                              Pay
-                            </button>
-                          </div>
-                        </td>
+                              <button
+                                onClick={() => router.push(`/sales/create-payment?orderId=${encodeURIComponent(item.orderNumber)}`)}
+                                title="Log / Confirm Payment Collection"
+                                style={{
+                                  padding: '6px 12px',
+                                  background: '#2563eb',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  fontSize: '12px',
+                                  fontWeight: '800',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
+                                }}
+                              >
+                                <CreditCard size={13} />
+                                Pay
+                              </button>
+                            </div>
+                          </td>
+                        )}
 
                       </tr>
                     );
@@ -1132,49 +1153,51 @@ export default function OutstandingView() {
                     )}
 
                     {/* Touch-Friendly Action Buttons */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', paddingTop: '2px' }}>
-                      <button
-                        onClick={() => handleScheduleReminder(item)}
-                        style={{
-                          padding: '10px',
-                          background: '#F1F5F9',
-                          color: '#334155',
-                          border: '1px solid #CBD5E1',
-                          borderRadius: '8px',
-                          fontSize: '12.5px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px'
-                        }}
-                      >
-                        <Calendar size={14} />
-                        Follow-up
-                      </button>
-                      <button
-                        onClick={() => router.push(`/sales/create-payment?orderId=${encodeURIComponent(item.orderNumber)}`)}
-                        style={{
-                          padding: '10px',
-                          background: '#2563EB',
-                          color: '#FFFFFF',
-                          border: 'none',
-                          borderRadius: '8px',
-                          fontSize: '12.5px',
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                          boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
-                        }}
-                      >
-                        <CreditCard size={14} />
-                        Pay
-                      </button>
-                    </div>
+                    {!readOnly && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', paddingTop: '2px' }}>
+                        <button
+                          onClick={() => handleScheduleReminder(item)}
+                          style={{
+                            padding: '10px',
+                            background: '#F1F5F9',
+                            color: '#334155',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: '8px',
+                            fontSize: '12.5px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <Calendar size={14} />
+                          Follow-up
+                        </button>
+                        <button
+                          onClick={() => router.push(`/sales/create-payment?orderId=${encodeURIComponent(item.orderNumber)}`)}
+                          style={{
+                            padding: '10px',
+                            background: '#2563EB',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '12.5px',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
+                          }}
+                        >
+                          <CreditCard size={14} />
+                          Pay
+                        </button>
+                      </div>
+                    )}
 
                   </div>
                 );
