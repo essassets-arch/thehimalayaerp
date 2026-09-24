@@ -9578,6 +9578,29 @@ body, #root, .app-container {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
+.payment-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+.payment-search-box {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  min-width: 240px;
+  max-width: 380px;
+  flex: 1 1 auto;
+  transition: all 0.2s ease;
+}
+
+.payment-search-box:focus-within {
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15) !important;
+}
+
 .aging-dropdown-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -9856,11 +9879,25 @@ body, #root, .app-container {
     border-radius: 8px !important;
   }
 
+  .payment-controls-right {
+    width: 100% !important;
+    justify-content: stretch !important;
+    gap: 8px !important;
+    flex-direction: column !important;
+  }
+
+  .payment-search-box {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
   .payment-refresh-btn {
-    align-self: flex-end !important;
-    width: auto !important;
-    padding: 6px 12px !important;
-    font-size: 11.5px !important;
+    align-self: stretch !important;
+    width: 100% !important;
+    padding: 7px 12px !important;
+    font-size: 12px !important;
+    text-align: center !important;
   }
 
   .payment-mobile-card {

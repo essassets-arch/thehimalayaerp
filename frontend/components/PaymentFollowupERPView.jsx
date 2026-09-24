@@ -11,6 +11,40 @@ import { backendFetch } from '../lib/backendFetch';
 import { remindersService } from '../modules/sales/services/reminders.service.js';
 import PaginationControl from '../shared/components/PaginationControl';
 import { getBackendAssetUrl } from '../lib/assetUrl';
+import { Search, X } from 'lucide-react';
+
+function PaymentSearchInput({ value, onChange, placeholder = "Search order, customer, invoice..." }) {
+  return (
+    <div className="search-box payment-search-box">
+      <Search size={14} style={{ color: '#64748b', flexShrink: 0 }} />
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ color: 'var(--color-text-primary)' }}
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: '#94a3b8',
+            padding: '0 4px',
+            display: 'flex',
+            alignItems: 'center',
+          }}
+          title="Clear search"
+        >
+          <X size={14} />
+        </button>
+      )}
+    </div>
+  );
+}
 
 const PAYMENT_LABELS = {
   PAYMENT_PENDING: 'Awaiting Payment',
@@ -289,7 +323,7 @@ export default function PaymentFollowupERPView(props) {
   return <PaymentFollowupContent key={userKey} {...props} />;
 }
 
-function PaymentFollowupContent({ orders = [] }) {
+function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = '', setSearchQuery: propSetSearchQuery }) {
   const navigate = useRouter();
   const searchParams = useSearchParams();
   const canonicalState = useERPStore(store => store.state);
@@ -311,11 +345,27 @@ function PaymentFollowupContent({ orders = [] }) {
   const [reminderFilter, setReminderFilter] = useState('All');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [localSearch, setLocalSearch] = useState(propSearchQuery || '');
 
-  // Reset page to 1 whenever view filters change
+  // Keep in sync if propSearchQuery changes externally
+  useEffect(() => {
+    if (propSearchQuery !== undefined && propSearchQuery !== null) {
+      setLocalSearch(propSearchQuery);
+    }
+  }, [propSearchQuery]);
+
+  const handleSearchChange = (val) => {
+    setLocalSearch(val);
+    setPage(1);
+    if (typeof propSetSearchQuery === 'function') {
+      propSetSearchQuery(val);
+    }
+  };
+
+  // Reset page to 1 whenever view filters or search change
   useEffect(() => {
     setPage(1);
-  }, [activeTab, pendingFilter, agingFilter, reminderFilter]);
+  }, [activeTab, pendingFilter, agingFilter, reminderFilter, localSearch]);
 
   const [localConfirmations, setLocalConfirmations] = useState([]);
   const [localDispatchInvoices, setLocalDispatchInvoices] = useState({});
@@ -1081,25 +1131,149 @@ function PaymentFollowupContent({ orders = [] }) {
     });
   }, [pendingRows]);
 
+  const orderNotesMap = useMemo(() => {
+    const map = new Map();
+    (remindersWithComputed || []).forEach(r => {
+      const orderKey = String(r.order_id || r.order_number || '').trim().toLowerCase();
+      if (orderKey && r.followup_note) {
+        const existing = map.get(orderKey) || '';
+        map.set(orderKey, `${existing} ${r.followup_note}`);
+      }
+    });
+    return map;
+  }, [remindersWithComputed]);
+
+  const searchedPendingRows = useMemo(() => {
+    const query = localSearch.trim().toLowerCase();
+    if (!query) return pendingRows;
+
+    return pendingRows.filter(o => {
+      const orderNo = String(o.order_number || o.id || '').toLowerCase();
+      const cust = String(o.customer_name || '').toLowerCase();
+      const inv = String(o.invoice_number || o.invoiceNumber || o.invoiceNo || '').toLowerCase();
+      const salesPerson = String(o.salesperson || '').toLowerCase();
+      const terms = String(o.payment_terms || '').toLowerCase();
+      const status = String(o.payment_status || '').toLowerCase();
+      const reminderLabel = String(o.reminder_label || '').toLowerCase();
+      const total = String(o.grand_total || '');
+      const paid = String(o.verified_paid_amount || '');
+      const bal = String(o.balance_amount !== undefined ? o.balance_amount : (Number(o.grand_total || 0) - Number(o.verified_paid_amount || 0)));
+      const notes = String(orderNotesMap.get(String(o.id).toLowerCase()) || orderNotesMap.get(String(o.order_number).toLowerCase()) || '').toLowerCase();
+
+      return (
+        orderNo.includes(query) ||
+        cust.includes(query) ||
+        inv.includes(query) ||
+        salesPerson.includes(query) ||
+        terms.includes(query) ||
+        status.includes(query) ||
+        reminderLabel.includes(query) ||
+        total.includes(query) ||
+        paid.includes(query) ||
+        bal.includes(query) ||
+        notes.includes(query)
+      );
+    });
+  }, [pendingRows, localSearch, orderNotesMap]);
+
+  const searchedPartialRows = useMemo(() => {
+    const query = localSearch.trim().toLowerCase();
+    if (!query) return partialRows;
+
+    return partialRows.filter(o => {
+      const orderNo = String(o.order_number || o.id || '').toLowerCase();
+      const cust = String(o.customer_name || '').toLowerCase();
+      const inv = String(o.invoice_number || o.invoiceNumber || o.invoiceNo || '').toLowerCase();
+      const salesPerson = String(o.salesperson || '').toLowerCase();
+      const terms = String(o.payment_terms || '').toLowerCase();
+      const status = String(o.payment_status || '').toLowerCase();
+      const reminderLabel = String(o.reminder_label || '').toLowerCase();
+      const total = String(o.grand_total || '');
+      const paid = String(o.verified_paid_amount || '');
+      const bal = String(o.balance_amount !== undefined ? o.balance_amount : (Number(o.grand_total || 0) - Number(o.verified_paid_amount || 0)));
+      const notes = String(orderNotesMap.get(String(o.id).toLowerCase()) || orderNotesMap.get(String(o.order_number).toLowerCase()) || '').toLowerCase();
+
+      return (
+        orderNo.includes(query) ||
+        cust.includes(query) ||
+        inv.includes(query) ||
+        salesPerson.includes(query) ||
+        terms.includes(query) ||
+        status.includes(query) ||
+        reminderLabel.includes(query) ||
+        total.includes(query) ||
+        paid.includes(query) ||
+        bal.includes(query) ||
+        notes.includes(query)
+      );
+    });
+  }, [partialRows, localSearch, orderNotesMap]);
+
+  const searchedReminders = useMemo(() => {
+    const query = localSearch.trim().toLowerCase();
+    if (!query) return filteredReminders;
+
+    return filteredReminders.filter(r => {
+      const cust = String(r.customer_name || '').toLowerCase();
+      const orderNo = String(r.order_number || r.order_id || '').toLowerCase();
+      const note = String(r.followup_note || r.remarks || '').toLowerCase();
+      const date = String(r.reminder_date || '').toLowerCase();
+      const status = String(r.computed_status || r.status || '').toLowerCase();
+      const balance = String(r.balance_amount || '');
+
+      return (
+        cust.includes(query) ||
+        orderNo.includes(query) ||
+        note.includes(query) ||
+        date.includes(query) ||
+        status.includes(query) ||
+        balance.includes(query)
+      );
+    });
+  }, [filteredReminders, localSearch]);
+
+  const searchedCompletedOrders = useMemo(() => {
+    const query = localSearch.trim().toLowerCase();
+    if (!query) return completedOrders;
+
+    return completedOrders.filter(o => {
+      const orderNo = String(o.orderNo || o.order_number || o.id || '').toLowerCase();
+      const cust = String(o.customer?.name || o.customerName || o.customer_name || '').toLowerCase();
+      const inv = String(o.invoice_number || o.invoiceNumber || o.invoiceNo || '').toLowerCase();
+      const total = String(o.totalAmount || o.grandTotal || o.grand_total || '');
+      const paid = String(o.verifiedPaidAmount || o.verified_paid_amount || '');
+      const remarks = String(o.remarks || o.notes || '').toLowerCase();
+
+      return (
+        orderNo.includes(query) ||
+        cust.includes(query) ||
+        inv.includes(query) ||
+        total.includes(query) ||
+        paid.includes(query) ||
+        remarks.includes(query)
+      );
+    });
+  }, [completedOrders, localSearch]);
+
   const pagedPendingRows = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return pendingRows.slice(start, start + pageSize);
-  }, [pendingRows, page, pageSize]);
+    return searchedPendingRows.slice(start, start + pageSize);
+  }, [searchedPendingRows, page, pageSize]);
 
   const pagedPartialRows = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return partialRows.slice(start, start + pageSize);
-  }, [partialRows, page, pageSize]);
+    return searchedPartialRows.slice(start, start + pageSize);
+  }, [searchedPartialRows, page, pageSize]);
 
   const pagedFilteredReminders = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return filteredReminders.slice(start, start + pageSize);
-  }, [filteredReminders, page, pageSize]);
+    return searchedReminders.slice(start, start + pageSize);
+  }, [searchedReminders, page, pageSize]);
 
   const pagedCompletedOrders = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return completedOrders.slice(start, start + pageSize);
-  }, [completedOrders, page, pageSize]);
+    return searchedCompletedOrders.slice(start, start + pageSize);
+  }, [searchedCompletedOrders, page, pageSize]);
 
   return (
     <div className="app-card payment-followup-container" style={{ flex: 1 }}>
@@ -1133,7 +1307,7 @@ function PaymentFollowupContent({ orders = [] }) {
                     color: activeTab === 'partial' ? '#ffffff' : '#b45309',
                   }}
                 >
-                  {partialRows.length}
+                  {localSearch ? `${searchedPartialRows.length}/${partialRows.length}` : partialRows.length}
                 </span>
               )}
             </button>
@@ -1219,20 +1393,40 @@ function PaymentFollowupContent({ orders = [] }) {
                 </button>
               ))}
             </div>
-            <button className="btn-small btn-outline-small payment-refresh-btn" onClick={refreshPending}>
-              Refresh
-            </button>
+            <div className="payment-controls-right">
+              <PaymentSearchInput
+                value={localSearch}
+                onChange={handleSearchChange}
+                placeholder="Search order, customer, invoice, terms..."
+              />
+              <button className="btn-small btn-outline-small payment-refresh-btn" onClick={refreshPending}>
+                Refresh
+              </button>
+            </div>
           </div>
 
           {loadingPending ? (
             <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)' }}>Loading pending collections…</div>
           ) : isCompact ? (
             <div className="payment-mobile-cards-grid">
-              {pendingRows.length === 0 ? (
+              {searchedPendingRows.length === 0 ? (
                 <div className="empty-state-card">
-                  <div className="empty-state-title">No pending collections</div>
+                  <div className="empty-state-title">
+                    {localSearch ? `No collections matching "${localSearch}"` : 'No pending collections'}
+                  </div>
                   <div className="empty-state-subtitle">
-                    Orders appear here once dispatch delivery is confirmed and proof of delivery (POD) is uploaded from Dispatch &amp; Delivery (/dispatch/delivery).
+                    {localSearch ? (
+                      <button
+                        type="button"
+                        className="btn-small btn-outline-small"
+                        onClick={() => handleSearchChange('')}
+                        style={{ marginTop: '8px' }}
+                      >
+                        Clear Search
+                      </button>
+                    ) : (
+                      'Orders appear here once dispatch delivery is confirmed and proof of delivery (POD) is uploaded from Dispatch & Delivery (/dispatch/delivery).'
+                    )}
                   </div>
                 </div>
               ) : (
@@ -1410,13 +1604,26 @@ function PaymentFollowupContent({ orders = [] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {pendingRows.length === 0 ? (
+                  {searchedPendingRows.length === 0 ? (
                     <tr>
                       <td colSpan="13" style={{ textAlign: 'center', padding: 36, color: 'var(--color-text-muted)' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text-primary)' }}>No pending collections</span>
+                          <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                            {localSearch ? `No collections matching "${localSearch}"` : 'No pending collections'}
+                          </span>
                           <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)', maxWidth: '540px' }}>
-                            Orders appear in Payment Follow-up once dispatch delivery is confirmed and Proof of Delivery (POD) is uploaded from the <strong>Dispatch &amp; Delivery</strong> page.
+                            {localSearch ? (
+                              <button
+                                type="button"
+                                className="btn-small btn-outline-small"
+                                onClick={() => handleSearchChange('')}
+                                style={{ marginTop: '6px' }}
+                              >
+                                Clear Search
+                              </button>
+                            ) : (
+                              'Orders appear in Payment Follow-up once dispatch delivery is confirmed and Proof of Delivery (POD) is uploaded from the Dispatch & Delivery page.'
+                            )}
                           </span>
                         </div>
                       </td>
@@ -1580,11 +1787,11 @@ function PaymentFollowupContent({ orders = [] }) {
               </table>
             </div>
           )}
-          {pendingRows.length > 0 && (
+          {searchedPendingRows.length > 0 && (
             <PaginationControl
               currentPage={page}
-              totalPages={Math.ceil(pendingRows.length / pageSize) || 1}
-              totalItems={pendingRows.length}
+              totalPages={Math.ceil(searchedPendingRows.length / pageSize) || 1}
+              totalItems={searchedPendingRows.length}
               pageSize={pageSize}
               pageSizeOptions={[10, 25, 50, 100]}
               onPageChange={setPage}
@@ -1601,29 +1808,50 @@ function PaymentFollowupContent({ orders = [] }) {
 
       {activeTab === 'partial' && (
         <div style={{ marginTop: 4 }}>
-          {/* Sub Controls: Partial Info & Refresh */}
           <div className="payment-controls-row">
             <div className="tab-filters-row payment-sub-pills">
               <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span>📦 Partial Deliveries &amp; Partial Payment Balances</span>
                 <span style={{ padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 800, background: '#fef3c7', color: '#92400e' }}>
-                  {partialRows.length} Orders
+                  {localSearch ? `${searchedPartialRows.length}/${partialRows.length}` : `${partialRows.length} Orders`}
                 </span>
               </span>
             </div>
-            <button className="btn-small btn-outline-small payment-refresh-btn" onClick={refreshPending}>
-              Refresh
-            </button>
+            <div className="payment-controls-right">
+              <PaymentSearchInput
+                value={localSearch}
+                onChange={handleSearchChange}
+                placeholder="Search partial orders, customer, invoice..."
+              />
+              <button className="btn-small btn-outline-small payment-refresh-btn" onClick={refreshPending}>
+                Refresh
+              </button>
+            </div>
           </div>
 
           {loadingPending ? (
             <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)' }}>Loading partial payments…</div>
           ) : isCompact ? (
             <div className="payment-mobile-cards-grid">
-              {partialRows.length === 0 ? (
+              {searchedPartialRows.length === 0 ? (
                 <div className="empty-state-card">
-                  <div className="empty-state-title">No partial payment records</div>
-                  <div className="empty-state-subtitle">There are no orders with partial delivery or partial payment balances.</div>
+                  <div className="empty-state-title">
+                    {localSearch ? `No partial records matching "${localSearch}"` : 'No partial payment records'}
+                  </div>
+                  <div className="empty-state-subtitle">
+                    {localSearch ? (
+                      <button
+                        type="button"
+                        className="btn-small btn-outline-small"
+                        onClick={() => handleSearchChange('')}
+                        style={{ marginTop: '8px' }}
+                      >
+                        Clear Search
+                      </button>
+                    ) : (
+                      'There are no orders with partial delivery or partial payment balances.'
+                    )}
+                  </div>
                 </div>
               ) : (
                 pagedPartialRows.map(o => {
@@ -1728,10 +1956,23 @@ function PaymentFollowupContent({ orders = [] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {partialRows.length === 0 ? (
+                  {searchedPartialRows.length === 0 ? (
                     <tr>
                       <td colSpan="13" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>
-                        No orders with partial delivery or partial payment balances.
+                        {localSearch ? (
+                          <div>
+                            <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 6 }}>No partial payment records matching "{localSearch}".</div>
+                            <button
+                              type="button"
+                              className="btn-small btn-outline-small"
+                              onClick={() => handleSearchChange('')}
+                            >
+                              Clear Search
+                            </button>
+                          </div>
+                        ) : (
+                          'No orders with partial delivery or partial payment balances.'
+                        )}
                       </td>
                     </tr>
                   ) : (
@@ -1865,11 +2106,11 @@ function PaymentFollowupContent({ orders = [] }) {
               </table>
             </div>
           )}
-          {partialRows.length > 0 && (
+          {searchedPartialRows.length > 0 && (
             <PaginationControl
               currentPage={page}
-              totalPages={Math.ceil(partialRows.length / pageSize) || 1}
-              totalItems={partialRows.length}
+              totalPages={Math.ceil(searchedPartialRows.length / pageSize) || 1}
+              totalItems={searchedPartialRows.length}
               pageSize={pageSize}
               pageSizeOptions={[10, 25, 50, 100]}
               onPageChange={setPage}
@@ -1900,19 +2141,41 @@ function PaymentFollowupContent({ orders = [] }) {
                 </button>
               ))}
             </div>
-            <button className="btn-small btn-outline-small payment-refresh-btn" onClick={refreshFollowups}>
-              Refresh
-            </button>
+            <div className="payment-controls-right">
+              <PaymentSearchInput
+                value={localSearch}
+                onChange={handleSearchChange}
+                placeholder="Search reminders, customer, notes..."
+              />
+              <button className="btn-small btn-outline-small payment-refresh-btn" onClick={refreshFollowups}>
+                Refresh
+              </button>
+            </div>
           </div>
 
           {loadingFollowups ? (
             <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)' }}>Loading reminders…</div>
           ) : isCompact ? (
             <div className="payment-mobile-cards-grid">
-              {filteredReminders.length === 0 ? (
+              {searchedReminders.length === 0 ? (
                 <div className="empty-state-card">
-                  <div className="empty-state-title">No reminders found</div>
-                  <div className="empty-state-subtitle">There are no scheduled follow-up reminders in this filter.</div>
+                  <div className="empty-state-title">
+                    {localSearch ? `No reminders matching "${localSearch}"` : 'No reminders found'}
+                  </div>
+                  <div className="empty-state-subtitle">
+                    {localSearch ? (
+                      <button
+                        type="button"
+                        className="btn-small btn-outline-small"
+                        onClick={() => handleSearchChange('')}
+                        style={{ marginTop: '8px' }}
+                      >
+                        Clear Search
+                      </button>
+                    ) : (
+                      'There are no scheduled follow-up reminders in this filter.'
+                    )}
+                  </div>
                 </div>
               ) : (
                 pagedFilteredReminders.map(r => (
@@ -1986,8 +2249,25 @@ function PaymentFollowupContent({ orders = [] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredReminders.length === 0 ? (
-                    <tr><td colSpan="7" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No reminders found.</td></tr>
+                  {searchedReminders.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>
+                        {localSearch ? (
+                          <div>
+                            <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 6 }}>No reminders matching "{localSearch}".</div>
+                            <button
+                              type="button"
+                              className="btn-small btn-outline-small"
+                              onClick={() => handleSearchChange('')}
+                            >
+                              Clear Search
+                            </button>
+                          </div>
+                        ) : (
+                          'No reminders found.'
+                        )}
+                      </td>
+                    </tr>
                   ) : (
                     pagedFilteredReminders.map(r => (
                       <tr key={r.id}>
@@ -2031,11 +2311,11 @@ function PaymentFollowupContent({ orders = [] }) {
               </table>
             </div>
           )}
-          {filteredReminders.length > 0 && (
+          {searchedReminders.length > 0 && (
             <PaginationControl
               currentPage={page}
-              totalPages={Math.ceil(filteredReminders.length / pageSize) || 1}
-              totalItems={filteredReminders.length}
+              totalPages={Math.ceil(searchedReminders.length / pageSize) || 1}
+              totalItems={searchedReminders.length}
               pageSize={pageSize}
               pageSizeOptions={[10, 25, 50, 100]}
               onPageChange={setPage}
@@ -2052,12 +2332,48 @@ function PaymentFollowupContent({ orders = [] }) {
 
       {activeTab === 'completed' && (
         <div style={{ marginTop: 4 }}>
+          {/* Sub Controls: Completed Status & Search */}
+          <div className="payment-controls-row">
+            <div className="tab-filters-row payment-sub-pills">
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>✅ Fully Paid &amp; Completed Collections</span>
+                <span style={{ padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 800, background: '#dcfce7', color: '#15803d' }}>
+                  {localSearch ? `${searchedCompletedOrders.length}/${completedOrders.length}` : `${completedOrders.length} Orders`}
+                </span>
+              </span>
+            </div>
+            <div className="payment-controls-right">
+              <PaymentSearchInput
+                value={localSearch}
+                onChange={handleSearchChange}
+                placeholder="Search completed orders, customer, invoice..."
+              />
+              <button className="btn-small btn-outline-small payment-refresh-btn" onClick={refreshPending}>
+                Refresh
+              </button>
+            </div>
+          </div>
           {isCompact ? (
             <div className="payment-mobile-cards-grid">
-              {completedOrders.length === 0 ? (
+              {searchedCompletedOrders.length === 0 ? (
                 <div className="empty-state-card">
-                  <div className="empty-state-title">No completed payments</div>
-                  <div className="empty-state-subtitle">No orders with fully verified payments found.</div>
+                  <div className="empty-state-title">
+                    {localSearch ? `No completed payments matching "${localSearch}"` : 'No completed payments'}
+                  </div>
+                  <div className="empty-state-subtitle">
+                    {localSearch ? (
+                      <button
+                        type="button"
+                        className="btn-small btn-outline-small"
+                        onClick={() => handleSearchChange('')}
+                        style={{ marginTop: '8px' }}
+                      >
+                        Clear Search
+                      </button>
+                    ) : (
+                      'No orders with fully verified payments found.'
+                    )}
+                  </div>
                 </div>
               ) : (
                 pagedCompletedOrders.map(o => (
@@ -2097,8 +2413,25 @@ function PaymentFollowupContent({ orders = [] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {completedOrders.length === 0 ? (
-                    <tr><td colSpan="8" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No completed payments.</td></tr>
+                  {searchedCompletedOrders.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>
+                        {localSearch ? (
+                          <div>
+                            <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 6 }}>No completed payments matching "{localSearch}".</div>
+                            <button
+                              type="button"
+                              className="btn-small btn-outline-small"
+                              onClick={() => handleSearchChange('')}
+                            >
+                              Clear Search
+                            </button>
+                          </div>
+                        ) : (
+                          'No completed payments.'
+                        )}
+                      </td>
+                    </tr>
                   ) : (
                     pagedCompletedOrders.map(o => (
                       <tr key={o.orderNo || o.order_number || o.id}>
@@ -2117,11 +2450,11 @@ function PaymentFollowupContent({ orders = [] }) {
               </table>
             </div>
           )}
-          {completedOrders.length > 0 && (
+          {searchedCompletedOrders.length > 0 && (
             <PaginationControl
               currentPage={page}
-              totalPages={Math.ceil(completedOrders.length / pageSize) || 1}
-              totalItems={completedOrders.length}
+              totalPages={Math.ceil(searchedCompletedOrders.length / pageSize) || 1}
+              totalItems={searchedCompletedOrders.length}
               pageSize={pageSize}
               pageSizeOptions={[10, 25, 50, 100]}
               onPageChange={setPage}

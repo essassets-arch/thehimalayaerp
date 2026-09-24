@@ -1402,6 +1402,8 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
             onSaveReminder={createReminder}
             onUpdateReminder={updateReminder}
             onCompleteReminder={completeReminder}
+            searchQuery={globalSearch}
+            setSearchQuery={setGlobalSearch}
           />
         </div>
       );
