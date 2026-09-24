@@ -465,7 +465,10 @@ export default function FinancePortal({ initialView, forceView }) {
   const fetchPendingOrderPayments = async () => {
     try {
       const response = await apiClient.get('/finance/payments/pending');
-      setPendingOrderPayments(response.data || []);
+      const list = Array.isArray(response)
+        ? response
+        : (Array.isArray(response?.data) ? response.data : (response?.data?.data || []));
+      setPendingOrderPayments(list);
     } catch (err) {
       console.warn('[FinancePortal] Failed to fetch pending order payments:', err.message);
     }

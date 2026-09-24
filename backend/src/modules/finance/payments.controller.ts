@@ -28,6 +28,16 @@ export class PaymentsController {
     );
   }
 
+  @Get('pending')
+  @RequirePermissions('finance.payment.read')
+  async listPendingPayments(@Query() query: any, @Req() req: any) {
+    return this.paymentsService.listPendingPayments(
+      query,
+      req.user?.sub,
+      req.user?.role,
+    );
+  }
+
   @Get('sales-recorded')
   @RequirePermissions('sales.orders.read')
   async listSalesRecordedPayments(@Req() req: any) {

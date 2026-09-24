@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
-import { Prisma, SalesOrderStatus, NotificationPriority } from '@prisma/client';
+import { Prisma, SalesOrderStatus, NotificationPriority, PaymentStatus } from '@prisma/client';
 import { getOrderSalesScope, getSalesScope } from '../../common/utils/rbac.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaymentFollowupEngineService } from './payment-followup-engine.service';
@@ -539,6 +539,79 @@ export class PaymentsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async listPendingPayments(query: any = {}, userId?: string, role?: string) {
+    const scope = getSalesScope(userId, role, 'CustomerPayment');
+    const search = typeof query?.search === 'string' ? query.search.trim() : '';
+
+    const where: Prisma.CustomerPaymentWhereInput = {
+      status: {
+        in: [
+          PaymentStatus.SUBMITTED,
+          PaymentStatus.UNDER_VERIFICATION,
+          PaymentStatus.RECEIVED,
+        ],
+      },
+      ...scope,
+    };
+
+    if (search) {
+      where.OR = [
+        { paymentNo: { contains: search, mode: 'insensitive' } },
+        { customer: { companyName: { contains: search, mode: 'insensitive' } } },
+        { salesOrder: { orderNumber: { contains: search, mode: 'insensitive' } } },
+        { transactionReference: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const payments = await this.prisma.customerPayment.findMany({
+      where,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            companyName: true,
+          },
+        },
+        salesOrder: {
+          select: {
+            id: true,
+            orderNumber: true,
+            totalAmount: true,
+            salesExecutive: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+        workflowState: true,
+        allocations: {
+          include: {
+            invoice: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return payments.map((p) => ({
+      id: p.id,
+      order_id: p.salesOrderId,
+      order_number: p.salesOrder?.orderNumber || p.paymentNo,
+      customer_name: p.customer?.companyName || 'Customer',
+      amount: Number(p.amount),
+      status: 'PENDING',
+      raw_status: p.status,
+      payment_mode: p.method || 'NEFT',
+      transaction_reference: p.transactionReference || '',
+      payment_date: p.receivedAt?.toISOString() || p.createdAt.toISOString(),
+      sales_confirmed_by_name: p.salesOrder?.salesExecutive?.name || 'Sales',
+      proof_url: p.proofUrl,
+      remarks: p.remarks,
+    }));
   }
 
   async listDeliveredOrders(userId?: string, role?: string) {
