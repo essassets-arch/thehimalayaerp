@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { initializePushNotifications } from '@/shared/firebase/messaging';
 import { backendFetch } from '@/lib/backendFetch';
@@ -53,6 +54,18 @@ const checkIsFlutterApk = (): boolean => {
 };
 
 export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPermissionsModalProps) {
+  const pathname = usePathname();
+
+  // Exempt dispatch creation routes to prevent permission prompts from disrupting operator and resetting form data
+  if (
+    pathname?.includes('/dispatch/create-dispatch') ||
+    pathname?.includes('/dispatch-2/create-dispatch') ||
+    pathname?.includes('/dispatch/create') ||
+    pathname?.includes('/dispatch-2/create')
+  ) {
+    return null;
+  }
+
   const isE2EBypass = typeof window !== 'undefined' && (
     window.localStorage.getItem('e2e_bypass_permissions') === 'true' ||
     window.sessionStorage.getItem('e2e_bypass_permissions') === 'true' ||

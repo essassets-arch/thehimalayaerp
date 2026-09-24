@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/store/authStore';
 import { backendFetch } from '@/lib/backendFetch';
@@ -72,6 +73,13 @@ const LOCATION_MIN_DISTANCE_METERS = 10;
 const HEARTBEAT_INTERVAL_MS = 25000;
 
 export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const pathname = usePathname();
+  const isDispatchCreate =
+    pathname?.includes('/dispatch/create-dispatch') ||
+    pathname?.includes('/dispatch-2/create-dispatch') ||
+    pathname?.includes('/dispatch/create') ||
+    pathname?.includes('/dispatch-2/create');
+
   const { isAuthenticated, accessToken, user } = useAuthStore();
   const [sessionId, setSessionIdState] = useState<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -137,6 +145,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
   }, []);
 
   const startTracking = useCallback(() => {
+    if (isDispatchCreate) return;
     if (typeof window === 'undefined' || !window.navigator.geolocation) {
       setPermissionState('UNSUPPORTED');
       syncPermission('UNSUPPORTED');
@@ -361,7 +370,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
       {children}
 
       {/* Tracking Privacy Alert / Consent Notice Modal */}
-      {showNotice && (
+      {showNotice && !isDispatchCreate && (
         <div style={{
           position: 'fixed',
           bottom: '24px',

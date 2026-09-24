@@ -3,12 +3,17 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Truck, ClipboardList, RotateCcw, Trash2 } from "lucide-react";
+import { Truck, ClipboardList, RotateCcw, Trash2, Camera, Image as ImageIcon, X } from "lucide-react";
 import { toast } from "sonner";
 import Swal from "sweetalert2";
 
 import { backendFetch } from "@/lib/backendFetch";
 import styles from "./create-dispatch.module.css";
+import {
+  useDispatchDraftStore,
+  DispatchPhoto,
+  DispatchDraftState,
+} from "@/store/dispatchDraftStore";
 
 interface Customer {
   id: string;
@@ -48,6 +53,7 @@ interface SalesOrderItem {
   orderedQuantity: number;
   unitPrice: number;
   dispatchItems?: { quantity: string | number }[];
+  product?: any;
 }
 
 interface ProductionPlan {
@@ -105,6 +111,68 @@ export interface DispatchDraft {
   deliveryAddresses: Record<string, string>;
   selectedIds?: string[];
   dispatchQuantities?: Record<string, number>;
+  documentPreview?: string | null;
+  documentFileName?: string | null;
+  documentFileType?: string | null;
+}
+
+function dataURLtoFile(dataurl: string, filename: string): File {
+  const arr = dataurl.split(",");
+  const mime = arr[0].match(/:(.*?);/)?.[1] || "image/jpeg";
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new File([u8arr], filename, { type: mime });
+}
+
+async function compressImageForDraft(file: File): Promise<{ file: File; dataUrl: string }> {
+  if (!file.type.startsWith("image/")) {
+    return { file, dataUrl: "" };
+  }
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const MAX_DIM = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_DIM) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          }
+        } else {
+          if (height > MAX_DIM) {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7);
+          const cleanName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+          const compressedFile = dataURLtoFile(compressedDataUrl, cleanName);
+          resolve({ file: compressedFile, dataUrl: compressedDataUrl });
+          return;
+        }
+        resolve({ file, dataUrl: e.target?.result as string });
+      };
+      img.onerror = () => resolve({ file, dataUrl: e.target?.result as string });
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve({ file, dataUrl: "" });
+    reader.readAsDataURL(file);
+  });
 }
 
 function getDraftStorageKey(
@@ -579,37 +647,58 @@ export default function CreateDispatchPage() {
     return ids;
   }, [workOrderId, workOrderIdsParam]);
 
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [dispatchQuantities, setDispatchQuantities] = useState<Record<string, number>>({});
-  const [deliveryAddresses, setDeliveryAddresses] = useState<Record<string, string>>({});
-  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState<string>("");
-  const [totalWeight, setTotalWeight] = useState<number>(0);
-  const [vehicleNumber, setVehicleNumber] = useState<string>("");
-  const [transporterName, setTransporterName] = useState<string>("");
-  const [driverName, setDriverName] = useState<string>("");
-  const [driverPhone, setDriverPhone] = useState<string>("");
-  const [dispatchRemarks, setDispatchRemarks] = useState<string>("");
-  const [invoiceNumber, setInvoiceNumber] = useState<string>("");
-  const [challanNumber, setChallanNumber] = useState<string>("");
-  const [ewayBillNumber, setEwayBillNumber] = useState<string>("");
-  const [actualFreightPaidAmount, setActualFreightPaidAmount] = useState<number>(0);
-  const [documentFile, setDocumentFile] = useState<File | null>(null);
-  const [documentPreview, setDocumentPreview] = useState<string | null>(null);
+  // Persistent Zustand Dispatch Draft Store
+  const {
+    invoiceNumber,
+    challanNumber,
+    totalWeight,
+    vehicleNumber,
+    driverName,
+    driverPhone,
+    dispatchRemarks,
+    transporterName,
+    ewayBillNumber,
+    expectedDeliveryDate,
+    actualFreightPaidAmount,
+    userEditedFreight,
+    deliveryAddresses,
+    selectedIds,
+    dispatchQuantities,
+    latitude,
+    longitude,
+    photos,
+    lastSavedAt,
+    setField,
+    setFields,
+    setDeliveryAddressForOrder,
+    setQuantityForWorkOrder,
+    setLocation,
+    addPhoto,
+    addPhotos,
+    removePhoto,
+    clearPhotos,
+    clearDraft,
+    initializeContext,
+  } = useDispatchDraftStore();
+
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
   const [fileError, setFileError] = useState<string | null>(null);
   const initialSelectionSet = React.useRef(false);
-  const userEditedFreight = React.useRef(false);
 
-  // Draft recovery and autosave state
-  const [availableDraft, setAvailableDraft] = useState<DispatchDraft | null>(null);
-  const [restoredDraftInfo, setRestoredDraftInfo] = useState<{
-    formattedTime: string;
-    details: string[];
-  } | null>(null);
-  const [lastAutoSavedAt, setLastAutoSavedAt] = useState<string | null>(null);
-  const isDraftReady = React.useRef(false);
-  const restoredDraftRef = React.useRef<DispatchDraft | null>(null);
+  const cameraInputRef = React.useRef<HTMLInputElement | null>(null);
+  const galleryInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  // Initialize context without resetting any user fields
+  useEffect(() => {
+    initializeContext({
+      salesOrderId,
+      orderNumber,
+      salesOrderItemId,
+      workOrderId,
+      deliveryAddress: deliveryAddressParam,
+    });
+  }, [salesOrderId, orderNumber, salesOrderItemId, workOrderId, deliveryAddressParam, initializeContext]);
 
   // Fetch existing dispatches for duplicate Invoice + Challan validation
   const { data: existingDispatches = EMPTY_ARRAY } = useQuery<any[]>({
@@ -1272,14 +1361,8 @@ export default function CreateDispatchPage() {
   useEffect(() => {
     if (!filteredWorkOrders.length || initialSelectionSet.current) return;
 
-    if (restoredDraftRef.current?.selectedIds && restoredDraftRef.current.selectedIds.length > 0) {
-      const draftIds = restoredDraftRef.current.selectedIds;
-      const validIds = draftIds.filter((id) => filteredWorkOrders.some((wo) => wo.id === id));
-      const finalIds = validIds.length > 0 ? validIds : draftIds;
-      setSelectedIds(finalIds);
-      if (restoredDraftRef.current.dispatchQuantities) {
-        setDispatchQuantities(restoredDraftRef.current.dispatchQuantities);
-      }
+    // If store already has selectedIds (from persisted draft), keep them and don't re-select
+    if (selectedIds.length > 0) {
       initialSelectionSet.current = true;
       return;
     }
@@ -1322,16 +1405,21 @@ export default function CreateDispatchPage() {
     }
 
     const ids = toSelect.map((m) => m.id);
-    const qtys: Record<string, number> = {};
+    const qtys: Record<string, number> = { ...dispatchQuantities };
     filteredWorkOrders.forEach((m) => {
-      const rem = availableQuantity(m);
-      const ord = Number(m.salesOrderItem?.orderedQuantity || m.orderedQuantity || 1);
-      qtys[m.id] = rem > 0 ? rem : ord;
+      if (!qtys[m.id] || qtys[m.id] <= 0) {
+        const rem = availableQuantity(m);
+        const ord = Number(m.salesOrderItem?.orderedQuantity || m.orderedQuantity || 1);
+        qtys[m.id] = rem > 0 ? rem : ord;
+      }
     });
-    setSelectedIds(ids);
-    setDispatchQuantities(qtys);
+
+    setFields({
+      selectedIds: ids,
+      dispatchQuantities: qtys,
+    });
     initialSelectionSet.current = true;
-  }, [filteredWorkOrders, requestedWorkOrderIds, salesOrderItemId, salesOrderId, orderNumber]);
+  }, [filteredWorkOrders, requestedWorkOrderIds, salesOrderItemId, selectedIds, dispatchQuantities, setFields]);
 
   const selectedWorkOrders = React.useMemo(
     () => filteredWorkOrders.filter((row) => selectedIds.includes(row.id)),
@@ -1418,270 +1506,145 @@ export default function CreateDispatchPage() {
   const salesOrder = workOrder?.productionPlan?.salesOrder;
   const customer = salesOrder?.customer;
 
-  // Prefill default delivery addresses per selected Sales Order
+  // Prefill default delivery addresses per selected Sales Order IF not already in draft store
   useEffect(() => {
     if (!selectedSalesOrders.length) return;
-    
-    setDeliveryAddresses((current) => {
-      let hasChanges = false;
-      const updated = { ...current };
-      for (const order of selectedSalesOrders) {
-        const draftAddr =
-          restoredDraftRef.current?.deliveryAddresses?.[order.id] ||
-          restoredDraftRef.current?.deliveryAddresses?.[order.orderNumber] ||
-          (salesOrderId && restoredDraftRef.current?.deliveryAddresses?.[salesOrderId]) ||
-          (orderNumber && restoredDraftRef.current?.deliveryAddresses?.[orderNumber]);
 
-        const fallbackParam =
-          deliveryAddressParam &&
-          deliveryAddressParam.trim() &&
-          deliveryAddressParam !== "Factory Staging Area" &&
-          deliveryAddressParam !== "—"
-            ? deliveryAddressParam.trim()
-            : "";
-        const resolvedAddr = draftAddr || formatAddress(order, order.customer) || fallbackParam;
-        if (
-          updated[order.id] === undefined ||
-          !updated[order.id].trim() ||
-          updated[order.id] === "Customer Designated Delivery Site" ||
-          updated[order.id] === "Factory Staging Area" ||
-          (draftAddr && updated[order.id] !== draftAddr)
-        ) {
-          if (resolvedAddr) {
-            updated[order.id] = resolvedAddr;
-            hasChanges = true;
-          } else if (updated[order.id] === undefined) {
-            updated[order.id] = "";
-            hasChanges = true;
-          }
-        }
-      }
-      return hasChanges ? updated : current;
-    });
+    let hasAddressChange = false;
+    const currentAddresses = { ...deliveryAddresses };
 
-    // Prefill date using draft or the first selected sales order if available
-    setExpectedDeliveryDate((currentDate) => {
-      if (currentDate) return currentDate;
-      if (restoredDraftRef.current?.expectedDeliveryDate) {
-        return restoredDraftRef.current.expectedDeliveryDate;
+    for (const order of selectedSalesOrders) {
+      if (currentAddresses[order.id]?.trim()) continue;
+
+      const fallbackParam =
+        deliveryAddressParam &&
+        deliveryAddressParam.trim() &&
+        deliveryAddressParam !== "Factory Staging Area" &&
+        deliveryAddressParam !== "—"
+          ? deliveryAddressParam.trim()
+          : "";
+      const resolvedAddr = formatAddress(order, order.customer) || fallbackParam;
+      if (resolvedAddr) {
+        currentAddresses[order.id] = resolvedAddr;
+        hasAddressChange = true;
       }
+    }
+
+    if (hasAddressChange) {
+      setField("deliveryAddresses", currentAddresses);
+    }
+
+    // Prefill expectedDeliveryDate only if not already entered in draft store
+    if (!expectedDeliveryDate) {
       const firstOrderWithDate = selectedSalesOrders.find((o) => o.requestedDeliveryDate);
-      return firstOrderWithDate ? new Date(firstOrderWithDate.requestedDeliveryDate || Date.now()).toISOString().slice(0, 10) : "";
-    });
-
-    if (!userEditedFreight.current && transportationCost !== undefined && transportationCost >= 0) {
-      if (restoredDraftRef.current?.actualFreightPaidAmount !== undefined && restoredDraftRef.current?.userEditedFreight) {
-        setActualFreightPaidAmount(Number(restoredDraftRef.current.actualFreightPaidAmount));
-        userEditedFreight.current = true;
-      } else {
-        setActualFreightPaidAmount(transportationCost);
+      if (firstOrderWithDate?.requestedDeliveryDate) {
+        setField("expectedDeliveryDate", new Date(firstOrderWithDate.requestedDeliveryDate).toISOString().slice(0, 10));
       }
     }
-  }, [selectedSalesOrders, transportationCost, deliveryAddressParam, salesOrderId, orderNumber]);
 
-  const applyDraftToState = React.useCallback(
-    (draft: DispatchDraft, isManual: boolean) => {
-      restoredDraftRef.current = draft;
-
-      if (draft.invoiceNumber) setInvoiceNumber(draft.invoiceNumber);
-      if (draft.challanNumber) setChallanNumber(draft.challanNumber);
-      if (draft.totalWeight !== undefined && draft.totalWeight !== null && draft.totalWeight !== "") {
-        setTotalWeight(Number(draft.totalWeight) || 0);
-      }
-      if (draft.vehicleNumber) setVehicleNumber(draft.vehicleNumber.toUpperCase());
-      if (draft.driverName) setDriverName(draft.driverName);
-      if (draft.driverPhone) setDriverPhone(draft.driverPhone);
-      if (draft.dispatchRemarks) setDispatchRemarks(draft.dispatchRemarks);
-      if (draft.transporterName) setTransporterName(draft.transporterName);
-      if (draft.ewayBillNumber) setEwayBillNumber(draft.ewayBillNumber.toUpperCase());
-      if (draft.expectedDeliveryDate) setExpectedDeliveryDate(draft.expectedDeliveryDate);
-      if (draft.actualFreightPaidAmount !== undefined && draft.actualFreightPaidAmount !== null) {
-        setActualFreightPaidAmount(Number(draft.actualFreightPaidAmount) || 0);
-        userEditedFreight.current = true;
-      }
-      if (draft.deliveryAddresses && typeof draft.deliveryAddresses === "object") {
-        setDeliveryAddresses((curr) => {
-          const merged = { ...curr, ...draft.deliveryAddresses };
-          if (salesOrderId && draft.deliveryAddresses[salesOrderId]) {
-            merged[salesOrderId] = draft.deliveryAddresses[salesOrderId];
-          }
-          if (orderNumber && draft.deliveryAddresses[orderNumber]) {
-            merged[orderNumber] = draft.deliveryAddresses[orderNumber];
-          }
-          return merged;
-        });
-      }
-      if (Array.isArray(draft.selectedIds) && draft.selectedIds.length > 0) {
-        setSelectedIds(draft.selectedIds);
-        initialSelectionSet.current = true;
-      }
-      if (draft.dispatchQuantities && typeof draft.dispatchQuantities === "object") {
-        setDispatchQuantities((curr) => ({ ...curr, ...draft.dispatchQuantities }));
-      }
-
-      const chips: string[] = [];
-      if (draft.invoiceNumber) chips.push(`Invoice: ${draft.invoiceNumber}`);
-      if (draft.challanNumber) chips.push(`Challan: ${draft.challanNumber}`);
-      if (draft.vehicleNumber) chips.push(`Vehicle: ${draft.vehicleNumber}`);
-      if (draft.driverName) chips.push(`Driver: ${draft.driverName}`);
-      if (Number(draft.totalWeight) > 0) chips.push(`Weight: ${draft.totalWeight} Tons`);
-      if (draft.transporterName) chips.push(`Transporter: ${draft.transporterName}`);
-      if (draft.expectedDeliveryDate) chips.push(`Exp. Date: ${draft.expectedDeliveryDate}`);
-      const hasAddr = draft.deliveryAddresses && Object.values(draft.deliveryAddresses).some((a) => a && a.trim());
-      if (hasAddr) chips.push("Delivery Address Restored");
-
-      setAvailableDraft(draft);
-      setRestoredDraftInfo({
-        formattedTime: draft.formattedTime || "previous session",
-        details: chips,
-      });
-
-      if (isManual) {
-        toast.success("Consignment draft restored successfully!");
-      } else {
-        toast.success("Recovered unsaved dispatch draft from your previous session!");
-      }
-    },
-    [salesOrderId, orderNumber]
-  );
-
-  // 1. Initial mount effect: Check and auto-restore any unsubmitted draft
-  useEffect(() => {
-    const existingDraft = findExistingDraft(salesOrderId, orderNumber, salesOrderItemId, workOrderId);
-    if (existingDraft && hasMeaningfulDraftData(existingDraft)) {
-      applyDraftToState(existingDraft, false);
+    // Prefill freight cost only if user hasn't customized it
+    if (!userEditedFreight && (!actualFreightPaidAmount || actualFreightPaidAmount === 0) && transportationCost > 0) {
+      setField("actualFreightPaidAmount", transportationCost);
     }
-    isDraftReady.current = true;
-  }, [salesOrderId, orderNumber, salesOrderItemId, workOrderId, applyDraftToState]);
+  }, [selectedSalesOrders, transportationCost, deliveryAddressParam, deliveryAddresses, expectedDeliveryDate, actualFreightPaidAmount, userEditedFreight, setField]);
 
-  // 2. Persist current draft to localStorage
-  const persistCurrentDraft = React.useCallback(() => {
-    if (!isDraftReady.current) return;
-
-    const hasData =
-      Boolean(invoiceNumber?.trim()) ||
-      Boolean(challanNumber?.trim()) ||
-      Boolean(totalWeight && totalWeight > 0) ||
-      Boolean(vehicleNumber?.trim()) ||
-      Boolean(driverName?.trim()) ||
-      Boolean(driverPhone?.trim()) ||
-      Boolean(dispatchRemarks?.trim()) ||
-      Boolean(transporterName?.trim()) ||
-      Boolean(ewayBillNumber?.trim()) ||
-      Boolean(expectedDeliveryDate?.trim()) ||
-      Boolean(userEditedFreight.current) ||
-      Object.values(deliveryAddresses).some((a) => a && typeof a === "string" && a.trim());
-
-    if (!hasData) return;
-
-    try {
-      const now = Date.now();
-      const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      const draftObj: DispatchDraft = {
-        salesOrderId: salesOrderId || null,
-        orderNumber: orderNumber || null,
-        salesOrderItemId: salesOrderItemId || null,
-        workOrderId: workOrderId || null,
-        timestamp: now,
-        formattedTime: `${timeStr}, ${new Date().toLocaleDateString([], { day: "numeric", month: "short" })}`,
-        invoiceNumber,
-        challanNumber,
-        totalWeight,
-        vehicleNumber,
-        driverName,
-        driverPhone,
-        dispatchRemarks,
-        transporterName,
-        ewayBillNumber,
-        expectedDeliveryDate,
-        actualFreightPaidAmount,
-        userEditedFreight: userEditedFreight.current,
-        deliveryAddresses,
-        selectedIds,
-        dispatchQuantities,
-      };
-
-      const primaryKey = getDraftStorageKey(salesOrderId, orderNumber, salesOrderItemId, workOrderId);
-      localStorage.setItem(primaryKey, JSON.stringify(draftObj));
-      localStorage.setItem("himalaya_dispatch_draft_latest", JSON.stringify(draftObj));
-      setAvailableDraft(draftObj);
-      setLastAutoSavedAt(timeStr);
-    } catch (err) {
-      console.warn("Failed to persist dispatch draft:", err);
-    }
-  }, [
-    invoiceNumber,
-    challanNumber,
-    totalWeight,
-    vehicleNumber,
-    driverName,
-    driverPhone,
-    dispatchRemarks,
-    transporterName,
-    ewayBillNumber,
-    expectedDeliveryDate,
-    actualFreightPaidAmount,
-    deliveryAddresses,
-    selectedIds,
-    dispatchQuantities,
-    salesOrderId,
-    orderNumber,
-    salesOrderItemId,
-    workOrderId,
-  ]);
-
-  // 3. Debounced auto-save on input changes
-  useEffect(() => {
-    if (!isDraftReady.current) return;
-    const timer = setTimeout(() => {
-      persistCurrentDraft();
-    }, 450);
-    return () => clearTimeout(timer);
-  }, [persistCurrentDraft]);
-
-  // 4. Mobile APK / Browser lifecycle hooks (crucial when switching apps or pressing Home)
-  useEffect(() => {
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden" && isDraftReady.current) {
-        persistCurrentDraft();
-      }
-    };
-    const onPageExit = () => {
-      if (isDraftReady.current) {
-        persistCurrentDraft();
-      }
-    };
-
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("pagehide", onPageExit);
-    window.addEventListener("beforeunload", onPageExit);
-
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.removeEventListener("pagehide", onPageExit);
-      window.removeEventListener("beforeunload", onPageExit);
-    };
-  }, [persistCurrentDraft]);
-
-  // 5. Manual restore handler
-  const handleManualRestore = () => {
-    if (availableDraft) {
-      applyDraftToState(availableDraft, true);
-    } else {
-      const draft = findExistingDraft(salesOrderId, orderNumber, salesOrderItemId, workOrderId);
-      if (draft && hasMeaningfulDraftData(draft)) {
-        applyDraftToState(draft, true);
-      } else {
-        toast.info("No unsubmitted draft found for this consignment.");
-      }
-    }
+  // Generic input change handler that synchronously updates persistent Zustand store
+  const handleInputChange = (field: keyof DispatchDraftState, value: any) => {
+    setField(field, value);
+    setTouchedFields((t) => ({ ...t, [field]: true }));
   };
 
-  // 6. Discard draft handler
+  // Location handler: Completely isolated from form state. Never touches form fields!
+  const [isLocating, setIsLocating] = useState(false);
+  const handleGetLocation = () => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      toast.info("Geolocation is not supported by your browser/device.");
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        setIsLocating(false);
+        toast.success(`Location captured: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`);
+      },
+      (error) => {
+        setIsLocating(false);
+        // CRITICAL: DO NOT TOUCH OTHER FORM FIELDS!
+        console.warn("GPS Location capture skipped or denied:", error.message);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
+  // Check and migrate legacy localStorage draft if Zustand store is fresh
+  useEffect(() => {
+    const state = useDispatchDraftStore.getState();
+    const hasStoreData =
+      Boolean(state.invoiceNumber) ||
+      Boolean(state.challanNumber) ||
+      Boolean(state.vehicleNumber) ||
+      Boolean(state.driverName) ||
+      state.photos.length > 0;
+
+    if (!hasStoreData) {
+      const legacyDraft = findExistingDraft(salesOrderId, orderNumber, salesOrderItemId, workOrderId);
+      if (legacyDraft && hasMeaningfulDraftData(legacyDraft)) {
+        setFields({
+          invoiceNumber: legacyDraft.invoiceNumber || "",
+          challanNumber: legacyDraft.challanNumber || "",
+          totalWeight: legacyDraft.totalWeight || 0,
+          vehicleNumber: legacyDraft.vehicleNumber || "",
+          driverName: legacyDraft.driverName || "",
+          driverPhone: legacyDraft.driverPhone || "",
+          dispatchRemarks: legacyDraft.dispatchRemarks || "",
+          transporterName: legacyDraft.transporterName || "",
+          ewayBillNumber: legacyDraft.ewayBillNumber || "",
+          expectedDeliveryDate: legacyDraft.expectedDeliveryDate || "",
+          actualFreightPaidAmount: legacyDraft.actualFreightPaidAmount || 0,
+          userEditedFreight: Boolean(legacyDraft.userEditedFreight),
+          deliveryAddresses: legacyDraft.deliveryAddresses || {},
+          selectedIds: legacyDraft.selectedIds || [],
+          dispatchQuantities: legacyDraft.dispatchQuantities || {},
+        });
+        if (legacyDraft.documentPreview) {
+          addPhoto({
+            id: crypto.randomUUID(),
+            previewUrl: legacyDraft.documentPreview,
+            dataUrl: legacyDraft.documentPreview,
+            name: legacyDraft.documentFileName || "recovered_dispatch_doc.jpg",
+            source: "camera",
+          });
+        }
+      }
+    }
+  }, [salesOrderId, orderNumber, salesOrderItemId, workOrderId, setFields, addPhoto]);
+
+  // Draft chips memo to display in persistent alert banner
+  const draftChips = React.useMemo(() => {
+    const chips: string[] = [];
+    if (invoiceNumber) chips.push(`Invoice: ${invoiceNumber}`);
+    if (challanNumber) chips.push(`Challan: ${challanNumber}`);
+    if (vehicleNumber) chips.push(`Vehicle: ${vehicleNumber}`);
+    if (driverName) chips.push(`Driver: ${driverName}`);
+    if (Number(totalWeight) > 0) chips.push(`Weight: ${totalWeight} Tons`);
+    if (transporterName) chips.push(`Transporter: ${transporterName}`);
+    if (expectedDeliveryDate) chips.push(`Exp. Date: ${expectedDeliveryDate}`);
+    const hasAddr = deliveryAddresses && Object.values(deliveryAddresses).some((a) => a && a.trim());
+    if (hasAddr) chips.push("Delivery Address Preserved");
+    if (photos.length > 0) chips.push(`${photos.length} Document${photos.length > 1 ? "s" : ""} Attached`);
+    if (latitude !== null && longitude !== null) chips.push("GPS Location Saved");
+    return chips;
+  }, [invoiceNumber, challanNumber, vehicleNumber, driverName, totalWeight, transporterName, expectedDeliveryDate, deliveryAddresses, photos, latitude, longitude]);
+
+  // Discard draft handler
   const handleDiscardDraft = async () => {
     const result = await Swal.fire({
       title: "Discard Saved Draft?",
-      text: "Are you sure you want to discard your unsubmitted dispatch details? All recovered fields will be cleared.",
+      text: "Are you sure you want to discard your unsubmitted dispatch details? All recovered fields and photos will be cleared.",
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#ef4444",
@@ -1692,23 +1655,10 @@ export default function CreateDispatchPage() {
     });
 
     if (result.isConfirmed) {
+      clearDraft();
       clearAllDraftStorageKeys(salesOrderId, orderNumber, salesOrderItemId, workOrderId);
-      restoredDraftRef.current = null;
-      setInvoiceNumber("");
-      setChallanNumber("");
-      setTotalWeight(0);
-      setVehicleNumber("");
-      setDriverName("");
-      setDriverPhone("");
-      setDispatchRemarks("");
-      setTransporterName("");
-      setEwayBillNumber("");
-      setExpectedDeliveryDate("");
-      setActualFreightPaidAmount(transportationCost || 0);
-      userEditedFreight.current = false;
-      setRestoredDraftInfo(null);
-      setAvailableDraft(null);
-      setLastAutoSavedAt(null);
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
       toast.info("Saved draft was discarded.");
     }
   };
@@ -1745,7 +1695,8 @@ export default function CreateDispatchPage() {
     }
 
     // 3. Total Weight (Tons): Numeric only. Must be > 0. Allow up to 3 decimal places.
-    if (totalWeight === undefined || totalWeight === null || isNaN(totalWeight) || totalWeight <= 0) {
+    const numWeight = Number(totalWeight);
+    if (totalWeight === undefined || totalWeight === null || totalWeight === "" || isNaN(numWeight) || numWeight <= 0) {
       errors.totalWeight = "Total Weight is required and must be greater than 0.";
     } else {
       const weightStr = String(totalWeight);
@@ -1814,8 +1765,9 @@ export default function CreateDispatchPage() {
     }
 
     // 11. To Be Paid (₹): Optional. Numeric only. Must be >= 0. Allow up to 2 decimal places. Any higher/lower custom agreed freight allowed.
-    if (actualFreightPaidAmount !== undefined && actualFreightPaidAmount !== null) {
-      if (isNaN(actualFreightPaidAmount) || actualFreightPaidAmount < 0) {
+    if (actualFreightPaidAmount !== undefined && actualFreightPaidAmount !== null && actualFreightPaidAmount !== "") {
+      const numFreight = Number(actualFreightPaidAmount);
+      if (isNaN(numFreight) || numFreight < 0) {
         errors.actualFreightPaidAmount = "To Be Paid (₹) must be 0 or greater.";
       } else {
         const str = String(actualFreightPaidAmount);
@@ -1848,22 +1800,25 @@ export default function CreateDispatchPage() {
   const toggleWorkOrder = (candidate: WorkOrder) => {
     const isCurrentlySelected = selectedIds.includes(candidate.id);
     if (isCurrentlySelected) {
-      setSelectedIds((current) => current.filter((id) => id !== candidate.id));
+      setField("selectedIds", selectedIds.filter((id) => id !== candidate.id));
     } else {
-      setSelectedIds((current) => [...current, candidate.id]);
-      setDispatchQuantities((current) => ({
-        ...current,
-        [candidate.id]: current[candidate.id] && current[candidate.id] > 0
-          ? current[candidate.id]
+      const newSelectedIds = [...selectedIds, candidate.id];
+      const newQuantities = {
+        ...dispatchQuantities,
+        [candidate.id]: dispatchQuantities[candidate.id] && dispatchQuantities[candidate.id] > 0
+          ? dispatchQuantities[candidate.id]
           : (availableQuantity(candidate) > 0 ? availableQuantity(candidate) : Number(candidate.salesOrderItem?.orderedQuantity || candidate.orderedQuantity || 1)),
-      }));
+      };
+      setFields({
+        selectedIds: newSelectedIds,
+        dispatchQuantities: newQuantities,
+      });
     }
   };
 
   const handleSelectAll = () => {
     const allAvailable = filteredWorkOrders.filter((wo) => availableQuantity(wo) > 0);
     const ids = (allAvailable.length > 0 ? allAvailable : filteredWorkOrders).map((wo) => wo.id);
-    setSelectedIds(ids);
     const qtys: Record<string, number> = { ...dispatchQuantities };
     filteredWorkOrders.forEach((wo) => {
       if (!qtys[wo.id] || qtys[wo.id] <= 0) {
@@ -1872,11 +1827,14 @@ export default function CreateDispatchPage() {
         qtys[wo.id] = rem > 0 ? rem : ord;
       }
     });
-    setDispatchQuantities(qtys);
+    setFields({
+      selectedIds: ids,
+      dispatchQuantities: qtys,
+    });
   };
 
   const handleDeselectAll = () => {
-    setSelectedIds([]);
+    setField("selectedIds", []);
   };
 
   const handleToggleAll = () => {
@@ -1894,64 +1852,138 @@ export default function CreateDispatchPage() {
     const allAvailable = filteredWorkOrders.filter((wo) => availableQuantity(wo) > 0);
     const targetItems = allAvailable.length > 0 ? allAvailable : filteredWorkOrders;
     const ids = targetItems.map((wo) => wo.id);
-    setSelectedIds(ids);
     const qtys: Record<string, number> = {};
     targetItems.forEach((item) => {
       qtys[item.id] = 1;
     });
-    setDispatchQuantities((current) => ({ ...current, ...qtys }));
+    setFields({
+      selectedIds: ids,
+      dispatchQuantities: { ...dispatchQuantities, ...qtys },
+    });
   };
 
   const handleFillAllAvailable = () => {
     const allAvailable = filteredWorkOrders.filter((wo) => availableQuantity(wo) > 0);
     const targetItems = allAvailable.length > 0 ? allAvailable : filteredWorkOrders;
     const ids = targetItems.map((wo) => wo.id);
-    setSelectedIds(ids);
     const qtys: Record<string, number> = {};
     targetItems.forEach((item) => {
       const rem = availableQuantity(item);
       const ord = Number(item.salesOrderItem?.orderedQuantity || item.orderedQuantity || 1);
       qtys[item.id] = rem > 0 ? rem : ord;
     });
-    setDispatchQuantities((current) => ({ ...current, ...qtys }));
+    setFields({
+      selectedIds: ids,
+      dispatchQuantities: { ...dispatchQuantities, ...qtys },
+    });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
-      const ext = "." + file.name.split(".").pop()?.toLowerCase();
-      const allowedExtensions = [".pdf", ".jpg", ".jpeg", ".png"];
+  const handleCameraPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
 
-      if (!allowedTypes.includes(file.type.toLowerCase()) && !allowedExtensions.includes(ext)) {
-        setFileError("Only PDF, JPG, JPEG, and PNG files are allowed.");
-        setDocumentFile(null);
-        setDocumentPreview(null);
-        return;
-      }
-
+    for (const file of files) {
       if (file.size > 50 * 1024 * 1024) {
-        setFileError("Maximum allowed file size is 50 MB.");
-        setDocumentFile(null);
-        setDocumentPreview(null);
-        return;
+        toast.error(`File "${file.name}" exceeds 50 MB limit.`);
+        continue;
       }
+      try {
+        const { file: compressedFile, dataUrl } = await compressImageForDraft(file);
+        addPhoto({
+          id: crypto.randomUUID(),
+          file: compressedFile,
+          previewUrl: dataUrl,
+          dataUrl,
+          name: file.name,
+          size: compressedFile.size,
+          type: "image/jpeg",
+          source: "camera",
+        });
+        toast.success("Camera photo captured and saved to draft!");
+      } catch (err) {
+        console.warn("Failed to compress camera photo:", err);
+        const previewUrl = URL.createObjectURL(file);
+        addPhoto({
+          id: crypto.randomUUID(),
+          file,
+          previewUrl,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          source: "camera",
+        });
+        toast.success("Camera photo captured and saved!");
+      }
+    }
+    // Only clear the hidden FILE INPUT DOM value. NEVER reset the dispatch form!
+    e.target.value = "";
+  };
 
-      setFileError(null);
-      setDocumentFile(file);
-      if (file.type.startsWith("image/")) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setDocumentPreview(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-      } else {
-        setDocumentPreview(null);
+  const handleGalleryPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+
+    for (const file of files) {
+      if (file.size > 50 * 1024 * 1024) {
+        toast.error(`File "${file.name}" exceeds 50 MB limit.`);
+        continue;
       }
-    } else {
-      setFileError(null);
-      setDocumentFile(null);
-      setDocumentPreview(null);
+      if (file.type.startsWith("image/")) {
+        try {
+          const { file: compressedFile, dataUrl } = await compressImageForDraft(file);
+          addPhoto({
+            id: crypto.randomUUID(),
+            file: compressedFile,
+            previewUrl: dataUrl,
+            dataUrl,
+            name: file.name,
+            size: compressedFile.size,
+            type: "image/jpeg",
+            source: "gallery",
+          });
+        } catch (err) {
+          const previewUrl = URL.createObjectURL(file);
+          addPhoto({
+            id: crypto.randomUUID(),
+            file,
+            previewUrl,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            source: "gallery",
+          });
+        }
+      } else {
+        // PDF or other allowed document
+        addPhoto({
+          id: crypto.randomUUID(),
+          file,
+          previewUrl: "",
+          name: file.name,
+          size: file.size,
+          type: file.type || "application/pdf",
+          source: "gallery",
+        });
+      }
+    }
+    toast.success(`${files.length === 1 ? "Document" : `${files.length} documents`} attached and saved to draft!`);
+    // Only clear the hidden FILE INPUT DOM value. NEVER reset the dispatch form!
+    e.target.value = "";
+  };
+
+  const handleTriggerCamera = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = "";
+      cameraInputRef.current.click();
+    }
+  };
+
+  const handleTriggerGallery = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (galleryInputRef.current) {
+      galleryInputRef.current.value = "";
+      galleryInputRef.current.click();
     }
   };
 
@@ -2040,21 +2072,40 @@ export default function CreateDispatchPage() {
       }
 
       let uploadedDocUrl: string | undefined = undefined;
-      if (documentFile) {
-        try {
-          const formData = new FormData();
-          formData.append("file", documentFile);
-          formData.append("category", "dispatch");
-          const uploadRes = await backendFetch<any>("/api/backend/files/upload?category=dispatch", {
-            method: "POST",
-            body: formData,
-          });
-          if (uploadRes?.relativePath || uploadRes?.url) {
-            uploadedDocUrl = uploadRes.relativePath || uploadRes.url;
+      const uploadedDocUrls: string[] = [];
+
+      if (photos.length > 0) {
+        for (const p of photos) {
+          let fileToUpload = p.file;
+          if (!fileToUpload && p.dataUrl) {
+            try {
+              fileToUpload = dataURLtoFile(p.dataUrl, p.name || "dispatch_photo.jpg");
+            } catch (e) {
+              console.warn("Could not reconstruct File for upload:", e);
+            }
           }
-        } catch (uploadErr) {
-          console.warn("Document file upload failed, proceeding without attachment:", uploadErr);
+          if (fileToUpload) {
+            try {
+              const formData = new FormData();
+              formData.append("file", fileToUpload);
+              formData.append("category", "dispatch");
+              const uploadRes = await backendFetch<any>("/api/backend/files/upload?category=dispatch", {
+                method: "POST",
+                body: formData,
+              });
+              const uUrl = uploadRes?.relativePath || uploadRes?.url;
+              if (uUrl) {
+                uploadedDocUrls.push(uUrl);
+              }
+            } catch (uploadErr) {
+              console.warn("Photo upload failed for", p.name, uploadErr);
+            }
+          }
         }
+      }
+
+      if (uploadedDocUrls.length > 0) {
+        uploadedDocUrl = uploadedDocUrls[0];
       }
 
       for (const group of orderGroups.values()) {
@@ -2152,6 +2203,13 @@ export default function CreateDispatchPage() {
         if (uploadedDocUrl) {
           payload.documentUrl = uploadedDocUrl;
           payload.dispatchDocumentUrl = uploadedDocUrl;
+          if (uploadedDocUrls.length > 1) {
+            payload.documentUrls = uploadedDocUrls;
+          }
+        }
+        if (latitude !== null && longitude !== null) {
+          payload.latitude = latitude;
+          payload.longitude = longitude;
         }
 
         const individualCost = Number(
@@ -2280,10 +2338,8 @@ export default function CreateDispatchPage() {
       );
 
       // Clear draft since dispatch consignment has been successfully booked
+      clearDraft();
       clearAllDraftStorageKeys(salesOrderId, orderNumber, salesOrderItemId, workOrderId);
-      restoredDraftRef.current = null;
-      setRestoredDraftInfo(null);
-      setAvailableDraft(null);
 
       queryClient.invalidateQueries({ queryKey: ["pending-dispatch-unified-items"] });
       queryClient.invalidateQueries({ queryKey: ["in-transit-dispatches"] });
@@ -2357,22 +2413,11 @@ export default function CreateDispatchPage() {
             </p>
           </div>
           <div className={styles.heroActions}>
-            {lastAutoSavedAt && (
+            {lastSavedAt && (
               <div className={styles.draftSaveStatus}>
                 <span className={styles.draftPulseDot} />
-                <span>Auto-saved {lastAutoSavedAt}</span>
+                <span>Auto-saved {lastSavedAt}</span>
               </div>
-            )}
-            {availableDraft && (
-              <button
-                type="button"
-                className={styles.restoreDraftHeroBtn}
-                onClick={handleManualRestore}
-                title="Restore unsubmitted draft details"
-              >
-                <RotateCcw size={13} />
-                <span>Restore Draft</span>
-              </button>
             )}
             <button
               type="button"
@@ -2386,8 +2431,8 @@ export default function CreateDispatchPage() {
       </div>
 
       <div className={styles.card}>
-        {/* ── Unsubmitted Draft Restored Alert Banner ── */}
-        {restoredDraftInfo && (
+        {/* ── Unsubmitted Draft Preserved Alert Banner ── */}
+        {draftChips.length > 0 && (
           <div className={styles.draftAlertBanner}>
             <div className={styles.draftAlertContent}>
               <div className={styles.draftAlertIcon}>
@@ -2395,29 +2440,20 @@ export default function CreateDispatchPage() {
               </div>
               <div>
                 <div className={styles.draftAlertTitle}>
-                  Unsubmitted Consignment Draft Restored
-                  <span className={styles.draftAlertBadge}>Auto-Recovered</span>
+                  Dispatch Draft Preserved in Zustand
+                  <span className={styles.draftAlertBadge}>Auto-Protected</span>
                 </div>
                 <div className={styles.draftAlertText}>
-                  Details saved on {restoredDraftInfo.formattedTime} have been automatically restored so your work was not lost when leaving the app.
+                  Your dispatch form and photos are persistent across camera/gallery access, browser permission dialogs, and app switching.
                 </div>
-                {restoredDraftInfo.details && restoredDraftInfo.details.length > 0 && (
-                  <div className={styles.draftChipsRow}>
-                    {restoredDraftInfo.details.map((chip, idx) => (
-                      <span key={idx} className={styles.draftChip}>{chip}</span>
-                    ))}
-                  </div>
-                )}
+                <div className={styles.draftChipsRow}>
+                  {draftChips.map((chip, idx) => (
+                    <span key={idx} className={styles.draftChip}>{chip}</span>
+                  ))}
+                </div>
               </div>
             </div>
             <div className={styles.draftAlertActions}>
-              <button
-                type="button"
-                onClick={handleManualRestore}
-                className={styles.draftRestoreBtn}
-              >
-                <RotateCcw size={13} /> Re-apply Draft
-              </button>
               <button
                 type="button"
                 onClick={handleDiscardDraft}
@@ -2557,28 +2593,19 @@ export default function CreateDispatchPage() {
                                 onChange={(event) => {
                                   const valStr = event.target.value;
                                   if (valStr === "") {
-                                    setDispatchQuantities((current) => ({
-                                      ...current,
-                                      [candidate.id]: "" as any,
-                                    }));
+                                    setQuantityForWorkOrder(candidate.id, 0);
                                     return;
                                   }
                                   const valNum = parseInt(valStr, 10);
                                   if (!isNaN(valNum)) {
                                     const clamped = Math.max(1, Math.min(maxDispatchable, valNum));
-                                    setDispatchQuantities((current) => ({
-                                      ...current,
-                                      [candidate.id]: clamped,
-                                    }));
+                                    setQuantityForWorkOrder(candidate.id, clamped);
                                   }
                                 }}
                                 onBlur={() => {
                                   const currentVal = Number(dispatchQuantities[candidate.id]);
                                   if (!currentVal || isNaN(currentVal) || currentVal < 1) {
-                                    setDispatchQuantities((current) => ({
-                                      ...current,
-                                      [candidate.id]: remainingQty,
-                                    }));
+                                    setQuantityForWorkOrder(candidate.id, remainingQty);
                                   }
                                 }}
                                 className={styles.qtyInput}
@@ -2647,7 +2674,7 @@ export default function CreateDispatchPage() {
                 <textarea
                   className={styles.addressTextarea}
                   value={deliveryAddresses[order.id] || ""}
-                  onChange={(e) => setDeliveryAddresses((curr) => ({ ...curr, [order.id]: e.target.value }))}
+                  onChange={(e) => setDeliveryAddressForOrder(order.id, e.target.value)}
                   placeholder={`Delivery Address for ${order.orderNumber}...`}
                 />
               </div>
@@ -2669,10 +2696,7 @@ export default function CreateDispatchPage() {
             <input
               type="text"
               value={invoiceNumber}
-              onChange={(e) => {
-                setInvoiceNumber(e.target.value);
-                setTouchedFields((t) => ({ ...t, invoiceNumber: true }));
-              }}
+              onChange={(e) => handleInputChange("invoiceNumber", e.target.value)}
               className={styles.formInput}
               placeholder="e.g. INV-2026-001"
             />
@@ -2689,10 +2713,7 @@ export default function CreateDispatchPage() {
             <input
               type="text"
               value={challanNumber}
-              onChange={(e) => {
-                setChallanNumber(e.target.value);
-                setTouchedFields((t) => ({ ...t, challanNumber: true }));
-              }}
+              onChange={(e) => handleInputChange("challanNumber", e.target.value)}
               className={styles.formInput}
               placeholder="e.g. CHN-2026-001"
             />
@@ -2713,8 +2734,7 @@ export default function CreateDispatchPage() {
               value={totalWeight || ""}
               onChange={(e) => {
                 const val = e.target.value;
-                setTotalWeight(val === "" ? 0 : Number(val));
-                setTouchedFields((t) => ({ ...t, totalWeight: true }));
+                handleInputChange("totalWeight", val === "" ? 0 : Number(val));
               }}
               className={styles.formInput}
               placeholder="e.g. 15.5"
@@ -2732,10 +2752,7 @@ export default function CreateDispatchPage() {
             <input
               type="text"
               value={vehicleNumber}
-              onChange={(e) => {
-                setVehicleNumber(e.target.value.toUpperCase());
-                setTouchedFields((t) => ({ ...t, vehicleNumber: true }));
-              }}
+              onChange={(e) => handleInputChange("vehicleNumber", e.target.value.toUpperCase())}
               className={styles.formInput}
               placeholder="e.g. UK-07-CB-1234"
             />
@@ -2754,8 +2771,7 @@ export default function CreateDispatchPage() {
               value={driverName}
               onChange={(e) => {
                 const val = e.target.value.replace(/[^A-Za-z\s]/g, "");
-                setDriverName(val);
-                setTouchedFields((t) => ({ ...t, driverName: true }));
+                handleInputChange("driverName", val);
               }}
               className={styles.formInput}
               placeholder="e.g. Ramesh Singh"
@@ -2776,8 +2792,7 @@ export default function CreateDispatchPage() {
               value={driverPhone}
               onChange={(e) => {
                 const val = e.target.value.replace(/\D/g, "").slice(0, 10);
-                setDriverPhone(val);
-                setTouchedFields((t) => ({ ...t, driverPhone: true }));
+                handleInputChange("driverPhone", val);
               }}
               className={styles.formInput}
               placeholder="e.g. 9876543210"
@@ -2796,10 +2811,7 @@ export default function CreateDispatchPage() {
               type="text"
               maxLength={500}
               value={dispatchRemarks}
-              onChange={(e) => {
-                setDispatchRemarks(e.target.value);
-                setTouchedFields((t) => ({ ...t, dispatchRemarks: true }));
-              }}
+              onChange={(e) => handleInputChange("dispatchRemarks", e.target.value)}
               className={styles.formInput}
               placeholder="e.g. Fragile items loaded carefully"
             />
@@ -2817,10 +2829,7 @@ export default function CreateDispatchPage() {
               type="text"
               maxLength={100}
               value={transporterName}
-              onChange={(e) => {
-                setTransporterName(e.target.value);
-                setTouchedFields((t) => ({ ...t, transporterName: true }));
-              }}
+              onChange={(e) => handleInputChange("transporterName", e.target.value)}
               className={styles.formInput}
               placeholder="e.g. Himalaya Own Fleet / DTDC"
             />
@@ -2838,10 +2847,7 @@ export default function CreateDispatchPage() {
               type="text"
               maxLength={50}
               value={ewayBillNumber}
-              onChange={(e) => {
-                setEwayBillNumber(e.target.value.toUpperCase());
-                setTouchedFields((t) => ({ ...t, ewayBillNumber: true }));
-              }}
+              onChange={(e) => handleInputChange("ewayBillNumber", e.target.value.toUpperCase())}
               className={styles.formInput}
               placeholder="e.g. LR-2024-00123"
             />
@@ -2858,10 +2864,7 @@ export default function CreateDispatchPage() {
             <input
               type="date"
               value={expectedDeliveryDate}
-              onChange={(e) => {
-                setExpectedDeliveryDate(e.target.value);
-                setTouchedFields((t) => ({ ...t, expectedDeliveryDate: true }));
-              }}
+              onChange={(e) => handleInputChange("expectedDeliveryDate", e.target.value)}
               className={styles.formInput}
             />
             {touchedFields.expectedDeliveryDate && fieldErrors.expectedDeliveryDate && (
@@ -2893,10 +2896,9 @@ export default function CreateDispatchPage() {
               step="0.01"
               value={actualFreightPaidAmount !== undefined ? actualFreightPaidAmount : ""}
               onChange={(e) => {
-                userEditedFreight.current = true;
+                setField("userEditedFreight", true);
                 const val = e.target.value;
-                setActualFreightPaidAmount(val === "" ? 0 : Number(val));
-                setTouchedFields((t) => ({ ...t, actualFreightPaidAmount: true }));
+                handleInputChange("actualFreightPaidAmount", val === "" ? 0 : Number(val));
               }}
               className={styles.formInput}
               placeholder="e.g. 500.00"
@@ -2908,47 +2910,111 @@ export default function CreateDispatchPage() {
             )}
           </div>
 
-          {/* Dispatch Document (PDF / Image) */}
+          {/* Dispatch Document (Camera / Gallery / PDF) */}
           <div className={`${styles.formGroup} ${styles.span2}`}>
             <label className={styles.formLabel}>
-              Dispatch Document (PDF / Image){" "}
+              Dispatch Document (Invoice / Challan / LR Photo / PDF){" "}
               <span style={{ fontSize: "11px", fontWeight: "normal", color: "#64748b" }}>(Max 50 MB)</span>
             </label>
-            <label className={styles.fileInput}>
-              <span className={styles.fileInputBtn}>Choose File</span>
-              <span className={styles.fileInputText}>
-                {documentFile ? documentFile.name : "No file chosen"}
-              </span>
-              <input 
-                type="file" 
-                accept="image/jpeg,image/jpg,image/png,application/pdf" 
-                style={{ display: "none" }} 
-                onChange={handleFileChange}
-              />
-            </label>
+
+            {/* Hidden file inputs for Camera and Gallery */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: "none" }}
+              onChange={handleCameraPhotoSelected}
+            />
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,application/pdf"
+              multiple
+              style={{ display: "none" }}
+              onChange={handleGalleryPhotoSelected}
+            />
+
+            {/* Camera and Gallery option buttons */}
+            <div className={styles.docButtonRow}>
+              <button
+                type="button"
+                className={styles.cameraOptionBtn}
+                onClick={handleTriggerCamera}
+                title="Open Camera directly to snap a photo of invoice / bill / LR"
+              >
+                <Camera size={17} />
+                <span>Take Camera Photo</span>
+              </button>
+              <button
+                type="button"
+                className={styles.galleryOptionBtn}
+                onClick={handleTriggerGallery}
+                title="Select existing photo or PDF from gallery / files"
+              >
+                <ImageIcon size={17} />
+                <span>Select from Gallery / PDF</span>
+              </button>
+            </div>
+
             {fileError && (
               <span style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px", display: "block", fontWeight: 600 }}>
                 {fileError}
               </span>
             )}
-            {documentPreview && (
-              <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: "12px" }}>
-                <img 
-                  src={documentPreview} 
-                  alt="Document Preview" 
-                  style={{ maxWidth: "200px", maxHeight: "200px", borderRadius: "8px", border: "1px solid #e2e8f0", objectFit: "contain" }} 
-                />
-                {documentFile && (
-                  <span style={{ fontSize: 13, color: "#64748b" }}>
-                    {documentFile.name} ({documentFile.size > 1024 * 1024 ? `${(documentFile.size / (1024 * 1024)).toFixed(2)} MB` : `${(documentFile.size / 1024).toFixed(1)} KB`})
-                  </span>
-                )}
+
+            {/* Multi-Photo / Document Grid */}
+            {photos.length > 0 ? (
+              <div className={styles.photosContainer}>
+                <div className={styles.photoGrid}>
+                  {photos.map((p) => {
+                    const isPdf = p.type?.toLowerCase().includes("pdf") || p.name.toLowerCase().endsWith(".pdf");
+                    return (
+                      <div key={p.id} className={styles.photoCard}>
+                        <span className={`${styles.photoSourceBadge} ${p.source === "gallery" ? styles.gallery : ""}`}>
+                          {p.source === "camera" ? "Camera" : "Gallery / File"}
+                        </span>
+                        {p.previewUrl ? (
+                          <img
+                            src={p.previewUrl}
+                            alt={p.name || "Dispatch photo"}
+                            className={styles.docThumbnail}
+                          />
+                        ) : isPdf ? (
+                          <div className={styles.pdfIconBadge}>PDF</div>
+                        ) : (
+                          <div className={styles.pdfIconBadge}>FILE</div>
+                        )}
+                        <div className={styles.docDetails}>
+                          <div className={styles.docFileName} title={p.name}>
+                            {p.name || "Dispatch Attachment"}
+                          </div>
+                          <div className={styles.docFileSize}>
+                            {p.size
+                              ? p.size > 1024 * 1024
+                                ? `${(p.size / (1024 * 1024)).toFixed(2)} MB`
+                                : `${(p.size / 1024).toFixed(1)} KB`
+                              : "Saved in Draft"}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className={styles.docRemoveBtn}
+                          onClick={() => removePhoto(p.id)}
+                          title="Remove attachment"
+                        >
+                          <Trash2 size={13} />
+                          <span>Remove</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            )}
-            {documentFile && !documentPreview && (
-               <div style={{ marginTop: 12, fontSize: 13, color: '#64748b' }}>
-                 Selected PDF: {documentFile.name} ({documentFile.size > 1024 * 1024 ? `${(documentFile.size / (1024 * 1024)).toFixed(2)} MB` : `${(documentFile.size / 1024).toFixed(1)} KB`})
-               </div>
+            ) : (
+              <div className={styles.docPlaceholder}>
+                No document attached yet. Tap &ldquo;Take Camera Photo&rdquo; or &ldquo;Select from Gallery / PDF&rdquo; to attach proof.
+              </div>
             )}
           </div>
 
@@ -2963,7 +3029,7 @@ export default function CreateDispatchPage() {
               selectedWorkOrders.length === 0 ||
               !invoiceNumber.trim() ||
               !challanNumber.trim() ||
-              !totalWeight || totalWeight <= 0 ||
+              !totalWeight || Number(totalWeight) <= 0 ||
               !vehicleNumber.trim() ||
               !driverName.trim() ||
               !expectedDeliveryDate ||
@@ -2974,7 +3040,7 @@ export default function CreateDispatchPage() {
               (selectedWorkOrders.length === 0 ||
               !invoiceNumber.trim() ||
               !challanNumber.trim() ||
-              !totalWeight || totalWeight <= 0 ||
+              !totalWeight || Number(totalWeight) <= 0 ||
               !vehicleNumber.trim() ||
               !driverName.trim() ||
               !expectedDeliveryDate ||
