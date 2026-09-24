@@ -678,9 +678,9 @@ export class NotificationsService {
     actorMeta?: { actorUserId?: string; actorRole?: string; actorName?: string },
   ) {
     const { roleCodes, userIds, employeeIds, title, message, route, priority, sender, module: reqModule } = body;
-    const targetRoles = Array.isArray(roleCodes) ? roleCodes : roleCodes ? [roleCodes] : [];
-    let specificUserIds = Array.isArray(userIds) ? userIds : userIds ? [userIds] : [];
-    const specificEmpIds = Array.isArray(employeeIds) ? employeeIds : employeeIds ? [employeeIds] : [];
+    const rawTargetRoles = Array.isArray(roleCodes) ? roleCodes : roleCodes ? [roleCodes] : [];
+    let rawUserIds = Array.isArray(userIds) ? userIds : userIds ? [userIds] : [];
+    const rawEmpIds = Array.isArray(employeeIds) ? employeeIds : employeeIds ? [employeeIds] : [];
 
     // Determine sender module: 'HR' vs 'SUPER_ADMIN'
     const declaredSender = String(sender || reqModule || actorMeta?.actorRole || '').toUpperCase();
@@ -690,28 +690,89 @@ export class NotificationsService {
     const actorName = actorMeta?.actorName || defaultActorName;
     const actorUserId = actorMeta?.actorUserId;
 
-    // Map employeeIds / employeeCodes to userIds if provided
-    if (specificEmpIds.length > 0) {
-      try {
-        const emps = await this.prisma.employee.findMany({
-          where: {
-            OR: [
-              { id: { in: specificEmpIds } },
-              { employeeCode: { in: specificEmpIds } },
-            ],
-            ...(companyId ? { companyId } : {}),
-          },
-          select: { userId: true, id: true, employeeCode: true },
-        });
-        const mappedUserIds = emps
-          .map((e) => e.userId)
-          .filter(Boolean) as string[];
-        specificUserIds = Array.from(
-          new Set([...specificUserIds, ...mappedUserIds, ...specificEmpIds]),
-        );
-      } catch (err) {
-        // Fallback
-      }
+    // Role & Department Mappings for broad, department-accurate coverage
+    const ROLE_ALIASES: Record<string, string[]> = {
+      PRODUCTION: ['PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'PRODUCTION', 'PRODUCTION_MANAGER', 'PRODUCTION_HEAD'],
+      PRODUCTION_PLANNER: ['PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'PRODUCTION', 'PRODUCTION_MANAGER'],
+      PRODUCTION_OPERATOR: ['PRODUCTION_OPERATOR', 'PRODUCTION_PLANNER', 'PRODUCTION'],
+      DISPATCH: ['DISPATCH_EXECUTIVE', 'DISPATCH_1', 'DISPATCH_2', 'DISPATCH'],
+      DISPATCH_1: ['DISPATCH_EXECUTIVE', 'DISPATCH_1', 'DISPATCH'],
+      DISPATCH_2: ['DISPATCH_2', 'DISPATCH_EXECUTIVE'],
+      DISPATCH_EXECUTIVE: ['DISPATCH_EXECUTIVE', 'DISPATCH_1', 'DISPATCH_2', 'DISPATCH'],
+      PLANT_HEAD: ['PLANT_HEAD'],
+      SALES: ['SALES_EXECUTIVE', 'SALES_MANAGER', 'SUPER_SALES', 'SALES'],
+      SALES_EXECUTIVE: ['SALES_EXECUTIVE', 'SALES_MANAGER', 'SUPER_SALES', 'SALES'],
+      SALES_MANAGER: ['SALES_MANAGER', 'SALES_EXECUTIVE', 'SUPER_SALES', 'SALES'],
+      SUPER_SALES: ['SUPER_SALES', 'SALES_MANAGER', 'SALES_EXECUTIVE', 'SALES'],
+      QC: ['QC_INSPECTOR', 'QC_MANAGER', 'QC'],
+      QC_INSPECTOR: ['QC_INSPECTOR', 'QC_MANAGER', 'QC'],
+      STORE: ['STORE_MANAGER', 'STORE_EXECUTIVE', 'STORE'],
+      STORE_MANAGER: ['STORE_MANAGER', 'STORE_EXECUTIVE', 'STORE'],
+      FINANCE: ['FINANCE_MANAGER', 'FINANCE_EXECUTIVE', 'FINANCE'],
+      FINANCE_MANAGER: ['FINANCE_MANAGER', 'FINANCE_EXECUTIVE', 'FINANCE'],
+      FINANCE_EXECUTIVE: ['FINANCE_EXECUTIVE', 'FINANCE_MANAGER', 'FINANCE'],
+      HR: ['HR', 'HR_MANAGER', 'HR_EXECUTIVE'],
+      MANAGEMENT: ['SUPER_ADMIN', 'ADMIN', 'BACK_OFFICE', 'PLANT_HEAD'],
+      ADMIN: ['SUPER_ADMIN', 'ADMIN', 'BACK_OFFICE'],
+      SUPER_ADMIN: ['SUPER_ADMIN', 'ADMIN', 'BACK_OFFICE'],
+    };
+
+    const DEPT_KEYWORDS: Record<string, string[]> = {
+      SALES: ['Sales', 'Sales Department', 'DEPT-SALES', 'DEPT_SALES_DEPARTMENT'],
+      SALES_EXECUTIVE: ['Sales', 'Sales Department', 'DEPT-SALES', 'DEPT_SALES_DEPARTMENT'],
+      PRODUCTION: ['Production', 'Production Department', 'DEPT-PRODUCTION', 'DEPT_PRODUCTION_DEPARTMENT'],
+      PRODUCTION_PLANNER: ['Production', 'Production Department', 'DEPT-PRODUCTION', 'DEPT_PRODUCTION_DEPARTMENT'],
+      STORE: ['Store', 'Store Department', 'DEPT-STORE', 'DEPT_STORE_DEPARTMENT', 'Warehouse'],
+      STORE_MANAGER: ['Store', 'Store Department', 'DEPT-STORE', 'DEPT_STORE_DEPARTMENT', 'Warehouse'],
+      QC: ['QC', 'Quality', 'QC Department', 'DEPT-QC'],
+      QC_INSPECTOR: ['QC', 'Quality', 'QC Department', 'DEPT-QC'],
+      DISPATCH: ['Dispatch', 'Dispatch Department', 'DEPT-DISPATCH', 'DEPT_DISPATCH_DEPARTMENT'],
+      DISPATCH_EXECUTIVE: ['Dispatch', 'Dispatch Department', 'DEPT-DISPATCH', 'DEPT_DISPATCH_DEPARTMENT'],
+      FINANCE: ['Finance', 'Accounts', 'Finance Department', 'DEPT-FINANCE', 'DEPT_FINANCE_DEPARTMENT'],
+      FINANCE_EXECUTIVE: ['Finance', 'Accounts', 'Finance Department', 'DEPT-FINANCE', 'DEPT_FINANCE_DEPARTMENT'],
+      HR: ['HR', 'Human Resources', 'HR Department', 'DEPT-HR', 'DEPT_HR_DEPARTMENT'],
+      PLANT_HEAD: ['Operations', 'Plant', 'Plant Head'],
+      MANAGEMENT: ['Admin', 'Super Admin', 'DEPT-SUPER-ADMIN', 'DEPT_SUPER_ADMIN_DEPARTMENT', 'Management'],
+      SUPER_ADMIN: ['Admin', 'Super Admin', 'DEPT-SUPER-ADMIN', 'DEPT_SUPER_ADMIN_DEPARTMENT', 'Management'],
+    };
+
+    // 1. Resolve User-Wise Target Recipients
+    const combinedIdentifiers = Array.from(new Set([...rawUserIds, ...rawEmpIds].map((x) => String(x).trim()))).filter(Boolean);
+    let resolvedUserIds: string[] = [];
+
+    if (combinedIdentifiers.length > 0) {
+      // Find matching users directly
+      const directUsers = await this.prisma.user.findMany({
+        where: {
+          OR: [
+            { id: { in: combinedIdentifiers } },
+            { publicId: { in: combinedIdentifiers } },
+            { email: { in: combinedIdentifiers } },
+          ],
+          ...(companyId ? { companyId } : {}),
+        },
+        select: { id: true },
+      });
+      resolvedUserIds.push(...directUsers.map((u) => u.id));
+
+      // Find users linked via employee table
+      const linkedEmployees = await this.prisma.employee.findMany({
+        where: {
+          OR: [
+            { id: { in: combinedIdentifiers } },
+            { publicId: { in: combinedIdentifiers } },
+            { employeeCode: { in: combinedIdentifiers } },
+            { workEmail: { in: combinedIdentifiers } },
+            { userId: { in: combinedIdentifiers } },
+          ],
+          ...(companyId ? { companyId } : {}),
+        },
+        select: { userId: true },
+      });
+      resolvedUserIds.push(
+        ...linkedEmployees.map((e) => e.userId).filter(Boolean) as string[],
+      );
+      resolvedUserIds = Array.from(new Set(resolvedUserIds));
     }
 
     let whereClause: any = {
@@ -719,23 +780,66 @@ export class NotificationsService {
       ...(companyId ? { companyId } : {}),
     };
 
-    if (specificUserIds.length > 0) {
-      whereClause.OR = [
-        { id: { in: specificUserIds } },
-        { employee: { id: { in: specificUserIds } } },
-        { employee: { employeeCode: { in: specificUserIds } } },
+    if (resolvedUserIds.length > 0) {
+      whereClause.id = { in: resolvedUserIds };
+    } else if (rawTargetRoles.length > 0 && !rawTargetRoles.includes('ALL')) {
+      const expandedRoleSet = new Set<string>();
+      const deptKeywordsSet = new Set<string>();
+
+      for (const r of rawTargetRoles) {
+        const upper = String(r || '').toUpperCase();
+        expandedRoleSet.add(upper);
+        if (ROLE_ALIASES[upper]) {
+          ROLE_ALIASES[upper].forEach((alias) => expandedRoleSet.add(alias));
+        }
+        if (DEPT_KEYWORDS[upper]) {
+          DEPT_KEYWORDS[upper].forEach((kw) => deptKeywordsSet.add(kw));
+        }
+      }
+
+      const roleList = Array.from(expandedRoleSet);
+      const kwList = Array.from(deptKeywordsSet);
+
+      const orConditions: any[] = [
+        { role: { code: { in: roleList } } },
+        { role: { name: { in: roleList } } },
       ];
-    } else if (targetRoles.length > 0 && !targetRoles.includes('ALL')) {
-      whereClause.OR = [
-        { role: { code: { in: targetRoles } } },
-        { role: { name: { in: targetRoles } } },
-      ];
+
+      if (kwList.length > 0) {
+        orConditions.push({
+          employee: {
+            department: {
+              code: { in: kwList },
+            },
+          },
+        });
+        for (const kw of kwList) {
+          orConditions.push({
+            employee: {
+              department: {
+                name: { contains: kw, mode: 'insensitive' },
+              },
+            },
+          });
+        }
+      }
+
+      whereClause.OR = orConditions;
     }
 
-    const users = await this.prisma.user.findMany({
+    let users = await this.prisma.user.findMany({
       where: whereClause,
-      select: { id: true },
+      select: { id: true, companyId: true },
     });
+
+    if (users.length === 0 && companyId) {
+      const fallbackFilter = { ...whereClause };
+      delete fallbackFilter.companyId;
+      users = await this.prisma.user.findMany({
+        where: fallbackFilter,
+        select: { id: true, companyId: true },
+      });
+    }
 
     if (users.length === 0) {
       return {
@@ -753,9 +857,13 @@ export class NotificationsService {
       else if (pUpper === 'MEDIUM' || pUpper === 'NORMAL') parsedPriority = NotificationPriority.MEDIUM;
     }
 
+    let pushDeliveredCount = 0;
+    let pushNoTokensCount = 0;
+    let pushFailedCount = 0;
+
     for (const u of users) {
-      await this.notifyUser({
-        companyId,
+      const notif = await this.notifyUser({
+        companyId: u.companyId || companyId,
         userId: u.id,
         type: 'BROADCAST',
         module: senderModule,
@@ -766,12 +874,21 @@ export class NotificationsService {
         actorUserId,
         actorName,
       });
+
+      if (notif) {
+        if (notif.fcmStatus === 'SENT' || notif.fcmStatus === 'PARTIAL') pushDeliveredCount++;
+        else if (notif.fcmStatus === 'NO_TOKENS') pushNoTokensCount++;
+        else if (notif.fcmStatus === 'FAILED') pushFailedCount++;
+      }
     }
 
     return {
       success: true,
       count: users.length,
-      message: `Successfully broadcasted notification to ${users.length} user(s).`,
+      pushDelivered: pushDeliveredCount,
+      pushNoTokens: pushNoTokensCount,
+      pushFailed: pushFailedCount,
+      message: `Successfully broadcasted notification to ${users.length} user(s) (${pushDeliveredCount} received push alert).`,
     };
   }
 

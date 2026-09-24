@@ -5,10 +5,14 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { NotificationsService, NotificationPriority } from '../notifications/notifications.service';
 
 @Injectable()
 export class LeaveService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   private async getActiveCompanyId(companyId: string): Promise<string> {
     const companyExists = await this.prisma.company.findUnique({
@@ -248,7 +252,36 @@ export class LeaveService {
         status,
         currentApprover,
       },
+      include: {
+        employee: {
+          select: { fullName: true, employeeCode: true, user: { select: { id: true, name: true } } },
+        },
+      },
     });
+
+    // Notify appropriate approver role (HR, Plant Head, or Super Admin)
+    try {
+      const applicantName = leaveRequest.employee?.fullName || 'Employee';
+      const targetRole = currentApprover || (status === 'PENDING_HR' ? 'HR' : status === 'PENDING_PLANT_HEAD' ? 'PLANT_HEAD' : 'SUPER_ADMIN');
+      const targetRoute = targetRole === 'HR' ? '/hr/leaves' : targetRole === 'PLANT_HEAD' ? '/plant/leaves' : '/super-admin/leaves';
+
+      await this.notificationsService.notifyRole({
+        companyId: activeCompanyId,
+        role: targetRole,
+        type: 'LEAVE',
+        module: 'HR',
+        priority: NotificationPriority.HIGH,
+        title: `Leave Application: ${applicantName}`,
+        message: `${applicantName} submitted a ${totalDays}-day ${body.leaveType || 'Casual'} leave request starting ${body.fromDate}. Reason: ${body.reason || 'Personal'}`,
+        route: targetRoute,
+        entityType: 'LeaveRequest',
+        entityId: leaveRequest.id,
+        actorUserId: userId,
+        actorName: applicantName,
+      });
+    } catch (notifErr) {
+      // Notification dispatch failure should not block core request persistence
+    }
 
     return leaveRequest;
   }
@@ -474,6 +507,28 @@ export class LeaveService {
       },
     });
 
+    // Notify employee of approval
+    try {
+      const applicantUserId = leave.employee?.userId;
+      if (applicantUserId) {
+        const fromDateStr = leave.fromDate instanceof Date ? leave.fromDate.toISOString().slice(0, 10) : String(leave.fromDate).slice(0, 10);
+        await this.notificationsService.notifyUser({
+          companyId: activeCompanyId,
+          userId: applicantUserId,
+          type: 'LEAVE',
+          module: 'HR',
+          priority: NotificationPriority.HIGH,
+          title: 'Leave Request Approved ✅',
+          message: `Your leave request for ${leave.totalDays} day(s) from ${fromDateStr} has been approved by ${user.name}.`,
+          route: '/my-leaves',
+          entityType: 'LeaveRequest',
+          entityId: id,
+          actorUserId: userId,
+          actorName: user.name,
+        });
+      }
+    } catch (notifErr) {}
+
     return updated;
   }
 
@@ -488,6 +543,7 @@ export class LeaveService {
     const roleCode = String(user.role?.code || '').toUpperCase();
     const leave = await this.prisma.leaveRequest.findUnique({
       where: { id },
+      include: { employee: true },
     });
     if (!leave) throw new NotFoundException('Leave request not found');
 
@@ -510,6 +566,28 @@ export class LeaveService {
         remarks: body.remarks || 'Rejected',
       },
     });
+
+    // Notify employee of rejection
+    try {
+      const applicantUserId = leave.employee?.userId;
+      if (applicantUserId) {
+        const fromDateStr = leave.fromDate instanceof Date ? leave.fromDate.toISOString().slice(0, 10) : String(leave.fromDate).slice(0, 10);
+        await this.notificationsService.notifyUser({
+          companyId: activeCompanyId,
+          userId: applicantUserId,
+          type: 'LEAVE',
+          module: 'HR',
+          priority: NotificationPriority.HIGH,
+          title: 'Leave Request Rejected ❌',
+          message: `Your leave request from ${fromDateStr} was rejected by ${user.name}. Reason: ${body.remarks || 'No remarks provided'}`,
+          route: '/my-leaves',
+          entityType: 'LeaveRequest',
+          entityId: id,
+          actorUserId: userId,
+          actorName: user.name,
+        });
+      }
+    } catch (notifErr) {}
 
     return updated;
   }

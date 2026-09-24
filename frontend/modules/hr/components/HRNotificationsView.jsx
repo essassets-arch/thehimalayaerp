@@ -8,11 +8,12 @@ import { useAuth } from '../../../shared/context/AuthContext';
 import { apiClient } from '../../../lib/apiClient';
 import { getBackendAssetUrl } from '../../../lib/assetUrl';
 import { employeesService } from '../../../services/hr/employeesService';
+import { initializePushNotifications } from '../../../shared/firebase/messaging';
 import { 
   Bell, Calendar, Clock, CheckCircle2, AlertTriangle, UserCheck, 
   ArrowRight, ShieldCheck, FileText, UserX, CreditCard, ChevronRight, 
   Check, X, Filter, RefreshCw, Send, Megaphone, Users, User, ShieldAlert, 
-  Sparkles, CheckSquare, Search, AtSign
+  Sparkles, CheckSquare, Search, AtSign, Smartphone, Zap, Volume2, Shield
 } from 'lucide-react';
 
 export default function HRNotificationsView() {
@@ -26,6 +27,17 @@ export default function HRNotificationsView() {
 
   // Recipient Target Mode: 'DEPARTMENT' (Role/Dept broadcast) vs 'USER_WISE' (Specific staff / users)
   const [recipientMode, setRecipientMode] = useState('DEPARTMENT');
+
+  // Push notification diagnostics states
+  const [pushStatus, setPushStatus] = useState({
+    permission: 'default',
+    isSupported: true,
+    hasToken: false,
+    backendConfigured: true,
+    registeredTokensCount: 0
+  });
+  const [testingPush, setTestingPush] = useState(false);
+  const [enablingPush, setEnablingPush] = useState(false);
 
   // Roster & employee list
   const [employees, setEmployees] = useState([]);
@@ -55,16 +67,74 @@ export default function HRNotificationsView() {
   const [processedAlerts, setProcessedAlerts] = useState({});
 
   const DEPARTMENTS = [
-    { code: 'SALES_EXECUTIVE', name: 'Sales' },
-    { code: 'PRODUCTION_PLANNER', name: 'Production' },
-    { code: 'STORE_MANAGER', name: 'Store' },
-    { code: 'QC_INSPECTOR', name: 'QC' },
-    { code: 'DISPATCH_EXECUTIVE', name: 'Dispatch' },
-    { code: 'FINANCE_EXECUTIVE', name: 'Finance' },
-    { code: 'HR', name: 'HR' },
+    { code: 'SALES', name: 'Sales Department' },
+    { code: 'PRODUCTION', name: 'Production' },
+    { code: 'STORE', name: 'Store & Warehouse' },
+    { code: 'QC', name: 'Quality Control' },
+    { code: 'DISPATCH', name: 'Dispatch & Logistics' },
+    { code: 'FINANCE', name: 'Finance & Accounts' },
+    { code: 'HR', name: 'Human Resources' },
     { code: 'PLANT_HEAD', name: 'Plant Head' },
     { code: 'SUPER_ADMIN', name: 'Management' }
   ];
+
+  // Check push notification status
+  const checkPushStatus = useCallback(async () => {
+    if (typeof window === 'undefined') return;
+    const hasNotification = 'Notification' in window;
+    const perm = hasNotification ? window.Notification.permission : 'unsupported';
+    const savedToken = localStorage.getItem('registered_fcm_token');
+    
+    let backendInfo = { isConfigured: true, registeredTokensCount: 0 };
+    try {
+      const res = await apiClient.get('/notifications/push-status');
+      if (res) backendInfo = res;
+    } catch (e) {
+      // Best effort
+    }
+
+    setPushStatus({
+      permission: perm,
+      isSupported: hasNotification,
+      hasToken: !!savedToken || (backendInfo.registeredTokensCount > 0),
+      backendConfigured: backendInfo.isConfigured !== false,
+      registeredTokensCount: backendInfo.registeredTokensCount || 0
+    });
+  }, []);
+
+  useEffect(() => {
+    checkPushStatus();
+  }, [checkPushStatus]);
+
+  const handleEnablePush = async () => {
+    try {
+      setEnablingPush(true);
+      const res = await initializePushNotifications();
+      await checkPushStatus();
+      if (res?.success) {
+        showToast('Push notifications successfully enabled for this device! 🔔');
+      } else {
+        showToast(res?.error || 'Unable to enable push notifications. Check browser settings.');
+      }
+    } catch (err) {
+      showToast(`Push enable error: ${err.message}`);
+    } finally {
+      setEnablingPush(false);
+    }
+  };
+
+  const handleTestPush = async () => {
+    try {
+      setTestingPush(true);
+      const res = await apiClient.post('/notifications/test-push');
+      showToast('🚀 Test push alert triggered! Check your browser notifications & bell counter.');
+      await checkPushStatus();
+    } catch (err) {
+      showToast(`Test push failed: ${err.message || 'Error triggering test push'}`);
+    } finally {
+      setTestingPush(false);
+    }
+  };
 
   // Fetch employees and users
   useEffect(() => {
@@ -267,13 +337,15 @@ export default function HRNotificationsView() {
 
       if (recipientMode === 'USER_WISE') {
         payload.userIds = selectedUserIds;
+        payload.employeeIds = selectedUserIds;
       } else {
         payload.roleCodes = selectedNotifDepts;
       }
 
       const res = await apiClient.post('/notifications/broadcast', payload);
       const targetCount = recipientMode === 'USER_WISE' ? selectedUserIds.length : (isAllDeptsSelected ? 'All' : selectedNotifDepts.length);
-      showToast(`Notification sent successfully to ${recipientMode === 'USER_WISE' ? `${targetCount} selected user(s)` : `${targetCount} department(s)`}! 📢`);
+      const deliveredText = res?.pushDelivered ? ` (${res.pushDelivered} push alerts delivered)` : '';
+      showToast(res?.message || `Notification sent successfully to ${recipientMode === 'USER_WISE' ? `${targetCount} selected user(s)` : `${targetCount} department(s)`}! 📢${deliveredText}`);
       
       setNotifComposer({
         title: '',
@@ -408,9 +480,28 @@ export default function HRNotificationsView() {
       )
     : null;
 
-  const handleAction = (alertId, actionName) => {
-    setProcessedAlerts(prev => ({ ...prev, [alertId]: actionName }));
-    showToast(`Action "${actionName}" recorded for checkpoint ${alertId}`);
+  const handleAction = async (alertId, actionName) => {
+    try {
+      if (selectedAlert?.realRequestId) {
+        if (selectedAlert.type === 'LEAVE') {
+          if (actionName === 'APPROVED') {
+            await apiClient.patch(`/leaves/${selectedAlert.realRequestId}/approve`, { remarks: 'Approved from HR Notification Center' });
+          } else {
+            await apiClient.patch(`/leaves/${selectedAlert.realRequestId}/reject`, { remarks: 'Rejected from HR Notification Center' });
+          }
+        } else if (selectedAlert.type === 'ATTENDANCE') {
+          if (actionName === 'APPROVED') {
+            await apiClient.patch(`/attendance-requests/${selectedAlert.realRequestId}/approve`, { remarks: 'Approved from HR Notification Center' });
+          } else {
+            await apiClient.patch(`/attendance-requests/${selectedAlert.realRequestId}/reject`, { remarks: 'Rejected from HR Notification Center' });
+          }
+        }
+      }
+      setProcessedAlerts(prev => ({ ...prev, [alertId]: actionName }));
+      showToast(`Action "${actionName}" recorded for checkpoint ${alertId} 🎯`);
+    } catch (err) {
+      showToast(`Action failed: ${err.message || 'Server error'}`);
+    }
   };
 
   return (
@@ -526,6 +617,105 @@ export default function HRNotificationsView() {
       {mainSection === 'broadcast' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
           
+          {/* Push Notification Diagnostics & Real-Time Gateway Banner */}
+          <div style={{
+            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+            borderRadius: '14px',
+            padding: '16px 22px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '14px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{
+                background: pushStatus.permission === 'granted' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(234, 179, 8, 0.15)',
+                border: `1.5px solid ${pushStatus.permission === 'granted' ? '#22c55e' : '#eab308'}`,
+                borderRadius: '12px',
+                padding: '10px',
+                display: 'flex'
+              }}>
+                <Smartphone size={22} color={pushStatus.permission === 'granted' ? '#22c55e' : '#eab308'} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: '#f8fafc' }}>
+                    Web Push &amp; FCM Push Notification Gateway
+                  </span>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                    background: pushStatus.permission === 'granted' ? 'rgba(34, 197, 94, 0.2)' : pushStatus.permission === 'denied' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(234, 179, 8, 0.2)',
+                    color: pushStatus.permission === 'granted' ? '#4ade80' : pushStatus.permission === 'denied' ? '#f87171' : '#fde047',
+                    border: `1px solid ${pushStatus.permission === 'granted' ? '#22c55e' : pushStatus.permission === 'denied' ? '#ef4444' : '#eab308'}`
+                  }}>
+                    {pushStatus.permission === 'granted' ? '● PUSH ACTIVE' : pushStatus.permission === 'denied' ? '● PERMISSION BLOCKED' : '● PERMISSION NEEDED'}
+                  </span>
+                </div>
+                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
+                  {pushStatus.permission === 'granted'
+                    ? 'Your browser is registered with Firebase Cloud Messaging (FCM) to receive instant notifications.'
+                    : pushStatus.permission === 'denied'
+                    ? 'Browser notifications are blocked in your site settings. Please click the padlock icon in the browser address bar to allow notifications.'
+                    : 'Enable browser notifications to receive sound and popup alerts for employee leaves and requests.'}
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {pushStatus.permission !== 'granted' && (
+                <button
+                  type="button"
+                  onClick={handleEnablePush}
+                  disabled={enablingPush}
+                  style={{
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: enablingPush ? 'wait' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
+                  }}
+                >
+                  <Zap size={14} /> {enablingPush ? 'Enabling...' : 'Enable Push Notifications'}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleTestPush}
+                disabled={testingPush}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: '#f8fafc',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: testingPush ? 'wait' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Volume2 size={14} /> {testingPush ? 'Sending Test...' : 'Send Test Push Alert'}
+              </button>
+            </div>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: '20px', width: '100%', alignItems: 'start' }}>
             
             {/* Column 1: Compose Notification Form */}

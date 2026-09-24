@@ -5,11 +5,15 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { NotificationsService, NotificationPriority } from '../notifications/notifications.service';
 import { getKolkataDate } from '../attendance/attendance.service';
 
 @Injectable()
 export class AttendanceRequestService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   private async getActiveCompanyId(companyId: string): Promise<string> {
     const companyExists = await this.prisma.company.findUnique({
@@ -194,6 +198,25 @@ export class AttendanceRequestService {
       },
     });
 
+    // Notify HR role of attendance regularization request
+    try {
+      const empName = employee.fullName || 'Employee';
+      await this.notificationsService.notifyRole({
+        companyId: activeCompanyId,
+        role: 'HR',
+        type: 'ATTENDANCE',
+        module: 'HR',
+        priority: NotificationPriority.HIGH,
+        title: `Attendance Request: ${empName}`,
+        message: `${empName} submitted attendance regularization for ${body.date}. Reason: ${body.reason}`,
+        route: '/hr/attendance-requests',
+        entityType: 'ManualAttendanceRequest',
+        entityId: request.id,
+        actorUserId: userId,
+        actorName: empName,
+      });
+    } catch (notifErr) {}
+
     return request;
   }
 
@@ -292,7 +315,7 @@ export class AttendanceRequestService {
     }
 
     const attendanceDate = getKolkataDate(request.date).startOfDay;
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // Never overwrite an actual punch record.  A manual approval fills a missing day only.
       await tx.attendance.upsert({
         where: {
@@ -319,6 +342,29 @@ export class AttendanceRequestService {
         },
       });
     });
+
+    // Notify employee of approval
+    try {
+      if (request.employee?.userId) {
+        const dateStr = request.date instanceof Date ? request.date.toISOString().slice(0, 10) : String(request.date).slice(0, 10);
+        await this.notificationsService.notifyUser({
+          companyId: activeCompanyId,
+          userId: request.employee.userId,
+          type: 'ATTENDANCE',
+          module: 'HR',
+          priority: NotificationPriority.HIGH,
+          title: 'Attendance Regularization Approved ✅',
+          message: `Your manual attendance request for ${dateStr} has been approved by HR.`,
+          route: '/my-attendance',
+          entityType: 'ManualAttendanceRequest',
+          entityId: id,
+          actorUserId: userId,
+          actorName: user.name,
+        });
+      }
+    } catch (notifErr) {}
+
+    return result;
   }
 
   async rejectRequest(
@@ -338,6 +384,7 @@ export class AttendanceRequestService {
     const activeCompanyId = await this.getActiveCompanyId(companyId);
     const request = await this.prisma.manualAttendanceRequest.findFirst({
       where: { id, employee: { companyId: activeCompanyId } },
+      include: { employee: true },
     });
     if (!request) {
       throw new NotFoundException('Attendance request not found.');
@@ -346,12 +393,35 @@ export class AttendanceRequestService {
       throw new BadRequestException('Request is not in PENDING status.');
     }
 
-    return this.prisma.manualAttendanceRequest.update({
+    const updated = await this.prisma.manualAttendanceRequest.update({
       where: { id },
       data: {
         status: 'REJECTED',
         remarks: body.remarks?.trim() || 'Rejected by HR',
       },
     });
+
+    // Notify employee of rejection
+    try {
+      if (request.employee?.userId) {
+        const dateStr = request.date instanceof Date ? request.date.toISOString().slice(0, 10) : String(request.date).slice(0, 10);
+        await this.notificationsService.notifyUser({
+          companyId: activeCompanyId,
+          userId: request.employee.userId,
+          type: 'ATTENDANCE',
+          module: 'HR',
+          priority: NotificationPriority.HIGH,
+          title: 'Attendance Regularization Rejected ❌',
+          message: `Your manual attendance request for ${dateStr} was rejected by HR. Reason: ${body.remarks?.trim() || 'Not approved'}`,
+          route: '/my-attendance',
+          entityType: 'ManualAttendanceRequest',
+          entityId: id,
+          actorUserId: userId,
+          actorName: user.name,
+        });
+      }
+    } catch (notifErr) {}
+
+    return updated;
   }
 }
