@@ -364,6 +364,8 @@ export const navigationConfig = {
     { id: 'outward-register', label: 'Outward Register', icon: Boxes, path: '/back-office/outward-register' },
     { id: 'payment-follow-ups', label: 'Payment Follow Ups', icon: Receipt, path: '/back-office/payment-follow-ups' },
     { id: 'outstanding', label: 'Outstanding', icon: DollarSign, path: '/back-office/outstanding' },
+    { id: 'hcppl-sheet', label: 'HCPPL Sheet', icon: FileSpreadsheet, path: '/back-office/hcppl-ar' },
+    { id: 'appl-sheet', label: 'APPL Sheet', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
   ],
   'BACK_OFFICE': [
     { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
@@ -371,6 +373,8 @@ export const navigationConfig = {
     { id: 'outward-register', label: 'Outward Register', icon: Boxes, path: '/back-office/outward-register' },
     { id: 'payment-follow-ups', label: 'Payment Follow Ups', icon: Receipt, path: '/back-office/payment-follow-ups' },
     { id: 'outstanding', label: 'Outstanding', icon: DollarSign, path: '/back-office/outstanding' },
+    { id: 'hcppl-sheet', label: 'HCPPL Sheet', icon: FileSpreadsheet, path: '/back-office/hcppl-ar' },
+    { id: 'appl-sheet', label: 'APPL Sheet', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
   ],
   'back-office': [
     { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
@@ -378,6 +382,8 @@ export const navigationConfig = {
     { id: 'outward-register', label: 'Outward Register', icon: Boxes, path: '/back-office/outward-register' },
     { id: 'payment-follow-ups', label: 'Payment Follow Ups', icon: Receipt, path: '/back-office/payment-follow-ups' },
     { id: 'outstanding', label: 'Outstanding', icon: DollarSign, path: '/back-office/outstanding' },
+    { id: 'hcppl-sheet', label: 'HCPPL Sheet', icon: FileSpreadsheet, path: '/back-office/hcppl-ar' },
+    { id: 'appl-sheet', label: 'APPL Sheet', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
   ],
   'Back Office / Admin': [
     { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
@@ -385,6 +391,8 @@ export const navigationConfig = {
     { id: 'outward-register', label: 'Outward Register', icon: Boxes, path: '/back-office/outward-register' },
     { id: 'payment-follow-ups', label: 'Payment Follow Ups', icon: Receipt, path: '/back-office/payment-follow-ups' },
     { id: 'outstanding', label: 'Outstanding', icon: DollarSign, path: '/back-office/outstanding' },
+    { id: 'hcppl-sheet', label: 'HCPPL Sheet', icon: FileSpreadsheet, path: '/back-office/hcppl-ar' },
+    { id: 'appl-sheet', label: 'APPL Sheet', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
   ],
 
   'Admin': [

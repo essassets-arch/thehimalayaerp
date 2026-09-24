@@ -46,7 +46,7 @@ export async function fetchHcpplArSummary() {
   return backendFetch('/back-office/hcppl-ar');
 }
 
-export async function fetchHcpplArEntries(params = {}) {
+export async function fetchHcpplArRegister(params = {}) {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '' && value !== 'ALL') {
@@ -55,26 +55,33 @@ export async function fetchHcpplArEntries(params = {}) {
   });
 
   const queryString = query.toString();
-  const endpoint = `/back-office/hcppl-ar/entries${queryString ? `?${queryString}` : ''}`;
+  const endpoint = `/back-office/hcppl-ar/register${queryString ? `?${queryString}` : ''}`;
   return backendFetch(endpoint);
 }
 
-export async function createHcpplArEntry(data) {
-  return backendFetch('/back-office/hcppl-ar/entry', {
+export async function createHcpplArInvoice(data) {
+  return backendFetch('/back-office/hcppl-ar', {
     method: 'POST',
     body: data
   });
 }
 
-export async function updateHcpplArEntry(id, data) {
-  return backendFetch(`/back-office/hcppl-ar/entry/${id}`, {
+export async function updateHcpplArInvoice(id, data) {
+  return backendFetch(`/back-office/hcppl-ar/${id}`, {
     method: 'PUT',
     body: data
   });
 }
 
-export async function deleteHcpplArEntry(id) {
-  return backendFetch(`/back-office/hcppl-ar/entry/${id}`, {
+export async function deleteHcpplArInvoice(id) {
+  return backendFetch(`/back-office/hcppl-ar/${id}`, {
     method: 'DELETE'
   });
 }
+
+// Aliases for compatibility
+export const fetchHcpplArEntries = fetchHcpplArRegister;
+export const createHcpplArEntry = createHcpplArInvoice;
+export const updateHcpplArEntry = updateHcpplArInvoice;
+export const deleteHcpplArEntry = deleteHcpplArInvoice;
+

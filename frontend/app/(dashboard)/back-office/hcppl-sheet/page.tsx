@@ -2,6 +2,6 @@
 
 import BackOfficeHcpplAr from '@/modules/back-office/pages/BackOfficeHcpplAr';
 
-export default function BackOfficeHcpplArPage() {
+export default function BackOfficeHcpplSheetPage() {
   return <BackOfficeHcpplAr />;
 }

@@ -188,18 +188,45 @@ export class BackOfficeController {
   }
 
   /**
-   * AR — HCPPL SHEET (Summary sheet: Unpaid & RT matrices)
+   * AR — HCPPL SHEET (Summary sheet & 21-column register)
    */
+  @Get('hcppl-ar/register')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Finance', 'FINANCE', 'Super Admin', 'SUPER_ADMIN')
+  async getHcpplArRegister(@Query() query: any) {
+    return this.backOfficeService.getHcpplArRegister(query);
+  }
+
   @Get('hcppl-ar')
   @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Finance', 'FINANCE', 'Super Admin', 'SUPER_ADMIN')
-  async getHcpplAr() {
+  async getHcpplAr(@Query() query: any) {
+    if (query?.sheet === 'true' || query?.register === 'true' || query?.search || query?.page || query?.quarter || query?.status) {
+      return this.backOfficeService.getHcpplArRegister(query);
+    }
     return this.backOfficeService.getHcpplArSummary();
   }
 
   @Get('hcppl-ar/entries')
   @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Finance', 'FINANCE', 'Super Admin', 'SUPER_ADMIN')
   async getHcpplArEntries(@Query() query: any) {
-    return this.backOfficeService.getHcpplArEntries(query);
+    return this.backOfficeService.getHcpplArRegister(query);
+  }
+
+  @Post('hcppl-ar')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  async createHcpplAr(@Body() dto: any) {
+    return this.backOfficeService.createHcpplArInvoice(dto);
+  }
+
+  @Put('hcppl-ar/:id')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  async updateHcpplAr(@Param('id') id: string, @Body() dto: any) {
+    return this.backOfficeService.updateHcpplArInvoice(id, dto);
+  }
+
+  @Delete('hcppl-ar/:id')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  async deleteHcpplAr(@Param('id') id: string) {
+    return this.backOfficeService.deleteHcpplArInvoice(id);
   }
 
   @Post('hcppl-ar/entry')

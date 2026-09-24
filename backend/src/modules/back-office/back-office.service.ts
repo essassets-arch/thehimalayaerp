@@ -627,9 +627,9 @@ export class BackOfficeService implements OnApplicationBootstrap {
   }
 
   /**
-   * APPL AR — Invoice / Receivable Register (21 columns)
+   * AR — Invoice / Receivable Register (21 columns) for given entity ('APPL' or 'HCPPL')
    */
-  async getApplArRegister(query: any) {
+  async getArRegister(entity: 'APPL' | 'HCPPL', query: any) {
     const {
       search,
       quarter,
@@ -647,7 +647,7 @@ export class BackOfficeService implements OnApplicationBootstrap {
     } = query;
 
     const where: any = {
-      entity: 'APPL',
+      entity,
     };
 
     if (quarter && quarter !== 'ALL') {
@@ -682,9 +682,36 @@ export class BackOfficeService implements OnApplicationBootstrap {
       ];
     }
 
+    let orderField = sortBy;
+    if (orderField === 'invoiceNo') orderField = 'invoiceNumber';
+    const validDbSort = [
+      'srNo',
+      'invoiceNumber',
+      'invoiceDate',
+      'basicAmount',
+      'invoiceAmount',
+      'companyName',
+      'siteName',
+      'city',
+      'salesType',
+      'salesPerson',
+      'paymentTermDays',
+      'dueDate',
+      'status',
+      'amtRcvd',
+      'amtRcvdDate',
+      'completePaymentDate',
+      'outstanding',
+      'remarks',
+      'quarter',
+      'createdAt',
+    ];
+    const safeOrderField = validDbSort.includes(orderField) ? orderField : 'srNo';
+    const safeSortOrder = sortOrder && String(sortOrder).toLowerCase() === 'desc' ? 'desc' : 'asc';
+
     const allMatches = await (this.prisma as any).backOfficeArInvoice.findMany({
       where,
-      orderBy: { [sortBy]: sortOrder.toLowerCase() === 'desc' ? 'desc' : 'asc' },
+      orderBy: { [safeOrderField]: safeSortOrder },
     });
 
     const mapped = allMatches.map((row: any) => {
@@ -717,9 +744,22 @@ export class BackOfficeService implements OnApplicationBootstrap {
       };
     });
 
-    const filtered = (ageingBucket && ageingBucket !== 'ALL')
-      ? mapped.filter((r: any) => r.ageingBucket === ageingBucket)
-      : mapped;
+    let filtered = mapped;
+    if (ageingBucket && ageingBucket !== 'ALL') {
+      filtered = mapped.filter((r: any) => r.ageingBucket === ageingBucket);
+    }
+
+    if (sortBy === 'ageingDays' || sortBy === 'ageingBucket') {
+      filtered.sort((a: any, b: any) => {
+        if (sortBy === 'ageingDays') {
+          return safeSortOrder === 'desc' ? b.ageingDays - a.ageingDays : a.ageingDays - b.ageingDays;
+        } else {
+          return safeSortOrder === 'desc'
+            ? String(b.ageingBucket || '').localeCompare(String(a.ageingBucket || ''))
+            : String(a.ageingBucket || '').localeCompare(String(b.ageingBucket || ''));
+        }
+      });
+    }
 
     const totals = filtered.reduce(
       (acc: any, r: any) => {
@@ -743,9 +783,9 @@ export class BackOfficeService implements OnApplicationBootstrap {
     const startIndex = (pageNum - 1) * limitNum;
     const paginatedItems = filtered.slice(startIndex, startIndex + limitNum);
 
-    const quarters = Array.from(new Set(allMatches.map((r: any) => r.quarter))).sort();
+    const quarters = Array.from(new Set(allMatches.map((r: any) => r.quarter))).filter(Boolean).sort();
     const salesPersons = Array.from(new Set(allMatches.map((r: any) => r.salesPerson).filter(Boolean))).sort();
-    const statuses = Array.from(new Set(allMatches.map((r: any) => r.status))).sort();
+    const statuses = Array.from(new Set(allMatches.map((r: any) => r.status))).filter(Boolean).sort();
 
     return {
       items: paginatedItems,
@@ -753,7 +793,7 @@ export class BackOfficeService implements OnApplicationBootstrap {
         page: pageNum,
         limit: limitNum,
         totalItems: filtered.length,
-        totalPages: Math.ceil(filtered.length / limitNum),
+        totalPages: Math.ceil(filtered.length / limitNum) || 1,
       },
       totals,
       filterOptions: {
@@ -762,6 +802,14 @@ export class BackOfficeService implements OnApplicationBootstrap {
         statuses,
       },
     };
+  }
+
+  async getApplArRegister(query: any) {
+    return this.getArRegister('APPL', query);
+  }
+
+  async getHcpplArRegister(query: any) {
+    return this.getArRegister('HCPPL', query);
   }
 
   /**
@@ -934,9 +982,9 @@ export class BackOfficeService implements OnApplicationBootstrap {
   }
 
   /**
-   * DATA ENTRY: Create new APPL AR invoice record (all 21 fields writable)
+   * DATA ENTRY: Create new AR invoice record for APPL or HCPPL (all 21 fields writable)
    */
-  async createApplArInvoice(dto: any) {
+  async createArInvoice(entity: 'APPL' | 'HCPPL', dto: any) {
     if (!dto.invoiceNumber || !dto.companyName) {
       throw new BadRequestException('Invoice number and Company name are required.');
     }
@@ -975,7 +1023,7 @@ export class BackOfficeService implements OnApplicationBootstrap {
       srNo = Number(dto.srNo);
     } else {
       const lastSr = await (this.prisma as any).backOfficeArInvoice.findFirst({
-        where: { entity: 'APPL' },
+        where: { entity },
         orderBy: { srNo: 'desc' },
         select: { srNo: true },
       });
@@ -992,7 +1040,7 @@ export class BackOfficeService implements OnApplicationBootstrap {
 
     return (this.prisma as any).backOfficeArInvoice.create({
       data: {
-        entity: 'APPL',
+        entity,
         srNo,
         invoiceNumber: String(dto.invoiceNumber).trim(),
         invoiceDate,
@@ -1019,15 +1067,15 @@ export class BackOfficeService implements OnApplicationBootstrap {
   }
 
   /**
-   * DATA ENTRY: Update existing APPL AR invoice record (all 21 fields writable)
+   * DATA ENTRY: Update existing AR invoice record (all 21 fields writable)
    */
-  async updateApplArInvoice(id: string, dto: any) {
+  async updateArInvoice(entity: 'APPL' | 'HCPPL', id: string, dto: any) {
     const existing = await (this.prisma as any).backOfficeArInvoice.findFirst({
-      where: { id, entity: 'APPL' },
+      where: { id, entity },
     });
 
     if (!existing) {
-      throw new NotFoundException('APPL invoice not found');
+      throw new NotFoundException(`${entity} invoice not found`);
     }
 
     const invoiceDate = dto.invoiceDate ? new Date(dto.invoiceDate) : existing.invoiceDate;
@@ -1108,136 +1156,39 @@ export class BackOfficeService implements OnApplicationBootstrap {
   }
 
   /**
-   * DATA ENTRY: Delete APPL invoice record
+   * DATA ENTRY: Delete AR invoice record
    */
+  async deleteArInvoice(entity: 'APPL' | 'HCPPL', id: string) {
+    const existing = await (this.prisma as any).backOfficeArInvoice.findFirst({
+      where: { id, entity },
+    });
+    if (!existing) throw new NotFoundException(`${entity} invoice not found`);
+
+    return (this.prisma as any).backOfficeArInvoice.delete({
+      where: { id },
+    });
+  }
+
+  // APPL Delegates
+  async createApplArInvoice(dto: any) {
+    return this.createArInvoice('APPL', dto);
+  }
+  async updateApplArInvoice(id: string, dto: any) {
+    return this.updateArInvoice('APPL', id, dto);
+  }
   async deleteApplArInvoice(id: string) {
-    const existing = await (this.prisma as any).backOfficeArInvoice.findFirst({
-      where: { id, entity: 'APPL' },
-    });
-    if (!existing) throw new NotFoundException('APPL invoice not found');
-
-    return (this.prisma as any).backOfficeArInvoice.delete({
-      where: { id },
-    });
+    return this.deleteArInvoice('APPL', id);
   }
 
-  /**
-   * DATA ENTRY: Create new HCPPL AR invoice record
-   */
+  // HCPPL Delegates
   async createHcpplArInvoice(dto: any) {
-    if (!dto.invoiceNumber || !dto.companyName) {
-      throw new BadRequestException('Invoice number and Company name are required.');
-    }
-
-    const invoiceDate = dto.invoiceDate ? new Date(dto.invoiceDate) : new Date();
-    const paymentTermDays = Number(dto.paymentTermDays) || 30;
-    const dueDate = new Date(invoiceDate.getTime() + paymentTermDays * 24 * 60 * 60 * 1000);
-    const quarter = this.calculateQuarter(invoiceDate);
-
-    const basicAmount = Number(dto.basicAmount) || 0;
-    const invoiceAmount = Number(dto.invoiceAmount) || basicAmount;
-    const amtRcvd = Number(dto.amtRcvd) || 0;
-    const outstanding = Number((invoiceAmount - amtRcvd).toFixed(2));
-
-    const isRt = dto.status === 'RT' || dto.salesType === 'RT' || dto.isRt === true;
-    const status = isRt ? 'RT' : (dto.status || (outstanding <= 0 ? 'PAID' : (amtRcvd > 0 ? 'PARTIAL' : 'UNPAID')));
-    const salesType = isRt ? 'RT' : (dto.salesType || 'Regular');
-
-    const lastSr = await (this.prisma as any).backOfficeArInvoice.findFirst({
-      where: { entity: 'HCPPL' },
-      orderBy: { srNo: 'desc' },
-      select: { srNo: true },
-    });
-    const srNo = (lastSr?.srNo || 0) + 1;
-
-    return (this.prisma as any).backOfficeArInvoice.create({
-      data: {
-        entity: 'HCPPL',
-        srNo,
-        invoiceNumber: String(dto.invoiceNumber).trim(),
-        invoiceDate,
-        basicAmount: basicAmount.toFixed(2),
-        invoiceAmount: invoiceAmount.toFixed(2),
-        companyName: String(dto.companyName).trim(),
-        siteName: dto.siteName ? String(dto.siteName).trim() : null,
-        city: dto.city ? String(dto.city).trim() : null,
-        salesType,
-        salesPerson: dto.salesPerson ? String(dto.salesPerson).trim() : null,
-        paymentTermDays,
-        dueDate,
-        status,
-        amtRcvd: amtRcvd.toFixed(2),
-        amtRcvdDate: dto.amtRcvdDate ? new Date(dto.amtRcvdDate) : (amtRcvd > 0 ? new Date() : null),
-        completePaymentDate: (outstanding <= 0 && amtRcvd > 0) ? new Date() : null,
-        outstanding: outstanding.toFixed(2),
-        remarks: dto.remarks ? String(dto.remarks).trim() : null,
-        quarter,
-      },
-    });
+    return this.createArInvoice('HCPPL', dto);
   }
-
-  /**
-   * DATA ENTRY: Update existing HCPPL AR invoice record
-   */
   async updateHcpplArInvoice(id: string, dto: any) {
-    const existing = await (this.prisma as any).backOfficeArInvoice.findFirst({
-      where: { id, entity: 'HCPPL' },
-    });
-
-    if (!existing) {
-      throw new NotFoundException('HCPPL record not found');
-    }
-
-    const invoiceDate = dto.invoiceDate ? new Date(dto.invoiceDate) : existing.invoiceDate;
-    const paymentTermDays = dto.paymentTermDays !== undefined ? Number(dto.paymentTermDays) : existing.paymentTermDays;
-    const dueDate = new Date(invoiceDate.getTime() + paymentTermDays * 24 * 60 * 60 * 1000);
-    const quarter = this.calculateQuarter(invoiceDate);
-
-    const basicAmount = dto.basicAmount !== undefined ? Number(dto.basicAmount) : Number(existing.basicAmount);
-    const invoiceAmount = dto.invoiceAmount !== undefined ? Number(dto.invoiceAmount) : Number(existing.invoiceAmount);
-    const amtRcvd = dto.amtRcvd !== undefined ? Number(dto.amtRcvd) : Number(existing.amtRcvd);
-    const outstanding = Number((invoiceAmount - amtRcvd).toFixed(2));
-
-    const isRt = dto.status === 'RT' || dto.salesType === 'RT' || (dto.isRt !== undefined ? dto.isRt : existing.status === 'RT');
-    const status = isRt ? 'RT' : (dto.status || existing.status);
-    const salesType = isRt ? 'RT' : (dto.salesType || existing.salesType);
-
-    return (this.prisma as any).backOfficeArInvoice.update({
-      where: { id },
-      data: {
-        invoiceNumber: dto.invoiceNumber ? String(dto.invoiceNumber).trim() : existing.invoiceNumber,
-        invoiceDate,
-        basicAmount: basicAmount.toFixed(2),
-        invoiceAmount: invoiceAmount.toFixed(2),
-        companyName: dto.companyName ? String(dto.companyName).trim() : existing.companyName,
-        siteName: dto.siteName !== undefined ? dto.siteName : existing.siteName,
-        city: dto.city !== undefined ? dto.city : existing.city,
-        salesType,
-        salesPerson: dto.salesPerson !== undefined ? dto.salesPerson : existing.salesPerson,
-        paymentTermDays,
-        dueDate,
-        status,
-        amtRcvd: amtRcvd.toFixed(2),
-        amtRcvdDate: dto.amtRcvdDate ? new Date(dto.amtRcvdDate) : existing.amtRcvdDate,
-        outstanding: outstanding.toFixed(2),
-        remarks: dto.remarks !== undefined ? dto.remarks : existing.remarks,
-        quarter,
-      },
-    });
+    return this.updateArInvoice('HCPPL', id, dto);
   }
-
-  /**
-   * DATA ENTRY: Delete HCPPL AR invoice record
-   */
   async deleteHcpplArInvoice(id: string) {
-    const existing = await (this.prisma as any).backOfficeArInvoice.findFirst({
-      where: { id, entity: 'HCPPL' },
-    });
-    if (!existing) throw new NotFoundException('HCPPL record not found');
-
-    return (this.prisma as any).backOfficeArInvoice.delete({
-      where: { id },
-    });
+    return this.deleteArInvoice('HCPPL', id);
   }
 
   /**
