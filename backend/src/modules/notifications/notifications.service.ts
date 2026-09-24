@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { NotificationPriority } from '@prisma/client';
+export { NotificationPriority } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { FirebasePushService } from './firebase-push.service';
 

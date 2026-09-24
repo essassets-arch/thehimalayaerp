@@ -5,7 +5,8 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { NotificationsService, NotificationPriority } from '../notifications/notifications.service';
+import { NotificationPriority } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { getKolkataDate } from '../attendance/attendance.service';
 
 @Injectable()
@@ -146,7 +147,8 @@ export class AttendanceRequestService {
     companyId: string,
     body: { date: string; reason: string },
   ) {
-    const employee = await this.getEmployee(userId, companyId);
+    const activeCompanyId = await this.getActiveCompanyId(companyId);
+    const employee = await this.getEmployee(userId, activeCompanyId);
     if (!body?.date || !body?.reason?.trim()) {
       throw new BadRequestException('Attendance date and reason are required.');
     }
