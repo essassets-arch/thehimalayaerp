@@ -636,6 +636,21 @@ export default function CreateDispatchPage() {
   const cameraInputRef = React.useRef<HTMLInputElement | null>(null);
   const galleryInputRef = React.useRef<HTMLInputElement | null>(null);
 
+  // In-App Direct Camera Stream state & refs for mobile APK resilience
+  const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const streamRef = React.useRef<MediaStream | null>(null);
+
+  // Clean up any active live camera streams on component unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
   // Initialize context without resetting any user fields
   useEffect(() => {
     initializeContext({
@@ -1825,6 +1840,75 @@ export default function CreateDispatchPage() {
     });
   };
 
+  const startLiveCamera = async () => {
+    try {
+      if (typeof navigator === "undefined" || !navigator?.mediaDevices?.getUserMedia) {
+        if (cameraInputRef.current) {
+          cameraInputRef.current.value = "";
+          cameraInputRef.current.click();
+        }
+        return;
+      }
+      setIsLiveCameraOpen(true);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+    } catch (err: any) {
+      console.warn("In-app camera not available or permission denied, falling back to system camera:", err);
+      setIsLiveCameraOpen(false);
+      if (cameraInputRef.current) {
+        cameraInputRef.current.value = "";
+        cameraInputRef.current.click();
+      }
+    }
+  };
+
+  const captureLivePhoto = () => {
+    if (!videoRef.current) return;
+    try {
+      const video = videoRef.current;
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
+        const fileName = `camera_photo_${Date.now()}.jpg`;
+        const file = dataURLtoFile(dataUrl, fileName);
+        addPhoto({
+          id: generateSafeId(),
+          file,
+          previewUrl: dataUrl,
+          dataUrl,
+          name: fileName,
+          size: file.size,
+          type: "image/jpeg",
+          source: "camera",
+        });
+        toast.success("Camera photo captured and saved to draft!");
+      }
+    } catch (e: any) {
+      toast.error("Failed to capture photo: " + e.message);
+    } finally {
+      stopLiveCamera();
+    }
+  };
+
+  const stopLiveCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setIsLiveCameraOpen(false);
+  };
+
   const handleCameraPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputEl = e.target;
     const files = Array.from(inputEl.files ?? []);
@@ -1889,8 +1973,10 @@ export default function CreateDispatchPage() {
         toast.error(`File "${file.name}" exceeds 50 MB limit.`);
         continue;
       }
-      const isImg = (file.type && file.type.startsWith("image/")) || /\.(jpg|jpeg|png|webp|gif|bmp|heic)$/i.test(file.name || "") || !file.type;
-      if (isImg) {
+      // On Android APK WebViews, gallery files can have type 'application/octet-stream' or empty string.
+      // Treat everything that is NOT an explicit PDF as an image!
+      const isPdf = file.type === "application/pdf" || (file.name && file.name.toLowerCase().endsWith(".pdf"));
+      if (!isPdf) {
         try {
           const { file: compressedFile, dataUrl } = await compressImageForDraft(file);
           let previewUrl = dataUrl;
@@ -2878,57 +2964,47 @@ export default function CreateDispatchPage() {
 
             {/* Camera and Gallery option buttons */}
             <div className={styles.docButtonRow}>
-              <label
+              <button
+                type="button"
                 className={styles.cameraOptionBtn}
-                style={{ position: "relative", overflow: "hidden", cursor: "pointer", display: "inline-flex" }}
+                onClick={startLiveCamera}
                 title="Open Camera directly to snap a photo of invoice / bill / LR"
               >
                 <Camera size={17} />
                 <span>Take Camera Photo</span>
-                <input
-                  ref={cameraInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    opacity: 0.001,
-                    cursor: "pointer",
-                    zIndex: 10,
-                  }}
-                  onChange={handleCameraPhotoSelected}
-                />
-              </label>
+              </button>
 
-              <label
+              <button
+                type="button"
                 className={styles.galleryOptionBtn}
-                style={{ position: "relative", overflow: "hidden", cursor: "pointer", display: "inline-flex" }}
+                onClick={() => {
+                  if (galleryInputRef.current) {
+                    galleryInputRef.current.value = "";
+                    galleryInputRef.current.click();
+                  }
+                }}
                 title="Select existing photo or PDF from gallery / files"
               >
                 <ImageIcon size={17} />
                 <span>Select from Gallery / PDF</span>
-                <input
-                  ref={galleryInputRef}
-                  type="file"
-                  accept="image/*,application/pdf"
-                  multiple
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    opacity: 0.001,
-                    cursor: "pointer",
-                    zIndex: 10,
-                  }}
-                  onChange={handleGalleryPhotoSelected}
-                />
-              </label>
+              </button>
+
+              {/* Native inputs for system fallback & file selection (single-file to avoid Android APK WebView MODE_OPEN_MULTIPLE crashes) */}
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style={{ position: "fixed", top: "-1000px", left: "-1000px", opacity: 0, pointerEvents: "none" }}
+                onChange={handleCameraPhotoSelected}
+              />
+              <input
+                ref={galleryInputRef}
+                type="file"
+                accept="image/*,application/pdf"
+                style={{ position: "fixed", top: "-1000px", left: "-1000px", opacity: 0, pointerEvents: "none" }}
+                onChange={handleGalleryPhotoSelected}
+              />
             </div>
 
             {fileError && (
@@ -3113,6 +3189,68 @@ export default function CreateDispatchPage() {
                 onClick={() => setPreviewModalPhoto(null)}
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Live In-App Camera Viewfinder Modal ── */}
+      {isLiveCameraOpen && (
+        <div className={styles.liveCameraOverlay}>
+          <div className={styles.liveCameraCard}>
+            <div className={styles.liveCameraHeader}>
+              <div className={styles.liveCameraTitle}>
+                <Camera size={18} />
+                <span>Live Camera Viewfinder</span>
+              </div>
+              <button
+                type="button"
+                className={styles.previewModalCloseBtn}
+                onClick={stopLiveCamera}
+                title="Close Camera"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className={styles.liveCameraViewfinder}>
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className={styles.liveCameraVideo}
+              />
+              <div className={styles.liveCameraReticle} />
+            </div>
+            <div className={styles.liveCameraControls}>
+              <button
+                type="button"
+                className={styles.systemCameraFallbackBtn}
+                onClick={() => {
+                  stopLiveCamera();
+                  if (cameraInputRef.current) {
+                    cameraInputRef.current.value = "";
+                    cameraInputRef.current.click();
+                  }
+                }}
+              >
+                Use System Camera
+              </button>
+              <button
+                type="button"
+                className={styles.captureSnapBtn}
+                onClick={captureLivePhoto}
+                title="Snap Photo"
+              >
+                <div className={styles.captureInnerCircle} />
+              </button>
+              <button
+                type="button"
+                className={styles.cancelCameraBtn}
+                onClick={stopLiveCamera}
+              >
+                Cancel
               </button>
             </div>
           </div>

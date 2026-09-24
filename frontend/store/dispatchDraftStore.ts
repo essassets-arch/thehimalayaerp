@@ -120,11 +120,28 @@ export async function compressImageForDraft(file: File): Promise<{ file: File; d
     try {
       const reader = new FileReader();
       reader.onload = (e) => {
-        const rawDataUrl = (e.target?.result as string) || "";
+        let rawDataUrl = (e.target?.result as string) || "";
         if (!rawDataUrl) {
           clearTimeout(timer);
           resolve({ file, dataUrl: "" });
           return;
+        }
+
+        // On Android WebViews, Gallery files often report application/octet-stream. Normalize to image/jpeg if needed.
+        if (rawDataUrl.startsWith("data:application/octet-stream") || rawDataUrl.startsWith("data:;")) {
+          const parts = rawDataUrl.split(",");
+          if (parts[1]) {
+            const base64Prefix = parts[1].substring(0, 16);
+            if (base64Prefix.startsWith("iVBORw0KGgo")) {
+              rawDataUrl = "data:image/png;base64," + parts[1];
+            } else if (base64Prefix.startsWith("R0lGOD")) {
+              rawDataUrl = "data:image/gif;base64," + parts[1];
+            } else if (base64Prefix.startsWith("UklGR")) {
+              rawDataUrl = "data:image/webp;base64," + parts[1];
+            } else {
+              rawDataUrl = "data:image/jpeg;base64," + parts[1];
+            }
+          }
         }
 
         // Downscale image via canvas to keep draft storage lean (~40-60 KB)
