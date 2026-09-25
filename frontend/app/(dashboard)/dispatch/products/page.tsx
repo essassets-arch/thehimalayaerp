@@ -1,7 +1,7 @@
 'use client';
 
 // @ts-ignore
-import ProductMasterUI from '../../../shared/components/ProductMasterUI';
+import ProductMasterUI from '../../../../shared/components/ProductMasterUI';
 
 export default function DispatchProductsPage() {
   return (
