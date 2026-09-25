@@ -812,19 +812,30 @@ export function rejectOrderByPlantHead(
   actor: ActionActor = { id: 'Plant Head', name: 'Plant Head' }
 ): ERPState {
   const sales = normalizeSales(state.sales);
-  const order = sales.orders.find((o) => o.id === orderId || o.orderNo === orderId || (o as any).order_number === orderId);
-  if (!order) throw new Error(`Order ${orderId} not found`);
+  const order = sales.orders.find(
+    (o) =>
+      o.id === orderId ||
+      o.orderNo === orderId ||
+      (o as any).order_number === orderId ||
+      (o as any).orderNumber === orderId
+  );
+  if (!order) return state;
 
+  const remarks = typeof payload === 'string' ? payload : payload?.remarks || '';
   const updated: SalesOrder = {
     ...order,
     planningStatus: 'NOT_SENT',
     commercialStatus: 'ORDER_CONFIRMED',
+    workflowStatus: 'PLANT_REJECTED' as any,
+    status: 'CONFIRMED' as any,
+    remarks: remarks || (order as any).remarks,
+    rejectionReason: remarks,
   };
 
   return withSales(
     state,
     { orders: sales.orders.map((o) => (o.id === order.id ? updated : o)) },
-    audit('ORDER', order.id, 'PLANT_HEAD_REJECTED', actor, 'Plant Head', 'NOT_SENT', order.planningStatus, payload.remarks)
+    audit('ORDER', order.id, 'PLANT_HEAD_REJECTED', actor, 'Plant Head', 'NOT_SENT', order.planningStatus, remarks)
   );
 }
 

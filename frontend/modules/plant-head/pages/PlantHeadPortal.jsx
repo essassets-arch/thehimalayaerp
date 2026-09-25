@@ -3121,6 +3121,9 @@ export default function PlantHeadPortal({ overrideView } = {}) {
     if (['READY_FOR_DISPATCH', 'QC_PASSED', 'DISPATCH_PENDING'].includes(rawStatus) || woStatus === 'QC_APPROVED' || woStatus === 'READY_FOR_DISPATCH') {
       return <span style={{ background: '#ecfeff', color: '#0891b2', border: '1px solid #a5f3fc', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>📦 Dispatch Pending</span>;
     }
+    if (['PLANT_REJECTED', 'PLANT_REJECT', 'ORDER_REJECTED', 'RETURNED_TO_SALES'].includes(rawStatus)) {
+      return <span style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>🚫 Rejected by Plant Head</span>;
+    }
     if (['QC_FAILED', 'REJECTED', 'REWORK'].includes(rawStatus) || woStatus === 'QC_FAILED') {
       return <span style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>⚠️ QC Failed (Rework)</span>;
     }
@@ -3187,7 +3190,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
 
       let matchStatus = true;
       if (incomingStatusFilter === 'PENDING') {
-        matchStatus = !isAccepted && !['CANCELLED', 'REJECTED'].includes(statusUpper);
+        matchStatus = !isAccepted && !['CANCELLED', 'REJECTED', 'PLANT_REJECTED', 'PLANT_REJECT'].includes(statusUpper);
       } else if (incomingStatusFilter === 'ACCEPTED') {
         matchStatus = isAccepted;
       }
@@ -3342,12 +3345,37 @@ export default function PlantHeadPortal({ overrideView } = {}) {
       if (!remarks) return;
       showToast('Rejecting order…');
       try {
-        await backendFetch(`/api/backend/sales/orders/${order.id}/action`, {
-          method: 'POST',
-          body: { action: 'PLANT_REJECT', remarks },
-        }).catch(() => { });
-        useERPStore.getState().rejectOrderByPlantHead?.(order.id, { remarks }, user?.name || 'Plant Head');
+        const isBackendOrder = directBackendOrders.some(candidate => candidate.id === order.id) ||
+          (backendSalesOrders && backendSalesOrders.some(candidate => candidate.id === order.id)) ||
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(order.id));
+
+        if (isBackendOrder) {
+          await backendFetch(`/api/backend/sales/orders/${order.id}/action`, {
+            method: 'POST',
+            body: { action: 'PLANT_REJECT', remarks },
+          });
+          try {
+            useERPStore.getState().rejectOrderByPlantHead?.(order.id || order.orderNo, { remarks }, user?.name || 'Plant Head');
+          } catch (e) {
+            console.warn('Could not sync local store:', e);
+          }
+          await loadSalesOrders();
+          const refreshed = await backendFetch('/api/backend/sales/orders?page=1&pageSize=100');
+          setDirectBackendOrders(Array.isArray(refreshed) ? refreshed : refreshed?.data || []);
+        } else {
+          try {
+            useERPStore.getState().rejectOrderByPlantHead?.(order.id || order.orderNo, { remarks }, user?.name || 'Plant Head');
+          } catch (e) {
+            console.warn('Could not sync local store:', e);
+          }
+        }
         showToast(`🚫 Order ${order.orderNo || order.id} rejected.`);
+        Swal.fire({
+          icon: 'info',
+          title: 'Order Returned to Sales',
+          text: `Order #${order.orderNo || order.id} has been returned to sales for review.`,
+          confirmButtonColor: '#ef4444'
+        });
         void loadSalesOrders();
       } catch (err) {
         Swal.fire({ icon: 'error', title: 'Reject Failed', text: err.message });
@@ -3424,7 +3452,8 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                   row.planningStatus === 'PLANT_HEAD_ACCEPTED' ||
                   row.planningStatus === 'PRODUCTION_PLANNED' ||
                   Boolean(row.acceptedByPlantHeadAt);
-                const isPendingAccept = !isAccepted;
+                const isRejectedOrCancelled = ['CANCELLED', 'REJECTED', 'PLANT_REJECTED', 'PLANT_REJECT'].includes(statusUpper);
+                const isPendingAccept = !isAccepted && !isRejectedOrCancelled;
 
                 return (
                   <div
@@ -3612,7 +3641,8 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                 row.planningStatus === 'PLANT_HEAD_ACCEPTED' ||
                 row.planningStatus === 'PRODUCTION_PLANNED' ||
                 Boolean(row.acceptedByPlantHeadAt);
-              const isPendingAccept = !isAccepted;
+              const isRejectedOrCancelled = ['CANCELLED', 'REJECTED', 'PLANT_REJECTED', 'PLANT_REJECT'].includes(statusUpper);
+              const isPendingAccept = !isAccepted && !isRejectedOrCancelled;
               return (
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                   <button

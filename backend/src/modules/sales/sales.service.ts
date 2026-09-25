@@ -1068,6 +1068,7 @@ export class SalesService {
           ? SalesOrderStatus.READY_FOR_DISPATCH
           : SalesOrderStatus.SENT_TO_PLANT_HEAD,
         PLANT_APPROVE: SalesOrderStatus.PLANT_APPROVED,
+        PLANT_REJECT: SalesOrderStatus.CONFIRMED,
         PLAN_PRODUCTION: SalesOrderStatus.READY_FOR_PRODUCTION,
         START_PRODUCTION: SalesOrderStatus.IN_PRODUCTION,
         MARK_READY: SalesOrderStatus.READY_FOR_DISPATCH,
@@ -1082,6 +1083,15 @@ export class SalesService {
         });
         if (readyDispatchState) {
           nextStateId = readyDispatchState.id;
+        }
+      }
+
+      if (actionName === 'PLANT_REJECT') {
+        const confirmedState = await tx.workflowState.findFirst({
+          where: { workflow: { code: 'SALES_ORDER' }, code: 'CONFIRMED' },
+        });
+        if (confirmedState) {
+          nextStateId = confirmedState.id;
         }
       }
 
@@ -1202,6 +1212,18 @@ export class SalesService {
         }
       }
 
+      if (actionName === 'PLANT_REJECT') {
+        const existingPlans = await tx.productionPlan.findMany({
+          where: { salesOrderId: order.id },
+          include: { workOrders: true },
+        });
+        for (const pp of existingPlans) {
+          if (pp.workOrders.length === 0) {
+            await tx.productionPlan.delete({ where: { id: pp.id } });
+          }
+        }
+      }
+
       const orderWithPlan = await tx.salesOrder.findUniqueOrThrow({
         where: { id },
         include: {
@@ -1232,7 +1254,7 @@ export class SalesService {
     const notificationsService = this.notificationsService;
     if (notificationsService && result?.originalOrder) {
       const order = result.originalOrder;
-      const companyId = order.customer.companyId;
+      const companyId = order.customer?.companyId;
 
       if (dto.action === 'SEND_TO_PLANT') {
         const productIds = order.items.map((i: any) => i.productId).filter(Boolean);
@@ -1364,7 +1386,7 @@ export class SalesService {
                     userId: recipient.id,
                     type: 'SALES_ORDER_RETURNED',
                     title: 'Order Requires Sales Action',
-                    message: `${order.orderNumber} — Plant Head returned the order for correction/review.`,
+                    message: `${order.orderNumber} — Plant Head returned the order for correction/review.${dto.remarks ? ` Reason: ${dto.remarks}` : ''}`,
                     route,
                     entityType: 'SalesOrder',
                     entityId: order.id,
@@ -1384,6 +1406,25 @@ export class SalesService {
                 err.message,
               );
             });
+        } else if (companyId) {
+          notificationsService
+            .notifyRole({
+              companyId,
+              roles: ['SALES_EXECUTIVE', 'SALES_MANAGER', 'SALES'],
+              type: 'SALES_ORDER_RETURNED',
+              title: 'Order Requires Sales Action',
+              message: `${order.orderNumber} — Plant Head returned the order for correction/review.${dto.remarks ? ` Reason: ${dto.remarks}` : ''}`,
+              route: `/orders/${order.orderNumber || order.id}`,
+              entityType: 'SalesOrder',
+              entityId: order.id,
+              eventKeyPrefix: `SALES_ORDER:${order.id}:RETURNED`,
+            })
+            .catch((err) =>
+              console.warn(
+                '[SalesService Notification] Failed to notify Sales role:',
+                err.message,
+              ),
+            );
         }
       } else if (dto.action === 'PLAN_PRODUCTION') {
         const targetDateStr = order.productionPlans?.[0]?.plannedEndDate
