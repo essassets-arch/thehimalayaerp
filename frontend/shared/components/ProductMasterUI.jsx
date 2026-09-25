@@ -33,7 +33,7 @@ export default function ProductMasterUI({ role, scope }) {
   // Scope determines whether this catalog is strictly Kasna Plant (Manufacturing), Sahad Dispatch (Trading), or All
   const effectiveScope = scope || (
     role === 'Dispatch 2' || pathname?.includes('/dispatch-2') ? 'TRADING' :
-    role === 'Plant Head' || pathname?.includes('/plant-head') ? 'MANUFACTURING' :
+    role === 'Plant Head' || pathname?.includes('/plant-head') ? 'ALL' :
     role === 'Dispatch' || (pathname?.includes('/dispatch') && !pathname?.includes('/dispatch-2')) ? 'MANUFACTURING' :
     'ALL'
   );
@@ -466,12 +466,14 @@ export default function ProductMasterUI({ role, scope }) {
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '16px' : '0', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>
-            {effectiveScope === 'MANUFACTURING' ? 'Plant Head — Manufacturing Products' :
+            {isPlantHead ? 'Plant Head — Product Catalog' :
+             effectiveScope === 'MANUFACTURING' ? 'Manufacturing Products' :
              effectiveScope === 'TRADING' ? 'Dispatch 2 — Trading Products Master' :
              'Product Master'}
           </h1>
           <p style={{ color: '#64748B', margin: '4px 0 0 0', fontSize: '14px', fontWeight: 400 }}>
-            {effectiveScope === 'MANUFACTURING' ? 'Kasna Plant manufactured items, factory specifications, and Dispatch 1 catalog.' :
+            {isPlantHead ? 'Master catalog showing all products: Kasna Plant manufactured items, Sahad Dispatch trading products, and specifications.' :
+             effectiveScope === 'MANUFACTURING' ? 'Kasna Plant manufactured items, factory specifications, and Dispatch 1 catalog.' :
              effectiveScope === 'TRADING' ? 'Sahad Dispatch trading products, cover blocks, FRC covers, and Dispatch 2 catalog.' :
              'Centralized catalog for all items, variants, and dispatch routing.'}
           </p>
@@ -660,6 +662,43 @@ export default function ProductMasterUI({ role, scope }) {
         <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'stretch', width: '100%' }}>
           <button
             type="button"
+            onClick={() => setActiveSubMenu('ALL')}
+            style={{
+              flex: isMobile ? 1 : 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: isMobile ? '10px 8px' : '11px 22px',
+              borderRadius: '10px',
+              border: activeSubMenu === 'ALL' ? '2px solid #334155' : '1px solid #CBD5E1',
+              cursor: 'pointer',
+              fontSize: isMobile ? '12px' : '14px',
+              fontWeight: 800,
+              background: activeSubMenu === 'ALL' ? '#334155' : '#FFFFFF',
+              color: activeSubMenu === 'ALL' ? '#FFFFFF' : '#475569',
+              boxShadow: activeSubMenu === 'ALL' ? '0 4px 12px rgba(51, 65, 85, 0.25)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Layers size={16} />
+            {!isMobile && "All Products"}
+            {isMobile && "All"}
+            <span style={{
+              background: activeSubMenu === 'ALL' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
+              color: activeSubMenu === 'ALL' ? '#FFFFFF' : '#334155',
+              fontSize: '11px',
+              padding: '2px 6px',
+              borderRadius: '12px',
+              fontWeight: 700,
+              marginLeft: '4px'
+            }}>
+              {allCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => {
               setActiveSubMenu('MANUFACTURING');
               if (filterDispatch === 'D2') setFilterDispatch('All');
@@ -735,43 +774,6 @@ export default function ProductMasterUI({ role, scope }) {
               marginLeft: '4px'
             }}>
               {tradingCount}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSubMenu('ALL')}
-            style={{
-              flex: isMobile ? 1 : 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              padding: isMobile ? '10px 8px' : '11px 22px',
-              borderRadius: '10px',
-              border: activeSubMenu === 'ALL' ? '2px solid #334155' : '1px solid #CBD5E1',
-              cursor: 'pointer',
-              fontSize: isMobile ? '12px' : '14px',
-              fontWeight: 800,
-              background: activeSubMenu === 'ALL' ? '#334155' : '#FFFFFF',
-              color: activeSubMenu === 'ALL' ? '#FFFFFF' : '#475569',
-              boxShadow: activeSubMenu === 'ALL' ? '0 4px 12px rgba(51, 65, 85, 0.25)' : 'none',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <Layers size={16} />
-            {!isMobile && "All Products"}
-            {isMobile && "All"}
-            <span style={{
-              background: activeSubMenu === 'ALL' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
-              color: activeSubMenu === 'ALL' ? '#FFFFFF' : '#334155',
-              fontSize: '11px',
-              padding: '2px 6px',
-              borderRadius: '12px',
-              fontWeight: 700,
-              marginLeft: '4px'
-            }}>
-              {allCount}
             </span>
           </button>
         </div>

@@ -55,10 +55,6 @@ export default function CategoryMasterUI({ role = 'Plant Head', scope }) {
         if (code.startsWith('HCPPL') || code.startsWith('RM-') || code.startsWith('HM')) {
           return false;
         }
-        // In Plant Head scope, exclude trading products
-        if (isPlantHead && (type === 'TRADING' || isTradingProduct(p))) {
-          return false;
-        }
         const rawKeywords = [
           'cement', 'sand', 'aggregate', 'gravel', 'stone', 'pigment', 'powder', 
           'water paper', 'brush', 'welcor', 'haksaw', 'drill', 'thappi', 'chisel', 
