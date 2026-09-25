@@ -236,6 +236,7 @@ export type SalesOrder = {
   sentToPlantHead?: boolean;
   sentToPlantHeadAt?: string;
   acceptedByPlantHeadAt?: string;
+  dispatchCategory?: string;
   updatedAt?: string;
 
   commercialStatus: 'ORDER_CONFIRMED' | 'SENT_TO_PLANT_HEAD' | 'ORDER_ACTIVE' | 'ORDER_CLOSED' | 'ORDER_CANCELLED';

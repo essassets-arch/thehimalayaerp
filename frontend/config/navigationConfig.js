@@ -154,6 +154,7 @@ export const navigationConfig = {
 
   'Dispatch': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/dispatch/dashboard' },
+    { id: 'products', label: 'Manufactured Products', icon: Package, path: '/dispatch/products', group: 'Logistics' },
     { id: 'finished-goods', label: 'Finished Goods', icon: PackageCheck, path: '/dispatch/finished-goods', group: 'Logistics' },
     {
       id: 'Sales-order dispatch',
@@ -207,6 +208,7 @@ export const navigationConfig = {
 
   'Dispatch 2': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/dispatch-2/dashboard' },
+    { id: 'products', label: 'Trading Products', icon: Package, path: '/dispatch-2/products', group: 'Logistics' },
     { id: 'finished-goods', label: 'Finished Goods', icon: PackageCheck, path: '/dispatch-2/finished-goods', group: 'Logistics' },
     {
       id: 'Sales-order dispatch',

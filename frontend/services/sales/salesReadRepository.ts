@@ -92,6 +92,7 @@ export interface SalesOrder {
   balanceAmount?: number;
   closureStatus: string;
   planningStatus?: string;
+  dispatchCategory?: string;
   productionTargetDate?: string | null;
   targetDate?: string | null;
   priority?: string;

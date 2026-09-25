@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { Layers, Package, Tag, Info, RefreshCw, Plus, ShieldAlert, Trash2, ChevronRight } from 'lucide-react';
 import { backendFetch } from '../../lib/backendFetch';
 import { useToast } from '../context/ToastContext';
 import { useSearchStore } from '@/store/searchStore';
+import { isTradingProduct } from '../../shared/utils/dispatchCategory';
 import DataTable from './DataTable';
 
 const fireSwal = async (opts) => {
@@ -12,9 +14,12 @@ const fireSwal = async (opts) => {
   return Swal.fire(opts);
 };
 
-export default function CategoryMasterUI({ role = 'Plant Head' }) {
+export default function CategoryMasterUI({ role = 'Plant Head', scope }) {
   const { showToast } = useToast();
   const globalSearch = useSearchStore(s => s.globalSearch);
+  const pathname = usePathname();
+
+  const isPlantHead = role === 'Plant Head' || pathname?.includes('/plant-head');
 
   const [loading, setLoading] = useState(true);
   const [realBackendProducts, setRealBackendProducts] = useState([]);
@@ -48,6 +53,10 @@ export default function CategoryMasterUI({ role = 'Plant Head' }) {
           return false;
         }
         if (code.startsWith('HCPPL') || code.startsWith('RM-') || code.startsWith('HM')) {
+          return false;
+        }
+        // In Plant Head scope, exclude trading products
+        if (isPlantHead && (type === 'TRADING' || isTradingProduct(p))) {
           return false;
         }
         const rawKeywords = [

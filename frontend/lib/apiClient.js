@@ -91,6 +91,29 @@ function getOrderByIdFromPath(path) {
   return orders.find(o => o.id === id || o.orderNo === id) || null;
 }
 
+function isTradingOrder(order) {
+  if (!order) return false;
+  if (order.isTrading === true) return true;
+  const dCat = String(order.dispatchCategory || order.dispatch_category || '').toUpperCase();
+  if (dCat === 'D2' || dCat.includes('2')) return true;
+  const items = order.items || order.detailedItems || order.orderItems || [];
+  if (Array.isArray(items) && items.length > 0) {
+    return items.every(it => {
+      const cat = String(it.category || it.product_family || '').toUpperCase();
+      const pType = String(it.productType || it.product_type || '').toUpperCase();
+      const name = String(it.productName || it.name || '').toUpperCase();
+      const sku = String(it.sku || it.productSku || it.productCode || '').toUpperCase();
+      const itemDCat = String(it.dispatchCategory || it.dispatch_category || '').toUpperCase();
+      if (pType === 'TRADING' || itemDCat === 'D2' || itemDCat.includes('2')) return true;
+      if (cat.includes('COVERBLOCK') || cat.includes('FRC') || cat.includes('RCC') || cat.includes('TRADING') || cat.includes('OTHERS')) return true;
+      if (name.includes('COVERBLOCK') || name.includes('COVER BLOCK') || name.includes('FRC') || name.includes('RCC') || name.includes('MOULDED')) return true;
+      if (sku.startsWith('WCB') || sku.startsWith('PCB') || sku.startsWith('HTCB') || sku.startsWith('DTCB') || sku.startsWith('MCB') || sku.startsWith('BTCB') || sku.startsWith('FRC') || sku.startsWith('RCC')) return true;
+      return false;
+    });
+  }
+  return false;
+}
+
 // ── GET handlers ─────────────────────────────────────────────
 async function handleGet(path, options = {}) {
   await delay(200);
@@ -115,7 +138,7 @@ async function handleGet(path, options = {}) {
   // ── Plant Head ──────────────────────────────────────────
   if (path === '/plant-head/incoming-orders' || path === '/plant-head/planning-orders') {
     const incoming = orders.filter(o =>
-      [S.PLANT_PENDING, S.PLANT_ACCEPTED].includes(o.workflowStatus)
+      [S.PLANT_PENDING, S.PLANT_ACCEPTED].includes(o.workflowStatus) && !isTradingOrder(o)
     );
     return { ...ok(incoming), orders: incoming };
   }
@@ -634,6 +657,13 @@ async function handlePatch(path, body = {}) {
       });
       return ok(bRes, 'Order sent to Plant Head');
     } catch {
+      const order = getOrderByIdFromPath(path);
+      const isTrading = order ? isTradingOrder(order) : false;
+      if (isTrading) {
+        const evt = makeTimelineEvent(S.READY_FOR_DISPATCH, 'Trading Order Routed to Dispatch 2', 'Send to Dispatch 2', actor, 'Sales', body?.notes);
+        const updated = advanceOrder(id, S.READY_FOR_DISPATCH, 'Dispatch 2', 'Dispatch 2', evt);
+        return updated ? ok(updated, 'Trading order sent to Dispatch 2') : ok({ id, status: S.READY_FOR_DISPATCH }, 'Trading order sent to Dispatch 2');
+      }
       const evt = makeTimelineEvent(S.PLANT_PENDING, 'Order Sent to Plant Head by Sales', 'Send to Plant Head', actor, 'Sales', body?.notes);
       const updated = advanceOrder(id, S.PLANT_PENDING, 'Plant Head', 'Plant Planning', evt);
       return updated ? ok(updated, 'Order sent to Plant Head') : ok({ id, status: S.PLANT_PENDING }, 'Order sent to Plant Head');

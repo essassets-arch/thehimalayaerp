@@ -256,14 +256,13 @@ export default function OrdersView({
 
   const isTradingItem = (item) => {
     if (!item) return false;
+    if (item.isTrading === true || item.product?.isTrading === true) return true;
     const type = String(item.productType || item.product?.productType || item.product_type || '').toUpperCase();
     if (type === 'TRADING') return true;
-    if (type === 'MANUFACTURING') return false;
     const dCat = String(item.dispatchCategory || item.dispatch_category || item.product?.dispatchCategory || item.product?.dispatch_category || '').toUpperCase();
-    if (dCat === 'D2' || dCat.includes('2')) return true;
+    if (dCat === 'D2' || dCat === 'DISPATCH 2' || dCat === 'DISPATCH_2' || dCat.includes('2')) return true;
     const cat = String(item.category || item.product?.category || item.product_family || item.brand || '').toUpperCase();
     if (['RCC PIPE', 'FRC COVER', 'COVERBLOCK', 'OTHERS', 'TRADING'].includes(cat)) return true;
-    if (['FRP COVERS', 'FRP GRATINGS', 'MANUFACTURING'].includes(cat)) return false;
     const nameOrSku = String(item.productName || item.productNameSnapshot || item.name || item.product?.name || item.sku || item.productCode || item.productCodeSnapshot || '').toUpperCase();
     if (
       nameOrSku.startsWith('FRCCP') ||
@@ -280,10 +279,13 @@ export default function OrdersView({
       nameOrSku.includes('COVERBLOCK') ||
       nameOrSku.includes('COVER BLOCK') ||
       nameOrSku.includes('FRC COVER') ||
-      nameOrSku.includes('RCC PIPE')
+      nameOrSku.includes('RCC PIPE') ||
+      nameOrSku.includes('MOULDED')
     ) {
       return true;
     }
+    if (['FRP COVERS', 'MANUFACTURING'].includes(cat)) return false;
+    if (type === 'MANUFACTURING' || dCat === 'D1') return false;
     return false;
   };
 
@@ -552,7 +554,7 @@ export default function OrdersView({
     const isTrading = isTradingOrder(order);
 
     if (backendStatus === 'READY_FOR_DISPATCH') {
-      return { action: null, label: isTrading ? 'Sent to Dispatch' : 'Ready for Dispatch' };
+      return { action: null, label: isTrading ? 'Sent to Dispatch 2' : 'Ready for Dispatch' };
     }
 
     const isAlreadySent = Boolean(
@@ -572,10 +574,10 @@ export default function OrdersView({
       if (['PRODUCTION_STARTED', 'PRODUCTION_IN_PROGRESS', 'IN_PRODUCTION'].includes(order.productionStatus) || backendStatus === 'IN_PRODUCTION') {
         return { action: null, label: 'In Production' };
       }
-      return { action: null, label: isTrading ? 'Sent to Dispatch' : 'Sent to Plant Head' };
+      return { action: null, label: isTrading ? 'Sent to Dispatch 2' : 'Sent to Plant Head' };
     }
 
-    const actionLabel = isTrading ? 'Send to Dispatch' : 'Send to Plant Head';
+    const actionLabel = isTrading ? 'Send to Dispatch 2' : 'Send to Plant Head';
 
     return { action: 'SEND_TO_PLANT', label: actionLabel };
   };
@@ -1235,13 +1237,13 @@ export default function OrdersView({
                                   if (sendingOrderId === orderId) return;
                                   const isTrading = isTradingOrder(o);
                                   const confirmation = await Swal.fire({
-                                    title: isTrading ? 'Send Order to Dispatch?' : 'Send Order to Plant Head?',
+                                    title: isTrading ? 'Send Order to Dispatch 2?' : 'Send Order to Plant Head?',
                                     text: isTrading
-                                      ? 'This is a Trading Order. It will bypass factory production and go directly to the Dispatch queue.'
+                                      ? 'This is a Trading Order. It will bypass factory production and go directly to the Dispatch 2 (Sahad Dispatch) queue.'
                                       : 'This order will be added to the Plant Head incoming-order queue for production planning.',
                                     icon: 'question',
                                     showCancelButton: true,
-                                    confirmButtonText: isTrading ? 'Yes, Send to Dispatch' : 'Yes, Send Order',
+                                    confirmButtonText: isTrading ? 'Yes, Send to Dispatch 2' : 'Yes, Send Order',
                                     cancelButtonText: 'Cancel',
                                   });
                                   if (!confirmation.isConfirmed) return;
@@ -1250,9 +1252,9 @@ export default function OrdersView({
                                     const sent = await onUpdateOrderStatus?.(orderId, 'SEND_TO_PLANT');
                                     if (sent !== false) {
                                       await Swal.fire({
-                                        title: isTrading ? 'Sent to Dispatch' : 'Order Sent Successfully',
+                                        title: isTrading ? 'Sent to Dispatch 2' : 'Order Sent Successfully',
                                         text: isTrading
-                                          ? 'The order is now available in Dispatch Orders for fulfillment.'
+                                          ? 'The order is now available in Dispatch 2 Orders for fulfillment.'
                                           : 'The order is now available in Plant Head Incoming Orders.',
                                         icon: 'success',
                                       });

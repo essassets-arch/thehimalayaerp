@@ -157,10 +157,13 @@ const _selectSalesOrders = (store: ERPStoreState): SalesOrder[] =>
 
 function isTradingProductItem(item: any): boolean {
   if (!item) return false;
+  if (item.isTrading === true || item.product?.isTrading === true) return true;
+
   const pType = String(item.productType || item.product_type || item.product?.productType || item.product?.product_type || '').toUpperCase();
   if (pType === 'TRADING') return true;
-  if (pType === 'MANUFACTURING') return false;
-  if (item.isTrading === true || item.product?.isTrading === true) return true;
+
+  const dCat = String(item.dispatchCategory || item.dispatch_category || item.product?.dispatchCategory || item.product?.dispatch_category || '').toUpperCase();
+  if (dCat === 'D2' || dCat === 'DISPATCH 2' || dCat === 'DISPATCH_2' || dCat.includes('CAT 2') || dCat.includes('CATEGORY 2')) return true;
 
   const name = String(item.productName || item.product_name || item.name || item.product?.name || item.productNameSnapshot || '').toUpperCase();
   const sku = String(item.sku || item.productSku || item.product_sku || item.productCode || item.productCodeSnapshot || item.product?.sku || '').toUpperCase();
@@ -221,10 +224,8 @@ function isTradingProductItem(item: any): boolean {
   if (cat.includes('frp gratings')) {
     return name.includes('MOULDED') || sku.includes('MOULDED');
   }
-  if (cat.includes('frp covers') || cat.includes('manufacturing')) return false;
 
-  const dCat = String(item.dispatchCategory || item.dispatch_category || item.product?.dispatchCategory || item.product?.dispatch_category || '').toUpperCase();
-  if (dCat === 'D2' || dCat === 'DISPATCH 2' || dCat === 'DISPATCH_2' || dCat.includes('CAT 2') || dCat.includes('CATEGORY 2')) return true;
+  if (pType === 'MANUFACTURING' || dCat === 'D1' || cat.includes('frp covers') || cat.includes('manufacturing')) return false;
 
   return false;
 }

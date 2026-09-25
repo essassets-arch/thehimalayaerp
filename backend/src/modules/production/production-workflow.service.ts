@@ -11,6 +11,10 @@ import { NotificationsService } from '../notifications/notifications.service';
 
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { isCatalogProduct, getCatalogProductsPrismaWhere } from '../products/catalog-product.filter';
+import {
+  isTradingProduct,
+  isPureTradingOrder,
+} from '../../common/utils/trading-product.util';
 
 @Injectable()
 export class ProductionWorkflowService {
@@ -198,6 +202,9 @@ export class ProductionWorkflowService {
         const isStartedOrDone = isActuallyInProductionOrDone(bwoStatus, woAny);
 
         const salesItem = salesOrder.items?.find((item: any) => item.id === woAny.salesOrderItemId) || woAny.salesOrderItem;
+        if (isTradingProduct(salesItem?.product || woAny.salesOrderItem?.product, salesItem || woAny.salesOrderItem)) {
+          continue;
+        }
         const productName = salesItem?.productNameSnapshot || salesItem?.product?.name || woAny.salesOrderItem?.product?.name || 'Production Item';
         const itemQuantity = Number(woAny.quantity || salesItem?.orderedQuantity || 0);
 
@@ -265,7 +272,7 @@ export class ProductionWorkflowService {
 
       for (const plan of activePlans) {
         const soAny = (plan as any).salesOrder;
-        if (!soAny) continue;
+        if (!soAny || isPureTradingOrder(soAny)) continue;
         const orderId = soAny.id || plan.salesOrderId || plan.id;
         const key = String(soAny.orderNumber || soAny.orderNo || orderId);
         if (!historyMap.has(orderId) && !historyMap.has(key) && !pendingMap.has(orderId) && !pendingMap.has(key)) {
@@ -351,6 +358,7 @@ export class ProductionWorkflowService {
 
       for (const so of assignedSalesOrders) {
         const soAny = so as any;
+        if (isPureTradingOrder(soAny)) continue;
         const key = String(soAny.orderNumber || soAny.orderNo || soAny.id);
         if (!historyMap.has(soAny.id) && !historyMap.has(key) && !pendingMap.has(soAny.id) && !pendingMap.has(key)) {
           const lead = soAny.sourceQuotation?.lead || soAny.quotation?.lead;

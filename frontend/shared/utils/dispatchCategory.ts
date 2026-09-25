@@ -26,7 +26,6 @@ export function isTradingProduct(entity?: any, productsMap?: Map<string, any>): 
 
   const pType = String(entity.productType || entity.product_type || entity.product?.productType || entity.product?.product_type || '').toUpperCase();
   if (pType === 'TRADING') return true;
-  if (pType === 'MANUFACTURING') return false;
 
   const dCat = String(
     entity.dispatchCategory ||
@@ -35,8 +34,7 @@ export function isTradingProduct(entity?: any, productsMap?: Map<string, any>): 
     entity.product?.dispatch_category ||
     ''
   ).toUpperCase();
-  if (dCat === 'D2' || dCat.includes('2')) return true;
-  if (dCat === 'D1' || dCat.includes('1')) return false;
+  if (dCat === 'D2' || dCat === 'DISPATCH 2' || dCat === 'DISPATCH_2' || dCat.includes('CAT 2') || dCat.includes('CATEGORY 2')) return true;
 
   const cat = String(
     entity.category ||
@@ -101,7 +99,7 @@ export function isTradingProduct(entity?: any, productsMap?: Map<string, any>): 
   if (['FRP COVERS', 'MANUFACTURING', 'FINISHED GOODS'].includes(cat)) return false;
 
   // 2. Check items array if entity is an order / sample / replacement / return container
-  const items = entity.items || entity.products || entity.sampleItems || entity.orderItems || [];
+  const items = entity.items || entity.products || entity.sampleItems || entity.orderItems || entity.detailedItems || [];
   if (Array.isArray(items) && items.length > 0) {
     return items.some((it) => isTradingProduct(it, productsMap));
   }
@@ -113,7 +111,27 @@ export function isTradingProduct(entity?: any, productsMap?: Map<string, any>): 
     return isTradingProduct(matched);
   }
 
+  if (pType === 'MANUFACTURING' || dCat === 'D1' || dCat.includes('1')) return false;
+
   return false;
+}
+
+export function isPureTradingOrder(order?: any, productsMap?: Map<string, any>): boolean {
+  if (!order) return false;
+  const items = order.detailedItems || order.items || order.orderItems || order.products || [];
+  if (!Array.isArray(items) || items.length === 0) {
+    return isTradingProduct(order, productsMap);
+  }
+  return items.every((it: any) => isTradingProduct(it, productsMap));
+}
+
+export function hasManufacturingItems(order?: any, productsMap?: Map<string, any>): boolean {
+  if (!order) return false;
+  const items = order.detailedItems || order.items || order.orderItems || order.products || [];
+  if (!Array.isArray(items) || items.length === 0) {
+    return !isTradingProduct(order, productsMap);
+  }
+  return items.some((it: any) => !isTradingProduct(it, productsMap));
 }
 
 export function isManufacturingProduct(entity?: any, productsMap?: Map<string, any>): boolean {

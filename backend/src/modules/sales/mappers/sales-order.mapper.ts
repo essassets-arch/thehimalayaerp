@@ -1,5 +1,9 @@
 import { SalesOrderResponseDto } from '../dto/sales-order-response.dto';
 import { Prisma } from '@prisma/client';
+import {
+  isTradingProduct,
+  isPureTradingOrder,
+} from '../../../common/utils/trading-product.util';
 
 type SalesOrderWithRelations = Prisma.SalesOrderGetPayload<{
   include: {
@@ -62,12 +66,22 @@ export function mapSalesOrder(
     }
   }
 
+  const isOrderAllTrading = isPureTradingOrder(order);
   const workflowStatus = order.workflowState?.code as
     typeof order.status | undefined;
-  const effectiveStatus =
+  let effectiveStatus =
     order.status && order.status !== 'DRAFT'
       ? order.status
       : (workflowStatus ?? order.status);
+
+  if (
+    isOrderAllTrading &&
+    ['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD', 'PLANT_APPROVED'].includes(
+      String(effectiveStatus),
+    )
+  ) {
+    effectiveStatus = 'READY_FOR_DISPATCH';
+  }
   const completedDispatchStatuses = new Set([
     'DELIVERED',
     'POD_RECEIVED',
@@ -270,54 +284,7 @@ export function mapSalesOrder(
       const cleanSku = prodSku.replace(/^HIMALAYA\s+/i, '').trim();
       const cleanName = prodName.replace(/^HIMALAYA\s+/i, '').trim();
 
-      const isTrading =
-        prodType === 'TRADING' ||
-        prodDCat === 'D2' ||
-        prodDCat.includes('2') ||
-        prodCat.includes('TRADING') ||
-        prodCat.includes('RCC PIPE') ||
-        prodCat.includes('FRC COVER') ||
-        prodCat.includes('COVERBLOCK') ||
-        prodCat.includes('OTHERS') ||
-        (prodCat.includes('FRP GRATINGS') && (prodName.includes('MOULDED') || prodSku.includes('MOULDED'))) ||
-        prodName.includes('MOULDED') ||
-        prodSku.includes('MOULDED') ||
-        cleanSku.startsWith('FRCCP') ||
-        cleanSku.startsWith('FRCT') ||
-        cleanSku.startsWith('FRCSQRC') ||
-        cleanSku.startsWith('FRCRFRC') ||
-        cleanSku.startsWith('FRCSFSC') ||
-        cleanSku.startsWith('FRCROFROC') ||
-        cleanSku.startsWith('FRCGT') ||
-        cleanSku.startsWith('FRC') ||
-        cleanSku.startsWith('RCC') ||
-        cleanSku.startsWith('BTCB') ||
-        cleanSku.startsWith('WCB') ||
-        cleanSku.startsWith('PCB') ||
-        cleanSku.startsWith('HTCB') ||
-        cleanSku.startsWith('DTCB') ||
-        cleanSku.startsWith('MCB') ||
-        cleanSku.includes('COVERBLOCK') ||
-        cleanSku.includes('COVER BLOCK') ||
-        cleanName.startsWith('FRCCP') ||
-        cleanName.startsWith('FRCT') ||
-        cleanName.startsWith('FRCSQRC') ||
-        cleanName.startsWith('FRCRFRC') ||
-        cleanName.startsWith('FRCSFSC') ||
-        cleanName.startsWith('FRCROFROC') ||
-        cleanName.startsWith('FRCGT') ||
-        cleanName.startsWith('FRC') ||
-        cleanName.startsWith('RCC') ||
-        cleanName.startsWith('BTCB') ||
-        cleanName.startsWith('WCB') ||
-        cleanName.startsWith('PCB') ||
-        cleanName.startsWith('HTCB') ||
-        cleanName.startsWith('DTCB') ||
-        cleanName.startsWith('MCB') ||
-        cleanName.includes('FRC COVER') ||
-        cleanName.includes('RCC PIPE') ||
-        cleanName.includes('COVERBLOCK') ||
-        cleanName.includes('COVER BLOCK');
+      const isTrading = isTradingProduct((item as any).product || item, item);
 
       const orderedQty = Number(item.orderedQuantity);
       const alreadyDispatchedQty = dispatchMap
@@ -419,21 +386,25 @@ export function mapSalesOrder(
 
     // Unified lifecycle status
     status: effectiveStatus,
-    sentToPlantHead: Boolean(
-      order.status === 'SENT_TO_PLANT_HEAD' ||
-      order.status === 'PLANT_APPROVED' ||
-      order.status === 'READY_FOR_PRODUCTION' ||
-      order.status === 'IN_PRODUCTION' ||
-      order.status === 'READY_FOR_DISPATCH' ||
-      order.status === 'COMPLETED' ||
-      productionPlan?.id,
-    ),
-    sentToPlantHeadAt:
-      order.status === 'SENT_TO_PLANT_HEAD' || order.status === 'PLANT_APPROVED'
+    sentToPlantHead: isOrderAllTrading
+      ? false
+      : Boolean(
+          order.status === 'SENT_TO_PLANT_HEAD' ||
+          order.status === 'PLANT_APPROVED' ||
+          order.status === 'READY_FOR_PRODUCTION' ||
+          order.status === 'IN_PRODUCTION' ||
+          order.status === 'READY_FOR_DISPATCH' ||
+          order.status === 'COMPLETED' ||
+          productionPlan?.id,
+        ),
+    sentToPlantHeadAt: isOrderAllTrading
+      ? undefined
+      : order.status === 'SENT_TO_PLANT_HEAD' || order.status === 'PLANT_APPROVED'
         ? order.updatedAt?.toISOString()
         : undefined,
-    planningStatus:
-      order.status === 'SENT_TO_PLANT_HEAD'
+    planningStatus: isOrderAllTrading
+      ? 'NOT_REQUIRED'
+      : order.status === 'SENT_TO_PLANT_HEAD'
         ? 'PENDING_ACCEPTANCE'
         : order.status === 'PLANT_APPROVED'
           ? 'PLANT_HEAD_ACCEPTED'
@@ -445,9 +416,9 @@ export function mapSalesOrder(
     podUrl: podUrl ?? undefined,
     returnStatus,
     replacementStatus,
-    productionPlanId: productionPlan?.id ?? null,
-    productionStatus: calculatedProductionStatus,
-    productionAssignedToId: productionPlan?.assignedToId ?? null,
+    productionPlanId: isOrderAllTrading ? null : (productionPlan?.id ?? null),
+    productionStatus: isOrderAllTrading ? 'NOT_REQUIRED' : calculatedProductionStatus,
+    productionAssignedToId: isOrderAllTrading ? null : (productionPlan?.assignedToId ?? null),
     qcStatus: calculatedQcStatus,
     targetDate:
       productionPlan?.plannedEndDate?.toISOString().split('T')[0] ??

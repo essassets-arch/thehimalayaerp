@@ -25,6 +25,11 @@ import {
   canAssignSalesOwner,
 } from '../../common/utils/rbac.util';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  isTradingProduct,
+  isPureTradingOrder,
+  hasManufacturingItems,
+} from '../../common/utils/trading-product.util';
 
 const HISTORICAL_DISPATCH_INVOICES: Record<string, string> = {
   "HCPPL/2627/0088": "588",
@@ -1053,10 +1058,15 @@ export class SalesService {
       );
       if (result?.nextStateId) nextStateId = result.nextStateId;
 
+      // Determine if order is purely trading products
+      const isPureTrading = isPureTradingOrder(order);
+
       const statusByAction: Partial<Record<string, SalesOrderStatus>> = {
         SUBMIT: SalesOrderStatus.PENDING_APPROVAL,
         CONFIRM: SalesOrderStatus.CONFIRMED,
-        SEND_TO_PLANT: SalesOrderStatus.SENT_TO_PLANT_HEAD,
+        SEND_TO_PLANT: isPureTrading
+          ? SalesOrderStatus.READY_FOR_DISPATCH
+          : SalesOrderStatus.SENT_TO_PLANT_HEAD,
         PLANT_APPROVE: SalesOrderStatus.PLANT_APPROVED,
         PLAN_PRODUCTION: SalesOrderStatus.READY_FOR_PRODUCTION,
         START_PRODUCTION: SalesOrderStatus.IN_PRODUCTION,
@@ -1064,6 +1074,17 @@ export class SalesService {
         COMPLETE: SalesOrderStatus.COMPLETED,
         CANCEL: SalesOrderStatus.CANCELLED,
       };
+
+      let readyDispatchState: any = null;
+      if (actionName === 'SEND_TO_PLANT' && isPureTrading) {
+        readyDispatchState = await tx.workflowState.findFirst({
+          where: { workflow: { code: 'SALES_ORDER' }, code: 'READY_FOR_DISPATCH' },
+        });
+        if (readyDispatchState) {
+          nextStateId = readyDispatchState.id;
+        }
+      }
+
       const updated = await tx.salesOrder.update({
         where: { id: order.id },
         data: {
@@ -1072,7 +1093,11 @@ export class SalesService {
             ? { status: statusByAction[actionName] }
             : {}),
           ...(actionName === 'CONFIRM' ? { confirmedAt: new Date() } : {}),
-          ...(dto.remarks ? { remarks: dto.remarks } : {}),
+          ...(dto.remarks
+            ? { remarks: dto.remarks }
+            : isPureTrading && actionName === 'SEND_TO_PLANT'
+            ? { remarks: 'Direct to Dispatch 2 (Sahad Dispatch)' }
+            : {}),
           version: { increment: 1 },
         },
         include: {
@@ -1105,56 +1130,12 @@ export class SalesService {
           where: { id: { in: productIds } },
           select: { id: true, category: true, productType: true, dispatchCategory: true, sku: true, name: true },
         });
+        const productMap = new Map(orderProducts.map((p) => [p.id, p]));
 
-        const isItemTrading = (item: any) => {
-          const p = orderProducts.find((prod) => prod.id === item.productId);
-          const pType = String(p?.productType || item?.productType || '').toUpperCase();
-          if (pType === 'TRADING') return true;
-          if (pType === 'MANUFACTURING') return false;
-
-          const dCat = String(p?.dispatchCategory || item?.dispatchCategory || '').toUpperCase();
-          if (dCat === 'D2' || dCat.includes('2')) return true;
-
-          const skuOrName = String(p?.sku || p?.name || item?.productCodeSnapshot || item?.productNameSnapshot || '').toUpperCase();
-          const cleanSkuOrName = skuOrName.replace(/^HIMALAYA\s+/i, '').trim();
-
-          if (
-            skuOrName.includes('MOULDED') ||
-            cleanSkuOrName.startsWith('WCB') ||
-            cleanSkuOrName.startsWith('PCB') ||
-            cleanSkuOrName.startsWith('HTCB') ||
-            cleanSkuOrName.startsWith('DTCB') ||
-            cleanSkuOrName.startsWith('MCB') ||
-            cleanSkuOrName.startsWith('BTCB') ||
-            cleanSkuOrName.startsWith('FRCCP') ||
-            cleanSkuOrName.startsWith('FRCT') ||
-            cleanSkuOrName.startsWith('FRCSQRC') ||
-            cleanSkuOrName.startsWith('FRCRFRC') ||
-            cleanSkuOrName.startsWith('FRCSFSC') ||
-            cleanSkuOrName.startsWith('FRCROFROC') ||
-            cleanSkuOrName.startsWith('FRCGT') ||
-            cleanSkuOrName.startsWith('FRCTSOC') ||
-            cleanSkuOrName.startsWith('FRCTPEC') ||
-            cleanSkuOrName.startsWith('FRC') ||
-            cleanSkuOrName.startsWith('RCC') ||
-            skuOrName.includes('COVERBLOCK') ||
-            skuOrName.includes('COVER BLOCK') ||
-            skuOrName.includes('FRC COVER') ||
-            skuOrName.includes('RCC PIPE')
-          ) {
-            return true;
-          }
-
-          const cat = String(p?.category || item?.category || '').toUpperCase();
-          if (['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING'].includes(cat)) return true;
-          if (['FRP COVERS', 'MANUFACTURING'].includes(cat)) return false;
-          if (cat === 'FRP GRATINGS') {
-            return skuOrName.includes('MOULDED');
-          }
-          return false;
-        };
-
-        const hasManufacturingProduct = order.items.some((item) => !isItemTrading(item));
+        const hasManufacturingProduct = order.items.some((item) => {
+          const prod = productMap.get(item.productId);
+          return !isTradingProduct(prod, item);
+        });
 
         if (hasManufacturingProduct) {
           // Manufacturing order -> Route to Plant Head & Factory Production Planning
@@ -1189,13 +1170,15 @@ export class SalesService {
             });
           }
         } else {
-          // 100% Trading order -> Bypass Plant Head factory production & route directly to Dispatch 2 (Sahad Dispatch)
-          const readyDispatchState = await tx.workflowState.findFirst({
-            where: {
-              workflow: { code: 'SALES_ORDER' },
-              code: 'READY_FOR_DISPATCH',
-            },
-          });
+          // 100% Trading order -> Ensure status is locked to READY_FOR_DISPATCH for Dispatch 2
+          if (!readyDispatchState) {
+            readyDispatchState = await tx.workflowState.findFirst({
+              where: {
+                workflow: { code: 'SALES_ORDER' },
+                code: 'READY_FOR_DISPATCH',
+              },
+            });
+          }
           await tx.salesOrder.update({
             where: { id: order.id },
             data: {
@@ -1205,6 +1188,17 @@ export class SalesService {
                 : {}),
             },
           });
+
+          // Delete any production plans that were ever created for this trading order
+          const existingPlans = await tx.productionPlan.findMany({
+            where: { salesOrderId: order.id },
+            include: { workOrders: true },
+          });
+          for (const pp of existingPlans) {
+            if (pp.workOrders.length === 0) {
+              await tx.productionPlan.delete({ where: { id: pp.id } });
+            }
+          }
         }
       }
 
@@ -1246,55 +1240,12 @@ export class SalesService {
           where: { id: { in: productIds } },
           select: { id: true, category: true, productType: true, dispatchCategory: true, sku: true, name: true },
         });
+        const productMap = new Map(orderProducts.map((p) => [p.id, p]));
 
-        const isItemTrading = (item: any) => {
-          const p = orderProducts.find((prod) => prod.id === item.productId);
-          const pType = String(p?.productType || item?.productType || '').toUpperCase();
-          if (pType === 'TRADING') return true;
-          if (pType === 'MANUFACTURING') return false;
-          const dCat = String(p?.dispatchCategory || item?.dispatchCategory || '').toUpperCase();
-          if (dCat === 'D2' || dCat.includes('2')) return true;
-
-          const skuOrName = String(p?.sku || p?.name || item?.productCodeSnapshot || item?.productNameSnapshot || '').toUpperCase();
-          const cleanSkuOrName = skuOrName.replace(/^HIMALAYA\s+/i, '').trim();
-
-          if (
-            skuOrName.includes('MOULDED') ||
-            cleanSkuOrName.startsWith('WCB') ||
-            cleanSkuOrName.startsWith('PCB') ||
-            cleanSkuOrName.startsWith('HTCB') ||
-            cleanSkuOrName.startsWith('DTCB') ||
-            cleanSkuOrName.startsWith('MCB') ||
-            cleanSkuOrName.startsWith('BTCB') ||
-            cleanSkuOrName.startsWith('FRCCP') ||
-            cleanSkuOrName.startsWith('FRCT') ||
-            cleanSkuOrName.startsWith('FRCSQRC') ||
-            cleanSkuOrName.startsWith('FRCRFRC') ||
-            cleanSkuOrName.startsWith('FRCSFSC') ||
-            cleanSkuOrName.startsWith('FRCROFROC') ||
-            cleanSkuOrName.startsWith('FRCGT') ||
-            cleanSkuOrName.startsWith('FRCTSOC') ||
-            cleanSkuOrName.startsWith('FRCTPEC') ||
-            cleanSkuOrName.startsWith('FRC') ||
-            cleanSkuOrName.startsWith('RCC') ||
-            skuOrName.includes('COVERBLOCK') ||
-            skuOrName.includes('COVER BLOCK') ||
-            skuOrName.includes('FRC COVER') ||
-            skuOrName.includes('RCC PIPE')
-          ) {
-            return true;
-          }
-
-          const cat = String(p?.category || item?.category || '').toUpperCase();
-          if (['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING'].includes(cat)) return true;
-          if (['FRP COVERS', 'MANUFACTURING'].includes(cat)) return false;
-          if (cat === 'FRP GRATINGS') {
-            return skuOrName.includes('MOULDED');
-          }
-          return false;
-        };
-
-        const hasManufacturing = order.items.some((item: any) => !isItemTrading(item));
+        const hasManufacturing = order.items.some((item: any) => {
+          const prod = productMap.get(item.productId);
+          return !isTradingProduct(prod, item);
+        });
 
         if (!hasManufacturing) {
           notificationsService

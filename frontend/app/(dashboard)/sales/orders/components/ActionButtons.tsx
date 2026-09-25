@@ -15,10 +15,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { isPureTradingOrder } from '@/shared/utils/dispatchCategory';
 
 interface ActionButtonsProps {
   orderId: string;
   status: string;
+  order?: any;
 }
 
 export function ActionButtons({ orderId, status }: ActionButtonsProps) {
@@ -113,20 +115,23 @@ export function ActionButtons({ orderId, status }: ActionButtonsProps) {
         <XCircle className="mr-2 h-4 w-4" /> Reject
       </Button>
     );
-  } else if (status === 'APPROVED' || status === 'CONFIRMED') {
+  } else if (status === 'APPROVED' || status === 'CONFIRMED' || status === 'ORDER_CONFIRMED') {
+    const isTrading = order ? isPureTradingOrder(order) : false;
     actions.push(
       <Button 
         key="send"
         variant="default"
         onClick={() => setDialogConfig({
           isOpen: true,
-          action: 'SEND_TO_PLANT',
+          action: isTrading ? 'SEND_TO_DISPATCH_2' : 'SEND_TO_PLANT',
           endpoint: `/sales/orders/${orderId}/send-to-plant`,
-          title: 'Send to Plant',
-          description: 'Are you sure you want to send this order to the plant for production?'
+          title: isTrading ? 'Send to Dispatch 2' : 'Send to Plant',
+          description: isTrading
+            ? 'This is a Trading Order. It will bypass factory production and route directly to Dispatch 2 (Sahad Dispatch).'
+            : 'Are you sure you want to send this order to the plant for production?'
         })}
       >
-        <FileText className="mr-2 h-4 w-4" /> Send to Plant
+        <FileText className="mr-2 h-4 w-4" /> {isTrading ? 'Send to Dispatch 2' : 'Send to Plant'}
       </Button>
     );
   }

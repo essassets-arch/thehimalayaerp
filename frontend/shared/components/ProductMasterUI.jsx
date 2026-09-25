@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { usePathname } from 'next/navigation';
 import { 
   Plus, Search, Edit3, Trash2, Download, Upload, RefreshCw, 
   ChevronLeft, ChevronRight, Package, CheckCircle2, Tag, Truck,
@@ -11,6 +12,7 @@ import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { useERP } from '../context/ERPContext';
 import { safeSaveFile } from '../../services/export.service';
+import { isTradingProduct } from '../../shared/utils/dispatchCategory';
 
 const UNITS = ['PCS', 'SET', 'KG', 'LTR', 'BAG', 'ROLL', 'CAN', 'BARREL', 'PKT', 'MTR'];
 
@@ -22,10 +24,19 @@ export const normalizeProductType = (type) => {
       : 'MANUFACTURING';
 };
 
-export default function ProductMasterUI({ role }) {
+export default function ProductMasterUI({ role, scope }) {
   const { showToast } = useToast();
   const { confirm, ConfirmDialogComponent } = useConfirm();
   const { syncData } = useERP() || {};
+  const pathname = usePathname();
+
+  // Scope determines whether this catalog is strictly Kasna Plant (Manufacturing), Sahad Dispatch (Trading), or All
+  const effectiveScope = scope || (
+    role === 'Dispatch 2' || pathname?.includes('/dispatch-2') ? 'TRADING' :
+    role === 'Plant Head' || pathname?.includes('/plant-head') ? 'MANUFACTURING' :
+    role === 'Dispatch' || (pathname?.includes('/dispatch') && !pathname?.includes('/dispatch-2')) ? 'MANUFACTURING' :
+    'ALL'
+  );
 
   const [rawProducts, setRawProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +53,16 @@ export default function ProductMasterUI({ role }) {
   }, []);
   
   // Submenu Tab State: 'MANUFACTURING' | 'TRADING' | 'ALL'
-  const [activeSubMenu, setActiveSubMenu] = useState('ALL');
+  const [activeSubMenu, setActiveSubMenu] = useState(
+    effectiveScope === 'MANUFACTURING' ? 'MANUFACTURING' :
+    effectiveScope === 'TRADING' ? 'TRADING' :
+    'ALL'
+  );
+
+  useEffect(() => {
+    if (effectiveScope === 'MANUFACTURING') setActiveSubMenu('MANUFACTURING');
+    else if (effectiveScope === 'TRADING') setActiveSubMenu('TRADING');
+  }, [effectiveScope]);
 
   // Pagination & Filtering State
   const [page, setPage] = useState(1);
@@ -59,7 +79,7 @@ export default function ProductMasterUI({ role }) {
     id: null,
     product_name: '',
     product_code: '',
-    product_type: 'MANUFACTURING', // Manufactured, Trading, Service
+    product_type: effectiveScope === 'TRADING' ? 'TRADING' : 'MANUFACTURING',
     covers_per_set: 1,
     frames_per_set: 1,
     set_ratio: 1,
@@ -69,15 +89,17 @@ export default function ProductMasterUI({ role }) {
     brand: 'HIMALAYA',
     gst_rate: 18,
     hsn_sac_code: '',
-    dispatch_category: 'D1',
+    dispatch_category: effectiveScope === 'TRADING' ? 'D2' : 'D1',
     weight: '',
     image_url: ''
   };
   const [formData, setFormData] = useState(initialFormState);
 
   const isSuperAdmin = role === 'Super Admin';
+  const isPlantHead = role === 'Plant Head' || pathname?.includes('/plant-head');
+  const isDispatch2 = role === 'Dispatch 2' || pathname?.includes('/dispatch-2');
   const canDelete = isSuperAdmin;
-  const canEdit = isSuperAdmin || role === 'Plant Head';
+  const canEdit = isSuperAdmin || isPlantHead || isDispatch2;
 
   // Fetch Full Catalog Data
   const fetchProducts = useCallback(async () => {
@@ -89,8 +111,10 @@ export default function ProductMasterUI({ role }) {
       
       // Normalize fields for backend compatibility
       const normalizedList = list.map(p => {
+        const isTrading = isTradingProduct(p);
         let cat = p.dispatchCategory || p.dispatch_category;
-        if (cat === 'D1' || cat === 'DISPATCH 1') cat = 'D1';
+        if (isTrading) cat = 'D2';
+        else if (cat === 'D1' || cat === 'DISPATCH 1') cat = 'D1';
         else if (cat === 'D2' || cat === 'DISPATCH 2') cat = 'D2';
         else cat = 'Unassigned';
 
@@ -100,7 +124,7 @@ export default function ProductMasterUI({ role }) {
           product_code: p.product_code || p.sku || '',
           product_family: p.product_family || p.category || '',
           unit_of_measure: p.unit_of_measure || p.unit || 'PCS',
-          product_type: normalizeProductType(p.product_type || p.productType),
+          product_type: isTrading ? 'TRADING' : normalizeProductType(p.product_type || p.productType),
           covers_per_set: p.coversPerSet !== undefined && p.coversPerSet !== null ? p.coversPerSet : (p.covers_per_set ?? 1),
           coversPerSet: p.coversPerSet !== undefined && p.coversPerSet !== null ? p.coversPerSet : (p.covers_per_set ?? 1),
           frames_per_set: p.framesPerSet !== undefined && p.framesPerSet !== null ? p.framesPerSet : (p.frames_per_set ?? 1),
@@ -116,7 +140,7 @@ export default function ProductMasterUI({ role }) {
       });
 
       // Exclude raw materials/materials (RAW_MATERIAL, HARDWARE, raw material, hardware, electric, consumables)
-      const productsOnly = normalizedList.filter((p, index) => {
+      let productsOnly = normalizedList.filter((p, index) => {
         const originalProduct = list[index];
         const origType = String(originalProduct?.productType || originalProduct?.product_type || '').toUpperCase();
         const family = String(p.product_family || '').toLowerCase();
@@ -141,7 +165,16 @@ export default function ProductMasterUI({ role }) {
           return false;
         }
         return true;
-      }, [rawProducts]);
+      });
+
+      // Strict Scope Isolation:
+      // Plant Head / Manufacturing scope NEVER loads or displays Trading products
+      // Dispatch 2 / Trading scope NEVER loads or displays Manufacturing products
+      if (effectiveScope === 'MANUFACTURING') {
+        productsOnly = productsOnly.filter(p => p.product_type === 'MANUFACTURING' && !isTradingProduct(p));
+      } else if (effectiveScope === 'TRADING') {
+        productsOnly = productsOnly.filter(p => p.product_type === 'TRADING' || isTradingProduct(p));
+      }
 
       setRawProducts(productsOnly);
     } catch (err) {
@@ -252,14 +285,15 @@ export default function ProductMasterUI({ role }) {
   
   const allCount = rawProducts.length;
 
-  const dispatchCats = ['All Dispatches', 'D1', 'D2', 'Unassigned'];
+  const dispatchCats = effectiveScope === 'MANUFACTURING' ? ['All Dispatches', 'D1'] :
+    effectiveScope === 'TRADING' ? ['All Dispatches', 'D2'] :
+    ['All Dispatches', 'D1', 'D2', 'Unassigned'];
+
   const productTypes = [
     { value: 'MANUFACTURING', label: 'Manufactured' },
     { value: 'TRADING', label: 'Trading' },
     { value: 'SERVICE', label: 'Service' },
   ];
-
-
 
   const openEdit = (p) => {
     const pType = normalizeProductType(p.product_type || p.productType);
@@ -286,7 +320,7 @@ export default function ProductMasterUI({ role }) {
   };
 
   const openCreate = () => {
-    const isTradingTab = activeSubMenu === 'TRADING';
+    const isTradingTab = effectiveScope === 'TRADING' || activeSubMenu === 'TRADING';
     const defaultType = isTradingTab ? 'TRADING' : 'MANUFACTURING';
     const defaultDispatch = isTradingTab ? 'D2' : 'D1';
     setFormData({ 
@@ -311,10 +345,14 @@ export default function ProductMasterUI({ role }) {
     const setRatio = formData.set_ratio === '' ? 1 : Math.max(0, parseInt(formData.set_ratio) || 0);
 
     setIsSubmitting(true);
-    const resolvedType = normalizeProductType(formData.product_type);
-    const resolvedDispatch = (formData.dispatch_category && formData.dispatch_category !== 'Unassigned')
-      ? formData.dispatch_category
-      : (resolvedType === 'TRADING' ? 'D2' : 'D1');
+    const resolvedType = effectiveScope === 'TRADING' ? 'TRADING' :
+      effectiveScope === 'MANUFACTURING' ? 'MANUFACTURING' :
+      normalizeProductType(formData.product_type);
+    const resolvedDispatch = effectiveScope === 'TRADING' ? 'D2' :
+      effectiveScope === 'MANUFACTURING' ? 'D1' :
+      ((formData.dispatch_category && formData.dispatch_category !== 'Unassigned')
+        ? formData.dispatch_category
+        : (resolvedType === 'TRADING' ? 'D2' : 'D1'));
 
     const payload = {
       name: formData.product_name,
@@ -428,10 +466,14 @@ export default function ProductMasterUI({ role }) {
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '16px' : '0', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>
-            Product Master
+            {effectiveScope === 'MANUFACTURING' ? 'Plant Head — Manufacturing Products' :
+             effectiveScope === 'TRADING' ? 'Dispatch 2 — Trading Products Master' :
+             'Product Master'}
           </h1>
           <p style={{ color: '#64748B', margin: '4px 0 0 0', fontSize: '14px', fontWeight: 400 }}>
-            Centralized catalog for all items, variants, and dispatch routing.
+            {effectiveScope === 'MANUFACTURING' ? 'Kasna Plant manufactured items, factory specifications, and Dispatch 1 catalog.' :
+             effectiveScope === 'TRADING' ? 'Sahad Dispatch trading products, cover blocks, FRC covers, and Dispatch 2 catalog.' :
+             'Centralized catalog for all items, variants, and dispatch routing.'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
@@ -504,22 +546,34 @@ export default function ProductMasterUI({ role }) {
 
         {/* Card 4: Dispatch Breakdown */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '20px 22px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#F59E0B' }} />
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: effectiveScope === 'TRADING' ? '#059669' : '#F59E0B' }} />
           <div>
-            <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: '#D97706', letterSpacing: '0.05em' }}>Dispatch Routing</div>
+            <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: effectiveScope === 'TRADING' ? '#059669' : '#D97706', letterSpacing: '0.05em' }}>Dispatch Routing</div>
             <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', marginTop: '8px', lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <span style={{ color: '#0284c7' }}>D1: {d1Count}</span>
-              <span style={{ color: '#94A3B8' }}>|</span>
-              <span style={{ color: '#059669' }}>D2: {d2Count}</span>
-              {unassignedCount > 0 && (
-                <span style={{ color: '#d97706', fontSize: '11px', background: '#FEF3C7', padding: '2px 6px', borderRadius: '4px', border: '1px solid #FCD34D' }}>
-                  ⚠ Null: {unassignedCount}
-                </span>
+              {effectiveScope === 'MANUFACTURING' ? (
+                <span style={{ color: '#0284c7' }}>Dispatch 1 (Kasna Plant): {mfgCount}</span>
+              ) : effectiveScope === 'TRADING' ? (
+                <span style={{ color: '#059669' }}>Dispatch 2 (Sahad): {tradingCount}</span>
+              ) : (
+                <>
+                  <span style={{ color: '#0284c7' }}>D1: {d1Count}</span>
+                  <span style={{ color: '#94A3B8' }}>|</span>
+                  <span style={{ color: '#059669' }}>D2: {d2Count}</span>
+                  {unassignedCount > 0 && (
+                    <span style={{ color: '#d97706', fontSize: '11px', background: '#FEF3C7', padding: '2px 6px', borderRadius: '4px', border: '1px solid #FCD34D' }}>
+                      ⚠ Null: {unassignedCount}
+                    </span>
+                  )}
+                </>
               )}
             </div>
-            <div style={{ fontSize: '12px', color: '#64748B', marginTop: '8px' }}>Logistics dispatch breakdown</div>
+            <div style={{ fontSize: '12px', color: '#64748B', marginTop: '8px' }}>
+              {effectiveScope === 'MANUFACTURING' ? 'Kasna Plant manufacturing logistics' :
+               effectiveScope === 'TRADING' ? 'Sahad direct dispatch logistics' :
+               'Logistics dispatch breakdown'}
+            </div>
           </div>
-          <div style={{ width: '52px', height: '52px', borderRadius: '12px', background: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D97706' }}>
+          <div style={{ width: '52px', height: '52px', borderRadius: '12px', background: effectiveScope === 'TRADING' ? 'rgba(5, 150, 105, 0.1)' : 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: effectiveScope === 'TRADING' ? '#059669' : '#D97706' }}>
             <Truck size={26} />
           </div>
         </div>
@@ -535,187 +589,210 @@ export default function ProductMasterUI({ role }) {
         marginBottom: '20px',
         boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
         display: 'grid',
-        gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+        gridTemplateColumns: isMobile || effectiveScope !== 'ALL' ? '1fr' : '1fr 1fr',
         gap: '16px'
       }}>
         {/* Manufacturing Route Card */}
-        <div style={{
-          background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)',
-          border: '1px solid #DDD6FE',
-          borderRadius: '12px',
-          padding: '14px 16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Factory size={18} color="#6D28D9" />
-              <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#4C1D95' }}>Manufacturing Products (Cat 1)</span>
+        {effectiveScope !== 'TRADING' && (
+          <div style={{
+            background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)',
+            border: '1px solid #DDD6FE',
+            borderRadius: '12px',
+            padding: '14px 16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Factory size={18} color="#6D28D9" />
+                <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#4C1D95' }}>Manufacturing Products (Cat 1 — Kasna Plant)</span>
+              </div>
+              <span style={{ fontSize: '11px', fontWeight: 800, background: '#6D28D9', color: '#FFFFFF', padding: '2px 8px', borderRadius: '12px' }}>
+                {mfgCount} Products
+              </span>
             </div>
-            <span style={{ fontSize: '11px', fontWeight: 800, background: '#6D28D9', color: '#FFFFFF', padding: '2px 8px', borderRadius: '12px' }}>
-              {mfgCount} Products
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#5B21B6', fontWeight: 700 }}>
+              <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#6D28D9', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 800 }}>RA</div>
+              <span>Incharge: <strong>Ravikant T</strong> · Dispatch 1</span>
+              <span style={{ fontSize: '11px', color: '#7C3AED', fontWeight: 600 }}>({ 'ravikant.t@himalayaerp.com' })</span>
+            </div>
+            <div style={{ fontSize: '11px', color: '#6D28D9', lineHeight: 1.4, background: 'rgba(255,255,255,0.6)', padding: '6px 10px', borderRadius: '6px' }}>
+              <strong>Fulfillment Flow:</strong> Sales Order ➔ Send to Plant Head ➔ Production Planning ➔ Factory Floor Stations ➔ QC Passed ➔ <strong>Dispatch 1 (Ravikant T)</strong>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#5B21B6', fontWeight: 700 }}>
-            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#6D28D9', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 800 }}>RA</div>
-            <span>Incharge: <strong>Ravikant T</strong> · Dispatch 1</span>
-            <span style={{ fontSize: '11px', color: '#7C3AED', fontWeight: 600 }}>({ 'ravikant.t@himalayaerp.com' })</span>
-          </div>
-          <div style={{ fontSize: '11px', color: '#6D28D9', lineHeight: 1.4, background: 'rgba(255,255,255,0.6)', padding: '6px 10px', borderRadius: '6px' }}>
-            <strong>Fulfillment Flow:</strong> Sales Order ➔ Send to Plant Head ➔ Production Planning ➔ Factory Floor Stations ➔ QC Passed ➔ <strong>Dispatch 1 (Ravikant T)</strong>
-          </div>
-        </div>
+        )}
 
         {/* Trading Route Card */}
-        <div style={{
-          background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
-          border: '1px solid #A7F3D0',
-          borderRadius: '12px',
-          padding: '14px 16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ShoppingBag size={18} color="#047857" />
-              <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#065F46' }}>Trading Products (Cat 2)</span>
+        {effectiveScope !== 'MANUFACTURING' && (
+          <div style={{
+            background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+            border: '1px solid #A7F3D0',
+            borderRadius: '12px',
+            padding: '14px 16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShoppingBag size={18} color="#047857" />
+                <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#065F46' }}>Trading Products (Cat 2 — Sahad Dispatch)</span>
+              </div>
+              <span style={{ fontSize: '11px', fontWeight: 800, background: '#047857', color: '#FFFFFF', padding: '2px 8px', borderRadius: '12px' }}>
+                {tradingCount} Products
+              </span>
             </div>
-            <span style={{ fontSize: '11px', fontWeight: 800, background: '#047857', color: '#FFFFFF', padding: '2px 8px', borderRadius: '12px' }}>
-              {tradingCount} Products
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#065F46', fontWeight: 700 }}>
+              <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#047857', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 800 }}>SD</div>
+              <span>Incharge: <strong>Sahad Dispatch</strong> · Dispatch 2</span>
+              <span style={{ fontSize: '11px', color: '#059669', fontWeight: 600 }}>({ 'sahad.dispatch@himalayaerp.com' })</span>
+            </div>
+            <div style={{ fontSize: '11px', color: '#065F46', lineHeight: 1.4, background: 'rgba(255,255,255,0.6)', padding: '6px 10px', borderRadius: '6px' }}>
+              <strong>Fulfillment Flow:</strong> Sales Order ➔ Send to Dispatch 2 ➔ <strong>Direct to Dispatch 2 (Sahad Dispatch)</strong> (Bypasses Plant Head & factory)
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#065F46', fontWeight: 700 }}>
-            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#047857', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 800 }}>SD</div>
-            <span>Incharge: <strong>Sahad Dispatch</strong> · Dispatch 2</span>
-            <span style={{ fontSize: '11px', color: '#059669', fontWeight: 600 }}>({ 'sahad.dispatch@himalayaerp.com' })</span>
-          </div>
-          <div style={{ fontSize: '11px', color: '#065F46', lineHeight: 1.4, background: 'rgba(255,255,255,0.6)', padding: '6px 10px', borderRadius: '6px' }}>
-            <strong>Fulfillment Flow:</strong> Sales Order ➔ Send to Dispatch ➔ <strong>Direct to Dispatch 2 (Sahad Dispatch)</strong> (Bypasses factory floor)
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Products Submenu Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'stretch', width: '100%' }}>
-        <button
-          type="button"
-          onClick={() => {
-            setActiveSubMenu('MANUFACTURING');
-            if (filterDispatch === 'D2') setFilterDispatch('All');
-          }}
-          style={{
-            flex: isMobile ? 1 : 'none',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            padding: isMobile ? '10px 8px' : '11px 22px',
-            borderRadius: '10px',
-            border: activeSubMenu === 'MANUFACTURING' ? '2px solid #4F46E5' : '1px solid #CBD5E1',
-            cursor: 'pointer',
-            fontSize: isMobile ? '12px' : '14px',
-            fontWeight: 800,
-            background: activeSubMenu === 'MANUFACTURING' ? '#4F46E5' : '#FFFFFF',
-            color: activeSubMenu === 'MANUFACTURING' ? '#FFFFFF' : '#475569',
-            boxShadow: activeSubMenu === 'MANUFACTURING' ? '0 4px 12px rgba(79, 70, 229, 0.25)' : 'none',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          <Factory size={16} />
-          {!isMobile && "Manufacturing (Dispatch 1 - Ravikant T)"}
-          {isMobile && "Mfg (D1)"}
-          <span style={{
-            background: activeSubMenu === 'MANUFACTURING' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
-            color: activeSubMenu === 'MANUFACTURING' ? '#FFFFFF' : '#334155',
-            fontSize: '11px',
-            padding: '2px 6px',
-            borderRadius: '12px',
-            fontWeight: 700,
-            marginLeft: '4px'
-          }}>
-            {mfgCount}
-          </span>
-        </button>
+      {effectiveScope === 'ALL' ? (
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'stretch', width: '100%' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveSubMenu('MANUFACTURING');
+              if (filterDispatch === 'D2') setFilterDispatch('All');
+            }}
+            style={{
+              flex: isMobile ? 1 : 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: isMobile ? '10px 8px' : '11px 22px',
+              borderRadius: '10px',
+              border: activeSubMenu === 'MANUFACTURING' ? '2px solid #4F46E5' : '1px solid #CBD5E1',
+              cursor: 'pointer',
+              fontSize: isMobile ? '12px' : '14px',
+              fontWeight: 800,
+              background: activeSubMenu === 'MANUFACTURING' ? '#4F46E5' : '#FFFFFF',
+              color: activeSubMenu === 'MANUFACTURING' ? '#FFFFFF' : '#475569',
+              boxShadow: activeSubMenu === 'MANUFACTURING' ? '0 4px 12px rgba(79, 70, 229, 0.25)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Factory size={16} />
+            {!isMobile && "Manufacturing (Dispatch 1 - Kasna Plant)"}
+            {isMobile && "Mfg (D1)"}
+            <span style={{
+              background: activeSubMenu === 'MANUFACTURING' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
+              color: activeSubMenu === 'MANUFACTURING' ? '#FFFFFF' : '#334155',
+              fontSize: '11px',
+              padding: '2px 6px',
+              borderRadius: '12px',
+              fontWeight: 700,
+              marginLeft: '4px'
+            }}>
+              {mfgCount}
+            </span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            setActiveSubMenu('TRADING');
-            if (filterDispatch === 'D1') setFilterDispatch('All');
-          }}
-          style={{
-            flex: isMobile ? 1 : 'none',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            padding: isMobile ? '10px 8px' : '11px 22px',
-            borderRadius: '10px',
-            border: activeSubMenu === 'TRADING' ? '2px solid #059669' : '1px solid #CBD5E1',
-            cursor: 'pointer',
-            fontSize: isMobile ? '12px' : '14px',
-            fontWeight: 800,
-            background: activeSubMenu === 'TRADING' ? '#059669' : '#FFFFFF',
-            color: activeSubMenu === 'TRADING' ? '#FFFFFF' : '#475569',
-            boxShadow: activeSubMenu === 'TRADING' ? '0 4px 12px rgba(5, 150, 105, 0.25)' : 'none',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          <ShoppingBag size={16} />
-          {!isMobile && "Trading (Dispatch 2 - Sahad Dispatch)"}
-          {isMobile && "Trading (D2)"}
-          <span style={{
-            background: activeSubMenu === 'TRADING' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
-            color: activeSubMenu === 'TRADING' ? '#FFFFFF' : '#334155',
-            fontSize: '11px',
-            padding: '2px 6px',
-            borderRadius: '12px',
-            fontWeight: 700,
-            marginLeft: '4px'
-          }}>
-            {tradingCount}
-          </span>
-        </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveSubMenu('TRADING');
+              if (filterDispatch === 'D1') setFilterDispatch('All');
+            }}
+            style={{
+              flex: isMobile ? 1 : 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: isMobile ? '10px 8px' : '11px 22px',
+              borderRadius: '10px',
+              border: activeSubMenu === 'TRADING' ? '2px solid #059669' : '1px solid #CBD5E1',
+              cursor: 'pointer',
+              fontSize: isMobile ? '12px' : '14px',
+              fontWeight: 800,
+              background: activeSubMenu === 'TRADING' ? '#059669' : '#FFFFFF',
+              color: activeSubMenu === 'TRADING' ? '#FFFFFF' : '#475569',
+              boxShadow: activeSubMenu === 'TRADING' ? '0 4px 12px rgba(5, 150, 105, 0.25)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <ShoppingBag size={16} />
+            {!isMobile && "Trading (Dispatch 2 - Sahad Dispatch)"}
+            {isMobile && "Trading (D2)"}
+            <span style={{
+              background: activeSubMenu === 'TRADING' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
+              color: activeSubMenu === 'TRADING' ? '#FFFFFF' : '#334155',
+              fontSize: '11px',
+              padding: '2px 6px',
+              borderRadius: '12px',
+              fontWeight: 700,
+              marginLeft: '4px'
+            }}>
+              {tradingCount}
+            </span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveSubMenu('ALL')}
-          style={{
-            flex: isMobile ? 1 : 'none',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            padding: isMobile ? '10px 8px' : '11px 22px',
-            borderRadius: '10px',
-            border: activeSubMenu === 'ALL' ? '2px solid #334155' : '1px solid #CBD5E1',
-            cursor: 'pointer',
-            fontSize: isMobile ? '12px' : '14px',
-            fontWeight: 800,
-            background: activeSubMenu === 'ALL' ? '#334155' : '#FFFFFF',
-            color: activeSubMenu === 'ALL' ? '#FFFFFF' : '#475569',
-            boxShadow: activeSubMenu === 'ALL' ? '0 4px 12px rgba(51, 65, 85, 0.25)' : 'none',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          <Layers size={16} />
-          {!isMobile && "All Products"}
-          {isMobile && "All"}
-          <span style={{
-            background: activeSubMenu === 'ALL' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
-            color: activeSubMenu === 'ALL' ? '#FFFFFF' : '#334155',
-            fontSize: '11px',
-            padding: '2px 6px',
-            borderRadius: '12px',
-            fontWeight: 700,
-            marginLeft: '4px'
-          }}>
-            {allCount}
-          </span>
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() => setActiveSubMenu('ALL')}
+            style={{
+              flex: isMobile ? 1 : 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: isMobile ? '10px 8px' : '11px 22px',
+              borderRadius: '10px',
+              border: activeSubMenu === 'ALL' ? '2px solid #334155' : '1px solid #CBD5E1',
+              cursor: 'pointer',
+              fontSize: isMobile ? '12px' : '14px',
+              fontWeight: 800,
+              background: activeSubMenu === 'ALL' ? '#334155' : '#FFFFFF',
+              color: activeSubMenu === 'ALL' ? '#FFFFFF' : '#475569',
+              boxShadow: activeSubMenu === 'ALL' ? '0 4px 12px rgba(51, 65, 85, 0.25)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Layers size={16} />
+            {!isMobile && "All Products"}
+            {isMobile && "All"}
+            <span style={{
+              background: activeSubMenu === 'ALL' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
+              color: activeSubMenu === 'ALL' ? '#FFFFFF' : '#334155',
+              fontSize: '11px',
+              padding: '2px 6px',
+              borderRadius: '12px',
+              fontWeight: 700,
+              marginLeft: '4px'
+            }}>
+              {allCount}
+            </span>
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', alignItems: 'center' }}>
+          {effectiveScope === 'MANUFACTURING' && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: '#F5F3FF', border: '1.5px solid #6D28D9', borderRadius: '8px', color: '#4C1D95', fontWeight: 800, fontSize: '13.5px' }}>
+              <Factory size={16} color="#6D28D9" />
+              <span>Kasna Plant Manufactured Catalog ({mfgCount} Products)</span>
+              <span style={{ fontSize: '11px', background: '#6D28D9', color: '#FFFFFF', padding: '2px 8px', borderRadius: '12px' }}>Dispatch 1 Only</span>
+            </div>
+          )}
+          {effectiveScope === 'TRADING' && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: '#ECFDF5', border: '1.5px solid #059669', borderRadius: '8px', color: '#065F46', fontWeight: 800, fontSize: '13.5px' }}>
+              <ShoppingBag size={16} color="#059669" />
+              <span>Sahad Dispatch Trading Catalog ({tradingCount} Products)</span>
+              <span style={{ fontSize: '11px', background: '#059669', color: '#FFFFFF', padding: '2px 8px', borderRadius: '12px' }}>Dispatch 2 Only</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Toolbar: Search, Filters & Page Size Controls */}
       <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '16px 20px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '14px', alignItems: isMobile ? 'stretch' : 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
@@ -1269,6 +1346,7 @@ export default function ProductMasterUI({ role }) {
                   <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Product Type *</label>
                   <select 
                     value={formData.product_type} 
+                    disabled={effectiveScope !== 'ALL'}
                     onChange={e => {
                       const newType = e.target.value;
                       const autoDispatch = newType === 'TRADING' ? 'D2' : 'D1';
@@ -1278,12 +1356,18 @@ export default function ProductMasterUI({ role }) {
                         dispatch_category: autoDispatch
                       });
                     }} 
-                    style={{ width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none' }}
+                    style={{ width: '100%', padding: '10px 14px', background: effectiveScope !== 'ALL' ? '#F1F5F9' : '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none', cursor: effectiveScope !== 'ALL' ? 'not-allowed' : 'pointer' }}
                   >
-                    {productTypes.map(({ value, label }) => (
-                      <option key={value} value={value}>
-                        {value === 'MANUFACTURING' ? '🏭 Manufactured (Factory Production)' : value === 'TRADING' ? '🛍️ Trading (Direct Dispatch)' : label}
-                      </option>
+                    {productTypes
+                      .filter(({ value }) => {
+                        if (effectiveScope === 'MANUFACTURING') return value === 'MANUFACTURING';
+                        if (effectiveScope === 'TRADING') return value === 'TRADING';
+                        return true;
+                      })
+                      .map(({ value, label }) => (
+                        <option key={value} value={value}>
+                          {value === 'MANUFACTURING' ? '🏭 Manufactured (Factory Production)' : value === 'TRADING' ? '🛍️ Trading (Direct Dispatch)' : label}
+                        </option>
                     ))}
                   </select>
                   <span style={{ display: 'block', fontSize: '11px', color: formData.product_type === 'TRADING' ? '#059669' : '#4F46E5', marginTop: '4px', fontWeight: 600 }}>
@@ -1292,8 +1376,6 @@ export default function ProductMasterUI({ role }) {
                       : '⚙️ Manufactured products create Plant Head Production Plans and factory Work Orders.'}
                   </span>
                 </div>
-
-
 
                 <div>
                   <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Product Family / Category</label>
@@ -1345,12 +1427,21 @@ export default function ProductMasterUI({ role }) {
                   <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Dispatch Category Routing *</label>
                   <select 
                     value={formData.dispatch_category || (formData.product_type === 'TRADING' ? 'D2' : 'D1')} 
+                    disabled={effectiveScope !== 'ALL'}
                     onChange={e => setFormData({ ...formData, dispatch_category: e.target.value })} 
-                    style={{ width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', fontWeight: 'bold' }}
+                    style={{ width: '100%', padding: '10px 14px', background: effectiveScope !== 'ALL' ? '#F1F5F9' : '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', fontWeight: 'bold', cursor: effectiveScope !== 'ALL' ? 'not-allowed' : 'pointer' }}
                   >
-                    <option value="D1">D1 (Dispatch 1 — Ravikant T · Cat 1 · ravikant.t@himalayaerp.com)</option>
-                    <option value="D2">D2 (Dispatch 2 — Sahad Dispatch · Cat 2 · sahad.dispatch@himalayaerp.com)</option>
-                    <option value="Unassigned">⚠ Unassigned / Pending</option>
+                    {effectiveScope === 'MANUFACTURING' ? (
+                      <option value="D1">D1 (Dispatch 1 — Ravikant T · Kasna Plant · ravikant.t@himalayaerp.com)</option>
+                    ) : effectiveScope === 'TRADING' ? (
+                      <option value="D2">D2 (Dispatch 2 — Sahad Dispatch · Sahad · sahad.dispatch@himalayaerp.com)</option>
+                    ) : (
+                      <>
+                        <option value="D1">D1 (Dispatch 1 — Ravikant T · Cat 1 · ravikant.t@himalayaerp.com)</option>
+                        <option value="D2">D2 (Dispatch 2 — Sahad Dispatch · Cat 2 · sahad.dispatch@himalayaerp.com)</option>
+                        <option value="Unassigned">⚠ Unassigned / Pending</option>
+                      </>
+                    )}
                   </select>
                   <div style={{
                     marginTop: '6px',

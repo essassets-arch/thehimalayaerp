@@ -17,6 +17,11 @@ import { PrismaService } from '../../database/prisma.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { mapSalesOrder } from '../sales/mappers/sales-order.mapper';
 import { SubmitFulfillmentPlanDto } from './dto/fulfillment-plan.dto';
+import {
+  isTradingProduct,
+  isPureTradingOrder,
+  hasManufacturingItems,
+} from '../../common/utils/trading-product.util';
 
 // ── High-Precision Delivery Locality & Postal Pincode Resolution Engine ──
 export interface DeliveryLocationInfo {
@@ -355,11 +360,15 @@ export class PlantHeadService {
       },
       include: {
         customer: true,
-        items: true,
+        items: { include: { product: true } },
         dispatches: { include: { items: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    const manufacturingSalesOrders = allSalesOrders.filter((so) =>
+      this.isManufacturingOrder(so),
+    );
 
     const nowTime = new Date().getTime();
     let completedOrdersCount = 0;
@@ -375,7 +384,7 @@ export class PlantHeadService {
     let totalPendingPcs = 0;
     const pendingList: Array<{ id: string; orderNumber: string; customer: string; pendingPcs: number; dueDate: string }> = [];
 
-    for (const so of allSalesOrders) {
+    for (const so of manufacturingSalesOrders) {
       const orderedPcs = (so.items || []).reduce((sum, it) => sum + Number(it.orderedQuantity || 0), 0);
       const dispatchedPcs = (so.dispatches || []).flatMap(d => d.items || []).reduce((sum, it) => sum + Number(it.quantity || 0), 0);
       const pendingPcs = Math.max(0, orderedPcs - dispatchedPcs);
@@ -416,7 +425,7 @@ export class PlantHeadService {
 
     pendingList.sort((a, b) => b.pendingPcs - a.pendingPcs);
     const top5PendingOrders = pendingList.slice(0, 5).map((p, i) => ({ rank: i + 1, ...p }));
-    const totalOrdersCount = allSalesOrders.length;
+    const totalOrdersCount = manufacturingSalesOrders.length;
 
     // 5. Query QC Inspections
     const qcInspections = await this.prisma.qCInspection.findMany({
@@ -2349,62 +2358,11 @@ export class PlantHeadService {
   }
 
   private isTradingProduct(product: any, item?: any): boolean {
-    if (!product && !item) return false;
-    const pType = String(product?.productType || item?.productType || '').toUpperCase();
-    if (pType === 'TRADING') return true;
-    if (pType === 'MANUFACTURING') return false;
-    if (product?.isTrading === true || item?.isTrading === true) return true;
-
-    const cat = String(product?.category || product?.product_family || item?.category || '').toLowerCase();
-    if (cat.includes('trading') || cat.includes('rcc pipe') || cat.includes('frc cover') || cat.includes('coverblock') || cat.includes('others')) return true;
-    if (cat.includes('frp covers') || cat.includes('frp gratings') || cat.includes('manufacturing')) return false;
-
-    const name = String(product?.name || item?.productName || item?.name || item?.productNameSnapshot || '').toUpperCase();
-    if (
-      name.startsWith('FRCCP') ||
-      name.startsWith('FRCT') ||
-      name.startsWith('FRCSQRC') ||
-      name.startsWith('FRC') ||
-      name.startsWith('RCC') ||
-      name.startsWith('BTCB') ||
-      name.startsWith('WCB') ||
-      name.startsWith('PCB') ||
-      name.startsWith('HTCB') ||
-      name.startsWith('DTCB') ||
-      name.startsWith('MCB') ||
-      name.includes('FRC COVER') ||
-      name.includes('RCC PIPE') ||
-      name.includes('COVERBLOCK') ||
-      name.includes('COVER BLOCK')
-    ) return true;
-
-    const sku = String(product?.sku || item?.sku || item?.productSku || item?.productCodeSnapshot || '').toUpperCase();
-    if (
-      sku.startsWith('FRCCP') ||
-      sku.startsWith('FRCT') ||
-      sku.startsWith('FRCSQRC') ||
-      sku.startsWith('FRC') ||
-      sku.startsWith('RCC') ||
-      sku.startsWith('BTCB') ||
-      sku.startsWith('WCB') ||
-      sku.startsWith('PCB') ||
-      sku.startsWith('HTCB') ||
-      sku.startsWith('DTCB') ||
-      sku.startsWith('MCB') ||
-      sku.includes('COVERBLOCK') ||
-      sku.includes('COVER BLOCK')
-    ) return true;
-
-    const dCat = String(product?.dispatchCategory || item?.dispatchCategory || '').toUpperCase();
-    if (dCat === 'D2' || dCat === 'DISPATCH 2' || dCat === 'DISPATCH_2' || dCat.includes('CAT 2') || dCat.includes('CATEGORY 2')) return true;
-
-    return false;
+    return isTradingProduct(product, item);
   }
 
   private isManufacturingOrder(order: any): boolean {
-    const items = Array.isArray(order.items) ? order.items : [];
-    if (items.length === 0) return true;
-    return items.some((it: any) => !this.isTradingProduct(it.product, it));
+    return hasManufacturingItems(order);
   }
 
   async getIncomingOrders(companyId: string) {
@@ -4159,11 +4117,17 @@ export class PlantHeadService {
     });
 
     const targetDateOrders = allSalesOrders.filter(
-      (o) => o.createdAt >= todayStart && o.createdAt <= todayEnd,
+      (o) =>
+        this.isManufacturingOrder(o) &&
+        o.createdAt >= todayStart &&
+        o.createdAt <= todayEnd,
     );
     const receivedToday = targetDateOrders.length;
     const receivedYesterday = allSalesOrders.filter(
-      (o) => o.createdAt >= yesterdayStart && o.createdAt <= yesterdayEnd,
+      (o) =>
+        this.isManufacturingOrder(o) &&
+        o.createdAt >= yesterdayStart &&
+        o.createdAt <= yesterdayEnd,
     ).length;
 
     // Awaiting Acceptance: Exact logic matching Incoming Confirmed Orders Board (Pending Acceptance tab)
@@ -4191,6 +4155,7 @@ export class PlantHeadService {
 
     const approvedToday = allSalesOrders.filter(
       (o) =>
+        this.isManufacturingOrder(o) &&
         (o.status === 'PLANT_APPROVED' ||
           o.status === 'READY_FOR_PRODUCTION' ||
           o.status === 'IN_PRODUCTION') &&
@@ -4199,12 +4164,14 @@ export class PlantHeadService {
     ).length;
     const rejectedToday = allSalesOrders.filter(
       (o) =>
+        this.isManufacturingOrder(o) &&
         o.status === 'CANCELLED' &&
         o.updatedAt >= todayStart &&
         o.updatedAt <= todayEnd,
     ).length;
 
     const overdueOrders = allSalesOrders.filter((o) => {
+      if (!this.isManufacturingOrder(o)) return false;
       if (!o.requestedDeliveryDate) return false;
       return (
         o.requestedDeliveryDate < todayEnd &&

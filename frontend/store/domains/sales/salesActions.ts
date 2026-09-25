@@ -41,6 +41,7 @@ import { validateQuotation } from './salesValidation';
 import { deriveOrderPaymentStatus } from './salesCalculations';
 import { normalizeStatus } from '../shared/workflowUtils';
 import { generateEntityIdPure } from '../../idGenerator';
+import { isPureTradingOrder } from '../../../shared/utils/dispatchCategory';
 
 // ─── ERPState shape (minimal inline type for portability) ───────────────────
 export type ActionActor = { id: string; name: string; department?: string; role?: string };
@@ -674,6 +675,7 @@ export function convertQuotationToOrder(
     paymentStatus: 'NOT_DUE',
     replacementStatus: 'NONE',
     returnStatus: 'NONE',
+    dispatchCategory: isPureTradingOrder({ items: quotation.items }) ? 'D2' : 'D1',
     createdAt: new Date().toISOString(),
   };
 
@@ -701,6 +703,28 @@ export function sendOrderToPlantHead(
   const sales = normalizeSales(state.sales);
   const order = sales.orders.find((o) => o.id === orderId || o.orderNo === orderId);
   if (!order) throw new Error(`Order ${orderId} not found`);
+
+  if (isPureTradingOrder(order)) {
+    const updated: SalesOrder = {
+      ...order,
+      commercialStatus: 'READY_FOR_DISPATCH',
+      planningStatus: 'NOT_REQUIRED',
+      productionStatus: 'NOT_REQUIRED',
+      workflowStatus: 'READY_FOR_DISPATCH',
+      plantHeadStatus: 'BYPASSED',
+      status: 'READY_FOR_DISPATCH',
+      sentToPlantHead: false,
+      sentToPlantHeadAt: undefined,
+      dispatchCategory: 'D2',
+      updatedAt: new Date().toISOString(),
+    } as any;
+
+    return withSales(
+      state,
+      { orders: sales.orders.map((o) => (o.id === order.id ? updated : o)) },
+      audit('ORDER', order.id, 'SEND_TO_DISPATCH_2', actor, 'Sales', 'READY_FOR_DISPATCH', order.commercialStatus, payload.remarks || 'Trading order routed to Dispatch 2')
+    );
+  }
 
   if (
     order.planningStatus === 'PENDING_ACCEPTANCE' ||

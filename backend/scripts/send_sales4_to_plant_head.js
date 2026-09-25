@@ -79,9 +79,41 @@ async function sendSales4OrdersToPlantHead(config) {
       where: { workflow: { code: 'PRODUCTION_PLAN' } }
     });
 
+    const readyDispatchState = await prisma.workflowState.findFirst({
+      where: { workflow: { code: 'SALES_ORDER' }, code: 'READY_FOR_DISPATCH' }
+    });
+
     const convertedQuoteState = await prisma.workflowState.findFirst({
       where: { workflow: { code: 'QUOTATION' }, code: 'CONVERTED_TO_SO' }
     });
+
+    function isTradingProduct(product, item) {
+      if (!product && !item) return false;
+      if (product?.isTrading === true || item?.isTrading === true) return true;
+      const pType = String(product?.productType || product?.product_type || item?.productType || item?.product_type || '').toUpperCase();
+      if (pType === 'TRADING') return true;
+      const dCat = String(product?.dispatchCategory || product?.dispatch_category || item?.dispatchCategory || item?.dispatch_category || '').toUpperCase();
+      if (dCat === 'D2' || dCat === 'DISPATCH 2' || dCat === 'DISPATCH_2' || dCat.includes('2')) return true;
+      const cat = String(product?.category || product?.product_family || item?.category || item?.product_family || '').toUpperCase();
+      if (cat.includes('COVERBLOCK') || cat.includes('FRC') || cat.includes('RCC') || cat.includes('TRADING') || cat.includes('OTHERS')) return true;
+      const name = String(product?.name || item?.productName || item?.name || item?.productNameSnapshot || '').toUpperCase();
+      const sku = String(product?.sku || item?.sku || item?.productSku || item?.productCode || '').toUpperCase();
+      const cleanName = name.replace(/^HIMALAYA\s+/i, '').trim();
+      const cleanSku = sku.replace(/^HIMALAYA\s+/i, '').trim();
+      const combined = `${name} ${sku} ${cleanName} ${cleanSku}`;
+      if (combined.includes('MOULDED') || combined.includes('COVERBLOCK') || combined.includes('COVER BLOCK') || combined.includes('FRC COVER') || combined.includes('RCC PIPE')) return true;
+      if (cleanSku.startsWith('WCB') || cleanSku.startsWith('PCB') || cleanSku.startsWith('HTCB') || cleanSku.startsWith('DTCB') || cleanSku.startsWith('MCB') || cleanSku.startsWith('BTCB') || cleanSku.startsWith('FRC') || cleanSku.startsWith('RCC')) return true;
+      if (cleanName.startsWith('WCB') || cleanName.startsWith('PCB') || cleanName.startsWith('HTCB') || cleanName.startsWith('DTCB') || cleanName.startsWith('MCB') || cleanName.startsWith('BTCB') || cleanName.startsWith('FRC') || cleanName.startsWith('RCC')) return true;
+      return false;
+    }
+
+    function isPureTradingOrder(order) {
+      const items = Array.isArray(order?.items) && order.items.length > 0
+        ? order.items
+        : (Array.isArray(order?.orderItems) && order.orderItems.length > 0 ? order.orderItems : []);
+      if (items.length === 0) return isTradingProduct(order);
+      return items.every(it => isTradingProduct(it.product || it, it));
+    }
 
     // 4. Find all Sales 4 orders (HCPPL/2627/0255 to HCPPL/2627/0264)
     const orders = await prisma.salesOrder.findMany({
@@ -99,6 +131,21 @@ async function sendSales4OrdersToPlantHead(config) {
 
     let transitionedCount = 0;
     for (const order of orders) {
+      if (isPureTradingOrder(order)) {
+        await prisma.salesOrder.update({
+          where: { id: order.id },
+          data: {
+            status: 'READY_FOR_DISPATCH',
+            ...(readyDispatchState ? { workflowStateId: readyDispatchState.id } : {}),
+            remarks: order.remarks ? `${order.remarks} - Direct Dispatch 2 (Trading)` : 'Direct Dispatch 2 (Trading)',
+            version: { increment: 1 }
+          }
+        });
+        await prisma.productionPlan.deleteMany({ where: { salesOrderId: order.id } }).catch(() => {});
+        console.log(`  ✓ [TRADING -> DISPATCH 2] ${order.orderNumber} (${order.customer?.companyName}) -> Directly routed to Dispatch 2!`);
+        continue;
+      }
+
       const seqStr = order.orderNumber.replace(/[^0-9]/g, '').slice(-4);
       const planNumber = `PP-2627-${seqStr}`;
 

@@ -23,6 +23,7 @@ import { useERP, useERPStore, useSalesBackend } from '../../../shared/context/ER
 import { useAuth } from '../../../shared/context/AuthContext.jsx';
 import { apiClient } from '../../../lib/apiClient.js';
 import { backendFetch } from '../../../lib/backendFetch';
+import { isPureTradingOrder } from '../../../shared/utils/dispatchCategory';
 
 // Feature hooks (new FSD layer)
 import { useLeads } from '../hooks/useLeads.js';
@@ -1273,6 +1274,49 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
         const encodedId = encodeURIComponent(String(orderDbId || ''));
 
         if (status === 'SEND_TO_PLANT_HEAD_DIRECT' || status === 'SEND_TO_PLANT' || status === 'PLANT_PENDING') {
+          const isTrading = Boolean(matchedOrder && isPureTradingOrder(matchedOrder));
+
+          if (isTrading) {
+            showToast('Routing trading order to Dispatch 2…');
+            try {
+              // Confirm first if required
+              await backendFetch(`/api/backend/sales/orders/${encodedId}/confirm`, {
+                method: 'POST',
+                body: { action: 'CONFIRM', orderId: orderDbId, id: orderDbId, actor: user?.name || 'Sales' },
+              }).catch(() => null);
+
+              await backendFetch(`/api/backend/sales/orders/${encodedId}/send-to-plant-head`, {
+                method: 'POST',
+                body: { action: 'SEND_TO_PLANT', orderId: orderDbId, id: orderDbId, actor: user?.name || 'Sales' },
+              });
+
+              dispatch({
+                type: 'UPDATE_ORDER_STATUS',
+                payload: {
+                  orderNo: orderId,
+                  id: orderDbId,
+                  status: 'READY_FOR_DISPATCH',
+                  workflowStatus: 'READY_FOR_DISPATCH',
+                  salesStatus: 'Confirmed',
+                  currentDepartment: 'Dispatch 2',
+                  overallStage: 'Ready for Dispatch',
+                  dispatchCategory: 'D2',
+                }
+              });
+              showToast('✅ Trading order sent to Dispatch 2!');
+              await loadOrders();
+              await syncData();
+              return true;
+            } catch (err) {
+              Swal.fire({
+                icon: 'error',
+                title: 'Unable to Send Order',
+                text: err?.message || 'Unable to send trading order to Dispatch 2.',
+              });
+              return false;
+            }
+          }
+
           showToast('Sending order to Plant Head…');
           try {
             // Confirm first if required

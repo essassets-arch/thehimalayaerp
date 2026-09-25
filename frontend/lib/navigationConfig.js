@@ -77,6 +77,7 @@ export const navigationConfig = {
   ],
   'Dispatch': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/dispatch/dashboard' },
+    { id: 'products', label: 'Manufactured Products', icon: Package, path: '/dispatch/products' },
     { id: 'finished-goods', label: 'Finished Goods', icon: PackageCheck, path: '/dispatch/finished-goods' },
     {
       id: 'create-dispatch',
@@ -110,6 +111,43 @@ export const navigationConfig = {
     },
     { id: 'remaining', label: 'Remaining Dispatch', icon: ClipboardList, path: '/dispatch/remaining' },
     { id: 'history', label: 'Dispatch History', icon: Clock, path: '/dispatch/history' }
+  ],
+  'Dispatch 2': [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/dispatch-2/dashboard' },
+    { id: 'products', label: 'Trading Products', icon: Package, path: '/dispatch-2/products' },
+    { id: 'finished-goods', label: 'Finished Goods', icon: PackageCheck, path: '/dispatch-2/finished-goods' },
+    {
+      id: 'create-dispatch',
+      label: 'Sales Order Dispatch',
+      icon: Truck,
+      path: '/dispatch-2/orders',
+      subItems: [
+        { id: 'pending-dispatch', label: 'Pending Dispatch Queue', path: '/dispatch-2/orders' },
+        { id: 'in-transit', label: 'In Transit Queue', path: '/dispatch-2/in-transit' },
+        { id: 'delivered', label: 'Out for Delivery / POD', path: '/dispatch-2/delivery' },
+        { id: 'dispatch-history', label: 'Dispatch History', path: '/dispatch-2/history' },
+      ],
+    },
+    {
+      id: 'sample-dispatch', label: 'Sample Dispatch', icon: FlaskConical, path: '/dispatch-2/sample-dispatch',
+      subItems: [
+        { id: 'sample-pending', label: 'Pending Dispatch', path: '/dispatch-2/sample-dispatch?status=pending' },
+        { id: 'sample-transit', label: 'In Transit', path: '/dispatch-2/sample-dispatch?status=in-transit' },
+        { id: 'sample-delivered', label: 'Delivered', path: '/dispatch-2/sample-dispatch?status=delivered' },
+        { id: 'sample-all', label: 'All', path: '/dispatch-2/sample-dispatch?status=all' },
+      ],
+    },
+    {
+      id: 'replacements', label: 'Replacement Dispatch', icon: RefreshCw, path: '/dispatch-2/replacements',
+      subItems: [
+        { id: 'replacement-pending', label: 'Pending Dispatch', path: '/dispatch-2/replacements?status=pending' },
+        { id: 'replacement-transit', label: 'In Transit', path: '/dispatch-2/replacements?status=in-transit' },
+        { id: 'replacement-delivered', label: 'Delivered', path: '/dispatch-2/replacements?status=delivered' },
+        { id: 'replacement-all', label: 'All', path: '/dispatch-2/replacements?status=all' },
+      ],
+    },
+    { id: 'remaining', label: 'Remaining Dispatch', icon: ClipboardList, path: '/dispatch-2/remaining' },
+    { id: 'history', label: 'Dispatch History', icon: Clock, path: '/dispatch-2/history' }
   ],
   'Finance': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/finance/dashboard' },
