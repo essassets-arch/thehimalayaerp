@@ -10,10 +10,10 @@ import {
   ltLogoBase64,
   ashridharLogoBase64
 } from '../services/quotationAssetsBase64';
-import { Search, Plus, Eye, ArrowRight, Download, Share2, Edit, Trash2, Truck, ChevronLeft, ChevronRight, ArrowLeft, FileText, Bell, ShieldCheck, ChevronDown, MoreVertical, User, Calendar, CreditCard, MapPin, Star, Phone, Mail, Globe, Percent, CheckSquare, Image as ImageIcon } from 'lucide-react';
+import { Search, Plus, Eye, ArrowRight, Download, Share2, Edit, Trash2, Truck, ChevronLeft, ChevronRight, ArrowLeft, FileText, Bell, ShieldCheck, ChevronDown, MoreVertical, User, Calendar, CreditCard, MapPin, Star, Phone, Mail, Globe, Percent, CheckSquare, Image as ImageIcon, RotateCcw } from 'lucide-react';
 import Swal from 'sweetalert2';
 import CreateQuotation from './CreateQuotation';
-import { useERPStore } from '../shared/context/ERPContext';
+import { useERPStore, useSalesBackend } from '../shared/context/ERPContext';
 import { resolveQuotationTerms } from '../services/sales/quotationTerms';
 import ReminderModal from '../shared/components/ReminderModal.jsx';
 import SalesOwnerBadge from './SalesOwnerBadge.jsx';
@@ -33,6 +33,9 @@ export default function QuotationsView({
   onCreateLead,
   onUpdateQuotationStatus,
   onUpdateQuotation,
+  onDeleteQuotation,
+  onRestoreQuotation,
+  orders = [],
   onConvertToOrder,
   onSendPDF,
   onSaveReminder,
@@ -557,6 +560,125 @@ export default function QuotationsView({
       .includes(normalizedQuotationStatus(status));
   };
 
+  const salesBackend = useSalesBackend();
+  const deleteQuoteFn = onDeleteQuotation || salesBackend?.deleteQuotation;
+  const restoreQuoteFn = onRestoreQuotation || salesBackend?.restoreQuotation;
+
+  const isQuotationDeleted = (q) =>
+    Boolean(q?.deletedAt) || q?.status === 'Deleted' || q?.status === 'DELETED';
+
+  const handleDeleteQuotationClick = (q) => {
+    const qNum = resolveQuotationNumber(q).replace(/^#/, '');
+    const hasLinkedOrder = Boolean(
+      q.salesOrder ||
+      q.orderNumber ||
+      (Array.isArray(q.sourceSalesOrders) && q.sourceSalesOrders.length > 0) ||
+      (Array.isArray(orders) && orders.some(o => o.quotationId === q.id || o.sourceQuotationId === q.id))
+    );
+
+    Swal.fire({
+      title: 'Delete Quotation?',
+      html: `
+        <div style="font-size: 14px; color: #475569; line-height: 1.5; text-align: left;">
+          <p>Are you sure you want to delete quotation <strong>${qNum}</strong> for <strong>${resolveQuotationCustomerName(q)}</strong>?</p>
+          ${hasLinkedOrder ? `
+            <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 12px; margin: 10px 0; color: #991b1b; font-size: 12.5px;">
+              ⚠️ <strong>Warning:</strong> This quotation has linked orders. Deleting this quotation will also soft-delete all associated orders.
+            </div>
+          ` : ''}
+          <div style="margin-top: 12px;">
+            <label style="display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 4px;">Reason for deletion (optional):</label>
+            <input id="swal-quote-delete-reason" class="swal2-input" placeholder="e.g. Price revision needed, customer cancelled requirement" style="margin: 0; width: 100%; font-size: 13px; height: 38px; box-sizing: border-box;" />
+          </div>
+        </div>
+      `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete Quotation',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+      customClass: {
+        popup: 'swal-premium-popup',
+        title: 'swal-premium-title',
+        confirmButton: 'swal-premium-confirm-btn',
+        cancelButton: 'swal-premium-cancel-btn'
+      },
+      preConfirm: () => {
+        const input = document.getElementById('swal-quote-delete-reason');
+        return input ? input.value : '';
+      }
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        const reason = result.value || 'Deleted by user';
+        try {
+          if (deleteQuoteFn) {
+            await deleteQuoteFn(q.id, reason);
+          } else if (onUpdateQuotationStatus) {
+            await onUpdateQuotationStatus(q.id, 'Deleted');
+          }
+          if (selectedQuotation?.id === q.id) {
+            setSelectedQuotation(null);
+          }
+          Swal.fire({
+            title: 'Deleted!',
+            text: `Quotation ${qNum} has been moved to the Deleted tab.`,
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false,
+          });
+        } catch (err) {
+          Swal.fire({
+            title: 'Error',
+            text: err?.message || 'Failed to delete quotation.',
+            icon: 'error',
+          });
+        }
+      }
+    });
+  };
+
+  const handleRestoreQuotationClick = (q) => {
+    const qNum = resolveQuotationNumber(q).replace(/^#/, '');
+    Swal.fire({
+      title: 'Restore Quotation?',
+      text: `Are you sure you want to restore quotation ${qNum} back to active quotations?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Restore',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#16a34a',
+      customClass: {
+        popup: 'swal-premium-popup',
+        title: 'swal-premium-title',
+        confirmButton: 'swal-premium-confirm-btn',
+        cancelButton: 'swal-premium-cancel-btn'
+      }
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          if (restoreQuoteFn) {
+            await restoreQuoteFn(q.id);
+          } else if (onUpdateQuotationStatus) {
+            await onUpdateQuotationStatus(q.id, 'Draft');
+          }
+          Swal.fire({
+            title: 'Restored!',
+            text: `Quotation ${qNum} has been restored to active status.`,
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false,
+          });
+        } catch (err) {
+          Swal.fire({
+            title: 'Error',
+            text: err?.message || 'Failed to restore quotation.',
+            icon: 'error',
+          });
+        }
+      }
+    });
+  };
+
   const [currentPage, setCurrentPage] = useState(1);
 
   // Reset page when search or filter changes
@@ -587,6 +709,14 @@ export default function QuotationsView({
   const filteredQuotations = (quotations || []).filter(q => {
     if (!q) return false;
     if (filter === 'Reminders') return false;
+
+    const isDeleted = isQuotationDeleted(q);
+    if (filter === 'Deleted') {
+      if (!isDeleted) return false;
+    } else {
+      if (isDeleted) return false;
+    }
+
     const custName = q.customerName || '';
     const qItems = quotationItemsText(q);
     const status = q.status || '';
@@ -594,7 +724,9 @@ export default function QuotationsView({
     const qStatus = String(q.status || q.quotationStatus || q.workflowStateCode || '').trim();
     const qNorm = qStatus.toUpperCase().replace(/[\s-_]+/g, '');
 
-    if (filter === 'All') {
+    if (filter === 'Deleted') {
+      matchesFilter = true;
+    } else if (filter === 'All') {
       matchesFilter = true;
     } else if (filter === 'Draft') {
       matchesFilter = ['DRAFT', 'NEW', 'INTERNALREVIEW', 'PENDING', 'CREATED'].includes(qNorm);
@@ -919,16 +1051,40 @@ export default function QuotationsView({
         <div className="module-actions">
           {/* Status filters */}
           <div className="tab-filters-row" style={{ background: '#f1f3f5', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', flexWrap: 'nowrap', width: '100%', maxWidth: '100%' }}>
-            {['All', 'Draft', 'Sent', 'Approved', 'Rejected', 'Lost', 'Reminders'].map(st => (
-              <button
-                key={st}
-                className={`filter-pill ${filter === st ? 'active' : ''}`}
-                onClick={() => setFilter(st)}
-                style={{ color: filter === st ? 'var(--color-text-primary)' : 'var(--color-text-secondary)', flexShrink: 0, whiteSpace: 'nowrap' }}
-              >
-                {st}
-              </button>
-            ))}
+            {['All', 'Draft', 'Sent', 'Approved', 'Rejected', 'Lost', 'Reminders', 'Deleted'].map(st => {
+              const deletedCount = (quotations || []).filter(q => Boolean(q.deletedAt) || q.status === 'Deleted' || q.status === 'DELETED').length;
+              return (
+                <button
+                  key={st}
+                  className={`filter-pill ${filter === st ? 'active' : ''}`}
+                  onClick={() => setFilter(st)}
+                  style={{
+                    color: filter === st ? (st === 'Deleted' ? '#dc2626' : 'var(--color-text-primary)') : (st === 'Deleted' ? '#dc2626' : 'var(--color-text-secondary)'),
+                    fontWeight: filter === st ? '700' : '500',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
+                  }}
+                >
+                  {st}
+                  {st === 'Deleted' && deletedCount > 0 && (
+                    <span style={{
+                      padding: '1px 6px',
+                      borderRadius: '10px',
+                      fontSize: '10.5px',
+                      background: filter === 'Deleted' ? '#dc2626' : '#fee2e2',
+                      color: filter === 'Deleted' ? '#ffffff' : '#991b1b',
+                      fontWeight: '700',
+                      lineHeight: '1.2'
+                    }}>
+                      {deletedCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           <div className="search-box" style={{ background: '#f1f3f5', border: '1px solid #D6E2F0' }}>
@@ -1091,14 +1247,47 @@ export default function QuotationsView({
               ) : (
                 displayedQuotations.map((q) => (
                   <tr key={q.id}>
-                    <td data-label="Quotation ID" style={{ fontWeight: '700' }}>{resolveQuotationNumber(q).replace(/^#/, '')}</td>
+                    <td data-label="Quotation ID" style={{ fontWeight: '700' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span>{resolveQuotationNumber(q).replace(/^#/, '')}</span>
+                        {isQuotationDeleted(q) && (
+                          <span style={{
+                            padding: '2px 7px',
+                            borderRadius: '6px',
+                            fontSize: '10px',
+                            fontWeight: '800',
+                            background: '#fee2e2',
+                            color: '#dc2626',
+                            letterSpacing: '0.02em'
+                          }}>
+                            DELETED
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td data-label="Customer Name" style={{ fontWeight: '600' }}>{resolveQuotationCustomerName(q)}</td>
                     <td data-label="Product / Items">{renderQuotationProducts(q)}</td>
                     <td data-label="Total Value" style={{ fontWeight: '700' }}>{formatINR(quotationTotal(q))}</td>
                     <td data-label="Reminder">{renderQuotationReminder(q)}</td>
                     <td data-label="Actions" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                       <div className="action-btn-group" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
-                        {isQuotationConverted(q) ? (
+                        {isQuotationDeleted(q) ? (
+                          <button
+                            type="button"
+                            title="Restore Quotation"
+                            onClick={() => handleRestoreQuotationClick(q)}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '5px',
+                              padding: '5px 12px', height: '32px',
+                              background: '#f0fdf4', border: '1.5px solid #86efac',
+                              borderRadius: '8px', cursor: 'pointer',
+                              color: '#16a34a', fontWeight: '700', fontSize: '12px'
+                            }}
+                          >
+                            <RotateCcw size={13} />
+                            <span>Restore</span>
+                          </button>
+                        ) : isQuotationConverted(q) ? (
                           <button
                             type="button"
                             disabled
@@ -1184,36 +1373,53 @@ export default function QuotationsView({
                         >
                           <Eye size={14} />
                         </button>
-                        <button
-                          title={isQuotationConverted(q) ? 'Quotation is converted into an order (Locked)' : 'Edit Quotation'}
-                          disabled={isQuotationConverted(q)}
-                          onClick={() => !isQuotationConverted(q) && startEditingQuotation(q)}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            width: '32px', height: '32px',
-                            background: isQuotationConverted(q) ? '#f8fafc' : '#ffffff',
-                            border: '1px solid #D6E2F0',
-                            borderRadius: '8px',
-                            cursor: isQuotationConverted(q) ? 'not-allowed' : 'pointer',
-                            color: isQuotationConverted(q) ? '#cbd5e1' : '#475569',
-                            flexShrink: 0,
-                            opacity: isQuotationConverted(q) ? 0.5 : 1
-                          }}
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button
-                          title="Add Reminder"
-                          onClick={() => setReminderModal({ quotation: q })}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            width: '32px', height: '32px',
-                            background: '#ffffff', border: '1px solid #D6E2F0',
-                            borderRadius: '8px', cursor: 'pointer', color: '#475569', flexShrink: 0
-                          }}
-                        >
-                          <Bell size={14} />
-                        </button>
+                        {!isQuotationDeleted(q) && (
+                          <>
+                            <button
+                              title={isQuotationConverted(q) ? 'Quotation is converted into an order (Locked)' : 'Edit Quotation'}
+                              disabled={isQuotationConverted(q)}
+                              onClick={() => !isQuotationConverted(q) && startEditingQuotation(q)}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: '32px', height: '32px',
+                                background: isQuotationConverted(q) ? '#f8fafc' : '#ffffff',
+                                border: '1px solid #D6E2F0',
+                                borderRadius: '8px',
+                                cursor: isQuotationConverted(q) ? 'not-allowed' : 'pointer',
+                                color: isQuotationConverted(q) ? '#cbd5e1' : '#475569',
+                                flexShrink: 0,
+                                opacity: isQuotationConverted(q) ? 0.5 : 1
+                              }}
+                            >
+                              <Edit size={14} />
+                            </button>
+                            <button
+                              title="Add Reminder"
+                              onClick={() => setReminderModal({ quotation: q })}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: '32px', height: '32px',
+                                background: '#ffffff', border: '1px solid #D6E2F0',
+                                borderRadius: '8px', cursor: 'pointer', color: '#475569', flexShrink: 0
+                              }}
+                            >
+                              <Bell size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              title="Delete Quotation"
+                              onClick={() => handleDeleteQuotationClick(q)}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: '32px', height: '32px',
+                                background: '#ffffff', border: '1px solid #fecaca',
+                                borderRadius: '8px', cursor: 'pointer', color: '#dc2626', flexShrink: 0
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1247,13 +1453,22 @@ export default function QuotationsView({
                       {resolveQuotationNumber(q).replace(/^#/, '')}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ 
-                        padding: '3px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '700',
-                        backgroundColor: isQuotationConverted(q) ? '#f1f5f9' : ((q.status === 'Converted' || q.status === 'Approved') ? '#dcfce7' : (q.status === 'New' || q.status === 'Draft' ? '#dbeafe' : '#f1f5f9')),
-                        color: isQuotationConverted(q) ? '#64748b' : ((q.status === 'Converted' || q.status === 'Approved') ? '#15803d' : (q.status === 'New' || q.status === 'Draft' ? '#1d4ed8' : '#475569'))
-                      }}>
-                        {isQuotationConverted(q) ? 'Converted' : (q.status || 'Draft')}
-                      </div>
+                      {isQuotationDeleted(q) ? (
+                        <div style={{ 
+                          padding: '3px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '800',
+                          backgroundColor: '#fee2e2', color: '#dc2626', letterSpacing: '0.02em'
+                        }}>
+                          DELETED
+                        </div>
+                      ) : (
+                        <div style={{ 
+                          padding: '3px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '700',
+                          backgroundColor: isQuotationConverted(q) ? '#f1f5f9' : ((q.status === 'Converted' || q.status === 'Approved') ? '#dcfce7' : (q.status === 'New' || q.status === 'Draft' ? '#dbeafe' : '#f1f5f9')),
+                          color: isQuotationConverted(q) ? '#64748b' : ((q.status === 'Converted' || q.status === 'Approved') ? '#15803d' : (q.status === 'New' || q.status === 'Draft' ? '#1d4ed8' : '#475569'))
+                        }}>
+                          {isQuotationConverted(q) ? 'Converted' : (q.status || 'Draft')}
+                        </div>
+                      )}
                       <button onClick={() => setSelectedQuotation(q)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', color: '#64748b', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                         <MoreVertical size={16} />
                       </button>
@@ -1280,7 +1495,20 @@ export default function QuotationsView({
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
-                      {isQuotationConverted(q) ? (
+                      {isQuotationDeleted(q) ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRestoreQuotationClick(q)}
+                          style={{
+                            background: '#f0fdf4', color: '#16a34a', border: '1.5px solid #86efac',
+                            padding: '6px 12px', borderRadius: '8px', fontWeight: '700', fontSize: '11.5px',
+                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', flexShrink: 0
+                          }}
+                        >
+                          <RotateCcw size={13} />
+                          Restore
+                        </button>
+                      ) : isQuotationConverted(q) ? (
                         <button
                           disabled
                           style={{
@@ -1322,31 +1550,48 @@ export default function QuotationsView({
                       >
                         <Eye size={15} />
                       </button>
-                      <button
-                        title={isQuotationConverted(q) ? 'Quotation is converted into an order (Locked)' : 'Edit Quotation'}
-                        disabled={isQuotationConverted(q)}
-                        onClick={() => !isQuotationConverted(q) && startEditingQuotation(q)}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: '32px', height: '32px',
-                          background: isQuotationConverted(q) ? '#f8fafc' : '#ffffff',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '8px',
-                          color: isQuotationConverted(q) ? '#cbd5e1' : '#475569',
-                          cursor: isQuotationConverted(q) ? 'not-allowed' : 'pointer',
-                          flexShrink: 0,
-                          opacity: isQuotationConverted(q) ? 0.5 : 1
-                        }}
-                      >
-                        <Edit size={15} />
-                      </button>
-                      <button
-                        title="Add Reminder"
-                        onClick={() => setReminderModal({ quotation: q })}
-                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer', flexShrink: 0 }}
-                      >
-                        <Bell size={15} />
-                      </button>
+                      {!isQuotationDeleted(q) && (
+                        <>
+                          <button
+                            title={isQuotationConverted(q) ? 'Quotation is converted into an order (Locked)' : 'Edit Quotation'}
+                            disabled={isQuotationConverted(q)}
+                            onClick={() => !isQuotationConverted(q) && startEditingQuotation(q)}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              width: '32px', height: '32px',
+                              background: isQuotationConverted(q) ? '#f8fafc' : '#ffffff',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '8px',
+                              color: isQuotationConverted(q) ? '#cbd5e1' : '#475569',
+                              cursor: isQuotationConverted(q) ? 'not-allowed' : 'pointer',
+                              flexShrink: 0,
+                              opacity: isQuotationConverted(q) ? 0.5 : 1
+                            }}
+                          >
+                            <Edit size={15} />
+                          </button>
+                          <button
+                            title="Add Reminder"
+                            onClick={() => setReminderModal({ quotation: q })}
+                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer', flexShrink: 0 }}
+                          >
+                            <Bell size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            title="Delete Quotation"
+                            onClick={() => handleDeleteQuotationClick(q)}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              width: '32px', height: '32px',
+                              background: '#ffffff', border: '1px solid #fecaca',
+                              borderRadius: '8px', color: '#dc2626', cursor: 'pointer', flexShrink: 0
+                            }}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2057,6 +2302,21 @@ export default function QuotationsView({
                 >
                   Close Preview
                 </button>
+                {!isQuotationDeleted(selectedQuotation) && (
+                  <button
+                    type="button"
+                    className="btn-small btn-outline-small"
+                    onClick={() => {
+                      const target = selectedQuotation;
+                      setSelectedQuotation(null);
+                      handleDeleteQuotationClick(target);
+                    }}
+                    style={{ padding: '9px 14px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, color: '#dc2626', borderColor: '#fca5a5' }}
+                  >
+                    <Trash2 size={13} style={{ marginRight: '4px', verticalAlign: 'text-bottom' }} />
+                    Delete
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={downloadingImage}
@@ -2121,7 +2381,23 @@ export default function QuotationsView({
                 </button>
               </div>
 
-              {isQuotationConverted(selectedQuotation) ? (
+              {isQuotationDeleted(selectedQuotation) ? (
+                <div>
+                  <button
+                    type="button"
+                    className="btn-small btn-primary-small sheet-actions-primary-btn"
+                    onClick={() => {
+                      const target = selectedQuotation;
+                      setSelectedQuotation(null);
+                      handleRestoreQuotationClick(target);
+                    }}
+                    style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', margin: 0 }}
+                  >
+                    <RotateCcw size={14} />
+                    Restore Quotation
+                  </button>
+                </div>
+              ) : isQuotationConverted(selectedQuotation) ? (
                 <div>
                   <button
                     type="button"

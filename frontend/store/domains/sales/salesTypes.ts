@@ -89,7 +89,12 @@ export type SalesLead = {
     | 'QUOTATION_CREATED'
     | 'LOST'
     // Legacy persisted value retained for snapshot compatibility.
-    | 'SAMPLE_REQUESTED';
+    | 'SAMPLE_REQUESTED'
+    | 'DELETED'
+    | 'Deleted'
+    | string;
+  deletedAt?: string | null;
+  deletionReason?: string;
   createdAt: string;
   updatedAt?: string;
   createdBy?: string;
@@ -138,7 +143,24 @@ export type SalesSample = {
   returnStatus: 'NOT_REQUESTED' | 'REQUESTED' | 'ASSIGNED' | 'IN_TRANSIT' | 'RETURNED';
 
   // Overarching legacy status just for high-level tracking, but logic uses specific fields above
-  status: 'SAMPLE_DISPATCH_REQUESTED' | 'SAMPLE_VEHICLE_ASSIGNED' | 'SAMPLE_DISPATCHED' | 'SAMPLE_IN_TRANSIT' | 'SAMPLE_DELIVERED' | 'SAMPLE_TESTING' | 'SAMPLE_PASSED' | 'SAMPLE_FAILED' | 'SAMPLE_RETURN_REQUESTED' | 'SAMPLE_RETURN_IN_TRANSIT' | 'SAMPLE_RETURNED';
+  status:
+    | 'SAMPLE_DISPATCH_REQUESTED'
+    | 'SAMPLE_VEHICLE_ASSIGNED'
+    | 'SAMPLE_DISPATCHED'
+    | 'SAMPLE_IN_TRANSIT'
+    | 'SAMPLE_DELIVERED'
+    | 'SAMPLE_TESTING'
+    | 'SAMPLE_PASSED'
+    | 'SAMPLE_FAILED'
+    | 'SAMPLE_RETURN_REQUESTED'
+    | 'SAMPLE_RETURN_IN_TRANSIT'
+    | 'SAMPLE_RETURNED'
+    | 'DELETED'
+    | 'Deleted'
+    | string;
+  deletedAt?: string | null;
+  deletionReason?: string;
+  updatedAt?: string;
   createdAt: string;
 };
 
@@ -195,7 +217,23 @@ export type SalesQuotation = {
   
   grandTotal: number;
 
-  status: 'QUOTATION_DRAFT' | 'INTERNAL_PRICING_REVIEW' | 'QUOTATION_SENT' | 'CUSTOMER_NEGOTIATION' | 'QUOTATION_REVISION' | 'QUOTATION_APPROVED' | 'CUSTOMER_ACCEPTED' | 'CUSTOMER_REJECTED' | 'REVISION_REQUESTED' | 'CONVERTED_TO_ORDER';
+  status:
+    | 'QUOTATION_DRAFT'
+    | 'INTERNAL_PRICING_REVIEW'
+    | 'QUOTATION_SENT'
+    | 'CUSTOMER_NEGOTIATION'
+    | 'QUOTATION_REVISION'
+    | 'QUOTATION_APPROVED'
+    | 'CUSTOMER_ACCEPTED'
+    | 'CUSTOMER_REJECTED'
+    | 'REVISION_REQUESTED'
+    | 'CONVERTED_TO_ORDER'
+    | 'DELETED'
+    | 'Deleted'
+    | string;
+  deletedAt?: string | null;
+  deletionReason?: string;
+  updatedAt?: string;
   createdAt: string;
 };
 
@@ -250,6 +288,13 @@ export type SalesOrder = {
   paymentStatus: 'NOT_DUE' | 'PAYMENT_DUE' | 'ADVANCE_DUE' | 'PARTIALLY_PAID' | 'FINANCE_VERIFICATION_PENDING' | 'FULLY_PAID' | 'OVERDUE';
   replacementStatus: 'NONE' | 'REQUESTED' | 'APPROVED' | 'IN_TRANSIT' | 'COMPLETED';
   returnStatus: 'NONE' | 'REQUESTED' | 'APPROVED' | 'IN_TRANSIT' | 'COMPLETED';
+
+  status?: string;
+  orderStatus?: string;
+  deletedAt?: string | null;
+  deletionReason?: string;
+  remarks?: string;
+  rejectionReason?: string;
 
   customerLedgerUpdatedAt?: string;
   customerLedgerUpdatedBy?: string;

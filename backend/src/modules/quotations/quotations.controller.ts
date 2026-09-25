@@ -4,6 +4,7 @@ import {
   Post,
   Patch,
   Put,
+  Delete,
   Body,
   Param,
   Query,
@@ -33,12 +34,17 @@ export class QuotationsController {
 
   @Get()
   @RequirePermissions('crm.quotations.read')
-  async listQuotations(@Req() req: any, @Query('search') search?: string) {
+  async listQuotations(
+    @Req() req: any,
+    @Query('search') search?: string,
+    @Query('includeDeleted') includeDeleted?: string,
+  ) {
     const result = await this.quotationsService.listQuotations(
       req.user?.companyId,
       search,
       req.user?.sub,
       req.user?.role,
+      includeDeleted === 'true' || includeDeleted === '1',
     );
     return this.mapQuotationStatus(result);
   }
@@ -139,4 +145,27 @@ export class QuotationsController {
       req.user?.role,
     );
   }
+
+  @Delete(':id')
+  @Post(':id/delete')
+  @RequirePermissions('crm.quotations.update')
+  async deleteQuotation(
+    @Param('id') id: string,
+    @Query('reason') reason?: string,
+    @Body('reason') bodyReason?: string,
+  ) {
+    const result = await this.quotationsService.deleteQuotation(
+      id,
+      reason || bodyReason || 'Deleted by user',
+    );
+    return this.mapQuotationStatus(result);
+  }
+
+  @Post(':id/restore')
+  @RequirePermissions('crm.quotations.update')
+  async restoreQuotation(@Param('id') id: string) {
+    const result = await this.quotationsService.restoreQuotation(id);
+    return this.mapQuotationStatus(result);
+  }
 }
+

@@ -404,6 +404,213 @@ export function updateLeadStatus(
   );
 }
 
+export function deleteLead(
+  state: ERPState,
+  leadId: string,
+  reason: string = 'Deleted by user',
+  actor: ActionActor = { id: 'Sales User', name: 'Sales User' }
+): ERPState {
+  const sales = normalizeSales(state.sales);
+  const lead = sales.leads.find((l) => l.id === leadId);
+  if (!lead) return state;
+
+  const now = new Date().toISOString();
+  // Find linked quotations
+  const linkedQuotations = sales.quotations.filter((q) => q.leadId === leadId || (q as any).lead?.id === leadId);
+  const linkedQuoteIds = new Set(linkedQuotations.map((q) => q.id));
+
+  // Find linked orders
+  const linkedOrders = sales.orders.filter(
+    (o) =>
+      (o.quotationId && linkedQuoteIds.has(o.quotationId)) ||
+      ((o as any).sourceQuotationId && linkedQuoteIds.has((o as any).sourceQuotationId)) ||
+      (o as any).leadId === leadId
+  );
+  const linkedOrderIds = new Set(linkedOrders.map((o) => o.id));
+
+  // Soft-delete lead, linked quotations, and linked orders so Deleted tab can display and restore them
+  const nextLeads = sales.leads.map((l) =>
+    l.id === leadId ? { ...l, deletedAt: now, status: 'Deleted', deletionReason: reason, updatedAt: now } : l
+  );
+  const nextQuotations = sales.quotations.map((q) =>
+    linkedQuoteIds.has(q.id) ? { ...q, deletedAt: now, status: 'Deleted', deletionReason: reason, updatedAt: now } : q
+  );
+  const nextOrders = sales.orders.map((o) =>
+    linkedOrderIds.has(o.id) ? { ...o, deletedAt: now, status: 'Deleted', orderStatus: 'DELETED', deletionReason: reason, updatedAt: now } : o
+  );
+  const nextSamples = sales.samples.map((s) =>
+    s.leadId === leadId ? { ...s, deletedAt: now, status: 'Deleted', updatedAt: now } : s
+  );
+
+  return withSales(
+    state,
+    {
+      leads: nextLeads,
+      quotations: nextQuotations,
+      orders: nextOrders,
+      samples: nextSamples,
+    },
+    audit('LEAD', leadId, 'LEAD_DELETED', actor, 'Sales', 'DELETED', lead.status, reason)
+  );
+}
+
+export function restoreLead(
+  state: ERPState,
+  leadId: string,
+  actor: ActionActor = { id: 'Sales User', name: 'Sales User' }
+): ERPState {
+  const sales = normalizeSales(state.sales);
+  const lead = sales.leads.find((l) => l.id === leadId);
+  if (!lead) return state;
+
+  const now = new Date().toISOString();
+  const linkedQuotations = sales.quotations.filter((q) => q.leadId === leadId || (q as any).lead?.id === leadId);
+  const linkedQuoteIds = new Set(linkedQuotations.map((q) => q.id));
+  const linkedOrders = sales.orders.filter(
+    (o) =>
+      (o.quotationId && linkedQuoteIds.has(o.quotationId)) ||
+      ((o as any).sourceQuotationId && linkedQuoteIds.has((o as any).sourceQuotationId)) ||
+      (o as any).leadId === leadId
+  );
+  const linkedOrderIds = new Set(linkedOrders.map((o) => o.id));
+
+  const nextLeads = sales.leads.map((l) =>
+    l.id === leadId ? { ...l, deletedAt: null, status: 'New', updatedAt: now } : l
+  );
+  const nextQuotations = sales.quotations.map((q) =>
+    linkedQuoteIds.has(q.id) ? { ...q, deletedAt: null, status: 'Draft', updatedAt: now } : q
+  );
+  const nextOrders = sales.orders.map((o) =>
+    linkedOrderIds.has(o.id) ? { ...o, deletedAt: null, status: 'CONFIRMED', orderStatus: 'CONFIRMED', updatedAt: now } : o
+  );
+  const nextSamples = sales.samples.map((s) =>
+    s.leadId === leadId ? { ...s, deletedAt: null, status: 'PENDING_APPROVAL', updatedAt: now } : s
+  );
+
+  return withSales(
+    state,
+    {
+      leads: nextLeads,
+      quotations: nextQuotations,
+      orders: nextOrders,
+      samples: nextSamples,
+    },
+    audit('LEAD', leadId, 'LEAD_RESTORED', actor, 'Sales', 'New', 'DELETED')
+  );
+}
+
+export function deleteQuotation(
+  state: ERPState,
+  quotationId: string,
+  reason: string = 'Deleted by user',
+  actor: ActionActor = { id: 'Sales User', name: 'Sales User' }
+): ERPState {
+  const sales = normalizeSales(state.sales);
+  const quotation = sales.quotations.find((q) => q.id === quotationId);
+  if (!quotation) return state;
+
+  const now = new Date().toISOString();
+  const linkedOrders = sales.orders.filter(
+    (o) => o.quotationId === quotationId || (o as any).sourceQuotationId === quotationId
+  );
+  const linkedOrderIds = new Set(linkedOrders.map((o) => o.id));
+
+  const nextQuotations = sales.quotations.map((q) =>
+    q.id === quotationId ? { ...q, deletedAt: now, status: 'Deleted', deletionReason: reason, updatedAt: now } : q
+  );
+  const nextOrders = sales.orders.map((o) =>
+    linkedOrderIds.has(o.id) ? { ...o, deletedAt: now, status: 'Deleted', orderStatus: 'DELETED', deletionReason: reason, updatedAt: now } : o
+  );
+
+  return withSales(
+    state,
+    {
+      quotations: nextQuotations,
+      orders: nextOrders,
+    },
+    audit('QUOTATION', quotationId, 'QUOTATION_DELETED', actor, 'Sales', 'DELETED', quotation.status, reason)
+  );
+}
+
+export function restoreQuotation(
+  state: ERPState,
+  quotationId: string,
+  actor: ActionActor = { id: 'Sales User', name: 'Sales User' }
+): ERPState {
+  const sales = normalizeSales(state.sales);
+  const quotation = sales.quotations.find((q) => q.id === quotationId);
+  if (!quotation) return state;
+
+  const now = new Date().toISOString();
+  const linkedOrders = sales.orders.filter(
+    (o) => o.quotationId === quotationId || (o as any).sourceQuotationId === quotationId
+  );
+  const linkedOrderIds = new Set(linkedOrders.map((o) => o.id));
+
+  const nextQuotations = sales.quotations.map((q) =>
+    q.id === quotationId ? { ...q, deletedAt: null, status: 'Draft', updatedAt: now } : q
+  );
+  const nextOrders = sales.orders.map((o) =>
+    linkedOrderIds.has(o.id) ? { ...o, deletedAt: null, status: 'CONFIRMED', orderStatus: 'CONFIRMED', updatedAt: now } : o
+  );
+
+  return withSales(
+    state,
+    {
+      quotations: nextQuotations,
+      orders: nextOrders,
+    },
+    audit('QUOTATION', quotationId, 'QUOTATION_RESTORED', actor, 'Sales', 'Draft', 'DELETED')
+  );
+}
+
+export function deleteOrder(
+  state: ERPState,
+  orderId: string,
+  reason: string = 'Deleted by user',
+  actor: ActionActor = { id: 'Sales User', name: 'Sales User' }
+): ERPState {
+  const sales = normalizeSales(state.sales);
+  const order = sales.orders.find((o) => o.id === orderId || o.orderNo === orderId);
+  if (!order) return state;
+
+  const now = new Date().toISOString();
+  const nextOrders = sales.orders.map((o) =>
+    o.id === order.id || o.orderNo === order.orderNo
+      ? { ...o, deletedAt: now, status: 'Deleted', orderStatus: 'DELETED', deletionReason: reason, updatedAt: now }
+      : o
+  );
+
+  return withSales(
+    state,
+    { orders: nextOrders },
+    audit('ORDER', order.id, 'ORDER_DELETED', actor, 'Sales', 'DELETED', order.status || order.commercialStatus || '', reason)
+  );
+}
+
+export function restoreOrder(
+  state: ERPState,
+  orderId: string,
+  actor: ActionActor = { id: 'Sales User', name: 'Sales User' }
+): ERPState {
+  const sales = normalizeSales(state.sales);
+  const order = sales.orders.find((o) => o.id === orderId || o.orderNo === orderId);
+  if (!order) return state;
+
+  const now = new Date().toISOString();
+  const nextOrders = sales.orders.map((o) =>
+    o.id === order.id || o.orderNo === order.orderNo
+      ? { ...o, deletedAt: null, status: 'CONFIRMED', orderStatus: 'CONFIRMED', updatedAt: now }
+      : o
+  );
+
+  return withSales(
+    state,
+    { orders: nextOrders },
+    audit('ORDER', order.id, 'ORDER_RESTORED', actor, 'Sales', 'CONFIRMED', 'DELETED')
+  );
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 //  SAMPLE ACTIONS
 // ════════════════════════════════════════════════════════════════════════════

@@ -30,6 +30,7 @@ export const backendSalesReadRepository: SalesReadRepository = {
     if (params.dispatchStatus) searchParams.set('dispatchStatus', params.dispatchStatus);
     if (params.paymentStatus) searchParams.set('paymentStatus', params.paymentStatus);
     if (params.closureStatus) searchParams.set('closureStatus', params.closureStatus);
+    searchParams.set('includeDeleted', 'true');
 
     const body = await backendFetch<any>(
       `/api/backend/sales/orders?${searchParams.toString()}`,

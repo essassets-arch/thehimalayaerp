@@ -72,12 +72,13 @@ export class QuotationsService {
     search?: string,
     userId?: string,
     role?: string,
+    includeDeleted: boolean = false,
   ) {
     const scope = getQuotationSalesScope(userId, role);
     const quotations = await this.prisma.quotation.findMany({
       where: {
         ...scope,
-        deletedAt: null,
+        ...(includeDeleted ? {} : { deletedAt: null }),
         ...(companyId ? { companyId } : {}),
         ...(search
           ? { quotationNumber: { contains: search, mode: 'insensitive' } }
@@ -200,13 +201,14 @@ export class QuotationsService {
     companyId?: string,
     userId?: string,
     role?: string,
+    includeDeleted: boolean = false,
   ) {
     const scope = getQuotationSalesScope(userId, role);
     const quotation = await this.prisma.quotation.findFirst({
       where: {
         id,
         ...scope,
-        deletedAt: null,
+        ...(includeDeleted ? {} : { deletedAt: null }),
         ...(companyId ? { companyId } : {}),
       },
       include: {
@@ -1533,4 +1535,66 @@ export class QuotationsService {
       return salesOrder;
     });
   }
+
+  async deleteQuotation(id: string, reason: string = 'Deleted by user') {
+    return this.prisma.$transaction(async (tx) => {
+      const quotation = await tx.quotation.findFirst({
+        where: { id },
+      });
+      if (!quotation) {
+        throw new NotFoundException(`Quotation ${id} not found`);
+      }
+      const now = new Date();
+      // Soft-delete the quotation
+      const updatedQuotation = await tx.quotation.update({
+        where: { id },
+        data: {
+          deletedAt: now,
+          remarks: quotation.remarks
+            ? `${quotation.remarks} | Deletion: ${reason}`
+            : `Deleted: ${reason}`,
+        },
+      });
+
+      // Cascade soft-delete to linked sales orders
+      await tx.salesOrder.updateMany({
+        where: { quotationId: id, deletedAt: null },
+        data: {
+          deletedAt: now,
+          remarks: `Deleted via Quotation ${quotation.quotationNumber}: ${reason}`,
+        },
+      });
+
+      return updatedQuotation;
+    });
+  }
+
+  async restoreQuotation(id: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const quotation = await tx.quotation.findFirst({
+        where: { id },
+      });
+      if (!quotation) {
+        throw new NotFoundException(`Quotation ${id} not found`);
+      }
+
+      const updatedQuotation = await tx.quotation.update({
+        where: { id },
+        data: {
+          deletedAt: null,
+        },
+      });
+
+      // Restore linked sales orders
+      await tx.salesOrder.updateMany({
+        where: { quotationId: id, deletedAt: { not: null } },
+        data: {
+          deletedAt: null,
+        },
+      });
+
+      return updatedQuotation;
+    });
+  }
 }
+

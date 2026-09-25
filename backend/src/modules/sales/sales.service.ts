@@ -133,11 +133,15 @@ export class SalesService {
   ): Promise<SalesOrderListResponseDto> {
     const page = Number(query.page || 1);
     const pageSize = Number(query.pageSize || query.limit || 100);
-    const { search, status } = query;
+    const { search, status, includeDeleted } = query as any;
+    const isIncludeDeleted = includeDeleted === true || includeDeleted === 'true' || includeDeleted === '1';
     const skip = (page - 1) * pageSize;
     const take = pageSize;
     const scope = getOrderSalesScope(userId, role);
-    const where: Prisma.SalesOrderWhereInput = { AND: [scope], deletedAt: null };
+    const where: Prisma.SalesOrderWhereInput = {
+      AND: [scope],
+      ...(isIncludeDeleted ? {} : { deletedAt: null }),
+    };
 
     if (status) {
       if (status.includes(',')) {
@@ -1549,4 +1553,43 @@ export class SalesService {
     const fulfillmentData = await this.getFulfillmentData([order], companyId);
     return mapSalesOrder(order, fulfillmentData);
   }
+
+  async deleteOrder(id: string, reason: string = 'Deleted by user') {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.salesOrder.findFirst({
+        where: { OR: [{ id }, { orderNumber: id }] },
+      });
+      if (!order) {
+        throw new NotFoundException(`Sales order ${id} not found`);
+      }
+      const now = new Date();
+      return tx.salesOrder.update({
+        where: { id: order.id },
+        data: {
+          deletedAt: now,
+          status: 'CANCELLED',
+          remarks: order.remarks ? `${order.remarks} | Deletion: ${reason}` : `Deleted: ${reason}`,
+        },
+      });
+    });
+  }
+
+  async restoreOrder(id: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.salesOrder.findFirst({
+        where: { OR: [{ id }, { orderNumber: id }] },
+      });
+      if (!order) {
+        throw new NotFoundException(`Sales order ${id} not found`);
+      }
+      return tx.salesOrder.update({
+        where: { id: order.id },
+        data: {
+          deletedAt: null,
+          status: 'CONFIRMED',
+        },
+      });
+    });
+  }
 }
+

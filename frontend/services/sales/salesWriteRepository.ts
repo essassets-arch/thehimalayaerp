@@ -63,4 +63,15 @@ export interface SalesWriteRepository {
     input: any,
     options: WriteRequestOptions,
   ): Promise<any>;
+
+  deleteOrder(
+    orderId: string,
+    reason?: string,
+    options?: Partial<WriteRequestOptions>,
+  ): Promise<any>;
+
+  restoreOrder(
+    orderId: string,
+    options?: Partial<WriteRequestOptions>,
+  ): Promise<any>;
 }

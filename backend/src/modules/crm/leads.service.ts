@@ -21,12 +21,13 @@ export class LeadsService {
     search?: string,
     userId?: string,
     role?: string,
+    includeDeleted?: boolean,
   ) {
     const scope = getSalesScope(userId, role, 'Lead');
     return this.prisma.lead.findMany({
       where: {
         ...scope,
-        deletedAt: null,
+        ...(includeDeleted ? {} : { deletedAt: null }),
         ...(companyId ? { companyId } : {}),
         ...(search
           ? {
@@ -537,17 +538,198 @@ export class LeadsService {
     companyId?: string,
     role?: string,
   ) {
-    await this.getLead(id, companyId, userId, role);
-    const initialState = await this.workflowService.getInitialState('LEAD');
-    return this.prisma.lead.update({
-      where: { id },
-      data: {
-        workflowStateId: initialState.id,
-        lostReason: null,
-        updatedById: userId,
-        version: { increment: 1 },
+    const scope = getSalesScope(userId, role, 'Lead');
+    const lead = await this.prisma.lead.findFirst({
+      where: {
+        id,
+        ...scope,
+        ...(companyId ? { companyId } : {}),
       },
-      include: { workflowState: true },
+      include: {
+        quotations: true,
+      },
+    });
+    if (!lead) throw new NotFoundException('Lead not found or access denied');
+
+    const initialState = await this.workflowService.getInitialState('LEAD');
+
+    return this.prisma.$transaction(async (tx) => {
+      const quotationIds = (lead.quotations || []).map((q) => q.id);
+
+      // Restore associated quotations
+      if (quotationIds.length > 0) {
+        await tx.quotation.updateMany({
+          where: { id: { in: quotationIds } },
+          data: {
+            deletedAt: null,
+            updatedById: userId,
+          },
+        });
+
+        // Restore associated sales orders
+        await tx.salesOrder.updateMany({
+          where: {
+            OR: [
+              { quotationId: { in: quotationIds } },
+              { sourceQuotationId: { in: quotationIds } },
+            ],
+          },
+          data: {
+            deletedAt: null,
+            status: 'DRAFT',
+            updatedById: userId,
+          },
+        });
+      }
+
+      // Restore sample requests
+      await tx.sampleRequest.updateMany({
+        where: { leadId: id },
+        data: {
+          deletedAt: null,
+          updatedById: userId,
+        },
+      });
+
+      // Restore lead
+      return tx.lead.update({
+        where: { id },
+        data: {
+          deletedAt: null,
+          lostAt: null,
+          lostReason: null,
+          workflowStateId: initialState.id,
+          updatedById: userId,
+          version: { increment: 1 },
+        },
+        include: { workflowState: true },
+      });
+    });
+  }
+
+  async deleteLead(
+    id: string,
+    reason?: string,
+    userId?: string,
+    companyId?: string,
+    role?: string,
+  ) {
+    const scope = getSalesScope(userId, role, 'Lead');
+    const lead = await this.prisma.lead.findFirst({
+      where: {
+        id,
+        ...scope,
+        deletedAt: null,
+        ...(companyId ? { companyId } : {}),
+      },
+      include: {
+        quotations: {
+          where: { deletedAt: null },
+          include: {
+            salesOrder: true,
+            sourceSalesOrders: true,
+          },
+        },
+        sampleRequests: {
+          where: { deletedAt: null },
+        },
+      },
+    });
+
+    if (!lead) {
+      throw new NotFoundException('Lead not found or access denied');
+    }
+
+    const now = new Date();
+    const deleteReason = reason?.trim() || 'Deleted by user';
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Gather all Quotations linked to this Lead
+      const quotationIds = (lead.quotations || []).map((q) => q.id);
+
+      // 2. Gather all SalesOrders linked to these Quotations
+      const salesOrderIds = new Set<string>();
+      for (const q of lead.quotations || []) {
+        if (q.salesOrder?.id) salesOrderIds.add(q.salesOrder.id);
+        if (Array.isArray(q.sourceSalesOrders)) {
+          for (const s of q.sourceSalesOrders) {
+            salesOrderIds.add(s.id);
+          }
+        }
+      }
+
+      if (quotationIds.length > 0) {
+        const directOrders = await tx.salesOrder.findMany({
+          where: {
+            OR: [
+              { quotationId: { in: quotationIds } },
+              { sourceQuotationId: { in: quotationIds } },
+            ],
+            deletedAt: null,
+          },
+          select: { id: true },
+        });
+        for (const o of directOrders) {
+          salesOrderIds.add(o.id);
+        }
+      }
+
+      const orderIdsArray = Array.from(salesOrderIds);
+
+      // 3. Soft-delete SalesOrders
+      if (orderIdsArray.length > 0) {
+        await tx.salesOrder.updateMany({
+          where: { id: { in: orderIdsArray } },
+          data: {
+            deletedAt: now,
+            status: 'CANCELLED',
+            remarks: `Cancelled: Associated Lead ${lead.leadNumber || lead.id} deleted (${deleteReason})`,
+            updatedById: userId,
+          },
+        });
+      }
+
+      // 4. Soft-delete Quotations
+      if (quotationIds.length > 0) {
+        await tx.quotation.updateMany({
+          where: { id: { in: quotationIds } },
+          data: {
+            deletedAt: now,
+            remarks: `Associated Lead ${lead.leadNumber || lead.id} deleted (${deleteReason})`,
+            updatedById: userId,
+          },
+        });
+      }
+
+      // 5. Soft-delete SampleRequests
+      await tx.sampleRequest.updateMany({
+        where: { leadId: id, deletedAt: null },
+        data: {
+          deletedAt: now,
+          updatedById: userId,
+        },
+      });
+
+      // 6. Soft-delete the Lead (preserve LeadActivity and FollowUp so they remain intact upon restore)
+      const updatedLead = await tx.lead.update({
+        where: { id },
+        data: {
+          deletedAt: now,
+          lostReason: deleteReason,
+          lostAt: now,
+          updatedById: userId,
+          version: { increment: 1 },
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Lead and associated orders and quotations deleted successfully',
+        deletedLeadId: id,
+        deletedQuotationsCount: quotationIds.length,
+        deletedOrdersCount: orderIdsArray.length,
+        lead: updatedLead,
+      };
     });
   }
 }

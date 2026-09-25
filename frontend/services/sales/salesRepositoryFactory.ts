@@ -13,9 +13,5 @@ export function getSalesReadRepository(): SalesReadRepository {
 }
 
 export function getSalesWriteRepository(): SalesWriteRepository {
-  const mode = process.env.NEXT_PUBLIC_DATA_SOURCE_MODE ?? 'backend';
-  if (mode === 'local') {
-    return localSalesReadRepository;
-  }
   return backendSalesWriteRepository;
 }

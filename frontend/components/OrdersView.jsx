@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, Eye, Box, CheckCircle, Truck, PackageCheck, ChevronLeft, ChevronRight, MoreVertical, Download, ChevronDown, FileText, Clipboard } from 'lucide-react';
+import { Search, Eye, Box, CheckCircle, Truck, PackageCheck, ChevronLeft, ChevronRight, MoreVertical, Download, ChevronDown, FileText, Clipboard, Trash2, RotateCcw } from 'lucide-react';
 import Swal from 'sweetalert2';
 import StatusBadge from '../shared/components/StatusBadge';
 import { useAuth } from '../shared/context/AuthContext';
@@ -10,6 +10,7 @@ import ReminderModal from '../shared/components/ReminderModal.jsx';
 import SalesOwnerBadge from './SalesOwnerBadge.jsx';
 import { apiClient } from '../lib/apiClient';
 import { useERPStore } from '@/store/erpStore';
+import { useSalesBackend } from '../shared/context/ERPContext.jsx';
 import styles from './OrdersView.module.css';
 import { exportOrdersToCSV } from '../services/sales/salesExportService';
 
@@ -24,10 +25,16 @@ export default function OrdersView({
   onAskReplacement,
   onAskReturn,
   onConfirmPayment,
+  onDeleteOrder,
+  onRestoreOrder,
   searchQuery,
   setSearchQuery,
   flat = false
 }) {
+  const salesBackend = useSalesBackend?.();
+  const deleteOrderAction = onDeleteOrder || salesBackend?.deleteOrder;
+  const restoreOrderAction = onRestoreOrder || salesBackend?.restoreOrder;
+
   const storeReplacements = useERPStore(s => s.state?.sales?.replacementRequests) || [];
   const storeReturns = useERPStore(s => s.state?.sales?.returnRequests) || [];
 
@@ -107,6 +114,103 @@ export default function OrdersView({
       Swal.fire({ icon: 'error', title: 'Failed to save reminder', text: err?.message });
     }
     setReminderModal(null);
+  };
+
+  const handleDeleteOrderClick = async (order) => {
+    if (!order) return;
+    const orderNo = order.orderNo || order.orderNumber || order.orderId || order.id;
+
+    const { value: reason, isConfirmed } = await Swal.fire({
+      title: 'Delete Sales Order?',
+      text: `Are you sure you want to delete order #${orderNo}? You can restore it anytime from the Deleted tab.`,
+      icon: 'warning',
+      input: 'text',
+      inputLabel: 'Reason for deletion (optional)',
+      inputPlaceholder: 'e.g., Customer cancelled, duplicate entry...',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Yes, delete order',
+      cancelButtonText: 'Cancel',
+      customClass: {
+        popup: 'swal-premium-popup'
+      }
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      if (typeof deleteOrderAction === 'function') {
+        await deleteOrderAction(order.id || orderNo, reason || 'Deleted by user');
+      }
+      Swal.fire({
+        icon: 'success',
+        title: 'Order Deleted',
+        text: `Sales order #${orderNo} has been moved to the Deleted tab.`,
+        timer: 2000,
+        showConfirmButton: false,
+        customClass: {
+          popup: 'swal-premium-popup'
+        }
+      });
+    } catch (err) {
+      console.error('Error deleting sales order:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Delete Failed',
+        text: err?.message || 'Could not delete sales order. Please try again.',
+        customClass: {
+          popup: 'swal-premium-popup'
+        }
+      });
+    }
+  };
+
+  const handleRestoreOrderClick = async (order) => {
+    if (!order) return;
+    const orderNo = order.orderNo || order.orderNumber || order.orderId || order.id;
+
+    const result = await Swal.fire({
+      title: 'Restore Sales Order?',
+      text: `Restore order #${orderNo} back to active sales orders?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#16a34a',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Yes, restore order',
+      cancelButtonText: 'Cancel',
+      customClass: {
+        popup: 'swal-premium-popup'
+      }
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      if (typeof restoreOrderAction === 'function') {
+        await restoreOrderAction(order.id || orderNo);
+      }
+      Swal.fire({
+        icon: 'success',
+        title: 'Order Restored',
+        text: `Sales order #${orderNo} has been restored successfully.`,
+        timer: 2000,
+        showConfirmButton: false,
+        customClass: {
+          popup: 'swal-premium-popup'
+        }
+      });
+    } catch (err) {
+      console.error('Error restoring sales order:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Restore Failed',
+        text: err?.message || 'Could not restore sales order. Please try again.',
+        customClass: {
+          popup: 'swal-premium-popup'
+        }
+      });
+    }
   };
 
   const PAYMENT_LABELS = {
@@ -623,7 +727,20 @@ export default function OrdersView({
     return hasOrderReference && (hasCustomer || hasItems);
   });
 
+  const isOrderDeleted = (o) => {
+    if (!o) return false;
+    return Boolean(o.deletedAt) ||
+      o.status === 'Deleted' ||
+      o.orderStatus === 'DELETED' ||
+      o.workflowState === 'DELETED' ||
+      o.workflowStateCode === 'DELETED' ||
+      (o.status === 'CANCELLED' && String(o.remarks || '').toLowerCase().includes('deleted'));
+  };
+
+  const deletedOrdersCount = (validOrders || []).filter(isOrderDeleted).length;
+
   const filteredOrders = validOrders.filter(o => {
+    const isDeleted = isOrderDeleted(o);
     const custName = resolveOrderCustomerName(o);
 
     let itemsStr = '';
@@ -644,6 +761,13 @@ export default function OrdersView({
       itemsStr.toLowerCase().includes(qStr) ||
       orderNoStr.toLowerCase().includes(qStr) ||
       poNoStr.toLowerCase().includes(qStr);
+
+    if (filter === 'Deleted') {
+      return isDeleted && matchesSearch;
+    }
+    if (isDeleted) {
+      return false;
+    }
     
     const displayStage = getOverallOrderStage(o);
     const stage = String(o.status || o.overallStage || o.order_stage || o.productionStatus || displayStage || 'Draft');
@@ -744,7 +868,9 @@ export default function OrdersView({
     }
   };
 
-  const currentDetailsOrder = selectedOrder ? orders.find(o => o.orderNo === selectedOrder.orderNo) : null;
+  const currentDetailsOrder = selectedOrder
+    ? (orders.find(o => (o.id && o.id === selectedOrder.id) || (o.orderNo && o.orderNo === selectedOrder.orderNo) || (o.orderNumber && o.orderNumber === selectedOrder.orderNumber)) || selectedOrder)
+    : null;
   // Resolve client information
   const detailsCustName = currentDetailsOrder ? resolveOrderCustomerName(currentDetailsOrder) : '';
   const clientLead = currentDetailsOrder ? leads.find(l => (l.companyName || '').toLowerCase() === detailsCustName.toLowerCase()) : null;
@@ -828,14 +954,31 @@ export default function OrdersView({
         <div className="module-actions">
           {/* Status filters */}
           <div className="tab-filters-row" style={{ background: '#f1f3f5' }}>
-            {['All Orders', 'Open Orders', 'In Production', 'Dispatched', 'Delivered', 'Closed', 'Lost'].map(st => (
+            {['All Orders', 'Open Orders', 'In Production', 'Dispatched', 'Delivered', 'Closed', 'Lost', 'Deleted'].map(st => (
               <button 
                 key={st}
                 className={`filter-pill ${filter === st ? 'active' : ''}`}
                 onClick={() => setFilter(st)}
-                style={{ color: filter === st ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
+                style={{ 
+                  color: filter === st ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
               >
-                {st}
+                <span>{st}</span>
+                {st === 'Deleted' && (
+                  <span style={{
+                    padding: '1px 6px',
+                    borderRadius: '999px',
+                    fontSize: '11px',
+                    fontWeight: '800',
+                    background: filter === 'Deleted' ? '#dc2626' : '#fee2e2',
+                    color: filter === 'Deleted' ? '#ffffff' : '#b91c1c'
+                  }}>
+                    {deletedOrdersCount}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -1008,7 +1151,7 @@ export default function OrdersView({
             {filteredOrders.length === 0 ? (
               <tr>
                 <td colSpan={isProductionUser ? "6" : "7"} style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
-                  No orders generated.
+                  {filter === 'Deleted' ? 'No deleted orders stored.' : 'No orders generated.'}
                 </td>
               </tr>
             ) : (
@@ -1029,7 +1172,24 @@ export default function OrdersView({
 
                   return (
                     <tr key={o.id || o.orderNo}>
-                      <td data-label="Order" className={styles.orderIdCol} style={{ fontWeight: 800, fontFamily: 'monospace' }}>{o.orderNo || o.orderNumber}</td>
+                      <td data-label="Order" className={styles.orderIdCol} style={{ fontWeight: 800, fontFamily: 'monospace' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span>{o.orderNo || o.orderNumber}</span>
+                          {isOrderDeleted(o) && (
+                            <span style={{
+                              padding: '2px 7px',
+                              borderRadius: '6px',
+                              fontSize: '10px',
+                              fontWeight: '800',
+                              background: '#fee2e2',
+                              color: '#dc2626',
+                              letterSpacing: '0.02em'
+                            }}>
+                              DELETED
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: 700 }}>{resolveOrderCustomerName(o)}</td>
                       <td data-label="Sales Person" style={{ color: '#475569', fontSize: '13px' }}>{salesPerson}</td>
                       <td data-label="Order Value" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800 }}>{formatINR(total)}</td>
@@ -1044,19 +1204,53 @@ export default function OrdersView({
                       </td>
                       <td data-label="Date" style={{ color: '#64748b', fontSize: '12.5px' }}>{lostDate}</td>
                       <td data-label="Action" className={styles.actionsCell}>
-                        <button
-                          title="View"
-                          onClick={() => setSelectedOrder(o)}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            width: '30px', height: '30px',
-                            background: '#ffffff', border: '1px solid #d1d5db',
-                            borderRadius: '8px', cursor: 'pointer',
-                            color: '#374151'
-                          }}
-                        >
-                          <Eye size={13} />
-                        </button>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <button
+                            title="View"
+                            onClick={() => setSelectedOrder(o)}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              width: '30px', height: '30px',
+                              background: '#ffffff', border: '1px solid #d1d5db',
+                              borderRadius: '8px', cursor: 'pointer',
+                              color: '#374151'
+                            }}
+                          >
+                            <Eye size={13} />
+                          </button>
+                          {isOrderDeleted(o) ? (
+                            <button
+                              type="button"
+                              title="Restore Order"
+                              onClick={() => handleRestoreOrderClick(o)}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                padding: '4px 10px', height: '30px',
+                                background: '#f0fdf4', border: '1.5px solid #86efac',
+                                borderRadius: '8px', cursor: 'pointer',
+                                color: '#16a34a', fontWeight: '700', fontSize: '12px'
+                              }}
+                            >
+                              <RotateCcw size={13} />
+                              <span>Restore</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              title="Delete Order"
+                              onClick={() => handleDeleteOrderClick(o)}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: '30px', height: '30px',
+                                background: '#ffffff', border: '1px solid #fecaca',
+                                borderRadius: '8px', cursor: 'pointer',
+                                color: '#dc2626'
+                              }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1065,7 +1259,24 @@ export default function OrdersView({
                 if (filter === 'Delivered') {
                   return (
                     <tr key={o.id || o.orderNo}>
-                      <td data-label="Order No" className={styles.orderIdCol} style={{ fontWeight: 800, fontFamily: 'monospace' }}>{o.orderNo || o.orderNumber}</td>
+                      <td data-label="Order No" className={styles.orderIdCol} style={{ fontWeight: 800, fontFamily: 'monospace' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span>{o.orderNo || o.orderNumber}</span>
+                          {isOrderDeleted(o) && (
+                            <span style={{
+                              padding: '2px 7px',
+                              borderRadius: '6px',
+                              fontSize: '10px',
+                              fontWeight: '800',
+                              background: '#fee2e2',
+                              color: '#dc2626',
+                              letterSpacing: '0.02em'
+                            }}>
+                              DELETED
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: 700 }}>{resolveOrderCustomerName(o)}</td>
                       <td data-label="Delivery Date">{deliveryDate}</td>
                       <td data-label="Order Value" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800 }}>
@@ -1093,19 +1304,53 @@ export default function OrdersView({
                       </td>
                       <td data-label="Action" className={styles.actionsCell}>
                         <div className={styles.actionsGrid}>
-                          <button
-                            title="View"
-                            onClick={() => setSelectedOrder(o)}
-                            style={{
-                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                              width: '30px', height: '30px',
-                              background: '#ffffff', border: '1px solid #d1d5db',
-                              borderRadius: '8px', cursor: 'pointer',
-                              color: '#374151'
-                            }}
-                          >
-                            <Eye size={13} />
-                          </button>
+                          {isOrderDeleted(o) ? (
+                            <button
+                              type="button"
+                              title="Restore Order"
+                              onClick={() => handleRestoreOrderClick(o)}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                padding: '4px 10px', height: '30px',
+                                background: '#f0fdf4', border: '1.5px solid #86efac',
+                                borderRadius: '8px', cursor: 'pointer',
+                                color: '#16a34a', fontWeight: '700', fontSize: '12px'
+                              }}
+                            >
+                              <RotateCcw size={13} />
+                              <span>Restore</span>
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                title="View"
+                                onClick={() => setSelectedOrder(o)}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                  width: '30px', height: '30px',
+                                  background: '#ffffff', border: '1px solid #d1d5db',
+                                  borderRadius: '8px', cursor: 'pointer',
+                                  color: '#374151'
+                                }}
+                              >
+                                <Eye size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                title="Delete Order"
+                                onClick={() => handleDeleteOrderClick(o)}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                  width: '30px', height: '30px',
+                                  background: '#ffffff', border: '1px solid #fecaca',
+                                  borderRadius: '8px', cursor: 'pointer',
+                                  color: '#dc2626'
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </>
+                          )}
                           {canAskForPayment(o) && (
                             <button
                               type="button"
@@ -1182,12 +1427,27 @@ export default function OrdersView({
                 return (
                   <tr key={o.id || o.orderNo}>
                     <td data-label="Order ID" className={styles.orderIdCol} style={{ fontWeight: '700' }}>
-                      <span
-                        style={{ color: '#1e40af', cursor: 'pointer', textDecoration: 'underline' }}
-                        onClick={() => navigate.push(`/orders/${o.orderNo || o.orderNumber}`)}
-                      >
-                        {o.orderNo || o.orderNumber}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span
+                          style={{ color: '#1e40af', cursor: 'pointer', textDecoration: 'underline' }}
+                          onClick={() => navigate.push(`/orders/${o.orderNo || o.orderNumber}`)}
+                        >
+                          {o.orderNo || o.orderNumber}
+                        </span>
+                        {isOrderDeleted(o) && (
+                          <span style={{
+                            padding: '2px 7px',
+                            borderRadius: '6px',
+                            fontSize: '10px',
+                            fontWeight: '800',
+                            background: '#fee2e2',
+                            color: '#dc2626',
+                            letterSpacing: '0.02em'
+                          }}>
+                            DELETED
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: '600' }}>
                       {resolveOrderCustomerName(o)}
@@ -1202,8 +1462,14 @@ export default function OrdersView({
                     )}
                     <td data-label="Order Status" className={styles.statusCol}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                        {o.paymentStatus === 'FULLY_PAID' && <StatusBadge status="Fully Paid" />}
-                        <StatusBadge status={getOrderStatusLabel(o)} />
+                        {isOrderDeleted(o) ? (
+                          <StatusBadge status="Deleted" />
+                        ) : (
+                          <>
+                            {o.paymentStatus === 'FULLY_PAID' && <StatusBadge status="Fully Paid" />}
+                            <StatusBadge status={getOrderStatusLabel(o)} />
+                          </>
+                        )}
                       </div>
                     </td>
                     <td data-label="Remarks" className={styles.remarksCol}>
@@ -1214,21 +1480,55 @@ export default function OrdersView({
                         const actionState = getOrderActionState(o);
                         return (
                           <div className={styles.actionsGrid}>
-                            <button
-                              title="View Details"
-                              onClick={() => setSelectedOrder(o)}
-                              style={{
-                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                width: '30px', height: '30px',
-                                background: '#ffffff', border: '1px solid #d1d5db',
-                                borderRadius: '8px', cursor: 'pointer',
-                                color: '#374151', flexShrink: 0
-                              }}
-                            >
-                              <Eye size={13} />
-                            </button>
+                            {isOrderDeleted(o) ? (
+                              <button
+                                type="button"
+                                title="Restore Order"
+                                onClick={() => handleRestoreOrderClick(o)}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: '5px',
+                                  padding: '5px 12px', height: '30px',
+                                  background: '#f0fdf4', border: '1.5px solid #86efac',
+                                  borderRadius: '8px', cursor: 'pointer',
+                                  color: '#16a34a', fontWeight: '700', fontSize: '12px'
+                                }}
+                              >
+                                <RotateCcw size={13} />
+                                <span>Restore</span>
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  title="View Details"
+                                  onClick={() => setSelectedOrder(o)}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                    width: '30px', height: '30px',
+                                    background: '#ffffff', border: '1px solid #d1d5db',
+                                    borderRadius: '8px', cursor: 'pointer',
+                                    color: '#374151', flexShrink: 0
+                                  }}
+                                >
+                                  <Eye size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Delete Order"
+                                  onClick={() => handleDeleteOrderClick(o)}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                    width: '30px', height: '30px',
+                                    background: '#ffffff', border: '1px solid #fecaca',
+                                    borderRadius: '8px', cursor: 'pointer',
+                                    color: '#dc2626', flexShrink: 0
+                                  }}
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </>
+                            )}
 
-                            {(actionState.action === 'SEND_TO_PLANT' || actionState.action === 'SEND_TO_PLANT_HEAD' || actionState.action === 'SEND_TO_PLANT_HEAD_DIRECT') && (
+                            {!isOrderDeleted(o) && (actionState.action === 'SEND_TO_PLANT' || actionState.action === 'SEND_TO_PLANT_HEAD' || actionState.action === 'SEND_TO_PLANT_HEAD_DIRECT') && (
                               <button
                                 type="button"
                                 disabled={sendingOrderId === (o.id || o.orderNo)}
@@ -1383,7 +1683,7 @@ export default function OrdersView({
         `}</style>
         {filteredOrders.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
-            No orders generated.
+            {filter === 'Deleted' ? 'No deleted orders stored.' : 'No orders generated.'}
           </div>
         ) : (
           displayedOrders.map((o) => {
@@ -1414,7 +1714,22 @@ export default function OrdersView({
               return (
                 <div key={orderNo} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #fee2e2', boxShadow: '0 2px 8px rgba(220,38,38,0.06)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span onClick={() => navigate.push(`/orders/${orderNo}`)} style={{ fontSize: '15px', fontWeight: '800', fontFamily: 'monospace', color: '#dc2626', textDecoration: 'underline', cursor: 'pointer' }}>{orderNo}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span onClick={() => navigate.push(`/orders/${orderNo}`)} style={{ fontSize: '15px', fontWeight: '800', fontFamily: 'monospace', color: '#dc2626', textDecoration: 'underline', cursor: 'pointer' }}>{orderNo}</span>
+                      {isOrderDeleted(o) && (
+                        <span style={{
+                          padding: '2px 7px',
+                          borderRadius: '6px',
+                          fontSize: '10px',
+                          fontWeight: '800',
+                          background: '#fee2e2',
+                          color: '#dc2626',
+                          letterSpacing: '0.02em'
+                        }}>
+                          DELETED
+                        </span>
+                      )}
+                    </div>
                     <span style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fca5a5', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
                       LOST
                     </span>
@@ -1449,23 +1764,53 @@ export default function OrdersView({
                       </div>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedOrder(o)}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      background: '#f8fafc',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '8px',
-                      fontSize: '12.5px',
-                      fontWeight: '700',
-                      color: '#334155',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    View Order Details
-                  </button>
+                  <div style={{ display: 'grid', gridTemplateColumns: isOrderDeleted(o) ? '1fr' : '1fr 1fr', gap: '8px' }}>
+                    {isOrderDeleted(o) ? (
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreOrderClick(o)}
+                        style={{
+                          width: '100%', padding: '8px',
+                          background: '#f0fdf4', border: '1.5px solid #86efac',
+                          borderRadius: '8px', fontSize: '12.5px', fontWeight: '700',
+                          color: '#16a34a', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                        }}
+                      >
+                        <RotateCcw size={14} />
+                        Restore Order
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedOrder(o)}
+                          style={{
+                            width: '100%', padding: '8px',
+                            background: '#f8fafc', border: '1px solid #cbd5e1',
+                            borderRadius: '8px', fontSize: '12.5px', fontWeight: '700',
+                            color: '#334155', cursor: 'pointer',
+                          }}
+                        >
+                          View Details
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteOrderClick(o)}
+                          style={{
+                            width: '100%', padding: '8px',
+                            background: '#ffffff', border: '1px solid #fecaca',
+                            borderRadius: '8px', fontSize: '12.5px', fontWeight: '700',
+                            color: '#dc2626', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                          }}
+                        >
+                          <Trash2 size={14} />
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               );
             }
@@ -1473,7 +1818,22 @@ export default function OrdersView({
             return (
               <div key={orderNo} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #f1f3f5', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <span onClick={() => navigate.push(`/orders/${orderNo}`)} style={{ fontSize: '15px', fontWeight: '800', color: '#1e3a8a', textDecoration: 'underline', cursor: 'pointer' }}>{orderNo}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span onClick={() => navigate.push(`/orders/${orderNo}`)} style={{ fontSize: '15px', fontWeight: '800', color: '#1e3a8a', textDecoration: 'underline', cursor: 'pointer' }}>{orderNo}</span>
+                    {isOrderDeleted(o) && (
+                      <span style={{
+                        padding: '2px 7px',
+                        borderRadius: '6px',
+                        fontSize: '10px',
+                        fontWeight: '800',
+                        background: '#fee2e2',
+                        color: '#dc2626',
+                        letterSpacing: '0.02em'
+                      }}>
+                        DELETED
+                      </span>
+                    )}
+                  </div>
                   <button onClick={() => setSelectedOrder(o)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #e5e7eb', background: '#f9fafb', color: '#6b7280', cursor: 'pointer' }}>
                     <MoreVertical size={16} />
                   </button>
@@ -1493,7 +1853,7 @@ export default function OrdersView({
                   </div>
                   <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                     <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '4px' }}>Status</div>
-                    <StatusBadge status={statusLabel} />
+                    <StatusBadge status={isOrderDeleted(o) ? 'Deleted' : statusLabel} />
                   </div>
                   {(o.remarks || o.acceptanceRemarks || o.plantHeadRemarks || o.notes) && (
                     <div style={{ gridColumn: '1 / -1', background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
@@ -1506,7 +1866,54 @@ export default function OrdersView({
                 </div>
                 <div style={{ borderTop: '1px solid #f1f3f5', paddingTop: '12px' }}>
                   <div style={{ fontSize: '11px', fontWeight: '700', color: '#1e293b', marginBottom: '10px' }}>Actions</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isOrderDeleted(o) ? '1fr' : '1fr 1fr', gap: '8px' }}>
+                    {isOrderDeleted(o) ? (
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreOrderClick(o)}
+                        style={{
+                          padding: '8px 12px', height: '36px',
+                          background: '#f0fdf4', border: '1.5px solid #86efac',
+                          borderRadius: '8px', cursor: 'pointer',
+                          color: '#16a34a', fontWeight: '700', fontSize: '13px',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                        }}
+                      >
+                        <RotateCcw size={14} />
+                        Restore Order
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedOrder(o)}
+                          style={{
+                            padding: '8px 12px', height: '36px',
+                            background: '#f8fafc', border: '1px solid #cbd5e1',
+                            borderRadius: '8px', cursor: 'pointer',
+                            fontSize: '12.5px', fontWeight: '700', color: '#334155',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                          }}
+                        >
+                          <Eye size={14} />
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteOrderClick(o)}
+                          style={{
+                            padding: '8px 12px', height: '36px',
+                            background: '#ffffff', border: '1px solid #fecaca',
+                            borderRadius: '8px', cursor: 'pointer',
+                            fontSize: '12.5px', fontWeight: '700', color: '#dc2626',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                          }}
+                        >
+                          <Trash2 size={14} />
+                          Delete
+                        </button>
+                      </>
+                    )}
                     
                     {actionState?.action === 'SEND_TO_PLANT' && (
                       <button
@@ -1841,60 +2248,97 @@ export default function OrdersView({
 
               {/* Action buttons controls */}
               <div className="sheet-actions">
-                {canSendToPlantHead(currentDetailsOrder) && (
+                {isOrderDeleted(currentDetailsOrder) ? (
                   <button
                     type="button"
                     onClick={() => {
-                      onUpdateOrderStatus?.(currentDetailsOrder.orderNo || currentDetailsOrder.id, 'PLANT_PENDING');
+                      const target = currentDetailsOrder;
                       setSelectedOrder(null);
+                      handleRestoreOrderClick(target);
                     }}
                     style={{
                       padding: '10px 20px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0,
-                      background: '#c9f03d', border: '1px solid #b5da2a', color: '#1a2600', cursor: 'pointer'
+                      background: '#16a34a', border: 'none', color: '#ffffff', cursor: 'pointer',
+                      display: 'inline-flex', alignItems: 'center', gap: '6px'
                     }}
                   >
-                    ✓ Send to Plant Head
+                    <RotateCcw size={14} />
+                    Restore Order
                   </button>
-                )}
-                {canAskForPayment(currentDetailsOrder) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const targetId = currentDetailsOrder.id || currentDetailsOrder.orderNo || currentDetailsOrder.orderNumber;
-                      setSelectedOrder(null);
-                      navigate.push(`/sales/payment-followup?orderId=${targetId}`);
-                    }}
-                    style={{
-                      padding: '10px 20px', fontSize: '13px', fontWeight: '800', borderRadius: '8px', margin: 0,
-                      background: '#eff6ff', border: '1px solid #3b82f6', color: '#1d4ed8', cursor: 'pointer'
-                    }}
-                  >
-                    Ask for Payment
-                  </button>
-                )}
-                {onAskReplacement && isDeliveredOrder(currentDetailsOrder) && (
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedOrder(null); onAskReplacement(currentDetailsOrder); }}
-                    style={{
-                      padding: '10px 20px', fontSize: '13px', fontWeight: '800', borderRadius: '8px', margin: 0,
-                      background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e', cursor: 'pointer'
-                    }}
-                  >
-                    Ask for Replacement
-                  </button>
-                )}
-                {onAskReturn && isDeliveredOrder(currentDetailsOrder) && (
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedOrder(null); onAskReturn(currentDetailsOrder); }}
-                    style={{
-                      padding: '10px 20px', fontSize: '13px', fontWeight: '800', borderRadius: '8px', margin: 0,
-                      background: '#fff1f2', border: '1px solid #f43f5e', color: '#e11d48', cursor: 'pointer'
-                    }}
-                  >
-                    Ask for Return
-                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = currentDetailsOrder;
+                        setSelectedOrder(null);
+                        handleDeleteOrderClick(target);
+                      }}
+                      style={{
+                        padding: '10px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0,
+                        background: '#ffffff', border: '1px solid #fecaca', color: '#dc2626', cursor: 'pointer',
+                        display: 'inline-flex', alignItems: 'center', gap: '6px'
+                      }}
+                    >
+                      <Trash2 size={14} />
+                      Delete Order
+                    </button>
+                    {canSendToPlantHead(currentDetailsOrder) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onUpdateOrderStatus?.(currentDetailsOrder.orderNo || currentDetailsOrder.id, 'PLANT_PENDING');
+                          setSelectedOrder(null);
+                        }}
+                        style={{
+                          padding: '10px 20px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0,
+                          background: '#c9f03d', border: '1px solid #b5da2a', color: '#1a2600', cursor: 'pointer'
+                        }}
+                      >
+                        ✓ Send to Plant Head
+                      </button>
+                    )}
+                    {canAskForPayment(currentDetailsOrder) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const targetId = currentDetailsOrder.id || currentDetailsOrder.orderNo || currentDetailsOrder.orderNumber;
+                          setSelectedOrder(null);
+                          navigate.push(`/sales/payment-followup?orderId=${targetId}`);
+                        }}
+                        style={{
+                          padding: '10px 20px', fontSize: '13px', fontWeight: '800', borderRadius: '8px', margin: 0,
+                          background: '#eff6ff', border: '1px solid #3b82f6', color: '#1d4ed8', cursor: 'pointer'
+                        }}
+                      >
+                        Ask for Payment
+                      </button>
+                    )}
+                    {onAskReplacement && isDeliveredOrder(currentDetailsOrder) && (
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedOrder(null); onAskReplacement(currentDetailsOrder); }}
+                        style={{
+                          padding: '10px 20px', fontSize: '13px', fontWeight: '800', borderRadius: '8px', margin: 0,
+                          background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e', cursor: 'pointer'
+                        }}
+                      >
+                        Ask for Replacement
+                      </button>
+                    )}
+                    {onAskReturn && isDeliveredOrder(currentDetailsOrder) && (
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedOrder(null); onAskReturn(currentDetailsOrder); }}
+                        style={{
+                          padding: '10px 20px', fontSize: '13px', fontWeight: '800', borderRadius: '8px', margin: 0,
+                          background: '#fff1f2', border: '1px solid #f43f5e', color: '#e11d48', cursor: 'pointer'
+                        }}
+                      >
+                        Ask for Return
+                      </button>
+                    )}
+                  </>
                 )}
                 <button 
                   type="button" 

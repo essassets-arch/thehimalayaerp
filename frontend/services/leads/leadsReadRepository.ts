@@ -6,7 +6,7 @@ export const leadsReadRepository = {
   },
 
   getById: async (id: string) => {
-    const data = await LeadRepositoryFactory.getReadRepository().getLeadById(id);
+    const data = await LeadRepositoryFactory.getReadRepository().getLead(id);
     return { success: true, data };
   },
 };

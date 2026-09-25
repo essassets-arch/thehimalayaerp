@@ -795,7 +795,7 @@ export const ERPProvider = ({ children }) => {
     setQuotationsLoading(true);
     setQuotationsError(null);
     try {
-      const result = await backendFetch('/api/backend/crm/quotations');
+      const result = await backendFetch('/api/backend/crm/quotations?includeDeleted=true');
       setQuotations((Array.isArray(result) ? result : result?.data || []).map(normalizeQuotation));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -853,6 +853,43 @@ export const ERPProvider = ({ children }) => {
   const addLeadReminder = useCallback((leadId, input, options) => callLeadWriteMethod('addReminder', leadId, input, options), [callLeadWriteMethod]);
   const markLeadLost = useCallback((leadId, input, options) => callLeadWriteMethod('markLost', leadId, input, options), [callLeadWriteMethod]);
   const restoreLead = useCallback((leadId, input, options) => callLeadWriteMethod('restoreLead', leadId, input, options), [callLeadWriteMethod]);
+  const deleteLead = useCallback(async (leadId, reason, options) => {
+    const res = await callLeadWriteMethod('deleteLead', leadId, reason, options);
+    if (loadLeads) void loadLeads();
+    if (loadQuotations) void loadQuotations();
+    if (loadSalesOrders) void loadSalesOrders();
+    return res;
+  }, [callLeadWriteMethod, loadLeads, loadQuotations, loadSalesOrders]);
+
+  const deleteQuotation = useCallback(async (quotationId, reason = 'Deleted by user') => {
+    const res = await backendFetch(`/api/backend/crm/quotations/${encodeURIComponent(quotationId)}?reason=${encodeURIComponent(reason)}`, {
+      method: 'DELETE',
+    });
+    if (loadQuotations) void loadQuotations();
+    if (loadSalesOrders) void loadSalesOrders();
+    return res;
+  }, [loadQuotations, loadSalesOrders]);
+
+  const restoreQuotation = useCallback(async (quotationId) => {
+    const res = await backendFetch(`/api/backend/crm/quotations/${encodeURIComponent(quotationId)}/restore`, {
+      method: 'POST',
+    });
+    if (loadQuotations) void loadQuotations();
+    if (loadSalesOrders) void loadSalesOrders();
+    return res;
+  }, [loadQuotations, loadSalesOrders]);
+
+  const deleteOrder = useCallback(async (orderId, reason = 'Deleted by user', options) => {
+    const res = await callWriteMethod('deleteOrder', orderId, reason, options);
+    if (loadSalesOrders) void loadSalesOrders();
+    return res;
+  }, [callWriteMethod, loadSalesOrders]);
+
+  const restoreOrder = useCallback(async (orderId, options) => {
+    const res = await callWriteMethod('restoreOrder', orderId, options);
+    if (loadSalesOrders) void loadSalesOrders();
+    return res;
+  }, [callWriteMethod, loadSalesOrders]);
 
   const createCustomer = useCallback((input, options) => callCustomerWriteMethod('create', input, options), [callCustomerWriteMethod]);
   const updateCustomer = useCallback((customerId, input, options) => callCustomerWriteMethod('update', customerId, input, options), [callCustomerWriteMethod]);
@@ -920,10 +957,15 @@ export const ERPProvider = ({ children }) => {
     addLeadReminder,
     markLeadLost,
     restoreLead,
+    deleteLead,
     createCustomer,
     updateCustomer,
     deactivateCustomer,
     restoreCustomer,
+    deleteQuotation,
+    restoreQuotation,
+    deleteOrder,
+    restoreOrder,
     loadSamples,
     refreshSamples: loadSamples,
     createSample,
@@ -937,7 +979,8 @@ export const ERPProvider = ({ children }) => {
     loadSalesOrders, loadLeads, loadCustomers, loadSamples, createOrder, convertQuotationToOrder, attachCustomerPo, 
     runCreditCheck, approveCreditException, confirmOrder, sendToPlantHead, cancelOrder, raiseCustomerComplaint, 
     requestReturn, requestReplacement, createLead, updateLead, qualifyLead, addLeadFollowup, addLeadReminder, 
-    markLeadLost, restoreLead, createCustomer, updateCustomer, deactivateCustomer, restoreCustomer,
+    markLeadLost, restoreLead, deleteLead, createCustomer, updateCustomer, deactivateCustomer, restoreCustomer,
+    deleteQuotation, restoreQuotation, deleteOrder, restoreOrder,
     createSample, updateSample, updateSampleStatus, loadQuotations
   ]);
 

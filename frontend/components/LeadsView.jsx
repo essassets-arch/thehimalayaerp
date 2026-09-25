@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Eye, Plus, Clipboard, Edit, ChevronLeft, ChevronRight, Bell, Trash2, FlaskConical, FileText, ShieldCheck, MoreVertical, Calendar, X, Download, ChevronDown } from 'lucide-react';
+import { Search, Eye, Plus, Clipboard, Edit, ChevronLeft, ChevronRight, Bell, Trash2, FlaskConical, FileText, ShieldCheck, MoreVertical, Calendar, X, Download, ChevronDown, RotateCcw } from 'lucide-react';
 import Swal from 'sweetalert2';
 import ReminderModal from '../shared/components/ReminderModal.jsx';
 import {
@@ -390,22 +390,48 @@ export default function LeadsView({
   };
 
   const handleDeleteLeadClick = (lead) => {
-    const isConverted = lead.status === 'Converted';
+    const targetLeadId = lead.id || lead.leadId;
+    const targetLeadNumber = lead.leadNumber || displayEntityId(targetLeadId);
+
+    // Identify linked quotations and orders
+    const linkedQuotes = (quotations || []).filter(
+      (q) => q.leadId === targetLeadId || q.leadId === lead.id || q.lead?.id === targetLeadId
+    );
+    const linkedQuoteIds = new Set(linkedQuotes.map((q) => q.id || q.quotationNumber));
+    const linkedOrders = (orders || []).filter(
+      (o) =>
+        linkedQuoteIds.has(o.quotationId) ||
+        linkedQuoteIds.has(o.sourceQuotationId) ||
+        o.leadId === targetLeadId
+    );
+
+    const hasLinkedItems = linkedQuotes.length > 0 || linkedOrders.length > 0;
+
     Swal.fire({
       title: 'Delete Lead?',
       html: `
         <div style="text-align:left;font-size:14px;line-height:1.5;">
-          <p style="margin:0 0 8px;"><strong>Lead:</strong> ${lead.companyName}</p>
-          ${isConverted ? '<p style="margin:0 0 8px;color:#b45309;">This lead has been converted. Deletion is only allowed if it is not linked to quotations or orders.</p>' : ''}
-          <p style="margin:0 0 12px;color:#5E6B82;">The lead will be archived (soft-deleted). Notes and timeline are preserved.</p>
+          <p style="margin:0 0 8px;"><strong>Lead:</strong> ${lead.companyName} (${targetLeadNumber})</p>
+          ${
+            hasLinkedItems
+              ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;margin:8px 0 12px;color:#991b1b;font-size:12.5px;line-height:1.5;">
+                  <strong>⚠️ Warning:</strong> This lead has created 
+                  ${linkedQuotes.length > 0 ? `<strong>${linkedQuotes.length}</strong> quotation(s)` : ''}
+                  ${linkedQuotes.length > 0 && linkedOrders.length > 0 ? ' and ' : ''}
+                  ${linkedOrders.length > 0 ? `<strong>${linkedOrders.length}</strong> order(s)` : ''}.<br/>
+                  Deleting this lead will <strong>also delete all associated quotations and orders</strong> created from it.
+                </div>`
+              : '<p style="margin:0 0 12px;color:#5E6B82;">Are you sure you want to delete this lead? All associated records will be removed.</p>'
+          }
         </div>
       `,
       input: 'text',
       inputPlaceholder: 'Reason for deletion (optional)',
-      icon: 'warning',
+      icon: hasLinkedItems ? 'warning' : 'question',
       showCancelButton: true,
-      confirmButtonText: 'Delete',
+      confirmButtonText: hasLinkedItems ? 'Yes, Delete Everything' : 'Delete Lead',
       cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
       customClass: {
         popup: 'swal-premium-popup',
         title: 'swal-premium-title',
@@ -414,12 +440,14 @@ export default function LeadsView({
         cancelButton: 'swal-premium-cancel-btn'
       },
       buttonsStyling: false
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed && onDeleteLead) {
-        onDeleteLead(lead.id, {
-          navigate: false,
-          reason: result.value?.trim() || 'Deleted from leads directory'
-        });
+        try {
+          const reason = result.value?.trim() || 'Deleted from leads directory';
+          await onDeleteLead(targetLeadId, reason);
+        } catch (e) {
+          console.error('Delete lead failed:', e);
+        }
       }
     });
   };
@@ -506,6 +534,15 @@ export default function LeadsView({
       gstNumber.includes(q);
 
     if (filter === 'Reminders') return false;
+
+    const isDeleted = Boolean(lead.deletedAt) || lead.status === 'Deleted' || lead.workflowState?.code === 'DELETED';
+
+    if (filter === 'Deleted') {
+      return matchesSearch && isDeleted && matchesDate;
+    }
+
+    // For all other tabs (All, New, Follow-up, Converted, Lost), exclude deleted leads!
+    if (isDeleted) return false;
 
     // Status matching across standard, workflow-stage, and legacy values
     let matchesFilter = true;
@@ -711,17 +748,40 @@ export default function LeadsView({
         <h2 className="module-title">Leads Directory</h2>
         <div className="module-actions">
           {/* Status filters */}
-          <div className="tab-filters-row" style={{ background: '#f1f3f5' }}>
-            {['All', 'New', 'Follow-up', 'Converted', 'Lost', 'Reminders'].map(st => (
-              <button
-                key={st}
-                className={`filter-pill ${filter === st ? 'active' : ''}`}
-                onClick={() => setFilter(st)}
-                style={{ color: filter === st ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
-              >
-                {st}
-              </button>
-            ))}
+          <div className="tab-filters-row" style={{ background: '#f1f3f5', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', flexWrap: 'nowrap' }}>
+            {['All', 'New', 'Follow-up', 'Converted', 'Lost', 'Reminders', 'Deleted'].map(st => {
+              const deletedCount = (leads || []).filter(l => Boolean(l.deletedAt) || l.status === 'Deleted').length;
+              return (
+                <button
+                  key={st}
+                  className={`filter-pill ${filter === st ? 'active' : ''}`}
+                  onClick={() => setFilter(st)}
+                  style={{
+                    color: filter === st ? (st === 'Deleted' ? '#dc2626' : 'var(--color-text-primary)') : (st === 'Deleted' ? '#dc2626' : 'var(--color-text-secondary)'),
+                    fontWeight: filter === st ? '700' : '500',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {st}
+                  {st === 'Deleted' && deletedCount > 0 && (
+                    <span style={{
+                      padding: '1px 6px',
+                      borderRadius: '10px',
+                      fontSize: '10.5px',
+                      background: filter === 'Deleted' ? '#dc2626' : '#fee2e2',
+                      color: filter === 'Deleted' ? '#ffffff' : '#991b1b',
+                      fontWeight: '700',
+                      lineHeight: '1.2'
+                    }}>
+                      {deletedCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           <div className="search-box" style={{ background: '#f1f3f5', border: '1px solid #D6E2F0' }}>
@@ -1223,7 +1283,21 @@ export default function LeadsView({
                     <tr key={lead.id}>
                       <td data-label="Lead ID" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{lead.leadNumber || displayEntityId(lead.id)}</td>
                       <td data-label="Date" style={{ fontSize: '13px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>{leadDateStr}</td>
-                      <td data-label="Company Name" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{lead.companyName || lead.customerName || lead.projectName || 'N/A'}</td>
+                      <td data-label="Company Name" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{lead.companyName || lead.customerName || lead.projectName || 'N/A'}</span>
+                          {(Boolean(lead.deletedAt) || lead.status === 'Deleted') && (
+                            <span className="badge" style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', fontSize: '10px', padding: '1px 6px', borderRadius: '4px' }}>
+                              Deleted
+                            </span>
+                          )}
+                        </div>
+                        {(Boolean(lead.deletedAt) || lead.status === 'Deleted') && lead.lostReason && (
+                          <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: '400', marginTop: '2px' }}>
+                            Reason: {lead.lostReason}
+                          </div>
+                        )}
+                      </td>
                       <td data-label="Specification" style={{ minWidth: '180px' }}>{renderLeadSpecification(lead)}</td>
                       <td data-label="Phone / Email">
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -1262,8 +1336,35 @@ export default function LeadsView({
                           >
                             <Edit size={14} />
                           </button>
+                          {/* Delete Lead Icon */}
+                          {onDeleteLead && (
+                            <button
+                              type="button"
+                              title="Delete Lead"
+                              data-testid={`lead-delete-${lead.leadNumber || lead.id || lead.leadId}`}
+                              onClick={() => handleDeleteLeadClick(lead)}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: '32px', height: '32px',
+                                background: '#ffffff', border: '1px solid #fecaca',
+                                borderRadius: '8px', cursor: 'pointer',
+                                color: '#dc2626', flexShrink: 0,
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = '#fef2f2';
+                                e.currentTarget.style.borderColor = '#dc2626';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = '#ffffff';
+                                e.currentTarget.style.borderColor = '#fecaca';
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
 
-                          {lead.status !== 'Lost' ? (
+                          {lead.status !== 'Lost' && !lead.deletedAt && lead.status !== 'Deleted' ? (
                             <>
                               {/* 1. Generate / Continue Quotation */}
                               {(() => {
@@ -1368,7 +1469,7 @@ export default function LeadsView({
                               onClick={() => {
                                 Swal.fire({
                                   title: 'Restore Lead?',
-                                  text: `Are you sure you want to restore "${lead.companyName}" to New status?`,
+                                  text: `Are you sure you want to restore "${lead.companyName}" and its associated quotations/orders to New status?`,
                                   icon: 'question',
                                   showCancelButton: true,
                                   confirmButtonText: 'Yes, Restore',
@@ -1388,7 +1489,7 @@ export default function LeadsView({
                                 });
                               }}
                               style={{
-                                display: 'inline-flex', alignItems: 'center',
+                                display: 'inline-flex', alignItems: 'center', gap: '4px',
                                 padding: '4px 12px', height: '30px',
                                 background: '#dcfce7',
                                 border: '1px solid #86efac',
@@ -1398,7 +1499,7 @@ export default function LeadsView({
                                 flexShrink: 0
                               }}
                             >
-                              Restore Lead
+                              <RotateCcw size={12} /> Restore Lead
                             </button>
                           )}
 
@@ -1481,10 +1582,10 @@ export default function LeadsView({
                         borderRadius: '6px', 
                         fontSize: '11px', 
                         fontWeight: '700',
-                        backgroundColor: (displayStatus === 'Converted' || displayStatus === 'Quotation Generated' || displayStatus === 'Sample Sent') ? '#dcfce7' : (displayStatus === 'New' ? '#dbeafe' : '#f1f5f9'),
-                        color: (displayStatus === 'Converted' || displayStatus === 'Quotation Generated' || displayStatus === 'Sample Sent') ? '#15803d' : (displayStatus === 'New' ? '#1d4ed8' : '#475569')
+                        backgroundColor: (Boolean(lead.deletedAt) || lead.status === 'Deleted') ? '#fee2e2' : ((displayStatus === 'Converted' || displayStatus === 'Quotation Generated' || displayStatus === 'Sample Sent') ? '#dcfce7' : (displayStatus === 'New' ? '#dbeafe' : '#f1f5f9')),
+                        color: (Boolean(lead.deletedAt) || lead.status === 'Deleted') ? '#991b1b' : ((displayStatus === 'Converted' || displayStatus === 'Quotation Generated' || displayStatus === 'Sample Sent') ? '#15803d' : (displayStatus === 'New' ? '#1d4ed8' : '#475569'))
                       }}>
-                        {displayStatus}
+                        {(Boolean(lead.deletedAt) || lead.status === 'Deleted') ? 'Deleted' : displayStatus}
                       </div>
                     </div>
                   </div>
@@ -1506,8 +1607,61 @@ export default function LeadsView({
                     >
                       <Edit size={16} />
                     </button>
+                    {onDeleteLead && (
+                      <button
+                        type="button"
+                        title="Delete Lead"
+                        data-testid={`lead-mobile-delete-${lead.leadNumber || lead.id || lead.leadId}`}
+                        onClick={() => handleDeleteLeadClick(lead)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: '36px', height: '36px',
+                          background: '#ffffff', border: '1px solid #fecaca',
+                          borderRadius: '8px', color: '#dc2626', cursor: 'pointer'
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                     
-                    {lead.status !== 'Lost' && lead.status !== 'Converted' ? (
+                    {(Boolean(lead.deletedAt) || lead.status === 'Deleted') ? (
+                      <button
+                        type="button"
+                        data-testid={`lead-mobile-restore-${lead.leadNumber || lead.id || lead.leadId}`}
+                        onClick={() => {
+                          Swal.fire({
+                            title: 'Restore Lead?',
+                            text: `Are you sure you want to restore "${lead.companyName}" and its associated quotations/orders?`,
+                            icon: 'question',
+                            showCancelButton: true,
+                            confirmButtonText: 'Yes, Restore',
+                            cancelButtonText: 'Cancel',
+                            customClass: {
+                              popup: 'swal-premium-popup',
+                              title: 'swal-premium-title',
+                              htmlContainer: 'swal-premium-text',
+                              confirmButton: 'swal-premium-confirm-btn',
+                              cancelButton: 'swal-premium-cancel-btn'
+                            },
+                            buttonsStyling: false
+                          }).then((result) => {
+                            if (result.isConfirmed) {
+                              onUpdateStatus(lead.id, 'New');
+                            }
+                          });
+                        }}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                          padding: '0 12px', height: '36px', flex: '1',
+                          background: '#dcfce7', border: '1px solid #86efac',
+                          borderRadius: '8px', cursor: 'pointer',
+                          fontSize: '12px', fontWeight: '700',
+                          color: '#15803d', whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <RotateCcw size={14} /> Restore Lead
+                      </button>
+                    ) : (lead.status !== 'Lost' && lead.status !== 'Converted' ? (
                       <>
                         <button
                           type="button"
@@ -1567,7 +1721,7 @@ export default function LeadsView({
                           Order Generated
                         </div>
                       )
-                    )}
+                    ))}
                   </div>
                 </div>
               );
@@ -1646,6 +1800,31 @@ export default function LeadsView({
                 >
                   <Edit size={13} /> Edit Lead
                 </button>
+                {onDeleteLead && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const targetLead = currentDetailsLead;
+                      setSelectedLead(null);
+                      handleDeleteLeadClick(targetLead);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #fca5a5',
+                      background: '#fef2f2',
+                      color: '#dc2626',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Trash2 size={13} /> Delete Lead
+                  </button>
+                )}
                 <button className="modal-close-btn" onClick={() => setSelectedLead(null)} style={{ cursor: 'pointer' }}>✕</button>
               </div>
             </div>

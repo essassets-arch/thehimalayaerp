@@ -76,10 +76,12 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     );
   }
 
+  const url = new URL(request.url);
   return forwardBackendRequest({
     token: extractToken(request),
-    path: `/leads/${safeId}`,
+    path: `/sales/leads/${safeId}`,
     method: 'DELETE',
+    query: url.searchParams,
     idempotencyKey: idempotencyKey!,
     requestId: request.headers.get('x-request-id') ?? undefined,
   });

@@ -8,6 +8,7 @@ export class BackendLeadReadRepository implements LeadReadRepository {
 
   async listLeads(params?: LeadListParams): Promise<LeadListResponse> {
     const url = new URL('/api/backend/sales/leads', window.location.origin);
+    url.searchParams.append('includeDeleted', 'true');
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {

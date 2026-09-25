@@ -278,7 +278,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
   const { samples, updateSampleStatus, updateSample, createReplacementSample } = useSamples(showToast);
 
-  const { quotations, createQuotation, updateQuotation, confirmOrder, loadQuotations } = useQuotations(
+  const { quotations, createQuotation, updateQuotation, confirmOrder, loadQuotations, deleteQuotation, restoreQuotation } = useQuotations(
     showToast,
     currentView === 'quotations' || currentView === 'create-quotation' || currentView === 'dashboard'
   );
@@ -294,6 +294,8 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     requestReturn,
     requestReplacement,
     raiseCustomerComplaint,
+    deleteOrder,
+    restoreOrder,
   } = useOrders(showToast, currentView);
 
   const orders = backendOrders;
@@ -1219,6 +1221,8 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
             onCreateLead={() => navigate.push(`${basePath}/create-lead`)}
             onUpdateQuotationStatus={(qId, status) => updateQuotation(qId, { status })}
             onUpdateQuotation={(qId, data) => updateQuotation(qId, data)}
+            onDeleteQuotation={deleteQuotation}
+            onRestoreQuotation={restoreQuotation}
             onConvertToOrder={onConvertToOrder}
             onSendPDF={onSendPDF}
             onSaveReminder={createReminder}
@@ -1422,6 +1426,8 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
             onAskReplacement={handleAskReplacement}
             onAskReturn={handleAskReturn}
             onConfirmPayment={handleSalesConfirmPayment}
+            onDeleteOrder={deleteOrder}
+            onRestoreOrder={restoreOrder}
             searchQuery={globalSearch}
             setSearchQuery={setGlobalSearch}
             reminders={reminders}

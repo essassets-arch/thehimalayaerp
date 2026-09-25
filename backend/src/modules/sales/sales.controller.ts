@@ -7,6 +7,7 @@ import {
   Post,
   Patch,
   Put,
+  Delete,
   Body,
   Param,
   Query,
@@ -350,4 +351,22 @@ export class SalesController {
       req.user?.role,
     );
   }
+
+  @Delete(':id')
+  @Post(':id/delete')
+  @RequirePermissions('sales.orders.update')
+  async deleteOrder(
+    @Param('id') id: string,
+    @Query('reason') reason?: string,
+    @Body('reason') bodyReason?: string,
+  ) {
+    return this.salesService.deleteOrder(id, reason || bodyReason || 'Deleted by user');
+  }
+
+  @Post(':id/restore')
+  @RequirePermissions('sales.orders.update')
+  async restoreOrder(@Param('id') id: string) {
+    return this.salesService.restoreOrder(id);
+  }
 }
+

@@ -102,6 +102,7 @@ export interface SalesOrder {
   replacementStatus?: string;
   returnStatus?: string;
   remarks?: string;
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   raw?: any;
@@ -117,6 +118,7 @@ export interface SalesOrderListParams {
   dispatchStatus?: string;
   paymentStatus?: string;
   closureStatus?: string;
+  includeDeleted?: boolean;
 }
 
 export interface SalesOrderPagination {

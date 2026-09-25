@@ -9,10 +9,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const resolvedParams = await params;
   const authHeader = request.headers.get('Authorization');
   const token = authHeader ? authHeader.split(' ')[1] : undefined;
-  
+
   return forwardBackendRequest({
     token,
-    path: `/sales/orders/${resolvedParams.id}`,
+    path: `/crm/quotations/${resolvedParams.id}`,
     method: 'GET',
     requestId: request.headers.get('x-request-id') ?? undefined,
   });
@@ -27,9 +27,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   return forwardBackendRequest({
     token,
-    path: `/sales/orders/${resolvedParams.id}${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`,
+    path: `/crm/quotations/${resolvedParams.id}${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`,
     method: 'DELETE',
     requestId: request.headers.get('x-request-id') ?? undefined,
   });
 }
-

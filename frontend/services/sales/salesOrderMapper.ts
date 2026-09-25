@@ -106,6 +106,7 @@ export function normalizeSalesOrder(order: unknown): SalesOrder {
     replacementStatus: typeof source.replacementStatus === 'string' ? source.replacementStatus : undefined,
     returnStatus: typeof source.returnStatus === 'string' ? source.returnStatus : undefined,
     remarks: typeof source.remarks === 'string' ? source.remarks : undefined,
+    deletedAt: (source as any).deletedAt ? String((source as any).deletedAt) : null,
 
     createdAt: typeof source.createdAt === 'string' ? source.createdAt : new Date().toISOString(),
     updatedAt: typeof source.updatedAt === 'string' ? source.updatedAt : new Date().toISOString(),

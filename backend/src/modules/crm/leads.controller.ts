@@ -6,6 +6,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -14,7 +15,7 @@ import {
 import { LeadsService } from './leads.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
-@Controller(['crm/leads', 'sales/leads'])
+@Controller(['crm/leads', 'sales/leads', 'leads'])
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class LeadsController {
   constructor(private readonly leadsService: LeadsService) {}
@@ -22,7 +23,11 @@ export class LeadsController {
   @RequirePermissions('sales.leads.read')
   @Get()
   // @RequirePermissions('sales.leads.read')
-  async listLeads(@Req() req: any, @Query('search') search?: string) {
+  async listLeads(
+    @Req() req: any,
+    @Query('search') search?: string,
+    @Query('includeDeleted') includeDeleted?: string,
+  ) {
     const resolvedCompanyId =
       req.user?.companyId || req.headers['x-company-id'];
     return this.leadsService.listLeads(
@@ -30,6 +35,7 @@ export class LeadsController {
       search,
       req.user?.sub || req.user?.id,
       req.user?.role,
+      includeDeleted === 'true' || includeDeleted === '1',
     );
   }
 
@@ -199,6 +205,25 @@ export class LeadsController {
       id,
       req.user?.sub || 'SYSTEM',
       req.headers['x-company-id'] || req.user?.companyId,
+      req.user?.role,
+    );
+  }
+
+  @Delete(':id')
+  @Post(':id/delete')
+  @RequirePermissions('sales.leads.update')
+  async deleteLead(
+    @Param('id') id: string,
+    @Body() dto: any,
+    @Query('reason') queryReason: string,
+    @Req() req: any,
+  ) {
+    const reason = dto?.reason || queryReason;
+    return this.leadsService.deleteLead(
+      id,
+      reason,
+      req.user?.sub || req.user?.id,
+      req.user?.companyId || req.headers['x-company-id'],
       req.user?.role,
     );
   }

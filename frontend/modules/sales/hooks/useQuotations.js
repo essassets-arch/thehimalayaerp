@@ -10,7 +10,7 @@ export function useQuotations(showToast, autoLoad = true) {
 
   const loadQuotations = useCallback(async () => {
     try {
-      const result = await backendFetch('/api/backend/crm/quotations');
+      const result = await backendFetch('/api/backend/crm/quotations?includeDeleted=true');
       setQuotations((Array.isArray(result) ? result : result?.data || []).map(normalizeQuotation));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -191,5 +191,35 @@ export function useQuotations(showToast, autoLoad = true) {
     }
   }, [loadQuotations, showToast]);
 
-  return { quotations, createQuotation, updateQuotation, confirmOrder, loadQuotations };
+  const deleteQuotation = useCallback(async (quotationId, reason = 'Deleted by user') => {
+    try {
+      await backendFetch(`/api/backend/crm/quotations/${encodeURIComponent(quotationId)}?reason=${encodeURIComponent(reason)}`, {
+        method: 'DELETE',
+      });
+      showToast?.('Quotation deleted successfully.');
+      await loadQuotations();
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Swal.fire({ icon: 'error', title: 'Quotation Deletion Failed', text: message });
+      return { success: false, error: message };
+    }
+  }, [loadQuotations, showToast]);
+
+  const restoreQuotation = useCallback(async (quotationId) => {
+    try {
+      await backendFetch(`/api/backend/crm/quotations/${encodeURIComponent(quotationId)}/restore`, {
+        method: 'POST',
+      });
+      showToast?.('Quotation restored successfully.');
+      await loadQuotations();
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Swal.fire({ icon: 'error', title: 'Quotation Restore Failed', text: message });
+      return { success: false, error: message };
+    }
+  }, [loadQuotations, showToast]);
+
+  return { quotations, createQuotation, updateQuotation, confirmOrder, loadQuotations, deleteQuotation, restoreQuotation };
 }

@@ -37,4 +37,8 @@ export class BackendLeadWriteRepository implements LeadWriteRepository {
   async restoreLead(leadId: string, input: TransitionLeadInput, options?: WriteRequestOptions) {
     return this.mutateApi(`/api/backend/sales/leads/${leadId}/restore`, 'POST', input, options);
   }
+
+  async deleteLead(leadId: string, reason?: string, options?: WriteRequestOptions) {
+    return this.mutateApi(`/api/backend/sales/leads/${leadId}?reason=${encodeURIComponent(reason || '')}`, 'DELETE', { reason }, options);
+  }
 }

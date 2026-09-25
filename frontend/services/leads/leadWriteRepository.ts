@@ -58,4 +58,5 @@ export interface LeadWriteRepository {
   addReminder(leadId: string, input: AddLeadReminderInput, options?: WriteRequestOptions): Promise<any>;
   markLost(leadId: string, input: MarkLeadLostInput, options?: WriteRequestOptions): Promise<any>;
   restoreLead(leadId: string, input: TransitionLeadInput, options?: WriteRequestOptions): Promise<any>;
+  deleteLead(leadId: string, reason?: string, options?: WriteRequestOptions): Promise<any>;
 }

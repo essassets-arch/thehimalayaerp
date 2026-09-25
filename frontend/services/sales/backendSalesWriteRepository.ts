@@ -102,4 +102,19 @@ export const backendSalesWriteRepository: SalesWriteRepository = {
       idempotencyKey: options.idempotencyKey,
     });
   },
+
+  async deleteOrder(orderId, reason = 'Deleted by user', options = {}) {
+    const encodedId = encodeURIComponent(String(orderId || ''));
+    return backendFetch(`/api/backend/sales/orders/${encodedId}?reason=${encodeURIComponent(reason)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async restoreOrder(orderId, options = {}) {
+    const encodedId = encodeURIComponent(String(orderId || ''));
+    return backendFetch(`/api/backend/sales/orders/${encodedId}/restore`, {
+      method: 'POST',
+    });
+  },
 };
+

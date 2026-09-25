@@ -21,6 +21,8 @@ export function useOrders(showToast, currentView) {
     confirmOrder,
     sendToPlantHead,
     cancelOrder,
+    deleteOrder,
+    restoreOrder,
     raiseCustomerComplaint,
     requestReturn,
     requestReplacement,
@@ -199,6 +201,8 @@ export function useOrders(showToast, currentView) {
     confirmOrder: (...args) => performTransition('Confirm Order', confirmOrder, ...args),
     sendToPlantHead: (...args) => performTransition('Send to Plant Head', sendToPlantHead, ...args),
     cancelOrder: (...args) => performTransition('Cancel Order', cancelOrder, ...args),
+    deleteOrder: (...args) => performTransition('Delete Order', deleteOrder, ...args),
+    restoreOrder: (...args) => performTransition('Restore Order', restoreOrder, ...args),
     
     requestReturn: backendRequestReturn,
     requestReplacement: backendRequestReplacement,

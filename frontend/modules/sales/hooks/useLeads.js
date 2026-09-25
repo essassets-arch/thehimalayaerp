@@ -47,7 +47,10 @@ export function useLeads(showToast) {
     addLeadFollowup: backendAddFollowup,
     addLeadReminder: backendAddReminder,
     markLeadLost: backendMarkLost,
+    deleteLead: backendDeleteLead,
     restoreLead: backendRestoreLead,
+    loadQuotations,
+    loadSalesOrders,
   } = useSalesBackend();
 
   const addLead = useCallback(
@@ -170,6 +173,34 @@ export function useLeads(showToast) {
     [showToast, refreshLeads, backendRestoreLead]
   );
 
+  const deleteLead = useCallback(
+    async (leadId, reasonOrExpectedVersion, optionalReason) => {
+      const reason =
+        typeof reasonOrExpectedVersion === 'string'
+          ? reasonOrExpectedVersion
+          : (typeof optionalReason === 'string' ? optionalReason : reasonOrExpectedVersion?.reason);
+      if (showToast) showToast('Sales: Deleting lead...');
+      try {
+        const idempotencyKey = generateIdempotencyKey();
+        let result;
+        if (typeof backendDeleteLead === 'function') {
+          result = await backendDeleteLead(leadId, reason, { idempotencyKey });
+        } else {
+          result = await backendMarkLost(leadId, { lostReason: reason || 'Deleted' }, { idempotencyKey });
+        }
+        if (showToast) showToast('Lead and associated records deleted');
+        await refreshLeads();
+        if (typeof loadQuotations === 'function') void loadQuotations();
+        if (typeof loadSalesOrders === 'function') void loadSalesOrders();
+        return result;
+      } catch (err) {
+        handleBackendError(err, refreshLeads);
+        throw err;
+      }
+    },
+    [showToast, refreshLeads, backendDeleteLead, backendMarkLost, loadQuotations, loadSalesOrders]
+  );
+
   const updateLeadStatus = useCallback(
     async (leadId, status, remarks, expectedVersion) => {
       if (status === 'Lost') {
@@ -200,7 +231,7 @@ export function useLeads(showToast) {
     addFollowup,
     addReminder,
     markLost,
-    deleteLead: markLost,
+    deleteLead,
     restoreLead,
     updateLeadStatus,
     generateQuotationFromLead: (leadId) => router.push(`/sales/quotations/create?leadId=${leadId}`),
