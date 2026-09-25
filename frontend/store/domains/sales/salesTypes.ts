@@ -180,6 +180,9 @@ export type SalesQuotation = {
   billingAddress: string;
   deliveryAddress: string;
   contactPerson: string;
+  siteInchargeName?: string;
+  siteInchargeMobile?: string;
+  phone?: string;
   salesperson: string;
   
   validityDate?: string;

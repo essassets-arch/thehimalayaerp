@@ -2102,6 +2102,13 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
   // Resolve client information passed from parent
   const clientAddress = quotation.clientAddress || '';
   const clientGST = quotation.clientGST || '';
+  const cleanPdfStr = (val) => {
+    if (!val || typeof val !== 'string') return '';
+    const t = val.trim();
+    return ['—', '-', 'N/A', 'NA', 'NONE', 'NULL', 'UNDEFINED'].includes(t.toUpperCase()) ? '' : t;
+  };
+  const siteInchargeName = cleanPdfStr(quotation.siteInchargeName || quotation.site_incharge_name || quotation.contactPerson || quotation.contact_person || quotation.lead?.siteInchargeName || quotation.lead?.contactPerson || '');
+  const siteInchargeMobile = cleanPdfStr(quotation.siteInchargeMobile || quotation.site_incharge_mobile || quotation.phone || quotation.mobile || quotation.lead?.siteInchargeMobile || quotation.lead?.phone || '');
 
   // 1. Draw Curved Header Waves in PDF
   doc.setFillColor(59, 130, 246); // Light blue
@@ -2245,8 +2252,22 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
 
   // 4. Quoted To Banner (Full Width) - Balanced
   y = 77;
+  let detailText = '';
+  if (clientAddress) detailText += clientAddress;
+  if (clientGST) detailText += (detailText ? '  |  ' : '') + `GST: ${clientGST}`;
+  if (siteInchargeName) {
+    detailText += (detailText ? '  |  ' : '') + `Site Incharge: ${siteInchargeName}${siteInchargeMobile ? ` (${siteInchargeMobile})` : ''}`;
+  } else if (siteInchargeMobile) {
+    detailText += (detailText ? '  |  ' : '') + `Site Incharge Mobile: ${siteInchargeMobile}`;
+  }
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  const clientDetailLines = doc.splitTextToSize(detailText || 'No billing details available.', pageWidth - (2 * margin) - 28);
+  const quotedToHeight = Math.max(20, 12 + clientDetailLines.length * 4.2);
+
   doc.setFillColor(0, 46, 93);
-  const quotedToHeight = 20;
   doc.rect(margin, y, 10, quotedToHeight, 'F'); // Left blue box
   doc.setFillColor(248, 250, 252);
   doc.rect(margin + 10, y, pageWidth - 2 * margin - 10, quotedToHeight, 'F'); // Main box
@@ -2264,15 +2285,10 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
   doc.setTextColor(15, 44, 89);
   doc.text(quotation.customerName || 'Customer', margin + 14, y + 9);
 
-  let detailText = '';
-  if (clientAddress) detailText += clientAddress;
-  if (clientGST) detailText += (detailText ? '  |  ' : '') + `GST: ${clientGST}`;
-
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  const clientDetailLines = doc.splitTextToSize(detailText || 'No billing details available.', pageWidth - (2 * margin) - 28);
-  doc.text(clientDetailLines.slice(0, 2), margin + 14, y + 14);
+  doc.text(clientDetailLines.slice(0, 3), margin + 14, y + 14);
 
   y += quotedToHeight + 6;
 

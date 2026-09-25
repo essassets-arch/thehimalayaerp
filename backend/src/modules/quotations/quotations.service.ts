@@ -157,6 +157,18 @@ export class QuotationsService {
         : cust?.gstin || '') || '';
 
       const salesMobile = this.resolveSalesMobile(q, creatorMap);
+      const siteInchargeName =
+        (q as any).siteInchargeName ||
+        (q as any).contactPerson ||
+        q.lead?.contactPerson ||
+        cust?.contactPerson ||
+        '';
+      const siteInchargeMobile =
+        (q as any).siteInchargeMobile ||
+        (q as any).phone ||
+        q.lead?.phone ||
+        cust?.phone ||
+        '';
 
       return {
         ...q,
@@ -165,6 +177,10 @@ export class QuotationsService {
         groupName,
         gstName,
         gstNumber,
+        contactPerson: siteInchargeName,
+        siteInchargeName,
+        siteInchargeMobile,
+        phone: siteInchargeMobile,
         salesExecutiveMobile: salesMobile,
         salesExecutivePhone: salesMobile,
         salesExecutive: q.salesExecutive
@@ -260,6 +276,18 @@ export class QuotationsService {
       ? new Map([[creatorUser.id, creatorUser]])
       : undefined;
     const salesMobile = this.resolveSalesMobile(quotation, creatorMap);
+    const siteInchargeName =
+      (quotation as any).siteInchargeName ||
+      (quotation as any).contactPerson ||
+      quotation.lead?.contactPerson ||
+      customer?.contactPerson ||
+      '';
+    const siteInchargeMobile =
+      (quotation as any).siteInchargeMobile ||
+      (quotation as any).phone ||
+      quotation.lead?.phone ||
+      customer?.phone ||
+      '';
 
     return {
       ...quotation,
@@ -268,6 +296,10 @@ export class QuotationsService {
       groupName,
       gstName,
       gstNumber,
+      contactPerson: siteInchargeName,
+      siteInchargeName,
+      siteInchargeMobile,
+      phone: siteInchargeMobile,
       salesExecutiveMobile: salesMobile,
       salesExecutivePhone: salesMobile,
       salesExecutive: quotation.salesExecutive
@@ -430,8 +462,22 @@ export class QuotationsService {
         });
         if (existingQuotation) {
           const salesMobile = this.resolveSalesMobile(existingQuotation);
+          const siteInchargeName =
+            (existingQuotation as any).siteInchargeName ||
+            (existingQuotation as any).contactPerson ||
+            existingQuotation.lead?.contactPerson ||
+            '';
+          const siteInchargeMobile =
+            (existingQuotation as any).siteInchargeMobile ||
+            (existingQuotation as any).phone ||
+            existingQuotation.lead?.phone ||
+            '';
           return {
             ...existingQuotation,
+            contactPerson: siteInchargeName,
+            siteInchargeName,
+            siteInchargeMobile,
+            phone: siteInchargeMobile,
             salesExecutiveMobile: salesMobile,
             salesExecutivePhone: salesMobile,
             salesExecutive: existingQuotation.salesExecutive
@@ -640,8 +686,22 @@ export class QuotationsService {
     }
 
     const createdSalesMobile = this.resolveSalesMobile(quotation);
+    const siteInchargeName =
+      dto.siteInchargeName ||
+      dto.contactPerson ||
+      quotation.lead?.contactPerson ||
+      '';
+    const siteInchargeMobile =
+      dto.siteInchargeMobile ||
+      dto.phone ||
+      quotation.lead?.phone ||
+      '';
     return {
       ...quotation,
+      contactPerson: siteInchargeName,
+      siteInchargeName,
+      siteInchargeMobile,
+      phone: siteInchargeMobile,
       salesExecutiveMobile: createdSalesMobile,
       salesExecutivePhone: createdSalesMobile,
       salesExecutive: quotation.salesExecutive
@@ -902,9 +962,25 @@ export class QuotationsService {
         });
       }
       const updatedSalesMobile = this.resolveSalesMobile(updated);
+      const siteInchargeName =
+        dto.siteInchargeName ||
+        dto.contactPerson ||
+        updated.lead?.contactPerson ||
+        customer?.contactPerson ||
+        '';
+      const siteInchargeMobile =
+        dto.siteInchargeMobile ||
+        dto.phone ||
+        updated.lead?.phone ||
+        customer?.phone ||
+        '';
       return {
         ...updated,
         customer,
+        contactPerson: siteInchargeName,
+        siteInchargeName,
+        siteInchargeMobile,
+        phone: siteInchargeMobile,
         salesExecutiveMobile: updatedSalesMobile,
         salesExecutivePhone: updatedSalesMobile,
         salesExecutive: updated.salesExecutive

@@ -2267,7 +2267,11 @@ export const useERPStore = create((set: any, get: any) => ({
       gstNumber: lead.gstNumber || '',
       isGstRegistered: lead.gstNumber ? 'YES' : 'YES',
       contactPerson: lead.contactPerson || lead.siteInchargeName || '',
+      siteInchargeName: lead.siteInchargeName || lead.contactPerson || '',
+      siteInchargeMobile: lead.siteInchargeMobile || lead.phone || lead.mobile || '',
       phone: lead.phone || lead.mobile || lead.siteInchargeMobile || '',
+      deliveryAddress: lead.deliveryAddress || (lead.address ? (typeof lead.address === 'string' ? lead.address : (lead.address.deliveryAddress || lead.address.line1)) : '') || '',
+      address: lead.address || '',
       email: lead.email || '',
       notes: lead.remarks || lead.notes || '',
       items: leadItems.length > 0 ? leadItems.map((item: any, index: number) => ({

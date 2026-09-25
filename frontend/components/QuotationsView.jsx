@@ -700,12 +700,54 @@ export default function QuotationsView({
     ? (selectedQuotation.customerName || selectedQuotation.customer_name || selectedQuotation.customer?.companyName || selectedQuotation.customer?.name || selectedQuotation.lead?.companyName || selectedQuotation.lead?.customerName || selectedQuotation.gstName || 'Valued Customer')
     : '';
 
-  const clientLead = (selectedQuotation && selectedQuotation.customerName && leads)
-    ? leads.find(l => (l.companyName && l.companyName.toLowerCase() === selectedQuotation.customerName.toLowerCase()) || (l.customerName && l.customerName.toLowerCase() === selectedQuotation.customerName.toLowerCase()))
-    : null;
-  const clientCustomer = (selectedQuotation && selectedQuotation.customerName && customers)
-    ? customers.find(c => (c.name && c.name.toLowerCase() === selectedQuotation.customerName.toLowerCase()) || (c.customerName && c.customerName.toLowerCase() === selectedQuotation.customerName.toLowerCase()))
-    : null;
+  const clientLead = useMemo(() => {
+    if (!selectedQuotation) return null;
+    if (selectedQuotation.lead && typeof selectedQuotation.lead === 'object') {
+      return selectedQuotation.lead;
+    }
+    const targetLeadId = selectedQuotation.leadId || selectedQuotation.sourceId;
+    if (targetLeadId && Array.isArray(leads)) {
+      const byId = leads.find(l => 
+        String(l.id) === String(targetLeadId) || 
+        String(l.leadId) === String(targetLeadId) || 
+        String(l.leadNumber) === String(targetLeadId)
+      );
+      if (byId) return byId;
+    }
+    const custName = (selectedQuotation.customerName || selectedQuotation.customer_name || selectedQuotation.gstName || '').trim().toLowerCase();
+    if (custName && Array.isArray(leads)) {
+      const byName = leads.find(l => 
+        (l.companyName && l.companyName.trim().toLowerCase() === custName) ||
+        (l.customerName && l.customerName.trim().toLowerCase() === custName) ||
+        (l.projectName && l.projectName.trim().toLowerCase() === custName) ||
+        (l.gstName && l.gstName.trim().toLowerCase() === custName)
+      );
+      if (byName) return byName;
+    }
+    return null;
+  }, [selectedQuotation, leads]);
+
+  const clientCustomer = useMemo(() => {
+    if (!selectedQuotation) return null;
+    if (selectedQuotation.customer && typeof selectedQuotation.customer === 'object') {
+      return selectedQuotation.customer;
+    }
+    const targetCustId = selectedQuotation.customerId;
+    if (targetCustId && Array.isArray(customers)) {
+      const byId = customers.find(c => String(c.id) === String(targetCustId));
+      if (byId) return byId;
+    }
+    const custName = (selectedQuotation.customerName || selectedQuotation.customer_name || '').trim().toLowerCase();
+    if (custName && Array.isArray(customers)) {
+      const byName = customers.find(c => 
+        (c.name && c.name.trim().toLowerCase() === custName) ||
+        (c.companyName && c.companyName.trim().toLowerCase() === custName) ||
+        (c.customerName && c.customerName.trim().toLowerCase() === custName)
+      );
+      if (byName) return byName;
+    }
+    return null;
+  }, [selectedQuotation, customers]);
 
   const rawAddress =
     selectedQuotation?.clientAddress ||
@@ -752,6 +794,55 @@ export default function QuotationsView({
   const clientGST = (typeof rawGst === 'string' && rawGst.trim() && !['—', '-', 'N/A', 'NA', 'NONE', 'NULL', 'UNDEFINED'].includes(rawGst.trim().toUpperCase()))
     ? rawGst.trim().toUpperCase()
     : null;
+
+  const cleanField = (val) => {
+    if (!val || typeof val !== 'string') return '';
+    const trimmed = val.trim();
+    if (['—', '-', 'N/A', 'NA', 'NONE', 'NULL', 'UNDEFINED'].includes(trimmed.toUpperCase())) return '';
+    return trimmed;
+  };
+
+  const rawSiteInchargeName =
+    selectedQuotation?.siteInchargeName ||
+    selectedQuotation?.site_incharge_name ||
+    selectedQuotation?.contactPerson ||
+    selectedQuotation?.contact_person ||
+    selectedQuotation?.lead?.siteInchargeName ||
+    selectedQuotation?.lead?.site_incharge_name ||
+    selectedQuotation?.lead?.contactPerson ||
+    selectedQuotation?.lead?.contact_person ||
+    clientLead?.siteInchargeName ||
+    clientLead?.site_incharge_name ||
+    clientLead?.contactPerson ||
+    clientLead?.contact_person ||
+    selectedQuotation?.customer?.contactPerson ||
+    selectedQuotation?.customer?.contact_person ||
+    clientCustomer?.contactPerson ||
+    clientCustomer?.contact_person ||
+    '';
+
+  const clientSiteInchargeName = cleanField(rawSiteInchargeName);
+
+  const rawSiteInchargeMobile =
+    selectedQuotation?.siteInchargeMobile ||
+    selectedQuotation?.site_incharge_mobile ||
+    selectedQuotation?.phone ||
+    selectedQuotation?.mobile ||
+    selectedQuotation?.lead?.siteInchargeMobile ||
+    selectedQuotation?.lead?.site_incharge_mobile ||
+    selectedQuotation?.lead?.phone ||
+    selectedQuotation?.lead?.mobile ||
+    clientLead?.siteInchargeMobile ||
+    clientLead?.site_incharge_mobile ||
+    clientLead?.phone ||
+    clientLead?.mobile ||
+    selectedQuotation?.customer?.phone ||
+    selectedQuotation?.customer?.mobile ||
+    clientCustomer?.phone ||
+    clientCustomer?.mobile ||
+    '';
+
+  const clientSiteInchargeMobile = cleanField(rawSiteInchargeMobile);
 
   // Resolve Sales user contact phone with company fallback
   const rawSalesMobile =
@@ -1692,7 +1783,25 @@ export default function QuotationsView({
                   <p style={{ margin: 0, fontSize: '9px', fontWeight: '700', color: '#64748b', letterSpacing: '0.5px' }}>QUOTED TO:</p>
                   <p style={{ margin: '2px 0 0 0', fontSize: '15px', fontWeight: '800', color: '#0f2c59' }}>{clientCustomerName || selectedQuotation.customerName}</p>
                   {clientAddress && <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: '#475569', fontWeight: '500' }}>{clientAddress}</p>}
-                  {clientGST && <p style={{ margin: '4px 0 0 0', fontSize: '11.5px', color: '#475569', fontWeight: '600' }}>GST: <span style={{ textTransform: 'uppercase', fontFamily: 'monospace' }}>{clientGST}</span></p>}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px', marginTop: '4px' }}>
+                    {clientGST && (
+                      <p style={{ margin: 0, fontSize: '11.5px', color: '#475569', fontWeight: '600' }}>
+                        GST: <span style={{ textTransform: 'uppercase', fontFamily: 'monospace', fontWeight: '700', color: '#1e293b' }}>{clientGST}</span>
+                      </p>
+                    )}
+                    {(clientSiteInchargeName || clientSiteInchargeMobile) && (
+                      <p style={{ margin: 0, fontSize: '11.5px', color: '#475569', fontWeight: '600' }}>
+                        Site Incharge: {clientSiteInchargeName && (
+                          <span style={{ fontWeight: '700', color: '#0f2c59' }}>{clientSiteInchargeName}</span>
+                        )}
+                        {clientSiteInchargeMobile && (
+                          <span style={{ color: '#0284c7', fontWeight: '700', marginLeft: clientSiteInchargeName ? '6px' : '0' }}>
+                            {clientSiteInchargeName ? `(${clientSiteInchargeMobile})` : clientSiteInchargeMobile}
+                          </span>
+                        )}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 {/* Faint watermark outline background on the right */}
                 <div style={{ position: 'absolute', right: 0, bottom: 0, top: 0, width: '160px', opacity: 0.08, pointerEvents: 'none', zIndex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', padding: '4px' }}>

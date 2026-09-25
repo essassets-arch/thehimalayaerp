@@ -205,6 +205,32 @@ export const normalizeQuotation = (quotation: any): any => {
 
   const salesExecutiveMobile = rawSalesMobile ? String(rawSalesMobile).trim() : null;
 
+  const siteInchargeName =
+    quotation.siteInchargeName ||
+    quotation.site_incharge_name ||
+    quotation.contactPerson ||
+    quotation.contact_person ||
+    quotation.lead?.siteInchargeName ||
+    quotation.lead?.site_incharge_name ||
+    quotation.lead?.contactPerson ||
+    quotation.lead?.contact_person ||
+    quotation.customer?.contactPerson ||
+    quotation.customer?.contact_person ||
+    '';
+
+  const siteInchargeMobile =
+    quotation.siteInchargeMobile ||
+    quotation.site_incharge_mobile ||
+    quotation.phone ||
+    quotation.mobile ||
+    quotation.lead?.siteInchargeMobile ||
+    quotation.lead?.site_incharge_mobile ||
+    quotation.lead?.phone ||
+    quotation.lead?.mobile ||
+    quotation.customer?.phone ||
+    quotation.customer?.mobile ||
+    '';
+
   return {
     ...quotation,
     id: quotation.id,
@@ -217,6 +243,10 @@ export const normalizeQuotation = (quotation: any): any => {
     gstName,
     gstNumber,
     isGstRegistered,
+    contactPerson: siteInchargeName,
+    siteInchargeName,
+    siteInchargeMobile,
+    phone: siteInchargeMobile,
     status: statusLabel(quotation.workflowState?.code ?? quotation.status),
     validUntil,
     validTill: validUntil,

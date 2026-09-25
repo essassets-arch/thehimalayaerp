@@ -336,6 +336,10 @@ export default function CreateQuotation({
     isGstRegistered: matchedLeadFromProps ? (matchedLeadFromProps.gstNumber ? 'YES' : 'YES') : (quotationDraft ? (quotationDraft.isGstRegistered || (quotationDraft.gstNumber ? 'YES' : 'NO')) : 'YES'),
     gstNumber: matchedLeadFromProps?.gstNumber || quotationDraft?.gstNumber || '',
     gstName: matchedLeadFromProps?.gstName || matchedLeadFromProps?.companyName || matchedLeadFromProps?.customerName || quotationDraft?.gstName || quotationDraft?.customerName || prefilledCustomer || '',
+    siteInchargeName: matchedLeadFromProps?.siteInchargeName || matchedLeadFromProps?.contactPerson || quotationDraft?.siteInchargeName || quotationDraft?.contactPerson || '',
+    siteInchargeMobile: matchedLeadFromProps?.siteInchargeMobile || matchedLeadFromProps?.phone || quotationDraft?.siteInchargeMobile || quotationDraft?.phone || '',
+    contactPerson: matchedLeadFromProps?.contactPerson || matchedLeadFromProps?.siteInchargeName || quotationDraft?.contactPerson || quotationDraft?.siteInchargeName || '',
+    phone: matchedLeadFromProps?.phone || matchedLeadFromProps?.siteInchargeMobile || quotationDraft?.phone || quotationDraft?.siteInchargeMobile || '',
     validTill: formatInputDate(quotationDraft?.validTill || quotationDraft?.validUntil) || defaultValidTill(),
     paymentTerms: resolvePaymentTerms(quotationDraft),
     items: getInitialItems(),
@@ -466,6 +470,10 @@ export default function CreateQuotation({
         gstName: targetGstName || prev.gstName,
         gstNumber: targetGstNum || prev.gstNumber,
         isGstRegistered: targetGstNum ? 'YES' : (prev.isGstRegistered || 'YES'),
+        siteInchargeName: sourceLead.siteInchargeName || sourceLead.contactPerson || legacyQuotationDraft?.siteInchargeName || legacyQuotationDraft?.contactPerson || prev.siteInchargeName || '',
+        siteInchargeMobile: sourceLead.siteInchargeMobile || sourceLead.phone || legacyQuotationDraft?.siteInchargeMobile || legacyQuotationDraft?.phone || prev.siteInchargeMobile || '',
+        contactPerson: sourceLead.contactPerson || sourceLead.siteInchargeName || legacyQuotationDraft?.contactPerson || legacyQuotationDraft?.siteInchargeName || prev.contactPerson || '',
+        phone: sourceLead.phone || sourceLead.siteInchargeMobile || legacyQuotationDraft?.phone || legacyQuotationDraft?.siteInchargeMobile || prev.phone || '',
         paymentTerms: targetPaymentTerms || prev.paymentTerms,
         transportCharge: targetTransportCharge || prev.transportCharge,
         notes: sourceLead.remarks || sourceLead.notes || legacyQuotationDraft?.notes || prev.notes || '',
@@ -587,6 +595,10 @@ export default function CreateQuotation({
         groupName: lead.groupName || lead.group_name || '',
         gstNumber: lead.gstNumber || lead.gst_number || '',
         gstName: lead.gstName || lead.companyName || lead.customerName || lead.projectName || '',
+        siteInchargeName: lead.siteInchargeName || lead.contactPerson || '',
+        siteInchargeMobile: lead.siteInchargeMobile || lead.phone || '',
+        contactPerson: lead.contactPerson || lead.siteInchargeName || '',
+        phone: lead.phone || lead.siteInchargeMobile || '',
       })),
       ...customers.map(customer => ({
         key: `customer-${customer.id}`,
@@ -599,6 +611,10 @@ export default function CreateQuotation({
         groupName: customer.groupName || customer.group_name || '',
         gstNumber: customer.gst || customer.gstNumber || customer.gstin || '',
         gstName: customer.gstName || customer.companyName || customer.name || customer.customerName || '',
+        siteInchargeName: customer.contactPerson || customer.contact_person || '',
+        siteInchargeMobile: customer.phone || customer.mobile || '',
+        contactPerson: customer.contactPerson || customer.contact_person || '',
+        phone: customer.phone || customer.mobile || '',
       }))
     ].filter(option => option.name);
 
@@ -637,6 +653,14 @@ export default function CreateQuotation({
     } else {
       setGstNumber('');
       setIsGstRegistered('NO');
+    }
+    if (option.siteInchargeName || option.contactPerson) {
+      updateField('siteInchargeName', option.siteInchargeName || option.contactPerson);
+      updateField('contactPerson', option.contactPerson || option.siteInchargeName);
+    }
+    if (option.siteInchargeMobile || option.phone) {
+      updateField('siteInchargeMobile', option.siteInchargeMobile || option.phone);
+      updateField('phone', option.phone || option.siteInchargeMobile);
     }
     setCustomerSearchOpen(false);
   };
@@ -817,6 +841,13 @@ export default function CreateQuotation({
       gstName: selectedCustomerRecord?.gstName || (gstName || '').trim() || selectedCustomerRecord?.name || (customerName || '').trim(),
       gstNumber: (isGstRegistered || 'YES') === 'YES' ? (selectedCustomerRecord?.gstNumber || (gstNumber || '').trim()) : '',
       salesperson: salespersonName,
+      contactPerson: (formData.contactPerson || formData.siteInchargeName || selectedCustomerRecord?.contactPerson || selectedCustomerRecord?.siteInchargeName || matchedLeadFromProps?.contactPerson || matchedLeadFromProps?.siteInchargeName || quotationDraft?.contactPerson || '').trim(),
+      siteInchargeName: (formData.siteInchargeName || formData.contactPerson || selectedCustomerRecord?.siteInchargeName || selectedCustomerRecord?.contactPerson || matchedLeadFromProps?.siteInchargeName || matchedLeadFromProps?.contactPerson || quotationDraft?.siteInchargeName || '').trim(),
+      siteInchargeMobile: (formData.siteInchargeMobile || formData.phone || selectedCustomerRecord?.siteInchargeMobile || selectedCustomerRecord?.phone || matchedLeadFromProps?.siteInchargeMobile || matchedLeadFromProps?.phone || quotationDraft?.siteInchargeMobile || '').trim(),
+      phone: (formData.phone || formData.siteInchargeMobile || selectedCustomerRecord?.phone || selectedCustomerRecord?.siteInchargeMobile || matchedLeadFromProps?.phone || matchedLeadFromProps?.siteInchargeMobile || quotationDraft?.phone || '').trim(),
+      deliveryAddress: (matchedLeadFromProps?.deliveryAddress || (matchedLeadFromProps?.address ? (typeof matchedLeadFromProps.address === 'string' ? matchedLeadFromProps.address : (matchedLeadFromProps.address.deliveryAddress || matchedLeadFromProps.address.line1)) : '') || quotationDraft?.deliveryAddress || '').trim(),
+      billingAddress: (matchedLeadFromProps?.deliveryAddress || quotationDraft?.billingAddress || '').trim(),
+      address: matchedLeadFromProps?.address || quotationDraft?.address || undefined,
       items: items.map((item) => {
         const itemQty = Number(item.quantity) || 0;
         const itemUnitPrice = Number(item.unitPrice) || 0;

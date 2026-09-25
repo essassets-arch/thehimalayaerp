@@ -180,6 +180,9 @@ export type CreateQuotationPayload = {
   billingAddress: string;
   deliveryAddress: string;
   contactPerson: string;
+  siteInchargeName?: string;
+  siteInchargeMobile?: string;
+  phone?: string;
   validityDate?: string;
   expectedTransportationCost: number;
   deliveryTerms?: string;
@@ -534,7 +537,10 @@ export function createQuotation(
   const normalizedPayload: CreateQuotationPayload = {
     ...payload,
     customerName: payload.customerName || sourceLead?.companyName || sourceLead?.customerName || '',
-    contactPerson: payload.contactPerson || sourceLead?.contactPerson || '',
+    contactPerson: payload.contactPerson || (rawPayload as any).siteInchargeName || sourceLead?.contactPerson || (sourceLead as any)?.siteInchargeName || '',
+    siteInchargeName: (rawPayload as any).siteInchargeName || payload.contactPerson || (sourceLead as any)?.siteInchargeName || sourceLead?.contactPerson || '',
+    siteInchargeMobile: (rawPayload as any).siteInchargeMobile || (rawPayload as any).phone || (sourceLead as any)?.siteInchargeMobile || sourceLead?.phone || '',
+    phone: (rawPayload as any).phone || (rawPayload as any).siteInchargeMobile || sourceLead?.phone || (sourceLead as any)?.siteInchargeMobile || '',
     billingAddress: payload.billingAddress || sourceLead?.billingAddress || '',
     deliveryAddress: payload.deliveryAddress || sourceLead?.deliveryAddress || '',
     expectedTransportationCost: Number(
@@ -567,6 +573,9 @@ export function createQuotation(
     billingAddress: normalizedPayload.billingAddress,
     deliveryAddress: normalizedPayload.deliveryAddress,
     contactPerson: normalizedPayload.contactPerson,
+    siteInchargeName: (normalizedPayload as any).siteInchargeName,
+    siteInchargeMobile: (normalizedPayload as any).siteInchargeMobile,
+    phone: (normalizedPayload as any).phone,
     salesperson: actor.name,
     validityDate: normalizedPayload.validityDate,
     expectedTransportationCost: normalizedPayload.expectedTransportationCost,
