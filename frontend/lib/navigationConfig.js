@@ -77,7 +77,6 @@ export const navigationConfig = {
   ],
   'Dispatch': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/dispatch/dashboard' },
-    { id: 'products', label: 'Manufactured Products', icon: Package, path: '/dispatch/products' },
     { id: 'finished-goods', label: 'Finished Goods', icon: PackageCheck, path: '/dispatch/finished-goods' },
     {
       id: 'create-dispatch',
@@ -114,7 +113,6 @@ export const navigationConfig = {
   ],
   'Dispatch 2': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/dispatch-2/dashboard' },
-    { id: 'products', label: 'Trading Products', icon: Package, path: '/dispatch-2/products' },
     { id: 'finished-goods', label: 'Finished Goods', icon: PackageCheck, path: '/dispatch-2/finished-goods' },
     {
       id: 'create-dispatch',
