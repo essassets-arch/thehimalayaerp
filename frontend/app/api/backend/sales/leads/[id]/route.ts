@@ -41,3 +41,23 @@ export async function PATCH(
     requestId: request.headers.get('x-request-id') ?? undefined,
   });
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const authHeader = request.headers.get('Authorization');
+  const token = authHeader ? authHeader.split(' ')[1] : undefined;
+  const idempotencyKey = request.headers.get('Idempotency-Key') || request.headers.get('idempotency-key');
+  const url = new URL(request.url);
+
+  return forwardBackendRequest({
+    token,
+    path: `/sales/leads/${id}`,
+    method: 'DELETE',
+    query: url.searchParams,
+    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    requestId: request.headers.get('x-request-id') ?? undefined,
+  });
+}

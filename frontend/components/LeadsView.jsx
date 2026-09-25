@@ -510,6 +510,16 @@ export default function LeadsView({
     setCurrentPage(1);
   }, [search, filter, reminderBucket, selectedMonth, fromDate, toDate]);
 
+  const isLeadDeleted = (l) => {
+    if (!l) return false;
+    return Boolean(l.deletedAt) ||
+      l.status === 'Deleted' ||
+      l.status === 'DELETED' ||
+      l.leadStatus === 'DELETED' ||
+      l.workflowState?.code === 'DELETED' ||
+      (typeof l.remarks === 'string' && l.remarks.toLowerCase().startsWith('deleted'));
+  };
+
   const filteredLeads = leads.filter(lead => {
     const q = search.trim().toLowerCase();
     const companyName = (lead.companyName || '').toLowerCase();
@@ -535,7 +545,10 @@ export default function LeadsView({
 
     if (filter === 'Reminders') return false;
 
-    const isDeleted = Boolean(lead.deletedAt) || lead.status === 'Deleted' || lead.workflowState?.code === 'DELETED';
+    const leadDateVal = lead.leadDate || lead.date || lead.createdAt || lead.created_at || lead.updatedAt;
+    const matchesDate = isLeadInDateRange(leadDateVal, selectedMonth, fromDate, toDate);
+
+    const isDeleted = isLeadDeleted(lead);
 
     if (filter === 'Deleted') {
       return matchesSearch && isDeleted && matchesDate;
@@ -563,9 +576,6 @@ export default function LeadsView({
     } else {
       matchesFilter = lead.status === filter || smart === filter;
     }
-
-    const leadDateVal = lead.leadDate || lead.date || lead.createdAt || lead.created_at || lead.updatedAt;
-    const matchesDate = isLeadInDateRange(leadDateVal, selectedMonth, fromDate, toDate);
 
     return matchesSearch && matchesFilter && matchesDate;
   });
@@ -750,7 +760,7 @@ export default function LeadsView({
           {/* Status filters */}
           <div className="tab-filters-row" style={{ background: '#f1f3f5', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', flexWrap: 'nowrap' }}>
             {['All', 'New', 'Follow-up', 'Converted', 'Lost', 'Reminders', 'Deleted'].map(st => {
-              const deletedCount = (leads || []).filter(l => Boolean(l.deletedAt) || l.status === 'Deleted').length;
+              const deletedCount = (leads || []).filter(isLeadDeleted).length;
               return (
                 <button
                   key={st}
@@ -1237,13 +1247,26 @@ export default function LeadsView({
                       <td style={{ fontFamily: 'monospace', fontWeight: '700', color: '#2F4375' }}>{complaintNo}</td>
                       <td style={{ color: '#64748b', fontSize: '12.5px' }}>{lostDate}</td>
                       <td style={{ textAlign: 'center' }}>
-                        <button
-                          className="btn-small btn-outline-small"
-                          onClick={() => setSelectedLead(lead)}
-                          title="View Details"
-                        >
-                          <Eye size={13} />
-                        </button>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                          <button
+                            className="btn-small btn-outline-small"
+                            onClick={() => setSelectedLead(lead)}
+                            title="View Details"
+                          >
+                            <Eye size={13} />
+                          </button>
+                          {onDeleteLead && (
+                            <button
+                              type="button"
+                              className="btn-small btn-outline-small"
+                              onClick={() => handleDeleteLeadClick(lead)}
+                              title="Delete Lead"
+                              style={{ color: '#dc2626', borderColor: '#fecaca' }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1286,15 +1309,15 @@ export default function LeadsView({
                       <td data-label="Company Name" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span>{lead.companyName || lead.customerName || lead.projectName || 'N/A'}</span>
-                          {(Boolean(lead.deletedAt) || lead.status === 'Deleted') && (
+                          {isLeadDeleted(lead) && (
                             <span className="badge" style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', fontSize: '10px', padding: '1px 6px', borderRadius: '4px' }}>
                               Deleted
                             </span>
                           )}
                         </div>
-                        {(Boolean(lead.deletedAt) || lead.status === 'Deleted') && lead.lostReason && (
+                        {isLeadDeleted(lead) && (lead.remarks || lead.lostReason || lead.deletionReason) && (
                           <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: '400', marginTop: '2px' }}>
-                            Reason: {lead.lostReason}
+                            Reason: {lead.remarks || lead.lostReason || lead.deletionReason}
                           </div>
                         )}
                       </td>
@@ -1337,7 +1360,7 @@ export default function LeadsView({
                             <Edit size={14} />
                           </button>
                           {/* Delete Lead Icon */}
-                          {onDeleteLead && (
+                          {onDeleteLead && !isLeadDeleted(lead) && (
                             <button
                               type="button"
                               title="Delete Lead"
@@ -1364,7 +1387,7 @@ export default function LeadsView({
                             </button>
                           )}
 
-                          {lead.status !== 'Lost' && !lead.deletedAt && lead.status !== 'Deleted' ? (
+                          {lead.status !== 'Lost' && !isLeadDeleted(lead) ? (
                             <>
                               {/* 1. Generate / Continue Quotation */}
                               {(() => {
@@ -1582,10 +1605,10 @@ export default function LeadsView({
                         borderRadius: '6px', 
                         fontSize: '11px', 
                         fontWeight: '700',
-                        backgroundColor: (Boolean(lead.deletedAt) || lead.status === 'Deleted') ? '#fee2e2' : ((displayStatus === 'Converted' || displayStatus === 'Quotation Generated' || displayStatus === 'Sample Sent') ? '#dcfce7' : (displayStatus === 'New' ? '#dbeafe' : '#f1f5f9')),
-                        color: (Boolean(lead.deletedAt) || lead.status === 'Deleted') ? '#991b1b' : ((displayStatus === 'Converted' || displayStatus === 'Quotation Generated' || displayStatus === 'Sample Sent') ? '#15803d' : (displayStatus === 'New' ? '#1d4ed8' : '#475569'))
+                        backgroundColor: isLeadDeleted(lead) ? '#fee2e2' : ((displayStatus === 'Converted' || displayStatus === 'Quotation Generated' || displayStatus === 'Sample Sent') ? '#dcfce7' : (displayStatus === 'New' ? '#dbeafe' : '#f1f5f9')),
+                        color: isLeadDeleted(lead) ? '#991b1b' : ((displayStatus === 'Converted' || displayStatus === 'Quotation Generated' || displayStatus === 'Sample Sent') ? '#15803d' : (displayStatus === 'New' ? '#1d4ed8' : '#475569'))
                       }}>
-                        {(Boolean(lead.deletedAt) || lead.status === 'Deleted') ? 'Deleted' : displayStatus}
+                        {isLeadDeleted(lead) ? 'Deleted' : displayStatus}
                       </div>
                     </div>
                   </div>
@@ -1607,7 +1630,7 @@ export default function LeadsView({
                     >
                       <Edit size={16} />
                     </button>
-                    {onDeleteLead && (
+                    {onDeleteLead && !isLeadDeleted(lead) && (
                       <button
                         type="button"
                         title="Delete Lead"
@@ -1624,7 +1647,7 @@ export default function LeadsView({
                       </button>
                     )}
                     
-                    {(Boolean(lead.deletedAt) || lead.status === 'Deleted') ? (
+                    {isLeadDeleted(lead) ? (
                       <button
                         type="button"
                         data-testid={`lead-mobile-restore-${lead.leadNumber || lead.id || lead.leadId}`}
@@ -1800,7 +1823,57 @@ export default function LeadsView({
                 >
                   <Edit size={13} /> Edit Lead
                 </button>
-                {onDeleteLead && (
+                {isLeadDeleted(currentDetailsLead) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const targetLead = currentDetailsLead;
+                      setSelectedLead(null);
+                      Swal.fire({
+                        title: 'Restore Lead?',
+                        text: `Are you sure you want to restore "${targetLead.companyName}" and its associated records?`,
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonText: 'Yes, Restore',
+                        cancelButtonText: 'Cancel',
+                        customClass: {
+                          popup: 'swal-premium-popup',
+                          title: 'swal-premium-title',
+                          htmlContainer: 'swal-premium-text',
+                          confirmButton: 'swal-premium-confirm-btn',
+                          cancelButton: 'swal-premium-cancel-btn'
+                        },
+                        buttonsStyling: false
+                      }).then(async (result) => {
+                        if (result.isConfirmed && typeof onUpdateStatus === 'function') {
+                          await onUpdateStatus(targetLead.id, 'New');
+                          Swal.fire({
+                            title: 'Restored!',
+                            text: `Lead restored to New status.`,
+                            icon: 'success',
+                            timer: 2000,
+                            showConfirmButton: false,
+                          });
+                        }
+                      });
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #86efac',
+                      background: '#f0fdf4',
+                      color: '#166534',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <RotateCcw size={13} /> Restore Lead
+                  </button>
+                ) : onDeleteLead && (
                   <button
                     type="button"
                     onClick={() => {

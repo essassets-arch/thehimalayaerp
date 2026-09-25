@@ -4,6 +4,7 @@ import { mapBackendLeadToFrontend, FrontendLead } from './leadMapper';
 export const backendLeadsReadRepository = {
   list: async (query: { page?: number; pageSize?: number; search?: string } = {}) => {
     const url = new URL('/api/backend/leads', window.location.origin);
+    url.searchParams.append('includeDeleted', 'true');
     if (query.page) url.searchParams.append('page', String(query.page));
     if (query.pageSize) url.searchParams.append('pageSize', String(query.pageSize));
     if (query.search) url.searchParams.append('search', query.search);

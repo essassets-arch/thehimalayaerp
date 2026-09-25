@@ -1,5 +1,6 @@
 export interface FrontendLead {
   id: string;
+  leadNumber?: string;
   customerName: string;
   companyName: string;
   contactPerson: string;
@@ -13,10 +14,17 @@ export interface FrontendLead {
   requiredProducts: string;
   expectedQuantities: string;
   notes: string;
+  remarks?: string | null;
   createdAt: string;
   salesperson: string;
   nextReminder?: any;
   timeline?: any;
+  deletedAt?: string | null;
+  deletionReason?: string | null;
+  lostReason?: string | null;
+  lostAt?: string | null;
+  workflowState?: any;
+  [key: string]: any;
 }
 
 const BACKEND_STATUS_TO_LEGACY: Record<string, string> = {
@@ -32,6 +40,7 @@ const BACKEND_STATUS_TO_LEGACY: Record<string, string> = {
   SAMPLE_PENDING: 'Sample Sent',
   QUOTATION_CREATED: 'Quotation Generated',
   CONVERTED: 'Converted',
+  DELETED: 'Deleted',
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,9 +48,12 @@ export function mapBackendLeadToFrontend(backend: any): FrontendLead {
   // Try to resolve customerName from customer association if exists
   const customerName = backend.customer?.name || backend.companyName || '';
   const backendStatus = backend.workflowState?.code || backend.status || 'NEW';
+  const isDeleted = Boolean(backend.deletedAt) || backendStatus === 'DELETED';
 
   return {
+    ...backend,
     id: backend.id,
+    leadNumber: backend.leadNumber || backend.id,
     customerName,
     companyName: backend.companyName || '',
     contactPerson: backend.contactPerson || '',
@@ -51,10 +63,13 @@ export function mapBackendLeadToFrontend(backend: any): FrontendLead {
     billingAddress: typeof backend.billingAddress === 'string' ? backend.billingAddress : (backend.billingAddress?.line1 || ''),
     deliveryAddress: typeof backend.deliveryAddress === 'string' ? backend.deliveryAddress : (backend.deliveryAddress?.line1 || ''),
     gstNumber: backend.gstNumber || '',
-    status: BACKEND_STATUS_TO_LEGACY[backendStatus] || 'New',
+    status: isDeleted ? 'Deleted' : (BACKEND_STATUS_TO_LEGACY[backendStatus] || 'New'),
+    deletedAt: backend.deletedAt ? String(backend.deletedAt) : null,
+    lostReason: isDeleted ? null : backend.lostReason,
     requiredProducts: backend.productInterest || '',
     expectedQuantities: backend.requiredQty ? String(backend.requiredQty) : '',
     notes: backend.remarks || '',
+    remarks: backend.remarks || '',
     createdAt: backend.createdAt || new Date().toISOString(),
     salesperson: backend.salesperson || backend.salesExecutive?.name || 'Sales User',
     nextReminder: backend.nextReminder || backend.nextReminderAt,

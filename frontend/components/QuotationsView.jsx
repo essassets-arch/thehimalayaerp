@@ -565,7 +565,7 @@ export default function QuotationsView({
   const restoreQuoteFn = onRestoreQuotation || salesBackend?.restoreQuotation;
 
   const isQuotationDeleted = (q) =>
-    Boolean(q?.deletedAt) || q?.status === 'Deleted' || q?.status === 'DELETED';
+    Boolean(q?.deletedAt) || q?.status === 'Deleted' || q?.status === 'DELETED' || (typeof q?.remarks === 'string' && q.remarks.toLowerCase().includes('deleted'));
 
   const handleDeleteQuotationClick = (q) => {
     const qNum = resolveQuotationNumber(q).replace(/^#/, '');

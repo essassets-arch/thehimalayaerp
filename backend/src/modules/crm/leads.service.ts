@@ -715,8 +715,9 @@ export class LeadsService {
         where: { id },
         data: {
           deletedAt: now,
-          lostReason: deleteReason,
-          lostAt: now,
+          remarks: `Deleted (${deleteReason})`,
+          lostReason: null,
+          lostAt: null,
           updatedById: userId,
           version: { increment: 1 },
         },
