@@ -39,6 +39,13 @@ export class BackendLeadWriteRepository implements LeadWriteRepository {
   }
 
   async deleteLead(leadId: string, reason?: string, options?: WriteRequestOptions) {
-    return this.mutateApi(`/api/backend/sales/leads/${leadId}?reason=${encodeURIComponent(reason || '')}`, 'DELETE', { reason }, options);
+    try {
+      return await this.mutateApi(`/api/backend/sales/leads/${leadId}?reason=${encodeURIComponent(reason || '')}`, 'DELETE', { reason }, options);
+    } catch (err: any) {
+      if (err?.status === 405 || err?.statusCode === 405) {
+        return await this.mutateApi(`/api/backend/sales/leads/${leadId}/delete?reason=${encodeURIComponent(reason || '')}`, 'POST', { reason }, options);
+      }
+      throw err;
+    }
   }
 }
