@@ -459,6 +459,15 @@
   padding: 14px;
 }
 
+@media (max-width: 768px) {
+  .tableContainer {
+    display: none;
+  }
+  .mobileCardList {
+    display: flex;
+  }
+}
+
 .mobileCard {
   background: #ffffff;
   border: 1px solid #e2e8f0;

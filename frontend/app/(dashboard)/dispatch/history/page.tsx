@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
+import PaginationControl from "@/shared/components/PaginationControl";
 import {
   CheckCircle2,
   Truck,
@@ -374,6 +375,15 @@ export default function DeliveryHistoryPage() {
   };
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+
+  // Reset to first page when search filter or category view changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, isDispatch2]);
+
   const {
     data: dispatches = [],
     isLoading,
@@ -445,6 +455,16 @@ export default function DeliveryHistoryPage() {
         d.deliveryAddress?.toLowerCase().includes(lower)
     );
   }, [dispatches, search, isDispatch2]);
+
+  // Pagination calculation
+  const totalPages = pageSize >= 99999 ? 1 : Math.ceil(deliveredHistory.length / pageSize) || 1;
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedHistory = useMemo(() => {
+    if (pageSize >= 99999) return deliveredHistory;
+    const start = (safeCurrentPage - 1) * pageSize;
+    return deliveredHistory.slice(start, start + pageSize);
+  }, [deliveredHistory, safeCurrentPage, pageSize]);
 
   const handleExportCsv = () => {
     if (!deliveredHistory.length) return;
@@ -599,7 +619,7 @@ export default function DeliveryHistoryPage() {
         </section>
 
         {/* ─── MAIN AUDIT CARD ─── */}
-        <div className={styles.mainCard}>
+        <div id="dispatch-history-card" className={styles.mainCard}>
           {/* Controls Bar */}
           <div className={styles.controlBar}>
             <div className={styles.filterToolbar}>
@@ -608,14 +628,20 @@ export default function DeliveryHistoryPage() {
                 <input
                   type="text"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   placeholder="Search dispatch #, sales order, invoice, challan, customer, driver, plate..."
                   className={styles.searchInput}
                 />
                 {search && (
                   <button
                     type="button"
-                    onClick={() => setSearch("")}
+                    onClick={() => {
+                      setSearch("");
+                      setCurrentPage(1);
+                    }}
                     className={styles.searchClear}
                     title="Clear search"
                   >
@@ -711,7 +737,7 @@ export default function DeliveryHistoryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {deliveredHistory.map((d) => {
+                  {paginatedHistory.map((d) => {
                     const cleanDispNo = formatCleanNo(d.dispatchNo);
                     const cleanSoNo = formatCleanNo(d.salesOrder?.orderNumber);
                     const invoice = d.invoiceNumber || d.documentChecklist?.invoiceNumber;
@@ -836,7 +862,7 @@ export default function DeliveryHistoryPage() {
           {/* Mobile Card List (< 768px) */}
           {!isLoading && !error && deliveredHistory.length > 0 && (
             <div className={styles.mobileCardList}>
-              {deliveredHistory.map((d) => {
+              {paginatedHistory.map((d) => {
                 const cleanDispNo = formatCleanNo(d.dispatchNo);
                 const cleanSoNo = formatCleanNo(d.salesOrder?.orderNumber);
                 const isDelivered = String(d.status).toUpperCase() === "DELIVERED";
@@ -902,6 +928,32 @@ export default function DeliveryHistoryPage() {
                 );
               })}
             </div>
+          )}
+
+          {/* Pagination Controls */}
+          {!isLoading && !error && deliveredHistory.length > 0 && (
+            <PaginationControl
+              currentPage={safeCurrentPage}
+              totalPages={totalPages}
+              totalItems={deliveredHistory.length}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 25, 50, 100, "all"]}
+              showAllOption={true}
+              onPageChange={(page) => {
+                setCurrentPage(page);
+                if (typeof window !== "undefined") {
+                  const el = document.getElementById("dispatch-history-card");
+                  if (el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
+                }
+              }}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setCurrentPage(1);
+              }}
+              themeColor="#0f172a"
+            />
           )}
         </div>
       </div>

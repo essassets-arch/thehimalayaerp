@@ -512,7 +512,7 @@ export default function BackOfficeArSheetView({
         }
       }
 
-      if (field === 'salesType' && value === 'RT') {
+      if (field === 'salesType' && String(value).trim().toUpperCase() === 'RT') {
         updated.status = 'RT';
       }
 
@@ -559,7 +559,7 @@ export default function BackOfficeArSheetView({
         companyName: String(formData.companyName).trim(),
         siteName: formData.siteName ? String(formData.siteName).trim() : '',
         city: formData.city ? String(formData.city).trim() : '',
-        salesType: formData.salesType || 'Regular',
+        salesType: formData.salesType ? String(formData.salesType).trim() : 'Regular',
         salesPerson: formData.salesPerson ? String(formData.salesPerson).trim() : '',
         paymentTermDays: Number(formData.paymentTermDays) || 0,
         dueDate: formData.dueDate,
@@ -1197,10 +1197,9 @@ export default function BackOfficeArSheetView({
                 style={{ width: '100%', padding: isMobile ? '9px 10px' : '7px 8px', fontSize: isMobile ? '16px' : '12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', outline: 'none' }}
               >
                 <option value="ALL">All Sales Types</option>
-                <option value="Regular">Regular</option>
-                <option value="RT">RT</option>
-                <option value="Project">Project</option>
-                <option value="Trading">Trading</option>
+                {Array.from(new Set(['Regular', 'RT', 'Project', 'Trading', ...(filterOptions?.salesTypes || [])])).map((st) => (
+                  <option key={st} value={st}>{st}</option>
+                ))}
               </select>
             </div>
 
@@ -2165,17 +2164,34 @@ export default function BackOfficeArSheetView({
                       <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
                         Sales Type
                       </label>
-                      <select
+                      <input
+                        type="text"
+                        list="ar-sales-type-options"
+                        placeholder="e.g. Regular, RT, Project, Trading"
                         value={formData.salesType}
                         onChange={(e) => handleFieldChange('salesType', e.target.value)}
                         className="ar-mobile-input"
-                        style={{ width: '100%', padding: isMobile ? '10px 12px' : '8px 10px', fontSize: isMobile ? '16px' : '14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff'  }}
-                      >
-                        <option value="Regular">Regular</option>
-                        <option value="RT">RT (Retention)</option>
-                        <option value="Project">Project</option>
-                        <option value="Trading">Trading</option>
-                      </select>
+                        style={{
+                          width: '100%',
+                          padding: isMobile ? '10px 12px' : '8px 10px',
+                          fontSize: isMobile ? '16px' : '14px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          outline: 'none',
+                          background: '#fff'
+                        }}
+                      />
+                      <datalist id="ar-sales-type-options">
+                        <option value="Regular" />
+                        <option value="RT" />
+                        <option value="Project" />
+                        <option value="Trading" />
+                        {(filterOptions?.salesTypes || [])
+                          .filter((st) => !['Regular', 'RT', 'Project', 'Trading'].includes(st))
+                          .map((st) => (
+                            <option key={st} value={st} />
+                          ))}
+                      </datalist>
                     </div>
 
                     {/* 10. Sales Person */}
