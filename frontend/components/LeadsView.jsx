@@ -135,35 +135,51 @@ const getSmartLeadStatus = (lead, orders = [], quotations = [], samples = [], re
   let status = lead.status || lead.leadStatus || lead.workflowState?.name || lead.workflowState?.code || 'New';
   if (status === 'Lost' || status === 'Converted' || status === 'WON') return status === 'WON' ? 'Converted' : status;
 
-  const leadId = lead.id || lead.leadId;
-  const compName = (lead.companyName || lead.customerName || lead.projectName || '').trim().toLowerCase();
+  const leadId = String(lead.id || lead.leadId || '');
 
+  // 1. Strictly match orders by Lead ID or linked quotation ID (never by company name)
   const hasOrder = (orders || []).some(
     (o) =>
-      (leadId && (o.leadId === leadId || o.quotation?.leadId === leadId || o.sourceQuotation?.leadId === leadId)) ||
-      (compName && (o.customerName || o.customer?.companyName || '').trim().toLowerCase() === compName)
+      leadId &&
+      (String(o.leadId) === leadId ||
+        String(o.quotation?.leadId) === leadId ||
+        String(o.sourceQuotation?.leadId) === leadId)
   );
   if (hasOrder) return 'Converted';
 
+  // 2. Strictly match quotations by Lead ID or backend lead.quotations (never by company name)
+  const hasDbQuotations = Array.isArray(lead.quotations) && lead.quotations.some(
+    (q) => q.status !== 'CANCELLED' && q.status !== 'DELETED' && q.workflowState?.code !== 'CANCELLED'
+  );
   const leadQuotations = (quotations || []).filter(
     (q) =>
-      (leadId && (q.leadId === leadId || q.sourceId === leadId || q.lead?.id === leadId)) ||
-      (compName && (q.customerName || q.lead?.companyName || '').trim().toLowerCase() === compName)
+      leadId &&
+      (String(q.leadId) === leadId ||
+        String(q.sourceId) === leadId ||
+        String(q.lead?.id) === leadId) &&
+      q.status !== 'CANCELLED' &&
+      q.status !== 'DELETED'
   );
-  const hasQuotation = leadQuotations.length > 0;
+  const hasQuotation = hasDbQuotations || leadQuotations.length > 0;
 
   const quoState = getLeadQuotationState(erpState, leadId);
   const smpState = getLeadSampleState(erpState, leadId);
 
-  const hasSample = (samples || []).some(
+  // 3. Strictly match samples by Lead ID (never by company name)
+  const hasDbSamples = Array.isArray(lead.samples) && lead.samples.length > 0;
+  const hasSample = hasDbSamples || (samples || []).some(
     (s) =>
-      (leadId && (s.leadId === leadId || s.sourceId === leadId || s.lead?.id === leadId)) ||
-      (compName && (s.leadName || s.customerName || '').trim().toLowerCase() === compName)
+      leadId &&
+      (String(s.leadId) === leadId ||
+        String(s.sourceId) === leadId ||
+        String(s.lead?.id) === leadId)
   );
 
+  // 4. Strictly match reminders by Lead ID (never by company name)
   const hasReminder = (reminders || []).some(
     (r) =>
-      ((leadId && r.moduleId === leadId) || (compName && (r.customerName || '').trim().toLowerCase() === compName)) &&
+      leadId &&
+      String(r.moduleId) === leadId &&
       r.status !== 'Completed' &&
       r.status !== 'Closed'
   );
@@ -748,7 +764,14 @@ export default function LeadsView({
   const currentDetailsLead = selectedLead ? leads.find(l => l.id === selectedLead.id) : null;
   const leadSamples = currentDetailsLead ? samples.filter((s) => String(s.leadId || s.lead_id) === String(currentDetailsLead.id)) : [];
   const leadQuotations = currentDetailsLead ? quotations.filter((q) => String(q.leadId || q.lead_id) === String(currentDetailsLead.id)) : [];
-  const leadOrders = currentDetailsLead ? orders.filter((o) => o.customerName === currentDetailsLead.companyName || (currentDetailsLead.customerId && String(o.customerId) === String(currentDetailsLead.customerId))) : [];
+  const leadOrders = currentDetailsLead
+    ? orders.filter(
+        (o) =>
+          String(o.leadId) === String(currentDetailsLead.id) ||
+          (currentDetailsLead.customerId && String(o.customerId) === String(currentDetailsLead.customerId)) ||
+          leadQuotations.some((q) => String(o.quotationId) === String(q.id) || String(o.sourceQuotationId) === String(q.id))
+      )
+    : [];
   const currentDetailsStatus = currentDetailsLead ? getSmartLeadStatus(currentDetailsLead, orders, quotations, samples, reminders, erpStore.state) : '';
 
   return (
@@ -1227,8 +1250,14 @@ export default function LeadsView({
                 <tr><td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>No lost leads.</td></tr>
               ) : (
                 displayedLeads.map((lead) => {
-                  const linkedQuote = quotations.find((q) => String(q.leadId || q.lead_id) === String(lead.id));
-                  const linkedOrder = orders.find((o) => o.customerName === lead.companyName || (lead.customerId && String(o.customerId) === String(lead.customerId)) || (linkedQuote && String(o.quotationId) === String(linkedQuote.id)));
+                  const linkedQuote = (lead.quotations && lead.quotations.length > 0)
+                    ? lead.quotations[0]
+                    : quotations.find((q) => String(q.leadId || q.lead_id) === String(lead.id));
+                  const linkedOrder = orders.find((o) =>
+                    (lead.id && String(o.leadId) === String(lead.id)) ||
+                    (lead.customerId && String(o.customerId) === String(lead.customerId)) ||
+                    (linkedQuote && (String(o.quotationId) === String(linkedQuote.id) || String(o.sourceQuotationId) === String(linkedQuote.id)))
+                  );
                   const lostReason = lead.lostReason || linkedQuote?.lostReason || linkedOrder?.lostReason || 'Customer Complaint';
                   const complaintNo = lead.lostComplaintId || linkedQuote?.lostComplaintId || linkedOrder?.lostComplaintId || '—';
                   const lostDate = lead.lostAt ? String(lead.lostAt).slice(0, 10) : (linkedOrder?.lostAt ? String(linkedOrder.lostAt).slice(0, 10) : (lead.updatedAt ? String(lead.updatedAt).slice(0, 10) : '-'));

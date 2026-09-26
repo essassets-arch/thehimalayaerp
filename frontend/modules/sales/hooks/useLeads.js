@@ -61,7 +61,9 @@ export function useLeads(showToast) {
         const result = await backendCreateLead(newLeadData, { idempotencyKey });
         if (showToast) showToast('Lead Created Successfully');
         await refreshLeads();
-        router.push('/sales/leads');
+        const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+        const targetPath = currentPath.startsWith('/supersales') ? '/supersales/leads' : '/sales/leads';
+        router.push(targetPath);
         return result;
       } catch (err) {
         handleBackendError(err, refreshLeads);
@@ -234,6 +236,10 @@ export function useLeads(showToast) {
     deleteLead,
     restoreLead,
     updateLeadStatus,
-    generateQuotationFromLead: (leadId) => router.push(`/sales/quotations/create?leadId=${leadId}`),
+    generateQuotationFromLead: (leadId) => {
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+      const basePath = currentPath.startsWith('/supersales') ? '/supersales' : '/sales';
+      router.push(`${basePath}/create-quotation?leadId=${encodeURIComponent(String(leadId))}`);
+    },
   };
 }

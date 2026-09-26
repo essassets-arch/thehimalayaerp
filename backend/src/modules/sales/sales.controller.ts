@@ -134,7 +134,7 @@ export class SalesController {
     'store.view',
     'store.materials.read',
     'admin.planthead.read',
-    'planthead.read',
+    'planthead.read', 
     'plant-head.read',
   )
   async lookupOrder(

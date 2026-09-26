@@ -5645,7 +5645,7 @@ export const getLeadQuotationState = (state: any, leadId: string) => {
 
   const quotation = quotations.find(
     (item: any) =>
-      (item.leadId === leadId || item.id === leadId || item.sourceId === leadId || item.lead?.id === leadId) &&
+      (item.leadId === leadId || item.sourceId === leadId || item.lead?.id === leadId) &&
       item.status !== 'CANCELLED' &&
       item.status !== 'DELETED'
   );
@@ -5661,7 +5661,6 @@ export const getLeadQuotationState = (state: any, leadId: string) => {
     'QUOTATION_CREATED',
     'SENT',
     'APPROVED',
-    'NEW',
     'INTERNAL_REVIEW',
     'QUOTATION_SENT',
     'QUOTATION_APPROVED',
@@ -5687,7 +5686,7 @@ export const getLeadSampleState = (state: any, leadId: string) => {
 
   const sample = samples.find(
     (item: any) =>
-      (item.leadId === leadId || item.id === leadId) &&
+      (item.leadId === leadId || item.sourceId === leadId || item.lead?.id === leadId) &&
       item.status !== 'CANCELLED' &&
       item.status !== 'DELETED'
   );
