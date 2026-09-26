@@ -1447,6 +1447,13 @@ export default function DispatchOrdersPage() {
         const orderNo = String(so.orderNumber || so.orderId || so.orderNo || "");
         if (orderNo.includes("SO-TEST-")) return;
 
+        const soStatus = String(so.status || so.workflowState?.code || "").toUpperCase();
+
+        // 1. Skip invalid, draft, or cancelled orders
+        if (["CANCELLED", "LOST", "DRAFT", "PENDING_APPROVAL", "REJECTED"].includes(soStatus)) {
+          return;
+        }
+
         const customerName = resolveCustomerName(so, so.customer);
         const projectName = resolveProjectName(so, so.customer);
         const salesPersonName = resolveSalesPersonName(so, so.customer, usersMap);
@@ -1455,6 +1462,28 @@ export default function DispatchOrdersPage() {
         const items = Array.isArray(so.items) ? so.items : Array.isArray(so.orderItems) ? so.orderItems : [];
         if (items.length > 0) {
           items.forEach((item: any, idx: number) => {
+            const isTrading = isTradingProduct(item, productsMap);
+
+            // 2. Strict Workflow Check:
+            // Manufacturing products (D1): MUST follow Sales -> Plant Head -> Production -> QC -> Dispatch 1.
+            // If the sales order is still in Plant Head review or Production, DO NOT show directly in Dispatch 1.
+            // It must only arrive in Dispatch 1 via QC_APPROVED Work Orders or Finished Goods!
+            if (!isTrading) {
+              if ([
+                "SENT_TO_PLANT", "SENT_TO_PLANT_HEAD", "PLANT_PENDING",
+                "PLANT_APPROVED", "PLANT_HEAD_ACCEPTED", "PRODUCTION_PLANNED",
+                "READY_FOR_PRODUCTION", "IN_PRODUCTION", "CONFIRMED"
+              ].includes(soStatus)) {
+                return;
+              }
+            } else {
+              // Trading products (D2): DIRECT Sales -> Dispatch 2!
+              // Only show in Dispatch 2 once confirmed / sent to dispatch
+              if (!["READY_FOR_DISPATCH", "CONFIRMED", "SENT_TO_DISPATCH", "DISPATCHED_PARTIAL"].includes(soStatus)) {
+                return;
+              }
+            }
+
             const totalOrdered = Number(item.orderedQuantity || item.quantity || 1);
             const fromDispatchItems = Array.isArray(item.dispatchItems)
               ? item.dispatchItems.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0)
@@ -1480,7 +1509,7 @@ export default function DispatchOrdersPage() {
 
             unifiedSalesOrders.push({
               id: `so-${so.id}-${idx}`,
-              itemType: isTradingProduct(item, productsMap) ? "TRADING_SALES_ORDER" : "WORK_ORDER",
+              itemType: isTrading ? "TRADING_SALES_ORDER" : "WORK_ORDER",
               orderNumber: orderNo || "N/A",
               customerName,
               salesPersonName,
@@ -1496,7 +1525,7 @@ export default function DispatchOrdersPage() {
               salesOrderId: so.id,
               salesOrderItemId: item.id,
               productId: item.productId,
-              dispatchCategory: isTradingProduct(item, productsMap)
+              dispatchCategory: isTrading
                 ? "D2"
                 : (item.product?.dispatchCategory ||
                    item.product?.dispatch_category ||

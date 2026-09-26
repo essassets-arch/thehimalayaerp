@@ -13,6 +13,7 @@ import { CreateDispatchDto } from './dto/create-dispatch.dto';
 import { ConfirmDeliveryDto } from './dto/confirm-delivery.dto';
 
 import { NotificationsService } from '../notifications/notifications.service';
+import { isTradingProduct } from '../../common/utils/trading-product.util';
 
 function normalizeDispatchCategory(cat?: string | null): 'D1' | 'D2' | null {
   if (!cat) return null;
@@ -1761,6 +1762,98 @@ export class DispatchService {
       console.warn(
         '[getDispatchQueue] Failed to query ready finished goods:',
         fgErr,
+      );
+    }
+
+    // 5. Also fetch direct SalesOrders with status READY_FOR_DISPATCH (for Trading goods D2)
+    try {
+      const readyTradingOrders = await this.prisma.salesOrder.findMany({
+        where: {
+          status: 'READY_FOR_DISPATCH',
+          customer: { companyId },
+        },
+        include: {
+          customer: true,
+          salesExecutive: { select: { id: true, name: true, email: true } },
+          items: { include: { product: true } },
+        },
+      });
+
+      for (const so of readyTradingOrders) {
+        const customer = so.customer;
+        const items = so.items || [];
+
+        for (const item of items) {
+          const product = item.product;
+          const isTrading = isTradingProduct(product, item);
+          const dispatchCat = product?.dispatchCategory || (isTrading ? 'D2' : 'D1');
+
+          // Strict category matching
+          if (userCategory) {
+            const c1 = String(dispatchCat).trim().toUpperCase();
+            const c2 = String(userCategory).trim().toUpperCase();
+            let matches = c1 === c2;
+            if (
+              (c1 === 'D1' || c1 === 'DISPATCH 1') &&
+              (c2 === 'D1' || c2 === 'DISPATCH 1')
+            )
+              matches = true;
+            if (
+              (c1 === 'D2' || c1 === 'DISPATCH 2') &&
+              (c2 === 'D2' || c2 === 'DISPATCH 2')
+            )
+              matches = true;
+            if (!matches) continue;
+          }
+
+          const key = so.id;
+          if (!ordersMap.has(key)) {
+            ordersMap.set(key, {
+              id: `so-${so.id}`,
+              orderId: so.orderNumber,
+              orderNo: so.orderNumber,
+              salesOrderId: so.id,
+              batchId: product?.sku || 'SO-STOCK',
+              customerName: customer?.companyName || 'Trading Customer',
+              salesperson: so.salesExecutive?.name || 'Sales Executive',
+              salesExecutive: so.salesExecutive,
+              deliveryAddress:
+                typeof so.shippingAddress === 'string'
+                  ? so.shippingAddress
+                  : so.shippingAddress
+                    ? JSON.stringify(so.shippingAddress)
+                    : 'Customer Delivery Site',
+              status: 'READY_FOR_DISPATCH',
+              items: [],
+            });
+          }
+
+          const orderRow = ordersMap.get(key);
+          const existingItem = orderRow.items.find(
+            (i: any) =>
+              i.salesOrderItemId === item.id ||
+              (item.productId && i.productId === item.productId),
+          );
+          if (!existingItem) {
+            orderRow.items.push({
+              allocationId: `so-item-${item.id}`,
+              salesOrderItemId: item.id,
+              productId: item.productId,
+              productCode: item.productCodeSnapshot || product?.sku || '',
+              productName:
+                item.productNameSnapshot || product?.name || 'Trading Product',
+              approvedQuantity: Number(item.orderedQuantity || 1),
+              dispatchableQuantity: Number(item.orderedQuantity || 1),
+              unit: item.unit || product?.unit || 'PCS',
+              dispatchCategory: dispatchCat,
+            });
+          }
+        }
+      }
+    } catch (soErr) {
+      console.warn(
+        '[getDispatchQueue] Failed to query ready trading sales orders:',
+        soErr,
       );
     }
 
