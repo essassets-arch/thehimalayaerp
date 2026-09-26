@@ -8,6 +8,7 @@ import Swal from 'sweetalert2';
 import { useERP, useSalesBackend } from '../../../shared/context/ERPContext';
 import { useERPStore } from '@/store/erpStore';
 import { selectPlantHeadIncomingOrders, selectPlantHeadPlanningOrders } from '@/store/domains/sales/salesSelectors';
+import { isTradingProduct, isPureTradingOrder, hasManufacturingItems as hasMfgItemsUtil } from '../../../shared/utils/dispatchCategory';
 import { STATUS } from '../../../shared/constants';
 import { useAuth } from '../../../shared/context/AuthContext';
 import MyProfileView from '../../../shared/components/MyProfileView';
@@ -227,71 +228,9 @@ const resolveSalesPersonName = (order, sourceQuotation, userMap = {}) => {
   return 'Sales Executive';
 };
 
-export const isTradingItem = (item) => {
-  if (!item) return false;
-  const pType = String(item.productType || item.product_type || item.product?.productType || item.product?.product_type || '').toUpperCase();
-  if (pType === 'TRADING') return true;
-  if (pType === 'MANUFACTURING') return false;
-  if (item.isTrading === true || item.product?.isTrading === true) return true;
+export const isTradingItem = (item) => isTradingProduct(item);
 
-  const cat = String(item.category || item.product_family || item.product?.category || item.product?.product_family || '').toLowerCase();
-  if (cat.includes('trading') || cat.includes('rcc pipe') || cat.includes('frc cover') || cat.includes('coverblock') || cat.includes('others')) return true;
-  if (cat.includes('frp covers') || cat.includes('frp gratings') || cat.includes('manufacturing')) return false;
-
-  const name = String(item.productName || item.product_name || item.name || item.product?.name || item.productNameSnapshot || '').toUpperCase();
-  if (
-    name.startsWith('FRCCP') ||
-    name.startsWith('FRCT') ||
-    name.startsWith('FRCSQRC') ||
-    name.startsWith('FRC') ||
-    name.startsWith('RCC') ||
-    name.startsWith('BTCB') ||
-    name.startsWith('WCB') ||
-    name.startsWith('PCB') ||
-    name.startsWith('HTCB') ||
-    name.startsWith('DTCB') ||
-    name.startsWith('MCB') ||
-    name.includes('FRC COVER') ||
-    name.includes('RCC PIPE') ||
-    name.includes('COVERBLOCK') ||
-    name.includes('COVER BLOCK')
-  ) return true;
-
-  const sku = String(item.sku || item.productSku || item.product_sku || item.productCode || item.productCodeSnapshot || item.product?.sku || '').toUpperCase();
-  if (
-    sku.startsWith('FRCCP') ||
-    sku.startsWith('FRCT') ||
-    sku.startsWith('FRCSQRC') ||
-    sku.startsWith('FRC') ||
-    sku.startsWith('RCC') ||
-    sku.startsWith('BTCB') ||
-    sku.startsWith('WCB') ||
-    sku.startsWith('PCB') ||
-    sku.startsWith('HTCB') ||
-    sku.startsWith('DTCB') ||
-    sku.startsWith('MCB') ||
-    sku.includes('COVERBLOCK') ||
-    sku.includes('COVER BLOCK')
-  ) return true;
-
-  const dCat = String(item.dispatchCategory || item.dispatch_category || item.product?.dispatchCategory || item.product?.dispatch_category || '').toUpperCase();
-  if (dCat === 'D2' || dCat === 'DISPATCH 2' || dCat === 'DISPATCH_2' || dCat.includes('CAT 2') || dCat.includes('CATEGORY 2')) return true;
-
-  return false;
-};
-
-export const hasManufacturingItems = (order) => {
-  if (!order) return false;
-  const rawItems = Array.isArray(order.detailedItems) && order.detailedItems.length
-    ? order.detailedItems
-    : (Array.isArray(order.items) && order.items.length ? order.items : []);
-  
-  if (rawItems.length === 0) {
-    return !isTradingItem(order);
-  }
-
-  return rawItems.some(item => !isTradingItem(item));
-};
+export const hasManufacturingItems = (order) => hasMfgItemsUtil(order);
 
 const normalizeIncomingOrder = (order, sourceQuotation, userMap = {}) => {
   const rawItems = Array.isArray(order?.detailedItems) && order.detailedItems.length
@@ -536,7 +475,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
     .filter((order, index, all) =>
       index === all.findIndex(candidate => String(candidate.orderNo || candidate.orderNumber || candidate.id) === String(order.orderNo || order.orderNumber || order.id))
     )
-    .filter(order => hasManufacturingItems(order))
+    .filter(order => hasMfgItemsUtil(order) && !isPureTradingOrder(order))
     .map((order) => {
       const quotationRef = order.quotationId || order.quotation_id || order.source_quotation_ref || order.quotationRef;
       const sourceQuotation = (state.sales?.quotations || []).find((quotation) =>
@@ -3168,6 +3107,9 @@ export default function PlantHeadPortal({ overrideView } = {}) {
     });
 
     const filteredIncoming = allIncomingOrders.filter(o => {
+      if (isPureTradingOrder(o) || !hasMfgItemsUtil(o)) return false;
+      const statusCheck = String(o.workflowStatus || o.status || o.planningStatus || o.workflowStateCode || '').toUpperCase();
+      if (['READY_FOR_DISPATCH', 'DISPATCHED', 'DELIVERED'].includes(statusCheck)) return false;
       const q = incomingSearch.toLowerCase();
       const matchQuery = !q ||
         (o.orderNo || '').toLowerCase().includes(q) ||
@@ -3805,6 +3747,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
       { key: 'history', label: 'History' },
     ];
     const allPlanningOrders = orders
+      .filter(order => hasMfgItemsUtil(order) && !isPureTradingOrder(order))
       .map(order => {
         const workOrder = backendWorkOrders.find(wo =>
           String(wo.productionPlan?.salesOrderId) === String(order.id) ||

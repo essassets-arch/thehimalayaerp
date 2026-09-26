@@ -14,6 +14,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { SalesOrderStatus } from '@prisma/client';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { mapSalesOrder } from '../sales/mappers/sales-order.mapper';
 import { SubmitFulfillmentPlanDto } from './dto/fulfillment-plan.dto';
@@ -2362,7 +2363,36 @@ export class PlantHeadService {
   }
 
   private isManufacturingOrder(order: any): boolean {
-    return hasManufacturingItems(order);
+    return hasManufacturingItems(order) && !isPureTradingOrder(order);
+  }
+
+  private async autoHealTradingOrders(tradingOrders: any[]) {
+    try {
+      const readyState = await this.prisma.workflowState.findFirst({
+        where: { workflow: { code: 'SALES_ORDER' }, code: 'READY_FOR_DISPATCH' },
+      });
+      for (const order of tradingOrders) {
+        await this.prisma.salesOrder.update({
+          where: { id: order.id },
+          data: {
+            status: SalesOrderStatus.READY_FOR_DISPATCH,
+            ...(readyState ? { workflowStateId: readyState.id } : {}),
+            remarks: order.remarks ? `${order.remarks} (Direct to Dispatch 2)` : 'Direct to Dispatch 2 (Sahad Dispatch)',
+          },
+        });
+        const plans = await this.prisma.productionPlan.findMany({
+          where: { salesOrderId: order.id },
+          include: { workOrders: true },
+        });
+        for (const pp of plans) {
+          if (pp.workOrders.length === 0) {
+            await this.prisma.productionPlan.delete({ where: { id: pp.id } });
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[PlantHeadService] Failed to auto-heal trading orders: ${err?.message || err}`);
+    }
   }
 
   async getIncomingOrders(companyId: string) {
@@ -2409,6 +2439,10 @@ export class PlantHeadService {
       },
       orderBy: { createdAt: 'desc' },
     });
+    const tradingOrders = orders.filter((o) => isPureTradingOrder(o));
+    if (tradingOrders.length > 0) {
+      void this.autoHealTradingOrders(tradingOrders);
+    }
     const manufacturingOrders = orders.filter((o) => this.isManufacturingOrder(o));
     return this.mapSalesOrdersWithFulfillment(manufacturingOrders);
   }
@@ -2457,6 +2491,10 @@ export class PlantHeadService {
       },
       orderBy: { createdAt: 'desc' },
     });
+    const tradingOrders = orders.filter((o) => isPureTradingOrder(o));
+    if (tradingOrders.length > 0) {
+      void this.autoHealTradingOrders(tradingOrders);
+    }
     const manufacturingOrders = orders.filter((o) => this.isManufacturingOrder(o));
     return this.mapSalesOrdersWithFulfillment(manufacturingOrders);
   }

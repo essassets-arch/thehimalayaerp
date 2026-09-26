@@ -26,6 +26,7 @@ import {
   QuotationLineItem,
 } from './salesTypes';
 import { normalizeStatus } from '../shared/workflowUtils';
+import { isPureTradingOrder } from '@/shared/utils/dispatchCategory';
 import {
   calculatePendingAmount,
   getAvailableAfterSalesQuantity,
@@ -221,8 +222,11 @@ function isTradingProductItem(item: any): boolean {
 
   const cat = String(item.category || item.product_family || item.product?.category || item.product?.product_family || '').toLowerCase();
   if (cat.includes('trading') || cat.includes('rcc pipe') || cat.includes('frc cover') || cat.includes('coverblock') || cat.includes('others')) return true;
-  if (cat.includes('frp gratings')) {
-    return name.includes('MOULDED') || sku.includes('MOULDED');
+  if (cat.includes('frp gratings') || cat.includes('grating')) {
+    return true;
+  }
+  if (name.includes('GRATING') || sku.includes('GRATING') || cleanSku.startsWith('FRPMOULDED') || cleanSku.startsWith('FRPGRT')) {
+    return true;
   }
 
   if (pType === 'MANUFACTURING' || dCat === 'D1' || cat.includes('frp covers') || cat.includes('manufacturing')) return false;
@@ -257,7 +261,7 @@ const _selectPlantHeadIncomingOrders = (store: ERPStoreState) => {
       normalizeStatus(o.planningStatus) === 'PENDING_ACCEPTANCE'
     )
     .filter((o: any) => !['ACCEPTED', 'REJECTED'].includes(normalizeStatus(o.plantHeadStatus)))
-    .filter((o: any) => hasManufacturingProducts(o))
+    .filter((o: any) => hasManufacturingProducts(o) && !isPureTradingOrder(o))
     .map(toPlantHeadSafeView);
 };
 
@@ -268,7 +272,7 @@ const _selectPlantHeadPlanningOrders = (store: ERPStoreState) => {
   const { orders } = getSales(store);
   return orders
     .filter((o) => o.planningStatus === 'PLANT_HEAD_ACCEPTED')
-    .filter((o: any) => hasManufacturingProducts(o))
+    .filter((o: any) => hasManufacturingProducts(o) && !isPureTradingOrder(o))
     .map(toPlantHeadSafeView);
 };
 

@@ -67,6 +67,9 @@ export function isTradingProduct(entity?: any, productsMap?: Map<string, any>): 
 
   if (
     nameOrSku.includes('MOULDED') ||
+    nameOrSku.includes('GRATING') ||
+    cleanNameOrSku.startsWith('FRPMOULDED') ||
+    cleanNameOrSku.startsWith('FRPGRT') ||
     cleanNameOrSku.startsWith('WCB') ||
     cleanNameOrSku.startsWith('PCB') ||
     cleanNameOrSku.startsWith('HTCB') ||
@@ -92,10 +95,7 @@ export function isTradingProduct(entity?: any, productsMap?: Map<string, any>): 
     return true;
   }
 
-  if (['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING'].includes(cat)) return true;
-  if (cat === 'FRP GRATINGS') {
-    return nameOrSku.includes('MOULDED');
-  }
+  if (['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING', 'FRP GRATINGS'].includes(cat) || cat.includes('GRATING')) return true;
   if (['FRP COVERS', 'MANUFACTURING', 'FINISHED GOODS'].includes(cat)) return false;
 
   // 2. Check items array if entity is an order / sample / replacement / return container

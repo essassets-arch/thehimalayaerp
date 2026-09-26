@@ -1036,7 +1036,7 @@ export class SalesService {
             { deletedAt: null },
           ],
         },
-        include: { items: true },
+        include: { items: { include: { product: true } } },
       });
       if (!order) throw new NotFoundException(`Sales Order ${cleanId} not found`);
 
@@ -1127,7 +1127,7 @@ export class SalesService {
         },
         include: {
           customer: true,
-          items: true,
+          items: { include: { product: true } },
           workflowState: true,
           productionPlans: {
             orderBy: { createdAt: 'desc' },

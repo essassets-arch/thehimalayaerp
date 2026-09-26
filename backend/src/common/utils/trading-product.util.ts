@@ -60,7 +60,9 @@ export function isTradingProduct(product?: any, item?: any): boolean {
     cat.includes('FRC COVER') ||
     cat.includes('RCC PIPE') ||
     cat.includes('OTHERS') ||
-    cat.includes('TRADING')
+    cat.includes('TRADING') ||
+    cat.includes('GRATING') ||
+    cat.includes('FRP GRATING')
   ) {
     return true;
   }
@@ -94,10 +96,13 @@ export function isTradingProduct(product?: any, item?: any): boolean {
 
   if (
     combined.includes('MOULDED') ||
+    combined.includes('GRATING') ||
     combined.includes('COVERBLOCK') ||
     combined.includes('COVER BLOCK') ||
     combined.includes('FRC COVER') ||
     combined.includes('RCC PIPE') ||
+    cleanSku.startsWith('FRPMOULDED') ||
+    cleanSku.startsWith('FRPGRT') ||
     cleanSku.startsWith('WCB') ||
     cleanSku.startsWith('PCB') ||
     cleanSku.startsWith('HTCB') ||

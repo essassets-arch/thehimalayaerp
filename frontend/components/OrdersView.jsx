@@ -366,7 +366,7 @@ export default function OrdersView({
     const dCat = String(item.dispatchCategory || item.dispatch_category || item.product?.dispatchCategory || item.product?.dispatch_category || '').toUpperCase();
     if (dCat === 'D2' || dCat === 'DISPATCH 2' || dCat === 'DISPATCH_2' || dCat.includes('2')) return true;
     const cat = String(item.category || item.product?.category || item.product_family || item.brand || '').toUpperCase();
-    if (['RCC PIPE', 'FRC COVER', 'COVERBLOCK', 'OTHERS', 'TRADING'].includes(cat)) return true;
+    if (['RCC PIPE', 'FRC COVER', 'COVERBLOCK', 'OTHERS', 'TRADING', 'FRP GRATINGS'].includes(cat) || cat.includes('GRATING')) return true;
     const nameOrSku = String(item.productName || item.productNameSnapshot || item.name || item.product?.name || item.sku || item.productCode || item.productCodeSnapshot || '').toUpperCase();
     if (
       nameOrSku.startsWith('FRCCP') ||
@@ -384,7 +384,10 @@ export default function OrdersView({
       nameOrSku.includes('COVER BLOCK') ||
       nameOrSku.includes('FRC COVER') ||
       nameOrSku.includes('RCC PIPE') ||
-      nameOrSku.includes('MOULDED')
+      nameOrSku.includes('MOULDED') ||
+      nameOrSku.includes('GRATING') ||
+      nameOrSku.startsWith('FRPMOULDED') ||
+      nameOrSku.startsWith('FRPGRT')
     ) {
       return true;
     }
