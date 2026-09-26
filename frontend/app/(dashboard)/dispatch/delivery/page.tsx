@@ -112,6 +112,9 @@ interface Dispatch {
   packageType: string | null;
   totalWeight: number | string | null;
   podUrl: string | null;
+  documentChecklist?: any;
+  dispatchDocumentUrl?: string | null;
+  documentUrl?: string | null;
   salesOrder: SalesOrder;
   items: DispatchItem[];
 }
@@ -1805,6 +1808,17 @@ export default function DeliveryRunPage() {
         const primaryUnit = viewingHistoryItem.items?.[0]?.salesOrderItem?.unit || "PCS";
         const lrNumberVal = viewingHistoryItem.lrNumber || viewingHistoryItem.ewayBillNumber || viewingHistoryItem.invoiceNumber || "—";
         const podAsset = viewingHistoryItem.podUrl ? getBackendAssetUrl(viewingHistoryItem.podUrl) : null;
+        const dChecklist = typeof viewingHistoryItem.documentChecklist === 'string'
+          ? (() => { try { return JSON.parse(viewingHistoryItem.documentChecklist); } catch { return {}; } })()
+          : (viewingHistoryItem.documentChecklist || {});
+        const dispatchDocCandidate =
+          dChecklist.documentUrl ||
+          dChecklist.dispatchDocumentUrl ||
+          (Array.isArray(dChecklist.documentUrls) ? dChecklist.documentUrls[0] : null) ||
+          viewingHistoryItem.dispatchDocumentUrl ||
+          viewingHistoryItem.documentUrl;
+        const dispatchAsset = dispatchDocCandidate ? getBackendAssetUrl(dispatchDocCandidate) : null;
+        const hasDistinctDispatchDoc = Boolean(dispatchAsset && dispatchAsset !== podAsset);
 
         return (
           <div 
@@ -2047,6 +2061,51 @@ export default function DeliveryRunPage() {
                     </table>
                   </div>
                 </div>
+
+                {/* Card 4.5: Dispatch Document (Invoice / Challan / LR Photo / PDF) */}
+                {hasDistinctDispatchDoc && dispatchAsset && (
+                  <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 6 }}>
+                        <FileText size={14} color="#2563eb" /> Dispatch Document (Invoice / Challan / LR Photo / PDF)
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <a
+                          href={dispatchAsset}
+                          download={`dispatch_doc_${cleanDispNo}`}
+                          style={{ fontSize: 11.5, fontWeight: 700, color: "#334155", background: "#f1f5f9", padding: "5px 10px", borderRadius: 6, textDecoration: "none", border: "1px solid #cbd5e1", display: "inline-flex", alignItems: "center", gap: 4 }}
+                        >
+                          <Download size={12} /> Download Document
+                        </a>
+                        <a
+                          href={dispatchAsset}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: 11.5, fontWeight: 700, color: "#ffffff", background: "#2563eb", padding: "5px 12px", borderRadius: 6, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}
+                        >
+                          <ExternalLink size={12} /> Open in New Tab
+                        </a>
+                      </div>
+                    </div>
+
+                    <div style={{ background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0", padding: 12, textAlign: "center", maxHeight: 320, overflow: "auto", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {dispatchAsset.toLowerCase().includes(".pdf") ? (
+                        <iframe
+                          src={dispatchAsset}
+                          style={{ width: "100%", height: 280, border: "none", borderRadius: 6 }}
+                          title="Dispatch PDF Document"
+                        />
+                      ) : (
+                        <img
+                          src={dispatchAsset}
+                          alt="Dispatch Document"
+                          style={{ maxWidth: "100%", maxHeight: 280, objectFit: "contain", borderRadius: 6, cursor: "zoom-in" }}
+                          onClick={() => setSelectedPodImage(dispatchDocCandidate)}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Card 5: Proof of Delivery (POD) Document Preview */}
                 <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16 }}>

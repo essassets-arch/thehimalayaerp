@@ -2360,6 +2360,17 @@ export default function CreateDispatchPage() {
               fetchedTransportationCost: transportationCost,
               toBePaid: Number(actualFreightPaidAmount || 0),
               documentUrl: uploadedDocUrl,
+              dispatchDocumentUrl: uploadedDocUrl,
+              documentUrls: uploadedDocUrls,
+              photos: photos.map((p) => ({
+                id: p.id,
+                name: p.name,
+                size: p.size,
+                type: p.type,
+                source: p.source,
+                previewUrl: p.previewUrl,
+                dataUrl: p.dataUrl,
+              })),
               deliveryAddress: deliveryAddresses[orderId] || formatAddress(grp.salesOrder, grp.salesOrder.customer),
               createdAt: new Date().toISOString(),
             };

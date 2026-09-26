@@ -121,8 +121,12 @@ interface Dispatch {
   eta: string | null;
   expectedDeliveryDate?: string | null;
   podUrl: string | null;
+  deliveryPhotoUrl?: string | null;
+  signatureUrl?: string | null;
+  specialInstructions?: string | null;
   documentUrl?: string | null;
   dispatchDocumentUrl?: string | null;
+  documentUrls?: string[] | null;
   documentChecklist?: any;
   deliveryRemarks: string | null;
   createdAt?: string;
@@ -223,6 +227,25 @@ function formatDateDisplay(dateStr?: string | null): string {
   } catch {
     return String(dateStr);
   }
+}
+
+function isPdfUrl(url?: string | null): boolean {
+  if (!url || typeof url !== "string") return false;
+  const clean = url.split("?")[0].toLowerCase();
+  return clean.endsWith(".pdf") || clean.includes("application/pdf") || clean.includes("/pdf/");
+}
+
+function parseChecklist(checklistRaw: any): Record<string, any> {
+  if (!checklistRaw) return {};
+  if (typeof checklistRaw === "object") return checklistRaw;
+  if (typeof checklistRaw === "string") {
+    try {
+      return JSON.parse(checklistRaw);
+    } catch {
+      return {};
+    }
+  }
+  return {};
 }
 
 function extractTransportationCost(order: any): number {
@@ -336,6 +359,19 @@ export default function DeliveryHistoryPage() {
   const [search, setSearch] = useState("");
   const [selectedPodItem, setSelectedPodItem] = useState<Dispatch | null>(null);
   const [selectedDispatchDetails, setSelectedDispatchDetails] = useState<Dispatch | null>(null);
+  const [activeDispatchDocIdx, setActiveDispatchDocIdx] = useState<number>(0);
+  const [previewDocModal, setPreviewDocModal] = useState<{
+    url: string;
+    title: string;
+    subtitle?: string;
+    isPdf?: boolean;
+    downloadName?: string;
+  } | null>(null);
+
+  const openDispatchDetails = (d: Dispatch) => {
+    setActiveDispatchDocIdx(0);
+    setSelectedDispatchDetails(d);
+  };
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   const {
@@ -781,7 +817,7 @@ export default function DeliveryHistoryPage() {
                         <td style={{ textAlign: "center" }}>
                           <button
                             type="button"
-                            onClick={() => setSelectedDispatchDetails(d)}
+                            onClick={() => openDispatchDetails(d)}
                             className={styles.btnViewDetails}
                             title="View all create dispatch consignment details"
                           >
@@ -855,7 +891,7 @@ export default function DeliveryHistoryPage() {
 
                     <button
                       type="button"
-                      onClick={() => setSelectedDispatchDetails(d)}
+                      onClick={() => openDispatchDetails(d)}
                       className={styles.btnViewDetails}
                       style={{ width: "100%", justifyContent: "center", padding: "9px" }}
                     >
@@ -996,9 +1032,86 @@ export default function DeliveryHistoryPage() {
           ? Number(rawToBePaid)
           : (fetchedCostVal !== null ? fetchedCostVal : 0);
 
-        const docUrl = d.podUrl || d.documentUrl || d.dispatchDocumentUrl || d.documentChecklist?.documentUrl || localMeta?.documentUrl;
-        const assetUrl = docUrl ? getBackendAssetUrl(docUrl) : null;
-        const isPdf = Boolean(assetUrl && assetUrl.toLowerCase().includes(".pdf"));
+        const checklist = parseChecklist(d.documentChecklist);
+        const isDelivered = String(d.status).toUpperCase() === "DELIVERED";
+
+        // ── 1. POD Candidate Resolution ──
+        const podCandidate =
+          d.podUrl ||
+          d.deliveryPhotoUrl ||
+          d.signatureUrl ||
+          checklist.podUrl ||
+          checklist.deliveryProofUrl ||
+          checklist.deliveryPhotoUrl ||
+          localMeta?.podUrl ||
+          localMeta?.deliveryProofUrl;
+
+        const isPodCandidateProof = Boolean(
+          podCandidate && (
+            podCandidate.includes("/pod/") ||
+            podCandidate.includes("pod-") ||
+            podCandidate.toLowerCase().includes("pod") ||
+            (isDelivered && (d.deliveredAt || d.receivedBy))
+          )
+        );
+
+        // ── 2. Dispatch Booking Documents Resolution ──
+        const rawDispatchDocList: string[] = [];
+
+        if (Array.isArray(checklist.documentUrls)) {
+          rawDispatchDocList.push(...checklist.documentUrls);
+        } else if (typeof checklist.documentUrls === "string" && checklist.documentUrls.trim()) {
+          try {
+            const parsed = JSON.parse(checklist.documentUrls);
+            if (Array.isArray(parsed)) rawDispatchDocList.push(...parsed);
+            else rawDispatchDocList.push(checklist.documentUrls);
+          } catch {
+            rawDispatchDocList.push(checklist.documentUrls);
+          }
+        }
+
+        if (checklist.documentUrl) rawDispatchDocList.push(checklist.documentUrl);
+        if (checklist.dispatchDocumentUrl) rawDispatchDocList.push(checklist.dispatchDocumentUrl);
+        if (checklist.dispatchPhotoUrl) rawDispatchDocList.push(checklist.dispatchPhotoUrl);
+        if (checklist.attachmentUrl) rawDispatchDocList.push(checklist.attachmentUrl);
+        if ((d as any).dispatchDocumentUrl) rawDispatchDocList.push((d as any).dispatchDocumentUrl);
+        if ((d as any).documentUrl) rawDispatchDocList.push((d as any).documentUrl);
+
+        if (Array.isArray(localMeta?.documentUrls)) {
+          rawDispatchDocList.push(...localMeta.documentUrls);
+        }
+        if (localMeta?.documentUrl) rawDispatchDocList.push(localMeta.documentUrl);
+        if (localMeta?.dispatchDocumentUrl) rawDispatchDocList.push(localMeta.dispatchDocumentUrl);
+        if (Array.isArray(localMeta?.photos)) {
+          localMeta.photos.forEach((p: any) => {
+            const u = p?.url || p?.previewUrl || p?.dataUrl;
+            if (u) rawDispatchDocList.push(u);
+          });
+        }
+
+        // Fallback: If podCandidate exists but is not marked as delivery proof (e.g. in-transit consignment)
+        if (podCandidate && !isPodCandidateProof) {
+          rawDispatchDocList.push(podCandidate);
+        }
+
+        // Deduplicate URLs and exclude podCandidate if it's already a separate POD and another doc exists
+        const dispatchDocs = Array.from(new Set(rawDispatchDocList.filter(Boolean))).filter((url) => {
+          if (podCandidate && isPodCandidateProof && url === podCandidate && (rawDispatchDocList.length > 1 || url.includes("/pod/"))) {
+            return false;
+          }
+          return true;
+        });
+
+        // ── 3. POD Document Final ──
+        const podDocUrl = isPodCandidateProof && podCandidate ? podCandidate : null;
+        const podAssetUrl = podDocUrl ? getBackendAssetUrl(podDocUrl) : null;
+        const isPodPdf = Boolean(podAssetUrl && isPdfUrl(podAssetUrl));
+
+        // ── 4. Active Dispatch Document Final ──
+        const safeActiveIdx = activeDispatchDocIdx < dispatchDocs.length ? activeDispatchDocIdx : 0;
+        const currentDispatchDocUrl = dispatchDocs[safeActiveIdx] || dispatchDocs[0] || null;
+        const dispatchAssetUrl = currentDispatchDocUrl ? getBackendAssetUrl(currentDispatchDocUrl) : null;
+        const isDispatchPdf = Boolean(dispatchAssetUrl && isPdfUrl(dispatchAssetUrl));
 
         const itemsList = Array.isArray(d.items) && d.items.length > 0
           ? d.items
@@ -1295,69 +1408,153 @@ export default function DeliveryHistoryPage() {
                   </div>
                 </div>
 
-                {/* ── Section 5: Dispatch Document (PDF / Image) ── */}
+                {/* ── Section 5: Dispatch Document (Invoice / Challan / LR Photo / PDF) ── */}
                 <div className={styles.detailsSection}>
                   <div className={styles.detailsSectionHeader}>
-                    <h3 className={styles.detailsSectionTitle}>
-                      <FileText size={16} />
-                      Dispatch Document (PDF / Image) &amp; Proof
-                    </h3>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", flexWrap: "wrap", gap: 8 }}>
+                      <h3 className={styles.detailsSectionTitle}>
+                        <FileText size={16} />
+                        Dispatch Document (Invoice / Challan / LR Photo / PDF)
+                      </h3>
+                      <span className={styles.docBadgeBooking}>
+                        Consignment Booking Attachment (Max 50 MB)
+                      </span>
+                    </div>
                   </div>
 
-                  {assetUrl ? (
+                  {dispatchDocs.length > 0 ? (
                     <div className={styles.docContainer}>
-                      <div className={styles.docPreviewBox}>
-                        {isPdf ? (
-                          <iframe
-                            src={assetUrl}
-                            className={styles.docPdfFrame}
-                            title="Dispatch PDF Document"
-                          />
-                        ) : (
-                          <img
-                            src={assetUrl}
-                            alt="Dispatch Document"
-                            className={styles.docImage}
-                          />
-                        )}
-                      </div>
+                      {/* Multi-document thumbnail gallery if > 1 document */}
+                      {dispatchDocs.length > 1 && (
+                        <div>
+                          <div style={{ fontSize: "11.5px", fontWeight: 700, color: "#64748b", marginBottom: 6 }}>
+                            Attached Documents ({dispatchDocs.length} files) — Tap to switch view:
+                          </div>
+                          <div className={styles.docThumbGallery}>
+                            {dispatchDocs.map((u, idx) => {
+                              const isP = isPdfUrl(u);
+                              const aUrl = getBackendAssetUrl(u);
+                              const isActive = idx === safeActiveIdx;
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => setActiveDispatchDocIdx(idx)}
+                                  className={`${styles.docThumbBtn} ${isActive ? styles.docThumbActive : ""}`}
+                                >
+                                  {isP ? (
+                                    <div className={styles.docThumbPdf}>PDF</div>
+                                  ) : (
+                                    <img src={aUrl} alt={`Doc ${idx + 1}`} className={styles.docThumbImg} />
+                                  )}
+                                  <span>Doc #{idx + 1}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
-                      <div className={styles.docActionsBar}>
-                        <a
-                          href={assetUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={styles.btnActionPrimary}
-                          style={{ padding: "7px 14px", fontSize: "12px", textDecoration: "none" }}
-                        >
-                          <ExternalLink size={13} />
-                          <span>Open in New Tab</span>
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => downloadAssetFile(docUrl!, `dispatch_doc_${cleanDispNo}`)}
-                          className={styles.btnModalAction}
-                        >
-                          <Download size={13} />
-                          <span>Download Document</span>
-                        </button>
-                      </div>
+                      {/* Active Document Preview Box */}
+                      {dispatchAssetUrl && (
+                        <>
+                          <div
+                            className={styles.docPreviewBox}
+                            onClick={() =>
+                              !isDispatchPdf &&
+                              setPreviewDocModal({
+                                url: dispatchAssetUrl,
+                                title: `Dispatch Document (Invoice / Challan / LR Photo)`,
+                                subtitle: `Consignment #${cleanDispNo} · Order #${cleanSoNo}`,
+                                isPdf: false,
+                                downloadName: `dispatch_doc_${cleanDispNo}_${safeActiveIdx + 1}`,
+                              })
+                            }
+                            style={{ cursor: isDispatchPdf ? "default" : "zoom-in" }}
+                            title={isDispatchPdf ? "PDF Document" : "Click to view full image in lightbox"}
+                          >
+                            {isDispatchPdf ? (
+                              <iframe
+                                src={dispatchAssetUrl}
+                                className={styles.docPdfFrame}
+                                title="Dispatch PDF Document"
+                              />
+                            ) : (
+                              <div className={styles.docImageWrapper}>
+                                <img
+                                  src={dispatchAssetUrl}
+                                  alt="Dispatch Document"
+                                  className={styles.docImage}
+                                />
+                                <div className={styles.zoomOverlayHint}>
+                                  <Eye size={15} />
+                                  <span>Click to zoom</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className={styles.docActionsBar}>
+                            <a
+                              href={dispatchAssetUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={styles.btnActionPrimary}
+                              style={{ padding: "7px 14px", fontSize: "12px", textDecoration: "none" }}
+                            >
+                              <ExternalLink size={13} />
+                              <span>Open in New Tab</span>
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => downloadAssetFile(currentDispatchDocUrl!, `dispatch_doc_${cleanDispNo}_${safeActiveIdx + 1}`)}
+                              className={styles.btnModalAction}
+                            >
+                              <Download size={13} />
+                              <span>Download Document</span>
+                            </button>
+                            {!isDispatchPdf && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPreviewDocModal({
+                                    url: dispatchAssetUrl,
+                                    title: `Dispatch Document (Invoice / Challan / LR Photo)`,
+                                    subtitle: `Consignment #${cleanDispNo} · Order #${cleanSoNo}`,
+                                    isPdf: false,
+                                    downloadName: `dispatch_doc_${cleanDispNo}_${safeActiveIdx + 1}`,
+                                  })
+                                }
+                                className={styles.btnModalAction}
+                              >
+                                <Eye size={13} />
+                                <span>Inspect Fullscreen</span>
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <div className={styles.docNoFile}>
-                      No dispatch document or POD uploaded during consignment booking.
+                      No dispatch document (Invoice / Challan / LR Photo / PDF) uploaded during consignment booking.
                     </div>
                   )}
                 </div>
 
-                {/* ── Section 6: Delivery Handover Confirmation (if delivered) ── */}
-                {String(d.status).toUpperCase() === "DELIVERED" && (
+                {/* ── Section 6: Delivery Handover Confirmation & Proof of Delivery (if delivered) ── */}
+                {isDelivered && (
                   <div className={styles.detailsSection} style={{ borderLeft: "4px solid #10b981" }}>
                     <div className={styles.detailsSectionHeader}>
-                      <h3 className={styles.detailsSectionTitle} style={{ color: "#166534" }}>
-                        <CheckCircle2 size={16} color="#16a34a" />
-                        Consignee Delivery Handover Verification
-                      </h3>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", flexWrap: "wrap", gap: 8 }}>
+                        <h3 className={styles.detailsSectionTitle} style={{ color: "#166534" }}>
+                          <CheckCircle2 size={16} color="#16a34a" />
+                          Consignee Delivery Handover Verification &amp; Proof of Delivery (POD)
+                        </h3>
+                        <span className={styles.docBadgeDelivered}>
+                          Handover Verified
+                        </span>
+                      </div>
                     </div>
 
                     <div className={styles.handoverGrid}>
@@ -1379,6 +1576,97 @@ export default function DeliveryHistoryPage() {
                         <span className={styles.specLabel}>Delivery Remarks</span>
                         <span className={styles.specValue}>{d.deliveryRemarks || "Verified Handover"}</span>
                       </div>
+                    </div>
+
+                    {/* Proof of Delivery (POD) Image / Document Preview */}
+                    <div style={{ marginTop: 16 }}>
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                        <ImageIcon size={14} color="#16a34a" />
+                        <span>Signed Proof of Delivery (POD) / Handover Verification Document</span>
+                      </div>
+
+                      {podAssetUrl ? (
+                        <div className={styles.docContainer}>
+                          <div
+                            className={styles.docPreviewBox}
+                            onClick={() =>
+                              !isPodPdf &&
+                              setPreviewDocModal({
+                                url: podAssetUrl,
+                                title: `Proof of Delivery (POD)`,
+                                subtitle: `Consignment #${cleanDispNo} · Received by ${d.receivedBy || "Recipient Signed"}`,
+                                isPdf: false,
+                                downloadName: `POD_${cleanDispNo}`,
+                              })
+                            }
+                            style={{ cursor: isPodPdf ? "default" : "zoom-in" }}
+                            title={isPodPdf ? "POD PDF Document" : "Click to view full POD in lightbox"}
+                          >
+                            {isPodPdf ? (
+                              <iframe
+                                src={podAssetUrl}
+                                className={styles.docPdfFrame}
+                                title="POD PDF Document"
+                              />
+                            ) : (
+                              <div className={styles.docImageWrapper}>
+                                <img
+                                  src={podAssetUrl}
+                                  alt="Proof of Delivery Document"
+                                  className={styles.docImage}
+                                />
+                                <div className={styles.zoomOverlayHint}>
+                                  <Eye size={15} />
+                                  <span>Click to zoom</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className={styles.docActionsBar}>
+                            <a
+                              href={podAssetUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={styles.btnActionPrimary}
+                              style={{ padding: "7px 14px", fontSize: "12px", textDecoration: "none" }}
+                            >
+                              <ExternalLink size={13} />
+                              <span>Open in New Tab</span>
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => downloadAssetFile(podDocUrl!, `POD_${cleanDispNo}`)}
+                              className={styles.btnModalAction}
+                            >
+                              <Download size={13} />
+                              <span>Download POD Document</span>
+                            </button>
+                            {!isPodPdf && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPreviewDocModal({
+                                    url: podAssetUrl,
+                                    title: `Proof of Delivery (POD)`,
+                                    subtitle: `Consignment #${cleanDispNo} · Received by ${d.receivedBy || "Recipient Signed"}`,
+                                    isPdf: false,
+                                    downloadName: `POD_${cleanDispNo}`,
+                                  })
+                                }
+                                className={styles.btnModalAction}
+                              >
+                                <Eye size={13} />
+                                <span>Inspect Fullscreen</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={styles.docNoFile}>
+                          Handover recorded without digital POD photo or document.
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1522,6 +1810,93 @@ export default function DeliveryHistoryPage() {
           </div>
         );
       })()}
+
+      {/* ─── FULL HIGH-RESOLUTION LIGHTBOX MODAL ─── */}
+      {previewDocModal && (
+        <div className={styles.lightboxBackdrop} onClick={() => setPreviewDocModal(null)}>
+          <div className={styles.lightboxCard} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.lightboxHeader}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ padding: "6px 8px", background: "rgba(37, 99, 235, 0.1)", borderRadius: 8, color: "#2563eb", display: "grid", placeItems: "center" }}>
+                  <ImageIcon size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a", margin: 0 }}>
+                    {previewDocModal.title}
+                  </h3>
+                  {previewDocModal.subtitle && (
+                    <p style={{ fontSize: "12px", color: "#64748b", margin: "2px 0 0 0" }}>
+                      {previewDocModal.subtitle}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <a
+                  href={previewDocModal.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.btnModalAction}
+                  title="Open in new window"
+                  style={{ textDecoration: "none" }}
+                >
+                  <ExternalLink size={13} />
+                  <span>Open Full</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => downloadAssetFile(previewDocModal.url, previewDocModal.downloadName || "dispatch_document")}
+                  className={styles.btnModalAction}
+                  title="Download File"
+                >
+                  <Download size={13} />
+                  <span>Download</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDocModal(null)}
+                  className={styles.btnModalClose}
+                  style={{ background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1" }}
+                  title="Close preview"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className={styles.lightboxBody}>
+              {previewDocModal.isPdf ? (
+                <iframe
+                  src={previewDocModal.url}
+                  style={{ width: "100%", height: "70vh", border: "none", borderRadius: 8 }}
+                  title={previewDocModal.title}
+                />
+              ) : (
+                <img
+                  src={previewDocModal.url}
+                  alt={previewDocModal.title}
+                  className={styles.lightboxImg}
+                />
+              )}
+            </div>
+
+            <div className={styles.lightboxFooter}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, fontSize: "12px", color: "#64748b" }}>
+                <span>Verified Consignment Document · High-Resolution Inspector</span>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDocModal(null)}
+                  className={styles.btnActionPrimary}
+                  style={{ padding: "6px 14px", fontSize: "12px" }}
+                >
+                  Close Preview
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

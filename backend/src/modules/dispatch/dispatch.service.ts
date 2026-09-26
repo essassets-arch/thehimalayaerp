@@ -826,6 +826,8 @@ export class DispatchService {
               fetchedTransportationCost: dto.fetchedTransportationCost,
               toBePaid: dto.freightAmount,
               documentUrl: dto.documentUrl || dto.dispatchDocumentUrl,
+              dispatchDocumentUrl: dto.dispatchDocumentUrl || dto.documentUrl,
+              documentUrls: dto.documentUrls || (dto.documentUrl ? [dto.documentUrl] : []),
               deliveryAddress: dto.deliveryAddress,
             },
             items: {
@@ -1173,11 +1175,22 @@ export class DispatchService {
           receiverPhone: dto.receiverPhone,
           deliveryRemarks: dto.deliveryRemarks,
           podUrl: dto.podImageUrl,
+          deliveryPhotoUrl: dto.podImageUrl,
           deliveryLatitude: dto.latitude,
           deliveryLongitude: dto.longitude,
           deliveredById: userId,
           podReceivedAt: new Date(),
           podStatus: 'APPROVED',
+          ...(dispatch.documentChecklist && typeof dispatch.documentChecklist === 'object'
+            ? {
+                documentChecklist: {
+                  ...((dispatch.documentChecklist as any) || {}),
+                  podUrl: dto.podImageUrl,
+                  deliveryProofUrl: dto.podImageUrl,
+                  deliveryPhotoUrl: dto.podImageUrl,
+                },
+              }
+            : {}),
           ...(cleanInvoice ? { invoiceNumber: cleanInvoice } : {}),
         },
       });
