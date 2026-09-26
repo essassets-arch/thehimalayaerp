@@ -342,6 +342,52 @@ export function mapSalesOrder(
         isTrading,
       };
 
+      const quoteItems = (order as any).quotation?.items || (order as any).sourceQuotation?.items || [];
+      const matchedQuoteItem = quoteItems.find((qi: any) => (qi.productId && qi.productId === item.productId) || (qi.id && qi.id === (item as any).quotationItemId)) || quoteItems[order.items.indexOf(item)];
+
+      const rawSpecs = (item as any).specifications || (item as any).productDetails || (item as any).description || matchedQuoteItem?.description || matchedQuoteItem?.specifications || null;
+      let specsText = '';
+      if (typeof rawSpecs === 'string') {
+        specsText = rawSpecs.trim();
+      } else if (rawSpecs && typeof rawSpecs === 'object') {
+        specsText = String(rawSpecs.description || rawSpecs.productDetails || rawSpecs.specifications || rawSpecs.size || '').trim();
+      }
+
+      // Extract size
+      let extractedSize: string | null = (typeof rawSpecs === 'object' && rawSpecs?.size) ? String(rawSpecs.size).trim() : null;
+      if (!extractedSize && specsText) {
+        const sizeMatch = specsText.match(/Size:\s*([^|,\n]+)/i);
+        if (sizeMatch) {
+          extractedSize = sizeMatch[1].trim();
+        } else {
+          const dimMatch = specsText.match(/(\d+(?:\.\d+)?\s*[xX*]\s*\d+(?:\.\d+)?(?:\s*[xX*]\s*\d+(?:\.\d+)?)?(?:\s*(?:MM|INCH|MTR|CM|M|FT))?)/i);
+          if (dimMatch) {
+            extractedSize = dimMatch[1].trim();
+          }
+        }
+      }
+      if (!extractedSize) {
+        const nameToSearch = item.productNameSnapshot || (item as any).product?.name || '';
+        const dimMatch = nameToSearch.match(/(\d+(?:\.\d+)?\s*[xX*]\s*\d+(?:\.\d+)?(?:\s*[xX*]\s*\d+(?:\.\d+)?)?(?:\s*(?:MM|INCH|MTR|CM|M|FT))?)/i);
+        if (dimMatch) {
+          extractedSize = dimMatch[1].trim();
+        } else {
+          const mmMatch = nameToSearch.match(/(\d+\s*MM)/i);
+          if (mmMatch) {
+            extractedSize = mmMatch[1].trim();
+          }
+        }
+      }
+
+      // Extract color
+      let extractedColor: string | null = (typeof rawSpecs === 'object' && rawSpecs?.color) ? String(rawSpecs.color).trim() : null;
+      if (!extractedColor && specsText) {
+        const colorMatch = specsText.match(/Color:\s*([^|,\n\s]+)/i);
+        if (colorMatch) {
+          extractedColor = colorMatch[1].trim();
+        }
+      }
+
       return {
         id: item.id,
         productId: item.productId,
@@ -368,6 +414,11 @@ export function mapSalesOrder(
         taxAmount: Number((item as any).taxAmount || 0),
         discountAmount: Number((item as any).discountAmount || 0),
         lineTotal: Number(item.lineTotal || (item as any).totalAmount || (Number(item.orderedQuantity) * Number(item.unitPrice))),
+        specifications: rawSpecs,
+        description: specsText || (item as any).description || '',
+        productDetails: specsText || (item as any).productDetails || '',
+        size: extractedSize || null,
+        color: extractedColor || null,
         fulfillment,
       };
     }),

@@ -188,11 +188,13 @@ export class SalesService {
       quotation: {
         include: {
           lead: true,
+          items: true,
         },
       },
       sourceQuotation: {
         include: {
           lead: true,
+          items: true,
         },
       },
       salesExecutive: { select: { id: true, name: true, email: true } },
@@ -306,11 +308,13 @@ export class SalesService {
       quotation: {
         include: {
           lead: true,
+          items: true,
         },
       },
       sourceQuotation: {
         include: {
           lead: true,
+          items: true,
         },
       },
       salesExecutive: { select: { id: true, name: true, email: true } },
@@ -838,8 +842,9 @@ export class SalesService {
       let quotationPaymentTerms: string | null = null;
       let quotationPaymentTermDays: number | null = null;
       let quotationPaymentTermStartDate: Date | null = null;
+      let quoteObj: any = null;
       if (dto.quotationId) {
-        const quoteObj = await tx.quotation.findFirst({
+        quoteObj = await tx.quotation.findFirst({
           where: {
             id: dto.quotationId,
             ...getQuotationSalesScope(userId, role),
@@ -850,6 +855,7 @@ export class SalesService {
             paymentTerms: true,
             paymentTermDays: true,
             createdAt: true,
+            items: true,
           },
         });
         if (!quoteObj && isSalespersonScopedRole(role)) {
@@ -918,17 +924,22 @@ export class SalesService {
           totalAmount: totals.totalAmount,
           createdById: userId,
           items: {
-            create: processedItems.map((item) => ({
-              productId: item.productId,
-              orderedQuantity: item.orderedQuantity,
-              unit: item.unit,
-              unitPrice: item.unitPrice,
-              taxableAmount: item.taxableAmount,
-              lineTotal: item.lineTotal,
-              productNameSnapshot:
-                productById.get(item.productId)?.name || 'Unknown Product',
-              productCodeSnapshot: productById.get(item.productId)?.sku,
-            })),
+            create: processedItems.map((item) => {
+              const matchedQuoteItem = (quoteObj as any)?.items?.find((qi: any) => qi.productId === item.productId);
+              const resolvedSpecs = (item as any).specifications || (item as any).productDetails || (item as any).description || matchedQuoteItem?.description || null;
+              return {
+                productId: item.productId,
+                orderedQuantity: item.orderedQuantity,
+                unit: item.unit,
+                unitPrice: item.unitPrice,
+                taxableAmount: item.taxableAmount,
+                lineTotal: item.lineTotal,
+                specifications: resolvedSpecs ? (typeof resolvedSpecs === 'object' ? resolvedSpecs : { description: resolvedSpecs }) : undefined,
+                productNameSnapshot:
+                  productById.get(item.productId)?.name || 'Unknown Product',
+                productCodeSnapshot: productById.get(item.productId)?.sku,
+              };
+            }),
           },
         },
         include: {

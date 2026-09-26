@@ -179,8 +179,8 @@ export class DispatchService {
           include: {
             customer: true,
             salesExecutive: { select: { id: true, name: true, email: true } },
-            sourceQuotation: { include: { lead: true } },
-            quotation: { include: { lead: true } },
+            sourceQuotation: { include: { lead: true, items: true } },
+            quotation: { include: { lead: true, items: true } },
           },
         },
         items: {
@@ -335,8 +335,8 @@ export class DispatchService {
           include: {
             customer: true,
             salesExecutive: { select: { id: true, name: true, email: true } },
-            sourceQuotation: { include: { lead: true } },
-            quotation: { include: { lead: true } },
+            sourceQuotation: { include: { lead: true, items: true } },
+            quotation: { include: { lead: true, items: true } },
           },
         },
         items: {

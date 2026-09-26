@@ -7468,7 +7468,7 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
                               <td style={{ padding: '16px 12px' }}>
                                 <div style={{ fontWeight: '700', color: '#24345C', fontSize: '14px' }}>{item.productName}</div>
                                 {item.productDetails && (
-                                  <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px', fontWeight: '500' }}>{item.productDetails}</div>
+                                  <div style={{ fontSize: '12px', color: '#0369a1', marginTop: '2px', fontWeight: '600' }}>{item.productDetails}</div>
                                 )}
                                 <div style={{ fontSize: '11px', color: '#5E6B82', marginTop: '3px' }}>Code: {item.code || 'P-PRD-01'}</div>
                               </td>

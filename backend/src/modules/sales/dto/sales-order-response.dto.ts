@@ -17,6 +17,11 @@ export interface SalesOrderItemResponseDto {
   taxAmount?: number;
   discountAmount?: number;
   lineTotal: number;
+  specifications?: any;
+  description?: string | null;
+  productDetails?: string | null;
+  size?: string | null;
+  color?: string | null;
   // Quantities computed from child documents
   deliveredQuantity?: number;
   returnedQuantity?: number;

@@ -489,6 +489,156 @@ export default function OrdersView({
     return <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>—</span>;
   };
 
+  const extractItemSize = (raw, productName) => {
+    if (!raw && !productName) return '';
+    let str = '';
+    if (typeof raw === 'string') {
+      str = raw.trim();
+    } else if (typeof raw === 'object' && raw) {
+      if (raw.size) return String(raw.size).trim();
+      if (raw.description) str = String(raw.description).trim();
+      else if (raw.productDetails) str = String(raw.productDetails).trim();
+    }
+
+    const sizeMatch = str.match(/Size:\s*([^|,\n]+)/i);
+    if (sizeMatch) {
+      return sizeMatch[1].trim();
+    }
+
+    const dimPattern = /(\d+(?:\.\d+)?\s*[xX*]\s*\d+(?:\.\d+)?(?:\s*[xX*]\s*\d+(?:\.\d+)?)?(?:\s*(?:MM|INCH|MTR|CM|M|FT))?)/i;
+    const dimMatch = str.match(dimPattern);
+    if (dimMatch) {
+      return dimMatch[1].trim();
+    }
+
+    if (productName) {
+      const nameMatch = productName.match(dimPattern);
+      if (nameMatch) {
+        return nameMatch[1].trim();
+      }
+      const mmMatch = productName.match(/(\d+\s*MM)/i);
+      if (mmMatch) {
+        return mmMatch[1].trim();
+      }
+    }
+
+    return '';
+  };
+
+  const cleanItemSpecs = (raw, productName) => {
+    if (!raw) return '';
+    let str = '';
+    if (typeof raw === 'string') {
+      str = raw.trim();
+    } else if (typeof raw === 'object') {
+      if (raw.description) str = String(raw.description).trim();
+      else if (raw.productDetails) str = String(raw.productDetails).trim();
+      else if (raw.size && raw.color) str = `Color: ${raw.color} | Size: ${raw.size}`;
+      else if (raw.size) str = `Size: ${raw.size}`;
+      else str = Object.entries(raw).map(([k, v]) => `${k}: ${v}`).join(' | ');
+    }
+    if (!str) return '';
+    if (productName && str.toLowerCase() === productName.toLowerCase()) return '';
+
+    const colorMatch = str.match(/Color:\s*([^|,\n\s]+)/i);
+    const sizeMatch = str.match(/Size:\s*([^|,\n]+)/i);
+    if (colorMatch && sizeMatch) {
+      return `Color: ${colorMatch[1].trim()} | Size: ${sizeMatch[1].trim()}`;
+    } else if (sizeMatch) {
+      return `Size: ${sizeMatch[1].trim()}`;
+    } else if (colorMatch) {
+      return `Color: ${colorMatch[1].trim()}`;
+    }
+    return str;
+  };
+
+  const renderOrderSizes = (order) => {
+    const rawItems = (Array.isArray(order?.items) && order.items.length > 0)
+      ? order.items
+      : (Array.isArray(order?.orderItems) && order.orderItems.length > 0)
+        ? order.orderItems
+        : (Array.isArray(order?.detailedItems) && order.detailedItems.length > 0)
+          ? order.detailedItems
+          : (Array.isArray(order?.quotation?.items) && order.quotation.items.length > 0)
+            ? order.quotation.items
+            : null;
+
+    const quoteItems = order?.quotation?.items || order?.sourceQuotation?.items || [];
+
+    if (rawItems && rawItems.length > 0) {
+      const sizes = rawItems.map((item, idx) => {
+        const matchedQuoteItem = quoteItems.find(qi => (qi.productId && (qi.productId === item.productId || qi.productId === item.id)) || qi.id === item.quotationItemId) || quoteItems[idx];
+        const rawSpec = item.size || item.specifications || item.productDetails || item.description || matchedQuoteItem?.description || matchedQuoteItem?.specifications || null;
+        const prodName = item.productName || item.productNameSnapshot || item.name || item.product?.name || '';
+        return extractItemSize(rawSpec, prodName);
+      }).filter(Boolean);
+
+      if (sizes.length > 0) {
+        const first = sizes[0];
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span style={{
+              display: 'inline-block',
+              background: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              color: '#0f172a',
+              padding: '2px 8px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontWeight: '700',
+              fontFamily: 'monospace',
+              letterSpacing: '0.02em',
+              whiteSpace: 'nowrap'
+            }}>
+              {first}
+            </span>
+            {sizes.length > 1 && (
+              <span
+                title={sizes.join('\n')}
+                style={{
+                  fontSize: '10.5px',
+                  fontWeight: '800',
+                  padding: '2px 6px',
+                  borderRadius: '10px',
+                  background: '#e0e7ff',
+                  color: '#4338ca',
+                  whiteSpace: 'nowrap',
+                  cursor: 'help'
+                }}
+              >
+                +{sizes.length - 1} more
+              </span>
+            )}
+          </div>
+        );
+      }
+    }
+
+    if (typeof order?.products === 'string' && order.products.trim()) {
+      const s = extractItemSize('', order.products);
+      if (s) {
+        return (
+          <span style={{
+            display: 'inline-block',
+            background: '#f8fafc',
+            border: '1px solid #cbd5e1',
+            color: '#0f172a',
+            padding: '2px 8px',
+            borderRadius: '6px',
+            fontSize: '12px',
+            fontWeight: '700',
+            fontFamily: 'monospace',
+            whiteSpace: 'nowrap'
+          }}>
+            {s}
+          </span>
+        );
+      }
+    }
+
+    return <span style={{ color: '#94a3b8', fontSize: '13px' }}>—</span>;
+  };
+
   const getOrderStatusLabel = (order) => {
     if (!order) return 'Pending';
     const status = String(order.status || order.orderStatus || '').toUpperCase();
@@ -950,6 +1100,7 @@ export default function OrdersView({
       ? currentDetailsOrder.items
       : null;
   const fallbackProductName = currentDetailsOrder?.products || 'Product';
+  const detailQuoteItems = currentDetailsOrder?.quotation?.items || currentDetailsOrder?.sourceQuotation?.items || [];
   const itemsList = currentDetailsOrder ? (sourceItems || [
     {
       productName: fallbackProductName,
@@ -959,15 +1110,20 @@ export default function OrdersView({
       discount: 0,
       tax: currentDetailsOrder.tax !== undefined ? currentDetailsOrder.tax : (currentDetailsOrder.gst !== undefined ? currentDetailsOrder.gst : 18)
     }
-  ]).map(item => ({
-    ...item,
-    productName: item.productName || item.name || 'Product',
-    code: item.code || item.productCode || '',
-    quantity: Number(item.quantity ?? item.orderedQuantity ?? 0),
-    unitPrice: Number(item.unitPrice ?? item.price ?? 0),
-    discount: Number(item.discount ?? 0),
-    tax: Number(item.tax ?? item.taxRate ?? 0),
-  })) : [];
+  ]).map((item, idx) => {
+    const matchedQuoteItem = detailQuoteItems.find(qi => (qi.productId && (qi.productId === item.productId || qi.productId === item.id)) || (item.name && qi.name && qi.name === item.name) || (item.productName && qi.productName && qi.productName === item.productName)) || detailQuoteItems[idx];
+    const rawSpecs = item.productDetails || item.specifications || item.description || matchedQuoteItem?.description || matchedQuoteItem?.specifications || null;
+    return {
+      ...item,
+      productName: item.productName || item.name || 'Product',
+      code: item.code || item.productCode || item.productCodeSnapshot || '',
+      quantity: Number(item.quantity ?? item.orderedQuantity ?? 0),
+      unitPrice: Number(item.unitPrice ?? item.price ?? 0),
+      discount: Number(item.discount ?? 0),
+      tax: Number(item.tax ?? item.taxRate ?? 0),
+      productDetails: rawSpecs,
+    };
+  }) : [];
 
   const calculatedSubtotal = itemsList.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
   const discountAmt = itemsList.reduce((sum, item) => sum + ((item.quantity * item.unitPrice) * (item.discount || 0) / 100), 0);
@@ -1174,6 +1330,7 @@ export default function OrdersView({
                   <th className={styles.orderIdCol}>Order ID</th>
                   <th className={styles.customerCol}>Customer</th>
                   <th className={styles.productsCol}>Products / Items</th>
+                  <th style={{ minWidth: '120px' }}>Size</th>
                   {!isProductionUser && <th className={styles.valueCol}>Total Value</th>}
                   <th className={styles.statusCol}>Order Status</th>
                   <th className={styles.remarksCol}>Remarks</th>
@@ -1185,7 +1342,7 @@ export default function OrdersView({
           <tbody>
             {filteredOrders.length === 0 ? (
               <tr>
-                <td colSpan={isProductionUser ? "6" : "7"} style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                <td colSpan={isProductionUser ? "7" : "8"} style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
                   {filter === 'Deleted' ? 'No deleted orders stored.' : 'No orders generated.'}
                 </td>
               </tr>
@@ -1495,6 +1652,9 @@ export default function OrdersView({
                     </td>
                     <td data-label="Products / Items" className={styles.productsCol}>
                       {renderOrderProducts(o)}
+                    </td>
+                    <td data-label="Size" style={{ fontSize: '12.5px', color: '#334155', fontWeight: '600' }}>
+                      {renderOrderSizes(o)}
                     </td>
                     {!isProductionUser && (
                       <td data-label="Total Value" className={styles.valueCol} style={{ fontWeight: '700' }}>
@@ -1896,6 +2056,10 @@ export default function OrdersView({
                     <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Products / Items</div>
                     {renderOrderProducts(o)}
                   </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Size</div>
+                    {renderOrderSizes(o)}
+                  </div>
                   <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                     <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '4px' }}>Status</div>
                     <StatusBadge status={isOrderDeleted(o) ? 'Deleted' : statusLabel} />
@@ -2207,8 +2371,10 @@ export default function OrdersView({
                           <td data-label="Product Details">
                             <div>
                               <div style={{ fontWeight: '700', color: '#1e293b' }}>{item.productName}</div>
-                              {item.productDetails && (
-                                <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px', fontWeight: '500' }}>{item.productDetails}</div>
+                              {cleanItemSpecs(item.productDetails, item.productName) && (
+                                <div style={{ fontSize: '12px', color: '#0369a1', marginTop: '2px', fontWeight: '600' }}>
+                                  {cleanItemSpecs(item.productDetails, item.productName)}
+                                </div>
                               )}
                               <div style={{ fontSize: '11px', color: '#5E6B82', marginTop: '2px', fontFamily: 'monospace' }}>Code: {item.code}</div>
                             </div>

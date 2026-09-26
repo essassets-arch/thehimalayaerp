@@ -37,6 +37,7 @@ export default function OrderDetailsModal({ order, role, onClose }) {
   const allOrders = useMemo(() => Array.isArray(erpState.orders) ? erpState.orders : [], [erpState.orders]);
   const allCustomers = useMemo(() => Array.isArray(erpState.customers) ? erpState.customers : [], [erpState.customers]);
   const allLeads = useMemo(() => Array.isArray(erpState.leads) ? erpState.leads : [], [erpState.leads]);
+  const allQuotations = useMemo(() => Array.isArray(erpState.quotations) ? erpState.quotations : [], [erpState.quotations]);
 
   // Async data state in case caller only passed minimal order summary
   const [asyncData, setAsyncData] = useState(null);
@@ -44,8 +45,10 @@ export default function OrderDetailsModal({ order, role, onClose }) {
   useEffect(() => {
     let isMounted = true;
     const fetchFullDetails = async () => {
-      // If we already have explicit address and GST, no need for network lookup
-      if ((order.billingAddress || order.address || order.customer?.billingAddress) && (order.gstin || order.customer?.gstin)) {
+      const hasSpecs = Array.isArray(order.items) && order.items.some(i => Boolean(i.specifications || i.productDetails || i.size || i.description));
+      const hasQuoteItems = Array.isArray(order.quotation?.items) && order.quotation.items.length > 0;
+      const hasAddrAndGst = (order.billingAddress || order.address || order.customer?.billingAddress) && (order.gstin || order.customer?.gstin);
+      if (hasAddrAndGst && (hasSpecs || hasQuoteItems)) {
         return;
       }
       try {
@@ -63,6 +66,33 @@ export default function OrderDetailsModal({ order, role, onClose }) {
     fetchFullDetails();
     return () => { isMounted = false; };
   }, [orderRef, order]);
+
+  const cleanItemSpecs = (raw, productName) => {
+    if (!raw) return '';
+    let str = '';
+    if (typeof raw === 'string') {
+      str = raw.trim();
+    } else if (typeof raw === 'object') {
+      if (raw.description) str = String(raw.description).trim();
+      else if (raw.productDetails) str = String(raw.productDetails).trim();
+      else if (raw.size && raw.color) str = `Color: ${raw.color} | Size: ${raw.size}`;
+      else if (raw.size) str = `Size: ${raw.size}`;
+      else str = Object.entries(raw).map(([k, v]) => `${k}: ${v}`).join(' | ');
+    }
+    if (!str) return '';
+    if (productName && str.toLowerCase() === productName.toLowerCase()) return '';
+
+    const colorMatch = str.match(/Color:\s*([^|,\n\s]+)/i);
+    const sizeMatch = str.match(/Size:\s*([^|,\n]+)/i);
+    if (colorMatch && sizeMatch) {
+      return `Color: ${colorMatch[1].trim()} | Size: ${sizeMatch[1].trim()}`;
+    } else if (sizeMatch) {
+      return `Size: ${sizeMatch[1].trim()}`;
+    } else if (colorMatch) {
+      return `Color: ${colorMatch[1].trim()}`;
+    }
+    return str;
+  };
 
   // Address formatter
   const resolveAddressString = (addr) => {
@@ -200,7 +230,28 @@ export default function OrderDetailsModal({ order, role, onClose }) {
 
   const transportVal = order.transportCharge !== undefined ? order.transportCharge : 0;
 
-  const itemsList = order.detailedItems || order.items || [
+  const matchedQuotation = useMemo(() => {
+    return allQuotations.find(q =>
+      (order.quotationId && q.id === order.quotationId) ||
+      (order.sourceQuotationId && q.id === order.sourceQuotationId) ||
+      (order.quotationNumber && (q.quotationNo === order.quotationNumber || q.quotationNumber === order.quotationNumber)) ||
+      (orderRef && (q.salesOrderNumber === orderRef || q.orderNo === orderRef))
+    ) || null;
+  }, [allQuotations, order, orderRef]);
+
+  const quoteItems = order.quotation?.items || order.sourceQuotation?.items || asyncData?.quotation?.items || asyncData?.sourceQuotation?.items || matchedQuotation?.items || matchedQuotation?.detailedItems || [];
+
+  const sourceItems = order.detailedItems?.length
+    ? order.detailedItems
+    : order.items?.length
+      ? order.items
+      : asyncData?.items?.length
+        ? asyncData.items
+        : matchedOrder?.items?.length
+          ? matchedOrder.items
+          : null;
+
+  const itemsList = (sourceItems || [
     {
       name: order.products || order.product || 'Unknown Product',
       code: order.code || `P-${((order.products || order.product || 'PRD').replace(/[^A-Za-z]/g, '').substring(0, 3) || 'PRD').toUpperCase()}-02`,
@@ -209,7 +260,20 @@ export default function OrderDetailsModal({ order, role, onClose }) {
       gst: order.tax !== undefined ? order.tax : (order.gst !== undefined ? order.gst : 18),
       total: order.total || order.totalValue || 0
     }
-  ];
+  ]).map((item, index) => {
+    const matchedQuoteItem = quoteItems.find(qi => (qi.productId && (qi.productId === item.productId || qi.productId === item.id)) || (item.name && qi.name && qi.name === item.name) || (item.productName && qi.productName && qi.productName === item.productName)) || quoteItems[index];
+    const rawSpecs = item.productDetails || item.specifications || item.description || matchedQuoteItem?.description || matchedQuoteItem?.specifications || null;
+    return {
+      ...item,
+      name: item.name || item.productName || item.productNameSnapshot || 'Unknown Product',
+      code: item.code || item.productCode || item.productCodeSnapshot || '',
+      qty: Number(item.qty ?? item.quantity ?? item.orderedQuantity ?? 1),
+      rate: Number(item.rate ?? item.unitPrice ?? 0),
+      gst: item.gst !== undefined ? item.gst : (item.tax !== undefined ? item.tax : (item.taxRate !== undefined ? item.taxRate : 18)),
+      total: item.total || (item.lineTotal ? Number(item.lineTotal) : null),
+      productDetails: rawSpecs,
+    };
+  });
 
   // Helper calculation values for fallback invoice totals if not explicitly provided
   const rawSubtotal = itemsList.reduce((sum, item) => {
@@ -261,7 +325,7 @@ export default function OrderDetailsModal({ order, role, onClose }) {
             <p style={{ fontSize: '13px', color: '#5E6B82', fontWeight: '600', margin: '2px 0 0 0' }}>Concrete & Aggregate Supply</p>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <h1 style={{ fontSize: '22px', fontWeight: '900', color: '#1e293b', letterSpacing: '-0.5px', margin: 0 }}>ORDER</h1>
+            <h1 style={{ fontSize: '22px', fontWeight: '900', color: '#1e293b', letterSpacing: '-0.5px', margin: 0 }}>PURCHASE ORDER</h1>
             <p style={{ fontSize: '13px', color: '#5E6B82', fontWeight: '700', margin: '4px 0 0 0' }}>Ref: {orderRef}</p>
           </div>
         </div>
@@ -318,8 +382,10 @@ export default function OrderDetailsModal({ order, role, onClose }) {
                     <td data-label="Product Details">
                       <div>
                         <div style={{ fontWeight: '700', color: '#1e293b' }}>{itemName}</div>
-                        {item.productDetails && (
-                          <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px', fontWeight: '500' }}>{item.productDetails}</div>
+                        {cleanItemSpecs(item.productDetails, itemName) && (
+                          <div style={{ fontSize: '12px', color: '#0369a1', marginTop: '2px', fontWeight: '600' }}>
+                            {cleanItemSpecs(item.productDetails, itemName)}
+                          </div>
                         )}
                         <div style={{ fontSize: '11px', color: '#5E6B82', marginTop: '2px', fontFamily: 'monospace' }}>Code: {itemCode}</div>
                       </div>

@@ -2380,6 +2380,7 @@ export class PlantHeadService {
         salesExecutive: { select: { id: true, name: true, email: true } },
         quotation: {
           include: {
+            items: true,
             salesExecutive: { select: { id: true, name: true, email: true } },
             lead: {
               include: {
@@ -2427,6 +2428,7 @@ export class PlantHeadService {
         salesExecutive: { select: { id: true, name: true, email: true } },
         quotation: {
           include: {
+            items: true,
             salesExecutive: { select: { id: true, name: true, email: true } },
             lead: {
               include: {

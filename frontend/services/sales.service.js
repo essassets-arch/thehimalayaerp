@@ -114,13 +114,18 @@ export const salesService = {
         discount_percent: qtn.discount || 0,
         gst_rate: qtn.tax || 18,
         idempotency_key,
-        items: (qtn.detailedItems || []).map(item => ({
+        items: (qtn.detailedItems || qtn.items || []).map(item => ({
           product_id: item.productId || item.code || null,
           product_name: item.productName || item.name,
           quantity: item.quantity || item.qty || 1,
           price: item.unitPrice || item.rate || 0,
           discount_percent: item.discount || 0,
           gst_rate: item.tax || 18,
+          productDetails: item.productDetails || item.description || item.specification || item.specifications || '',
+          description: item.description || item.productDetails || item.specification || item.specifications || '',
+          specifications: item.specifications || item.productDetails || item.description || item.specification || '',
+          size: item.size || '',
+          color: item.color || '',
         })),
         source_quotation_ref: String(qtn.id),
       };
