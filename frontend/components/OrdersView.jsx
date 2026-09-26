@@ -709,6 +709,41 @@ export default function OrdersView({
     );
   };
 
+  const formatOrderDate = (o) => {
+    if (!o) return '—';
+    const raw =
+      o.date ||
+      o.orderDate ||
+      o.order_date ||
+      o.customerPurchaseOrderDate ||
+      o.confirmedAt ||
+      o.createdAt ||
+      o.quotation?.createdAt ||
+      o.lead?.leadDate ||
+      o.quotation?.lead?.leadDate ||
+      o._raw?.orderDate ||
+      o._raw?.createdAt ||
+      o.raw?.orderDate ||
+      o.raw?.createdAt;
+
+    if (!raw) return '—';
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        return trimmed;
+      }
+      const d = new Date(trimmed);
+      if (!isNaN(d.getTime())) {
+        return d.toISOString().slice(0, 10);
+      }
+      return trimmed;
+    }
+    if (raw instanceof Date && !isNaN(raw.getTime())) {
+      return raw.toISOString().slice(0, 10);
+    }
+    return '—';
+  };
+
   const validOrders = orders.filter(o => {
     if (!o) return false;
     const orderReference = o.orderNo || o.orderNumber || o.orderId || o.id;
@@ -1276,6 +1311,9 @@ export default function OrdersView({
                             </span>
                           )}
                         </div>
+                        <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: '500', marginTop: '3px' }}>
+                          {formatOrderDate(o)}
+                        </div>
                       </td>
                       <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: 700 }}>{resolveOrderCustomerName(o)}</td>
                       <td data-label="Delivery Date">{deliveryDate}</td>
@@ -1447,6 +1485,9 @@ export default function OrdersView({
                             DELETED
                           </span>
                         )}
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: '500', marginTop: '3px' }}>
+                        {formatOrderDate(o)}
                       </div>
                     </td>
                     <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: '600' }}>
@@ -1844,6 +1885,10 @@ export default function OrdersView({
                     <div style={{ fontSize: '13px', fontWeight: '700', color: '#374151' }}>{o.customerName || o.customer?.name || o.customer?.companyName || '—'}</div>
                   </div>
                   <div>
+                    <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Order Date</div>
+                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>{formatOrderDate(o)}</div>
+                  </div>
+                  <div>
                     <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Total Value</div>
                     <div style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b' }}>{formatINR(total)}</div>
                   </div>
@@ -2120,7 +2165,7 @@ export default function OrdersView({
                   <p style={{ margin: '4px 0 0 0', color: '#475569', fontWeight: '600' }}>GST: <span style={{ textTransform: 'uppercase', fontFamily: 'monospace' }}>{clientGST}</span></p>
                 </div>
                 <div className="sheet-meta-right">
-                  <p style={{ margin: 0 }}><strong>Order Date:</strong> {currentDetailsOrder.date || '2026-06-05'}</p>
+                  <p style={{ margin: 0 }}><strong>Order Date:</strong> {formatOrderDate(currentDetailsOrder)}</p>
                   {(currentDetailsOrder.remarks || currentDetailsOrder.acceptanceRemarks || currentDetailsOrder.plantHeadRemarks) && (
                     <div style={{ margin: '8px 0 0 0', background: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'left' }}>
                       <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: '3px' }}>
@@ -2374,25 +2419,25 @@ export default function OrdersView({
                 <div>
                   <span style={{ fontSize: '11px', fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase' }}>Vehicle Number</span>
                   <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#1d4ed8', fontFamily: 'monospace', marginTop: '2px' }}>
-                    {selectedDeliveryModal.vehicleNumber || 'UK07AB1234'}
+                    {selectedDeliveryModal.vehicleNumber || '—'}
                   </div>
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase' }}>Driver Details</span>
                   <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#1e293b', marginTop: '2px' }}>
-                    {selectedDeliveryModal.driverName || 'Raj Kumar'} ({selectedDeliveryModal.driverPhone || '9876543210'})
+                    {selectedDeliveryModal.driverName ? `${selectedDeliveryModal.driverName}${selectedDeliveryModal.driverPhone ? ` (${selectedDeliveryModal.driverPhone})` : ''}` : '—'}
                   </div>
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase' }}>Delivered Date</span>
                   <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#1e293b', marginTop: '2px' }}>
-                    {selectedDeliveryModal.actualDeliveryDate || (selectedDeliveryModal.deliveredAt ? String(selectedDeliveryModal.deliveredAt).slice(0, 10) : '16 Jul 2026')}
+                    {selectedDeliveryModal.actualDeliveryDate || (selectedDeliveryModal.deliveredAt ? String(selectedDeliveryModal.deliveredAt).slice(0, 10) : '—')}
                   </div>
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase' }}>Received By</span>
                   <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#1e293b', marginTop: '2px' }}>
-                    {selectedDeliveryModal.receivedBy || 'Project Engineer - Mr. Sharma'}
+                    {selectedDeliveryModal.receivedBy || '—'}
                   </div>
                 </div>
                 <div>

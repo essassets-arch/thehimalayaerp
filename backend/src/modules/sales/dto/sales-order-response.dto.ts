@@ -41,6 +41,10 @@ export interface SalesOrderResponseDto {
   salesPersonName?: string;
   shippingAddress?: any;
   billingAddress?: any;
+  orderDate?: string;
+  date?: string;
+  customerPurchaseOrderDate?: string | null;
+  confirmedAt?: string | null;
 
   items: SalesOrderItemResponseDto[];
 

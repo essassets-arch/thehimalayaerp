@@ -1860,7 +1860,7 @@ export default function FinancePortal({ initialView, forceView }) {
             },
             { header: 'Customer', accessor: 'customerName', render: (row) => row.customerName || row.customer?.name },
             { header: 'Sales Representative', accessor: 'salesperson', render: (row) => row.salesperson || 'Alex Carter' },
-            { header: 'Order Date', accessor: 'date', render: (row) => row.date || '2026-06-05' },
+            { header: 'Order Date', accessor: 'date', render: (row) => row.date || row.orderDate || (row.createdAt ? String(row.createdAt).slice(0, 10) : '—') },
             { header: 'Overall Stage', accessor: 'overallStage' },
             { header: 'Total Value', accessor: 'payment.totalAmount', render: (row) => formatValLakh(row.payment?.totalAmount || row.totalValue || 0) }
           ]}

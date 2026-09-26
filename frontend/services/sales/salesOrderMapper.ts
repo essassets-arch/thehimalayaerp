@@ -77,7 +77,16 @@ export function normalizeSalesOrder(order: unknown): SalesOrder {
     customerPurchaseOrderNo: typeof source.customerPurchaseOrderNo === 'string' ? source.customerPurchaseOrderNo : null,
     customerPurchaseOrderDate: typeof source.customerPurchaseOrderDate === 'string' ? source.customerPurchaseOrderDate : null,
     customerPurchaseOrderFileUrl: typeof source.customerPurchaseOrderFileUrl === 'string' ? source.customerPurchaseOrderFileUrl : null,
-    orderDate: typeof source.orderDate === 'string' ? source.orderDate : (typeof source.createdAt === 'string' ? source.createdAt : null),
+    orderDate: typeof source.orderDate === 'string'
+      ? (source.orderDate.includes('T') ? source.orderDate.slice(0, 10) : source.orderDate)
+      : (typeof source.date === 'string'
+        ? (source.date.includes('T') ? source.date.slice(0, 10) : source.date)
+        : (typeof source.createdAt === 'string' ? source.createdAt.slice(0, 10) : null)),
+    date: typeof source.date === 'string'
+      ? (source.date.includes('T') ? source.date.slice(0, 10) : source.date)
+      : (typeof source.orderDate === 'string'
+        ? (source.orderDate.includes('T') ? source.orderDate.slice(0, 10) : source.orderDate)
+        : (typeof source.createdAt === 'string' ? source.createdAt.slice(0, 10) : null)),
     deliveryTerms: typeof source.deliveryTerms === 'string' ? source.deliveryTerms : null,
     requestedDeliveryDate: typeof source.requestedDeliveryDate === 'string' ? source.requestedDeliveryDate : null,
     paymentTerms: typeof source.paymentTerms === 'string' ? source.paymentTerms : null,

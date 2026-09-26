@@ -14,7 +14,19 @@ export default function OrderDetailsModal({ order, role, onClose }) {
   // Normalize data formats to support both top-level state data and custom format data
   const orderRef = order.orderNo || order.ref || order.salesOrderNumber || '';
   const customerName = order.customerName || (order.customer && typeof order.customer === 'object' ? (order.customer.name || order.customer.companyName) : order.customer) || '';
-  const date = order.date || order.orderDate || (order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-GB') : '2026-06-05');
+  const date = (() => {
+    const raw = order.date || order.orderDate || order.customerPurchaseOrderDate || order.confirmedAt || order.createdAt || order.quotation?.createdAt || order.lead?.leadDate;
+    if (!raw) return '—';
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+      const d = new Date(trimmed);
+      if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+      return trimmed;
+    }
+    if (raw instanceof Date && !isNaN(raw.getTime())) return raw.toISOString().slice(0, 10);
+    return '—';
+  })();
   
   const orderStatus = order.status || order.salesStatus || 'Pending';
   const productionStatus = order.productionStatus || 'Pending';

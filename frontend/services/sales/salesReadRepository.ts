@@ -69,6 +69,7 @@ export interface SalesOrder {
   customerPurchaseOrderDate?: string | null;
   customerPurchaseOrderFileUrl?: string | null;
   orderDate?: string | null;
+  date?: string | null;
   deliveryTerms?: string | null;
   requestedDeliveryDate?: string | null;
   paymentTerms?: string | null;

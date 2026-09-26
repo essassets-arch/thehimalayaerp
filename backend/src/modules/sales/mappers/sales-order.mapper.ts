@@ -449,6 +449,19 @@ export function mapSalesOrder(
     lostComplaintId: (order as any).lostComplaintId ?? undefined,
     lossRecord: (order as any).lossRecord ?? undefined,
 
+    orderDate: order.orderDate
+      ? (order.orderDate instanceof Date ? order.orderDate.toISOString().slice(0, 10) : String(order.orderDate).slice(0, 10))
+      : (order.createdAt instanceof Date ? order.createdAt.toISOString().slice(0, 10) : String(order.createdAt).slice(0, 10)),
+    date: order.orderDate
+      ? (order.orderDate instanceof Date ? order.orderDate.toISOString().slice(0, 10) : String(order.orderDate).slice(0, 10))
+      : (order.createdAt instanceof Date ? order.createdAt.toISOString().slice(0, 10) : String(order.createdAt).slice(0, 10)),
+    customerPurchaseOrderDate: order.customerPurchaseOrderDate
+      ? (order.customerPurchaseOrderDate instanceof Date ? order.customerPurchaseOrderDate.toISOString().slice(0, 10) : String(order.customerPurchaseOrderDate).slice(0, 10))
+      : null,
+    confirmedAt: order.confirmedAt
+      ? (order.confirmedAt instanceof Date ? order.confirmedAt.toISOString() : String(order.confirmedAt))
+      : null,
+
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
     version: order.version,
