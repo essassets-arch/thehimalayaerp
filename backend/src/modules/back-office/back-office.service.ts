@@ -605,8 +605,8 @@ export class BackOfficeService implements OnApplicationBootstrap {
     const diffTime = now.getTime() - due.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-    if (status === 'PAID') {
-      return { ageingDays: 0, ageingBucket: 'Paid / Settled' };
+    if (status === 'PAID' || status === 'ADVANCE') {
+      return { ageingDays: 0, ageingBucket: status === 'ADVANCE' ? 'Advance' : 'Paid / Settled' };
     }
 
     if (diffDays <= 0) {
@@ -1092,7 +1092,7 @@ export class BackOfficeService implements OnApplicationBootstrap {
 
     let status = dto.status || existing.status;
     if (dto.status === undefined) {
-      if (outstanding <= 0 && amtRcvd > 0 && status !== 'RT') {
+      if (outstanding <= 0 && amtRcvd > 0 && status !== 'RT' && status !== 'ADVANCE') {
         status = 'PAID';
       } else if (dto.salesType === 'RT') {
         status = 'RT';

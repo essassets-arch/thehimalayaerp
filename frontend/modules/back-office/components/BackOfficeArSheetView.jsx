@@ -101,9 +101,9 @@ function computeSystemCalculations(invoiceDateStr, termDaysNum, invAmtNum, rcvdA
   let ageingDays = 0;
   let ageingBucket = 'Yet To Due';
 
-  if (currentStatus === 'PAID' || (outstanding <= 0 && rcvdAmt > 0)) {
+  if (currentStatus === 'PAID' || currentStatus === 'ADVANCE' || (outstanding <= 0 && rcvdAmt > 0)) {
     ageingDays = 0;
-    ageingBucket = 'Paid / Settled';
+    ageingBucket = currentStatus === 'ADVANCE' ? 'Advance' : 'Paid / Settled';
   } else if (dueDateObj && !isNaN(dueDateObj.getTime())) {
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - dueDateObj.getTime()) / (1000 * 60 * 60 * 24));
@@ -322,7 +322,8 @@ export default function BackOfficeArSheetView({
     '61-90 Days',
     '91-120 Days',
     'More than 120 Days',
-    'Paid / Settled'
+    'Paid / Settled',
+    'Advance'
   ];
 
   const showToast = (msg) => {
@@ -451,7 +452,7 @@ export default function BackOfficeArSheetView({
         const inv = Number(value) || 0;
         const rcvd = Number(prev.amtRcvd) || 0;
         updated.outstanding = Number((inv - rcvd).toFixed(2));
-        if (updated.outstanding <= 0 && rcvd > 0 && prev.status !== 'RT') {
+        if (updated.outstanding <= 0 && rcvd > 0 && prev.status !== 'RT' && prev.status !== 'ADVANCE') {
           updated.status = 'PAID';
           updated.ageingDays = 0;
           updated.ageingBucket = 'Paid / Settled';
@@ -465,13 +466,43 @@ export default function BackOfficeArSheetView({
         if (rcvd > 0 && !prev.amtRcvdDate) {
           updated.amtRcvdDate = new Date().toISOString().split('T')[0];
         }
-        if (updated.outstanding <= 0 && rcvd > 0 && prev.status !== 'RT') {
+        if (updated.outstanding <= 0 && rcvd > 0 && prev.status !== 'RT' && prev.status !== 'ADVANCE') {
           updated.status = 'PAID';
           if (!prev.completePaymentDate) {
             updated.completePaymentDate = new Date().toISOString().split('T')[0];
           }
           updated.ageingDays = 0;
           updated.ageingBucket = 'Paid / Settled';
+        }
+      }
+
+      if (field === 'status') {
+        if (value === 'PAID') {
+          if (Number(prev.outstanding) > 0 && Number(prev.amtRcvd) === 0) {
+            updated.amtRcvd = Number(prev.invoiceAmount) || 0;
+            updated.outstanding = 0;
+          }
+          if (!prev.completePaymentDate) {
+            updated.completePaymentDate = new Date().toISOString().split('T')[0];
+          }
+          if (!prev.amtRcvdDate) {
+            updated.amtRcvdDate = new Date().toISOString().split('T')[0];
+          }
+          updated.ageingDays = 0;
+          updated.ageingBucket = 'Paid / Settled';
+        } else if (value === 'ADVANCE') {
+          if (Number(prev.outstanding) > 0 && Number(prev.amtRcvd) === 0) {
+            updated.amtRcvd = Number(prev.invoiceAmount) || 0;
+            updated.outstanding = 0;
+          }
+          if (!prev.amtRcvdDate) {
+            updated.amtRcvdDate = new Date().toISOString().split('T')[0];
+          }
+          if (!prev.completePaymentDate) {
+            updated.completePaymentDate = new Date().toISOString().split('T')[0];
+          }
+          updated.ageingDays = 0;
+          updated.ageingBucket = 'Advance';
         }
       }
 
@@ -632,14 +663,14 @@ export default function BackOfficeArSheetView({
         if (rcvd > 0 && !prev.amtRcvdDate) {
           updated.amtRcvdDate = new Date().toISOString().split('T')[0];
         }
-        if (updated.outstanding <= 0 && rcvd > 0 && prev.status !== 'RT') {
+        if (updated.outstanding <= 0 && rcvd > 0 && prev.status !== 'RT' && prev.status !== 'ADVANCE') {
           updated.status = 'PAID';
           if (!prev.completePaymentDate) {
             updated.completePaymentDate = new Date().toISOString().split('T')[0];
           }
           updated.ageingDays = 0;
           updated.ageingBucket = 'Paid / Settled';
-        } else if (updated.outstanding > 0 && rcvd > 0 && prev.status !== 'RT') {
+        } else if (updated.outstanding > 0 && rcvd > 0 && prev.status !== 'RT' && prev.status !== 'ADVANCE') {
           updated.status = 'PARTIAL';
         }
       }
@@ -658,6 +689,19 @@ export default function BackOfficeArSheetView({
           }
           updated.ageingDays = 0;
           updated.ageingBucket = 'Paid / Settled';
+        } else if (value === 'ADVANCE') {
+          if (Number(prev.amtRcvd) === 0 && invAmt > 0) {
+            updated.amtRcvd = invAmt;
+            updated.outstanding = 0;
+          }
+          if (!prev.amtRcvdDate) {
+            updated.amtRcvdDate = new Date().toISOString().split('T')[0];
+          }
+          if (!prev.completePaymentDate) {
+            updated.completePaymentDate = new Date().toISOString().split('T')[0];
+          }
+          updated.ageingDays = 0;
+          updated.ageingBucket = 'Advance';
         } else if (value === 'UNPAID') {
           if (section4Item?.dueDate) {
             const dueObj = new Date(section4Item.dueDate);
@@ -736,14 +780,14 @@ export default function BackOfficeArSheetView({
         if (rcvd > 0 && !prev.amtRcvdDate) {
           updated.amtRcvdDate = new Date().toISOString().split('T')[0];
         }
-        if (updated.outstanding <= 0 && rcvd > 0 && prev.status !== 'RT') {
+        if (updated.outstanding <= 0 && rcvd > 0 && prev.status !== 'RT' && prev.status !== 'ADVANCE') {
           updated.status = 'PAID';
           if (!prev.completePaymentDate) {
             updated.completePaymentDate = new Date().toISOString().split('T')[0];
           }
           updated.ageingDays = 0;
           updated.ageingBucket = 'Paid / Settled';
-        } else if (updated.outstanding > 0 && rcvd > 0 && prev.status !== 'RT') {
+        } else if (updated.outstanding > 0 && rcvd > 0 && prev.status !== 'RT' && prev.status !== 'ADVANCE') {
           updated.status = 'PARTIAL';
         }
       }
@@ -762,6 +806,19 @@ export default function BackOfficeArSheetView({
           }
           updated.ageingDays = 0;
           updated.ageingBucket = 'Paid / Settled';
+        } else if (value === 'ADVANCE') {
+          if (Number(prev.amtRcvd) === 0 && invAmt > 0) {
+            updated.amtRcvd = invAmt;
+            updated.outstanding = 0;
+          }
+          if (!prev.amtRcvdDate) {
+            updated.amtRcvdDate = new Date().toISOString().split('T')[0];
+          }
+          if (!prev.completePaymentDate) {
+            updated.completePaymentDate = new Date().toISOString().split('T')[0];
+          }
+          updated.ageingDays = 0;
+          updated.ageingBucket = 'Advance';
         } else if (value === 'UNPAID') {
           if (viewItem?.dueDate) {
             const dueObj = new Date(viewItem.dueDate);
@@ -836,14 +893,14 @@ export default function BackOfficeArSheetView({
         if (rcvd > 0 && !item.amtRcvdDate) {
           payload.amtRcvdDate = new Date().toISOString().split('T')[0];
         }
-        if (netOutstanding <= 0 && rcvd > 0 && item.status !== 'RT') {
+        if (netOutstanding <= 0 && rcvd > 0 && item.status !== 'RT' && item.status !== 'ADVANCE') {
           payload.status = 'PAID';
           if (!item.completePaymentDate) {
             payload.completePaymentDate = new Date().toISOString().split('T')[0];
           }
           payload.ageingDays = 0;
           payload.ageingBucket = 'Paid / Settled';
-        } else if (netOutstanding > 0 && rcvd > 0 && item.status !== 'RT') {
+        } else if (netOutstanding > 0 && rcvd > 0 && item.status !== 'RT' && item.status !== 'ADVANCE') {
           payload.status = 'PARTIAL';
         }
       }
@@ -858,6 +915,33 @@ export default function BackOfficeArSheetView({
           }
           payload.ageingDays = 0;
           payload.ageingBucket = 'Paid / Settled';
+        } else if (value === 'ADVANCE') {
+          if (Number(item.outstanding) > 0 && Number(item.amtRcvd) === 0) {
+            payload.amtRcvd = Number(item.invoiceAmount) || 0;
+            payload.outstanding = 0;
+            payload.amtRcvdDate = new Date().toISOString().split('T')[0];
+            payload.completePaymentDate = new Date().toISOString().split('T')[0];
+          }
+          payload.ageingDays = 0;
+          payload.ageingBucket = 'Advance';
+        } else if (value === 'UNPAID') {
+          if (item.dueDate) {
+            const dueObj = new Date(item.dueDate);
+            const now = new Date();
+            const diffDays = Math.floor((now.getTime() - dueObj.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays > 0) {
+              payload.ageingDays = diffDays;
+              if (diffDays <= 30) payload.ageingBucket = '1-30 Days';
+              else if (diffDays <= 45) payload.ageingBucket = '31-45 Days';
+              else if (diffDays <= 60) payload.ageingBucket = '46-60 Days';
+              else if (diffDays <= 90) payload.ageingBucket = '61-90 Days';
+              else if (diffDays <= 120) payload.ageingBucket = '91-120 Days';
+              else payload.ageingBucket = 'More than 120 Days';
+            } else {
+              payload.ageingDays = 0;
+              payload.ageingBucket = 'Yet To Due';
+            }
+          }
         }
       }
 
@@ -1539,6 +1623,7 @@ export default function BackOfficeArSheetView({
                 <option value="PARTIAL">PARTIAL</option>
                 <option value="PAID">PAID</option>
                 <option value="RT">RT (Retention)</option>
+                <option value="ADVANCE">ADVANCE</option>
               </select>
             </div>
 
@@ -1839,8 +1924,8 @@ export default function BackOfficeArSheetView({
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '3px',
-                        background: item.status === 'PAID' ? '#dcfce7' : item.status === 'PARTIAL' ? '#fef3c7' : item.status === 'RT' ? '#ede9fe' : '#fee2e2',
-                        color: item.status === 'PAID' ? '#15803d' : item.status === 'PARTIAL' ? '#b45309' : item.status === 'RT' ? '#7c3aed' : '#b91c1c'
+                        background: item.status === 'PAID' ? '#dcfce7' : item.status === 'ADVANCE' ? '#e0f2fe' : item.status === 'PARTIAL' ? '#fef3c7' : item.status === 'RT' ? '#ede9fe' : '#fee2e2',
+                        color: item.status === 'PAID' ? '#15803d' : item.status === 'ADVANCE' ? '#0369a1' : item.status === 'PARTIAL' ? '#b45309' : item.status === 'RT' ? '#7c3aed' : '#b91c1c'
                       }}
                     >
                       <span>{item.status}</span>
@@ -2354,10 +2439,12 @@ export default function BackOfficeArSheetView({
                                 cursor: 'pointer',
                                 outline: 'none',
                                 background: item.status === 'PAID' ? '#dcfce7'
+                                  : item.status === 'ADVANCE' ? '#e0f2fe'
                                   : item.status === 'PARTIAL' ? '#fef3c7'
                                   : item.status === 'RT' ? '#ede9fe'
                                   : '#fee2e2',
                                 color: item.status === 'PAID' ? '#15803d'
+                                  : item.status === 'ADVANCE' ? '#0369a1'
                                   : item.status === 'PARTIAL' ? '#b45309'
                                   : item.status === 'RT' ? '#7c3aed'
                                   : '#b91c1c'
@@ -2367,6 +2454,7 @@ export default function BackOfficeArSheetView({
                               <option value="PARTIAL">PARTIAL</option>
                               <option value="PAID">PAID</option>
                               <option value="RT">RT (Retention)</option>
+                              <option value="ADVANCE">ADVANCE</option>
                             </select>
                           ) : (
                             <button
@@ -2384,10 +2472,12 @@ export default function BackOfficeArSheetView({
                                 alignItems: 'center',
                                 gap: '3px',
                                 background: item.status === 'PAID' ? '#dcfce7'
+                                  : item.status === 'ADVANCE' ? '#e0f2fe'
                                   : item.status === 'PARTIAL' ? '#fef3c7'
                                   : item.status === 'RT' ? '#ede9fe'
                                   : '#fee2e2',
                                 color: item.status === 'PAID' ? '#15803d'
+                                  : item.status === 'ADVANCE' ? '#0369a1'
                                   : item.status === 'PARTIAL' ? '#b45309'
                                   : item.status === 'RT' ? '#7c3aed'
                                   : '#b91c1c'
@@ -3046,6 +3136,7 @@ export default function BackOfficeArSheetView({
                         <option value="PARTIAL">PARTIAL</option>
                         <option value="PAID">PAID</option>
                         <option value="RT">RT (Retention)</option>
+                        <option value="ADVANCE">ADVANCE</option>
                       </select>
                     </div>
 
@@ -3553,10 +3644,12 @@ export default function BackOfficeArSheetView({
                         fontWeight: '800',
                         background:
                           viewItem.status === 'PAID' ? '#dcfce7' :
+                          viewItem.status === 'ADVANCE' ? '#e0f2fe' :
                           viewItem.status === 'PARTIAL' ? '#fef3c7' :
                           viewItem.status === 'RT' ? '#ede9fe' : '#fee2e2',
                         color:
                           viewItem.status === 'PAID' ? '#15803d' :
+                          viewItem.status === 'ADVANCE' ? '#0369a1' :
                           viewItem.status === 'PARTIAL' ? '#b45309' :
                           viewItem.status === 'RT' ? '#6d28d9' : '#b91c1c'
                       }}>
@@ -3624,6 +3717,26 @@ export default function BackOfficeArSheetView({
                       <button
                         type="button"
                         onClick={() => {
+                          const invAmt = Number(viewItem.invoiceAmount) || 0;
+                          const today = new Date().toISOString().split('T')[0];
+                          setViewSection4Data(prev => ({
+                            ...prev,
+                            status: 'ADVANCE',
+                            amtRcvd: invAmt,
+                            amtRcvdDate: prev.amtRcvdDate || today,
+                            completePaymentDate: prev.completePaymentDate || today,
+                            ageingDays: 0,
+                            ageingBucket: 'Advance',
+                            outstanding: 0
+                          }));
+                        }}
+                        style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '4px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', fontWeight: '700', cursor: 'pointer' }}
+                      >
+                        ⚡ Mark Advance
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
                           setViewSection4Data(prev => ({ ...prev, status: 'RT' }));
                         }}
                         style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '4px', background: '#ede9fe', color: '#6d28d9', border: '1px solid #c4b5fd', fontWeight: '700', cursor: 'pointer' }}
@@ -3663,6 +3776,7 @@ export default function BackOfficeArSheetView({
                           <option value="PARTIAL">PARTIAL</option>
                           <option value="PAID">PAID</option>
                           <option value="RT">RT (Retention)</option>
+                          <option value="ADVANCE">ADVANCE</option>
                         </select>
                       </div>
 
@@ -4062,6 +4176,38 @@ export default function BackOfficeArSheetView({
                   <button
                     type="button"
                     onClick={() => {
+                      const invAmt = Number(section4Item.invoiceAmount) || 0;
+                      const today = new Date().toISOString().split('T')[0];
+                      setSection4FormData(prev => ({
+                        ...prev,
+                        status: 'ADVANCE',
+                        amtRcvd: invAmt,
+                        amtRcvdDate: prev.amtRcvdDate || today,
+                        completePaymentDate: prev.completePaymentDate || today,
+                        ageingDays: 0,
+                        ageingBucket: 'Advance',
+                        outstanding: 0
+                      }));
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '11px',
+                      padding: '5px 10px',
+                      borderRadius: '6px',
+                      background: '#e0f2fe',
+                      color: '#0369a1',
+                      border: '1px solid #7dd3fc',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span>⚡ Mark Advance</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
                       setSection4FormData(prev => ({ ...prev, status: 'RT' }));
                     }}
                     style={{
@@ -4130,13 +4276,14 @@ export default function BackOfficeArSheetView({
                         outline: 'none',
                         background: '#fff',
                         fontWeight: '700',
-                        color: section4FormData.status === 'PAID' ? '#15803d' : section4FormData.status === 'PARTIAL' ? '#b45309' : section4FormData.status === 'RT' ? '#6d28d9' : '#b91c1c'
+                        color: section4FormData.status === 'PAID' ? '#15803d' : section4FormData.status === 'ADVANCE' ? '#0369a1' : section4FormData.status === 'PARTIAL' ? '#b45309' : section4FormData.status === 'RT' ? '#6d28d9' : '#b91c1c'
                       }}
                     >
                       <option value="UNPAID">UNPAID</option>
                       <option value="PARTIAL">PARTIAL</option>
                       <option value="PAID">PAID</option>
                       <option value="RT">RT (Retention)</option>
+                      <option value="ADVANCE">ADVANCE</option>
                     </select>
                   </div>
 
