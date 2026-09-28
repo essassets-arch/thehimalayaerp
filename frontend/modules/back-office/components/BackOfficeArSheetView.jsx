@@ -31,7 +31,11 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
-  Info
+  Info,
+  Receipt,
+  Pencil,
+  Sliders,
+  Sparkles
 } from 'lucide-react';
 
 // Format Indian Rupee currency with exact 2 decimal preservation
@@ -226,8 +230,52 @@ export default function BackOfficeArSheetView({
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [viewItem, setViewItem] = useState(null);
 
+  // Section 4 Dedicated Quick Edit State (Receipts, Status, Ageing & Remarks)
+  const [section4ModalOpen, setSection4ModalOpen] = useState(false);
+  const [section4Item, setSection4Item] = useState(null);
+  const [section4FormData, setSection4FormData] = useState({
+    status: 'UNPAID',
+    amtRcvd: 0,
+    amtRcvdDate: '',
+    completePaymentDate: '',
+    ageingDays: 0,
+    ageingBucket: 'Yet To Due',
+    remarks: '',
+    outstanding: 0
+  });
+  const [section4Saving, setSection4Saving] = useState(false);
+
+  // Quick Inline Edit Mode in Table
+  const [isQuickEditMode, setIsQuickEditMode] = useState(false);
+  const [savingRowId, setSavingRowId] = useState(null);
+
+  // View Modal Section 4 Inline Edit
+  const [viewSection4Editing, setViewSection4Editing] = useState(false);
+  const [viewSection4Data, setViewSection4Data] = useState({
+    status: 'UNPAID',
+    amtRcvd: 0,
+    amtRcvdDate: '',
+    completePaymentDate: '',
+    ageingDays: 0,
+    ageingBucket: 'Yet To Due',
+    remarks: '',
+    outstanding: 0
+  });
+  const [viewSection4Saving, setViewSection4Saving] = useState(false);
+
   const handleOpenView = (item) => {
     setViewItem(item);
+    setViewSection4Editing(false);
+    setViewSection4Data({
+      status: item.status || 'UNPAID',
+      amtRcvd: item.amtRcvd !== undefined && item.amtRcvd !== null ? item.amtRcvd : 0,
+      amtRcvdDate: item.amtRcvdDate ? new Date(item.amtRcvdDate).toISOString().split('T')[0] : '',
+      completePaymentDate: item.completePaymentDate ? new Date(item.completePaymentDate).toISOString().split('T')[0] : '',
+      ageingDays: item.ageingDays !== undefined && item.ageingDays !== null ? item.ageingDays : 0,
+      ageingBucket: item.ageingBucket || 'Yet To Due',
+      remarks: item.remarks || '',
+      outstanding: item.outstanding !== undefined && item.outstanding !== null ? item.outstanding : 0
+    });
     setViewModalOpen(true);
   };
 
@@ -512,12 +560,317 @@ export default function BackOfficeArSheetView({
         }
       }
 
+      if (field === 'status') {
+        if (value === 'PAID') {
+          const invAmt = Number(prev.invoiceAmount) || 0;
+          if (Number(prev.amtRcvd) === 0 && invAmt > 0) {
+            updated.amtRcvd = invAmt;
+            updated.outstanding = 0;
+          }
+          if (!prev.completePaymentDate) {
+            updated.completePaymentDate = new Date().toISOString().split('T')[0];
+          }
+          if (!prev.amtRcvdDate) {
+            updated.amtRcvdDate = new Date().toISOString().split('T')[0];
+          }
+          updated.ageingDays = 0;
+          updated.ageingBucket = 'Paid / Settled';
+        } else if (value === 'UNPAID') {
+          if (prev.dueDate) {
+            const dueObj = new Date(prev.dueDate);
+            const now = new Date();
+            const diffDays = Math.floor((now.getTime() - dueObj.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays > 0) {
+              updated.ageingDays = diffDays;
+              if (diffDays <= 30) updated.ageingBucket = '1-30 Days';
+              else if (diffDays <= 45) updated.ageingBucket = '31-45 Days';
+              else if (diffDays <= 60) updated.ageingBucket = '46-60 Days';
+              else if (diffDays <= 90) updated.ageingBucket = '61-90 Days';
+              else if (diffDays <= 120) updated.ageingBucket = '91-120 Days';
+              else updated.ageingBucket = 'More than 120 Days';
+            } else {
+              updated.ageingDays = 0;
+              updated.ageingBucket = 'Yet To Due';
+            }
+          }
+        }
+      }
+
       if (field === 'salesType' && String(value).trim().toUpperCase() === 'RT') {
         updated.status = 'RT';
       }
 
       return updated;
     });
+  };
+
+  // Open Section 4 Quick Edit Modal (Receipts, Status, Ageing & Remarks)
+  const handleOpenSection4Edit = (item) => {
+    setSection4Item(item);
+    setSection4FormData({
+      status: item.status || 'UNPAID',
+      amtRcvd: item.amtRcvd !== undefined && item.amtRcvd !== null ? item.amtRcvd : 0,
+      amtRcvdDate: item.amtRcvdDate ? new Date(item.amtRcvdDate).toISOString().split('T')[0] : '',
+      completePaymentDate: item.completePaymentDate ? new Date(item.completePaymentDate).toISOString().split('T')[0] : '',
+      ageingDays: item.ageingDays !== undefined && item.ageingDays !== null ? item.ageingDays : 0,
+      ageingBucket: item.ageingBucket || 'Yet To Due',
+      remarks: item.remarks || '',
+      outstanding: item.outstanding !== undefined && item.outstanding !== null ? item.outstanding : (Number(item.invoiceAmount) || 0)
+    });
+    setSection4ModalOpen(true);
+  };
+
+  // Section 4 Modal Field Change with Live Auto-Calculations
+  const handleSection4FieldChange = (field, value) => {
+    setSection4FormData(prev => {
+      const updated = { ...prev, [field]: value };
+      const invAmt = Number(section4Item?.invoiceAmount) || 0;
+
+      if (field === 'amtRcvd') {
+        const rcvd = Number(value) || 0;
+        updated.outstanding = Number((invAmt - rcvd).toFixed(2));
+        if (rcvd > 0 && !prev.amtRcvdDate) {
+          updated.amtRcvdDate = new Date().toISOString().split('T')[0];
+        }
+        if (updated.outstanding <= 0 && rcvd > 0 && prev.status !== 'RT') {
+          updated.status = 'PAID';
+          if (!prev.completePaymentDate) {
+            updated.completePaymentDate = new Date().toISOString().split('T')[0];
+          }
+          updated.ageingDays = 0;
+          updated.ageingBucket = 'Paid / Settled';
+        } else if (updated.outstanding > 0 && rcvd > 0 && prev.status !== 'RT') {
+          updated.status = 'PARTIAL';
+        }
+      }
+
+      if (field === 'status') {
+        if (value === 'PAID') {
+          if (Number(prev.amtRcvd) === 0 && invAmt > 0) {
+            updated.amtRcvd = invAmt;
+            updated.outstanding = 0;
+          }
+          if (!prev.completePaymentDate) {
+            updated.completePaymentDate = new Date().toISOString().split('T')[0];
+          }
+          if (!prev.amtRcvdDate) {
+            updated.amtRcvdDate = new Date().toISOString().split('T')[0];
+          }
+          updated.ageingDays = 0;
+          updated.ageingBucket = 'Paid / Settled';
+        } else if (value === 'UNPAID') {
+          if (section4Item?.dueDate) {
+            const dueObj = new Date(section4Item.dueDate);
+            const now = new Date();
+            const diffDays = Math.floor((now.getTime() - dueObj.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays > 0) {
+              updated.ageingDays = diffDays;
+              if (diffDays <= 30) updated.ageingBucket = '1-30 Days';
+              else if (diffDays <= 45) updated.ageingBucket = '31-45 Days';
+              else if (diffDays <= 60) updated.ageingBucket = '46-60 Days';
+              else if (diffDays <= 90) updated.ageingBucket = '61-90 Days';
+              else if (diffDays <= 120) updated.ageingBucket = '91-120 Days';
+              else updated.ageingBucket = 'More than 120 Days';
+            } else {
+              updated.ageingDays = 0;
+              updated.ageingBucket = 'Yet To Due';
+            }
+          }
+        }
+      }
+
+      return updated;
+    });
+  };
+
+  // Submit Section 4 Quick Edit
+  const handleSaveSection4 = async (e) => {
+    if (e) e.preventDefault();
+    if (!section4Item) return;
+    setSection4Saving(true);
+    try {
+      const invAmt = Number(section4Item.invoiceAmount) || 0;
+      const rcvd = Number(section4FormData.amtRcvd) || 0;
+      const netOutstanding = Number((invAmt - rcvd).toFixed(2));
+
+      const payload = {
+        status: section4FormData.status,
+        amtRcvd: rcvd,
+        amtRcvdDate: section4FormData.amtRcvdDate || null,
+        completePaymentDate: section4FormData.completePaymentDate || null,
+        ageingDays: Number(section4FormData.ageingDays) || 0,
+        ageingBucket: section4FormData.ageingBucket || 'Yet To Due',
+        remarks: section4FormData.remarks ? String(section4FormData.remarks).trim() : '',
+        outstanding: netOutstanding
+      };
+
+      await updateInvoice(section4Item.id, payload);
+      showToast(`Receipts & Status updated for invoice #${section4Item.invoiceNo}`);
+
+      // Optimistic update of local table data
+      setData(prev => prev.map(row => (row.id === section4Item.id ? { ...row, ...payload } : row)));
+
+      if (viewItem && viewItem.id === section4Item.id) {
+        setViewItem(prev => ({ ...prev, ...payload }));
+      }
+
+      setSection4ModalOpen(false);
+      loadData();
+    } catch (err) {
+      console.error('Failed to update Receipts & Status:', err);
+      alert(err.message || 'Error updating receipts and status.');
+    } finally {
+      setSection4Saving(false);
+    }
+  };
+
+  // Handle View Modal Section 4 Field Changes with Auto-Calculations
+  const handleViewSection4FieldChange = (field, value) => {
+    setViewSection4Data(prev => {
+      const updated = { ...prev, [field]: value };
+      const invAmt = Number(viewItem?.invoiceAmount) || 0;
+
+      if (field === 'amtRcvd') {
+        const rcvd = Number(value) || 0;
+        updated.outstanding = Number((invAmt - rcvd).toFixed(2));
+        if (rcvd > 0 && !prev.amtRcvdDate) {
+          updated.amtRcvdDate = new Date().toISOString().split('T')[0];
+        }
+        if (updated.outstanding <= 0 && rcvd > 0 && prev.status !== 'RT') {
+          updated.status = 'PAID';
+          if (!prev.completePaymentDate) {
+            updated.completePaymentDate = new Date().toISOString().split('T')[0];
+          }
+          updated.ageingDays = 0;
+          updated.ageingBucket = 'Paid / Settled';
+        } else if (updated.outstanding > 0 && rcvd > 0 && prev.status !== 'RT') {
+          updated.status = 'PARTIAL';
+        }
+      }
+
+      if (field === 'status') {
+        if (value === 'PAID') {
+          if (Number(prev.amtRcvd) === 0 && invAmt > 0) {
+            updated.amtRcvd = invAmt;
+            updated.outstanding = 0;
+          }
+          if (!prev.completePaymentDate) {
+            updated.completePaymentDate = new Date().toISOString().split('T')[0];
+          }
+          if (!prev.amtRcvdDate) {
+            updated.amtRcvdDate = new Date().toISOString().split('T')[0];
+          }
+          updated.ageingDays = 0;
+          updated.ageingBucket = 'Paid / Settled';
+        } else if (value === 'UNPAID') {
+          if (viewItem?.dueDate) {
+            const dueObj = new Date(viewItem.dueDate);
+            const now = new Date();
+            const diffDays = Math.floor((now.getTime() - dueObj.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays > 0) {
+              updated.ageingDays = diffDays;
+              if (diffDays <= 30) updated.ageingBucket = '1-30 Days';
+              else if (diffDays <= 45) updated.ageingBucket = '31-45 Days';
+              else if (diffDays <= 60) updated.ageingBucket = '46-60 Days';
+              else if (diffDays <= 90) updated.ageingBucket = '61-90 Days';
+              else if (diffDays <= 120) updated.ageingBucket = '91-120 Days';
+              else updated.ageingBucket = 'More than 120 Days';
+            } else {
+              updated.ageingDays = 0;
+              updated.ageingBucket = 'Yet To Due';
+            }
+          }
+        }
+      }
+
+      return updated;
+    });
+  };
+
+  // Submit Section 4 from View Modal
+  const handleSaveViewSection4 = async () => {
+    if (!viewItem) return;
+    setViewSection4Saving(true);
+    try {
+      const invAmt = Number(viewItem.invoiceAmount) || 0;
+      const rcvd = Number(viewSection4Data.amtRcvd) || 0;
+      const netOutstanding = Number((invAmt - rcvd).toFixed(2));
+
+      const payload = {
+        status: viewSection4Data.status,
+        amtRcvd: rcvd,
+        amtRcvdDate: viewSection4Data.amtRcvdDate || null,
+        completePaymentDate: viewSection4Data.completePaymentDate || null,
+        ageingDays: Number(viewSection4Data.ageingDays) || 0,
+        ageingBucket: viewSection4Data.ageingBucket || 'Yet To Due',
+        remarks: viewSection4Data.remarks ? String(viewSection4Data.remarks).trim() : '',
+        outstanding: netOutstanding
+      };
+
+      await updateInvoice(viewItem.id, payload);
+      showToast(`Receipts & Status updated for #${viewItem.invoiceNo}`);
+
+      setViewItem(prev => ({ ...prev, ...payload }));
+      setData(prev => prev.map(row => (row.id === viewItem.id ? { ...row, ...payload } : row)));
+      setViewSection4Editing(false);
+      loadData();
+    } catch (err) {
+      console.error('Failed to save Section 4 in View modal:', err);
+      alert(err.message || 'Failed to save receipts and status.');
+    } finally {
+      setViewSection4Saving(false);
+    }
+  };
+
+  // Inline Table Field Direct Save
+  const handleInlineFieldSave = async (item, field, value) => {
+    setSavingRowId(item.id);
+    try {
+      const payload = { [field]: value };
+
+      if (field === 'amtRcvd') {
+        const invAmt = Number(item.invoiceAmount) || 0;
+        const rcvd = Number(value) || 0;
+        const netOutstanding = Number((invAmt - rcvd).toFixed(2));
+        payload.outstanding = netOutstanding;
+        if (rcvd > 0 && !item.amtRcvdDate) {
+          payload.amtRcvdDate = new Date().toISOString().split('T')[0];
+        }
+        if (netOutstanding <= 0 && rcvd > 0 && item.status !== 'RT') {
+          payload.status = 'PAID';
+          if (!item.completePaymentDate) {
+            payload.completePaymentDate = new Date().toISOString().split('T')[0];
+          }
+          payload.ageingDays = 0;
+          payload.ageingBucket = 'Paid / Settled';
+        } else if (netOutstanding > 0 && rcvd > 0 && item.status !== 'RT') {
+          payload.status = 'PARTIAL';
+        }
+      }
+
+      if (field === 'status') {
+        if (value === 'PAID') {
+          if (Number(item.outstanding) > 0 && Number(item.amtRcvd) === 0) {
+            payload.amtRcvd = Number(item.invoiceAmount) || 0;
+            payload.outstanding = 0;
+            payload.completePaymentDate = new Date().toISOString().split('T')[0];
+            payload.amtRcvdDate = new Date().toISOString().split('T')[0];
+          }
+          payload.ageingDays = 0;
+          payload.ageingBucket = 'Paid / Settled';
+        }
+      }
+
+      await updateInvoice(item.id, payload);
+      setData(prev => prev.map(r => (r.id === item.id ? { ...r, ...payload } : r)));
+      showToast(`Updated ${field} for #${item.invoiceNo}`);
+      loadData();
+    } catch (err) {
+      console.error(`Failed to update ${field}:`, err);
+      alert(err.message || `Failed to update ${field}`);
+    } finally {
+      setSavingRowId(null);
+    }
   };
 
   // Auto-Fill Calculation button click in modal
@@ -894,6 +1247,40 @@ export default function BackOfficeArSheetView({
               <span>Cards</span>
             </button>
           </div>
+
+          {/* Quick Edit Mode Toggle for Section 4 */}
+          <button
+            onClick={() => setIsQuickEditMode(!isQuickEditMode)}
+            title="Toggle Inline Quick Edit for Receipts, Status, Ageing & Remarks (Section 4)"
+            className="ar-btn-touch"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: isMobile ? '6px 10px' : '7px 14px',
+              fontSize: '12px',
+              fontWeight: '700',
+              borderRadius: '8px',
+              border: isQuickEditMode ? '1px solid #f59e0b' : '1px solid #cbd5e1',
+              background: isQuickEditMode ? '#fffbeb' : '#fff',
+              color: isQuickEditMode ? '#b45309' : '#475569',
+              boxShadow: isQuickEditMode ? '0 1px 3px rgba(245, 158, 11, 0.25)' : 'none',
+              cursor: 'pointer'
+            }}
+          >
+            <Pencil size={13} style={{ color: isQuickEditMode ? '#d97706' : '#64748b' }} />
+            <span>{isQuickEditMode ? 'Quick Edit: ON' : 'Quick Edit: OFF'}</span>
+            <span style={{
+              fontSize: '10px',
+              padding: '1px 5px',
+              borderRadius: '4px',
+              background: isQuickEditMode ? '#fef3c7' : '#f1f5f9',
+              color: isQuickEditMode ? '#92400e' : '#64748b',
+              fontWeight: '800'
+            }}>
+              Sec 4
+            </span>
+          </button>
 
           {/* Add Entry Button */}
           <button
@@ -1375,6 +1762,27 @@ export default function BackOfficeArSheetView({
                         <span>View</span>
                       </button>
                       <button
+                        onClick={() => handleOpenSection4Edit(item)}
+                        className="ar-btn-touch"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          padding: '5px 8px',
+                          background: '#fef3c7',
+                          border: '1px solid #fde68a',
+                          borderRadius: '6px',
+                          color: '#b45309',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          cursor: 'pointer'
+                        }}
+                        title="Update Receipts, Status, Ageing & Remarks"
+                      >
+                        <Receipt size={11} />
+                        <span>Status/Rcvd</span>
+                      </button>
+                      <button
                         onClick={() => handleOpenEdit(item)}
                         className="ar-btn-touch"
                         style={{
@@ -1390,7 +1798,7 @@ export default function BackOfficeArSheetView({
                           fontWeight: '700',
                           cursor: 'pointer'
                         }}
-                        title="Edit Invoice"
+                        title="Edit All 21 Columns"
                       >
                         <Edit2 size={11} />
                         <span>Edit</span>
@@ -1416,17 +1824,28 @@ export default function BackOfficeArSheetView({
 
                   {/* Card Row 2: Status, Sales Type & Ageing */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                    <span style={{
-                      padding: '2px 8px',
-                      borderRadius: '10px',
-                      fontSize: '10px',
-                      fontWeight: '800',
-                      textTransform: 'uppercase',
-                      background: item.status === 'PAID' ? '#dcfce7' : item.status === 'PARTIAL' ? '#fef3c7' : item.status === 'RT' ? '#ede9fe' : '#fee2e2',
-                      color: item.status === 'PAID' ? '#15803d' : item.status === 'PARTIAL' ? '#b45309' : item.status === 'RT' ? '#7c3aed' : '#b91c1c'
-                    }}>
-                      {item.status}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenSection4Edit(item)}
+                      title="Click to quickly update Status, Receipts & Remarks"
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                        fontSize: '10px',
+                        fontWeight: '800',
+                        textTransform: 'uppercase',
+                        border: '1px solid transparent',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        background: item.status === 'PAID' ? '#dcfce7' : item.status === 'PARTIAL' ? '#fef3c7' : item.status === 'RT' ? '#ede9fe' : '#fee2e2',
+                        color: item.status === 'PAID' ? '#15803d' : item.status === 'PARTIAL' ? '#b45309' : item.status === 'RT' ? '#7c3aed' : '#b91c1c'
+                      }}
+                    >
+                      <span>{item.status}</span>
+                      <Pencil size={9} />
+                    </button>
                     <span style={{ padding: '2px 7px', borderRadius: '5px', fontSize: '10px', fontWeight: '600', background: '#f1f5f9', color: '#475569' }}>
                       {item.salesType}
                     </span>
@@ -1563,7 +1982,7 @@ export default function BackOfficeArSheetView({
                     padding: '12px 10px',
                     fontWeight: '700',
                     color: '#334155',
-                    width: isMobile ? '88px' : '136px', minWidth: isMobile ? '88px' : '136px',
+                    width: isMobile ? '90px' : '230px', minWidth: isMobile ? '90px' : '230px',
                     borderRight: '2px solid #cbd5e1',
                     borderBottom: '2px solid #cbd5e1',
                     textAlign: 'center',
@@ -1571,29 +1990,45 @@ export default function BackOfficeArSheetView({
                   }}>
                     Action
                   </th>
-                  {AR_COLUMNS.map((col, cIdx) => (
-                    <th
-                      key={col.key}
-                      onClick={() => handleSort(col.key)}
-                      style={{
-                        padding: '12px 14px',
-                        fontWeight: '700',
-                        color: '#334155',
-                        textAlign: col.align || 'left',
-                        minWidth: col.minWidth,
-                        cursor: 'pointer',
-                        userSelect: 'none',
-                        borderRight: '1px solid #e2e8f0',
-                        borderBottom: '2px solid #cbd5e1',
-                        background: '#f8fafc'
-                      }}
-                    >
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        {col.label}
-                        <ArrowUpDown size={11} style={{ opacity: sortBy === col.key ? 1 : 0.3 }} />
-                      </div>
-                    </th>
-                  ))}
+                  {AR_COLUMNS.map((col, cIdx) => {
+                    const isSection4Col = ['ageingDays', 'ageingBucket', 'status', 'amtRcvd', 'amtRcvdDate', 'completePaymentDate', 'remarks'].includes(col.key);
+                    return (
+                      <th
+                        key={col.key}
+                        onClick={() => handleSort(col.key)}
+                        style={{
+                          padding: '12px 14px',
+                          fontWeight: '700',
+                          color: '#334155',
+                          textAlign: col.align || 'left',
+                          minWidth: col.minWidth,
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                          borderRight: '1px solid #e2e8f0',
+                          borderBottom: '2px solid #cbd5e1',
+                          background: isQuickEditMode && isSection4Col ? '#fffbeb' : '#f8fafc'
+                        }}
+                      >
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                          <span>{col.label}</span>
+                          {isSection4Col && (
+                            <span style={{
+                              fontSize: '9px',
+                              fontWeight: '800',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              background: isQuickEditMode ? '#fde68a' : '#f1f5f9',
+                              color: isQuickEditMode ? '#92400e' : '#475569',
+                              letterSpacing: '0.3px'
+                            }}>
+                              WRITABLE
+                            </span>
+                          )}
+                          <ArrowUpDown size={11} style={{ opacity: sortBy === col.key ? 1 : 0.3 }} />
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
 
@@ -1662,8 +2097,33 @@ export default function BackOfficeArSheetView({
                               {!isMobile && 'View'}
                             </button>
                             <button
+                              onClick={() => handleOpenSection4Edit(item)}
+                              title="Update Receipts, Status, Ageing & Remarks"
+                              className="ar-btn-touch"
+                              style={{
+                                padding: '4px 7px',
+                                background: '#fef3c7',
+                                border: '1px solid #fde68a',
+                                borderRadius: '4px',
+                                color: '#b45309',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                fontSize: '11px',
+                                fontWeight: '700'
+                              }}
+                            >
+                              {savingRowId === item.id ? (
+                                <RefreshCw size={11} className="animate-spin" />
+                              ) : (
+                                <Receipt size={11} />
+                              )}
+                              {!isMobile && 'Status/Rcvd'}
+                            </button>
+                            <button
                               onClick={() => handleOpenEdit(item)}
-                              title="Edit Record"
+                              title="Edit All 21 Columns"
                               style={{
                                 padding: '4px 7px',
                                 background: '#eff6ff',
@@ -1769,75 +2229,295 @@ export default function BackOfficeArSheetView({
                           {formatDate(item.dueDate)}
                         </td>
 
-                        {/* 13. Ageing (Days) */}
+                        {/* 13. Ageing (Days) - Writable */}
                         <td style={{
-                          padding: '10px 14px',
+                          padding: isQuickEditMode ? '6px 8px' : '10px 14px',
                           textAlign: 'center',
                           fontWeight: '700',
                           color: isOverdue ? '#dc2626' : '#16a34a',
                           borderRight: '1px solid #f1f5f9',
-                          borderBottom: '1px solid #f1f5f9'
+                          borderBottom: '1px solid #f1f5f9',
+                          background: isQuickEditMode ? '#fffbeb' : undefined
                         }}>
-                          {item.ageingDays}
+                          {isQuickEditMode ? (
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.ageingDays !== undefined && item.ageingDays !== null ? item.ageingDays : 0}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setData(prev => prev.map(r => (r.id === item.id ? { ...r, ageingDays: val } : r)));
+                              }}
+                              onBlur={(e) => handleInlineFieldSave(item, 'ageingDays', Number(e.target.value) || 0)}
+                              style={{
+                                width: '64px',
+                                padding: '4px 6px',
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                textAlign: 'center',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '6px',
+                                outline: 'none',
+                                background: '#fff',
+                                color: item.ageingDays > 0 && item.status !== 'PAID' ? '#dc2626' : '#16a34a'
+                              }}
+                            />
+                          ) : (
+                            <span
+                              onClick={() => handleOpenSection4Edit(item)}
+                              title="Click to edit Ageing & Status"
+                              style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                            >
+                              {item.ageingDays}
+                              <Pencil size={9} style={{ opacity: 0.35 }} />
+                            </span>
+                          )}
                         </td>
 
-                        {/* 14. Ageing Bucket */}
-                        <td style={{ padding: '10px 14px', borderRight: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
-                          <span style={{
-                            padding: '2px 8px',
-                            borderRadius: '12px',
-                            fontSize: '11px',
-                            fontWeight: '600',
-                            background: item.ageingBucket === 'Yet To Due' ? '#f1f5f9'
-                              : item.ageingBucket === '1-30 Days' ? '#e0f2fe'
-                              : item.ageingBucket === '31-45 Days' ? '#e0e7ff'
-                              : item.ageingBucket === '46-60 Days' ? '#fef3c7'
-                              : item.ageingBucket === '61-90 Days' ? '#ffedd5'
-                              : '#fee2e2',
-                            color: item.ageingBucket === 'Yet To Due' ? '#475569'
-                              : item.ageingBucket === '1-30 Days' ? '#0369a1'
-                              : item.ageingBucket === '31-45 Days' ? '#4338ca'
-                              : item.ageingBucket === '46-60 Days' ? '#b45309'
-                              : item.ageingBucket === '61-90 Days' ? '#c2410c'
-                              : '#b91c1c'
-                          }}>
-                            {item.ageingBucket}
-                          </span>
+                        {/* 14. Ageing Bucket - Writable */}
+                        <td style={{
+                          padding: isQuickEditMode ? '6px 8px' : '10px 14px',
+                          borderRight: '1px solid #f1f5f9',
+                          borderBottom: '1px solid #f1f5f9',
+                          background: isQuickEditMode ? '#fffbeb' : undefined
+                        }}>
+                          {isQuickEditMode ? (
+                            <select
+                              value={item.ageingBucket || 'Yet To Due'}
+                              onChange={(e) => handleInlineFieldSave(item, 'ageingBucket', e.target.value)}
+                              style={{
+                                padding: '4px 6px',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '6px',
+                                background: '#fff',
+                                color: '#334155',
+                                outline: 'none'
+                              }}
+                            >
+                              {ageingBuckets.map(b => (
+                                <option key={b} value={b}>{b}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span
+                              onClick={() => handleOpenSection4Edit(item)}
+                              title="Click to edit Ageing Bucket"
+                              style={{
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                background: item.ageingBucket === 'Yet To Due' ? '#f1f5f9'
+                                  : item.ageingBucket === '1-30 Days' ? '#e0f2fe'
+                                  : item.ageingBucket === '31-45 Days' ? '#e0e7ff'
+                                  : item.ageingBucket === '46-60 Days' ? '#fef3c7'
+                                  : item.ageingBucket === '61-90 Days' ? '#ffedd5'
+                                  : '#fee2e2',
+                                color: item.ageingBucket === 'Yet To Due' ? '#475569'
+                                  : item.ageingBucket === '1-30 Days' ? '#0369a1'
+                                  : item.ageingBucket === '31-45 Days' ? '#4338ca'
+                                  : item.ageingBucket === '46-60 Days' ? '#b45309'
+                                  : item.ageingBucket === '61-90 Days' ? '#c2410c'
+                                  : '#b91c1c'
+                              }}
+                            >
+                              {item.ageingBucket}
+                              <Pencil size={9} style={{ opacity: 0.4 }} />
+                            </span>
+                          )}
                         </td>
 
-                        {/* 15. Status */}
-                        <td style={{ padding: '10px 14px', textAlign: 'center', borderRight: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
-                          <span style={{
-                            padding: '2px 8px',
-                            borderRadius: '12px',
-                            fontSize: '11px',
-                            fontWeight: '700',
-                            background: item.status === 'PAID' ? '#dcfce7'
-                              : item.status === 'PARTIAL' ? '#fef3c7'
-                              : item.status === 'RT' ? '#ede9fe'
-                              : '#fee2e2',
-                            color: item.status === 'PAID' ? '#15803d'
-                              : item.status === 'PARTIAL' ? '#b45309'
-                              : item.status === 'RT' ? '#7c3aed'
-                              : '#b91c1c'
-                          }}>
-                            {item.status}
-                          </span>
+                        {/* 15. Status - Writable */}
+                        <td style={{
+                          padding: isQuickEditMode ? '6px 8px' : '10px 14px',
+                          textAlign: 'center',
+                          borderRight: '1px solid #f1f5f9',
+                          borderBottom: '1px solid #f1f5f9',
+                          background: isQuickEditMode ? '#fffbeb' : undefined
+                        }}>
+                          {isQuickEditMode ? (
+                            <select
+                              value={item.status || 'UNPAID'}
+                              onChange={(e) => handleInlineFieldSave(item, 'status', e.target.value)}
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                border: '1px solid #cbd5e1',
+                                cursor: 'pointer',
+                                outline: 'none',
+                                background: item.status === 'PAID' ? '#dcfce7'
+                                  : item.status === 'PARTIAL' ? '#fef3c7'
+                                  : item.status === 'RT' ? '#ede9fe'
+                                  : '#fee2e2',
+                                color: item.status === 'PAID' ? '#15803d'
+                                  : item.status === 'PARTIAL' ? '#b45309'
+                                  : item.status === 'RT' ? '#7c3aed'
+                                  : '#b91c1c'
+                              }}
+                            >
+                              <option value="UNPAID">UNPAID</option>
+                              <option value="PARTIAL">PARTIAL</option>
+                              <option value="PAID">PAID</option>
+                              <option value="RT">RT (Retention)</option>
+                            </select>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenSection4Edit(item)}
+                              title="Click to change Status"
+                              style={{
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                border: 'none',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                background: item.status === 'PAID' ? '#dcfce7'
+                                  : item.status === 'PARTIAL' ? '#fef3c7'
+                                  : item.status === 'RT' ? '#ede9fe'
+                                  : '#fee2e2',
+                                color: item.status === 'PAID' ? '#15803d'
+                                  : item.status === 'PARTIAL' ? '#b45309'
+                                  : item.status === 'RT' ? '#7c3aed'
+                                  : '#b91c1c'
+                              }}
+                            >
+                              <span>{item.status}</span>
+                              <Pencil size={9} style={{ opacity: 0.5 }} />
+                            </button>
+                          )}
                         </td>
 
-                        {/* 16. Amt Rcvd */}
-                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '600', color: '#16a34a', borderRight: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
-                          {formatCurrency(item.amtRcvd)}
+                        {/* 16. Amt Rcvd - Writable (Receipts) */}
+                        <td style={{
+                          padding: isQuickEditMode ? '6px 8px' : '10px 14px',
+                          textAlign: 'right',
+                          fontWeight: '600',
+                          color: '#16a34a',
+                          borderRight: '1px solid #f1f5f9',
+                          borderBottom: '1px solid #f1f5f9',
+                          background: isQuickEditMode ? '#fffbeb' : undefined
+                        }}>
+                          {isQuickEditMode ? (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                              <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: '700' }}>₹</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={item.amtRcvd !== undefined && item.amtRcvd !== null ? item.amtRcvd : 0}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const numVal = Number(val) || 0;
+                                  const netOut = Number(((Number(item.invoiceAmount) || 0) - numVal).toFixed(2));
+                                  setData(prev => prev.map(r => (r.id === item.id ? { ...r, amtRcvd: val, outstanding: netOut } : r)));
+                                }}
+                                onBlur={(e) => handleInlineFieldSave(item, 'amtRcvd', Number(e.target.value) || 0)}
+                                style={{
+                                  width: '90px',
+                                  padding: '4px 6px',
+                                  fontSize: '12px',
+                                  fontWeight: '700',
+                                  textAlign: 'right',
+                                  color: '#16a34a',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '6px',
+                                  outline: 'none',
+                                  background: '#fff'
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <span
+                              onClick={() => handleOpenSection4Edit(item)}
+                              title="Click to edit Amt Received"
+                              style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                            >
+                              {formatCurrency(item.amtRcvd)}
+                              <Pencil size={9} style={{ opacity: 0.35 }} />
+                            </span>
+                          )}
                         </td>
 
-                        {/* 17. Amt Rcvd Date */}
-                        <td style={{ padding: '10px 14px', color: '#64748b', borderRight: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
-                          {formatDate(item.amtRcvdDate)}
+                        {/* 17. Amt Rcvd Date - Writable (Receipts) */}
+                        <td style={{
+                          padding: isQuickEditMode ? '6px 8px' : '10px 14px',
+                          color: '#64748b',
+                          borderRight: '1px solid #f1f5f9',
+                          borderBottom: '1px solid #f1f5f9',
+                          background: isQuickEditMode ? '#fffbeb' : undefined
+                        }}>
+                          {isQuickEditMode ? (
+                            <input
+                              type="date"
+                              value={item.amtRcvdDate ? new Date(item.amtRcvdDate).toISOString().split('T')[0] : ''}
+                              onChange={(e) => handleInlineFieldSave(item, 'amtRcvdDate', e.target.value || null)}
+                              style={{
+                                padding: '3px 5px',
+                                fontSize: '11px',
+                                color: '#334155',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '6px',
+                                outline: 'none',
+                                background: '#fff'
+                              }}
+                            />
+                          ) : (
+                            <span
+                              onClick={() => handleOpenSection4Edit(item)}
+                              title="Click to edit Amt Received Date"
+                              style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                            >
+                              {formatDate(item.amtRcvdDate)}
+                              <Pencil size={9} style={{ opacity: 0.35 }} />
+                            </span>
+                          )}
                         </td>
 
-                        {/* 18. Complete Payment Date */}
-                        <td style={{ padding: '10px 14px', color: '#64748b', borderRight: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
-                          {formatDate(item.completePaymentDate)}
+                        {/* 18. Complete Payment Date - Writable (Receipts) */}
+                        <td style={{
+                          padding: isQuickEditMode ? '6px 8px' : '10px 14px',
+                          color: '#64748b',
+                          borderRight: '1px solid #f1f5f9',
+                          borderBottom: '1px solid #f1f5f9',
+                          background: isQuickEditMode ? '#fffbeb' : undefined
+                        }}>
+                          {isQuickEditMode ? (
+                            <input
+                              type="date"
+                              value={item.completePaymentDate ? new Date(item.completePaymentDate).toISOString().split('T')[0] : ''}
+                              onChange={(e) => handleInlineFieldSave(item, 'completePaymentDate', e.target.value || null)}
+                              style={{
+                                padding: '3px 5px',
+                                fontSize: '11px',
+                                color: '#334155',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '6px',
+                                outline: 'none',
+                                background: '#fff'
+                              }}
+                            />
+                          ) : (
+                            <span
+                              onClick={() => handleOpenSection4Edit(item)}
+                              title="Click to edit Complete Payment Date"
+                              style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                            >
+                              {formatDate(item.completePaymentDate)}
+                              <Pencil size={9} style={{ opacity: 0.35 }} />
+                            </span>
+                          )}
                         </td>
 
                         {/* 19. Outstanding */}
@@ -1845,9 +2525,48 @@ export default function BackOfficeArSheetView({
                           {formatCurrency(item.outstanding)}
                         </td>
 
-                        {/* 20. Remarks */}
-                        <td style={{ padding: '10px 14px', color: '#64748b', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', borderRight: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
-                          {item.remarks || '-'}
+                        {/* 20. Remarks - Writable */}
+                        <td style={{
+                          padding: isQuickEditMode ? '6px 8px' : '10px 14px',
+                          color: '#64748b',
+                          maxWidth: isQuickEditMode ? '220px' : '200px',
+                          overflow: isQuickEditMode ? 'visible' : 'hidden',
+                          textOverflow: isQuickEditMode ? 'clip' : 'ellipsis',
+                          borderRight: '1px solid #f1f5f9',
+                          borderBottom: '1px solid #f1f5f9',
+                          background: isQuickEditMode ? '#fffbeb' : undefined
+                        }}>
+                          {isQuickEditMode ? (
+                            <input
+                              type="text"
+                              placeholder="Add remarks..."
+                              value={item.remarks || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setData(prev => prev.map(r => (r.id === item.id ? { ...r, remarks: val } : r)));
+                              }}
+                              onBlur={(e) => handleInlineFieldSave(item, 'remarks', e.target.value)}
+                              style={{
+                                width: '180px',
+                                padding: '4px 8px',
+                                fontSize: '11px',
+                                color: '#334155',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '6px',
+                                outline: 'none',
+                                background: '#fff'
+                              }}
+                            />
+                          ) : (
+                            <span
+                              onClick={() => handleOpenSection4Edit(item)}
+                              title="Click to edit Remarks"
+                              style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                            >
+                              <span>{item.remarks || '-'}</span>
+                              <Pencil size={9} style={{ opacity: 0.35, flexShrink: 0 }} />
+                            </span>
+                          )}
                         </td>
 
                         {/* 21. Quarter */}
@@ -2734,39 +3453,348 @@ export default function BackOfficeArSheetView({
                 </div>
               </div>
 
-              {/* SECTION 3: RECEIPTS, AGEING, STATUS & REMARKS */}
-              <div style={{ marginBottom: '10px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px 16px' }}>
-                <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', letterSpacing: '0.5px', marginBottom: '12px', borderBottom: '1px dashed #e2e8f0', paddingBottom: '6px' }}>
-                  Receipts, Ageing, Status & Remarks
+              {/* SECTION 3: RECEIPTS, AGEING, STATUS & REMARKS - WRITABLE */}
+              <div style={{ marginBottom: '10px', background: '#fff', border: viewSection4Editing ? '2px solid #3b82f6' : '1px solid #e2e8f0', borderRadius: '10px', padding: '14px 16px', transition: 'border 0.2s ease' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px dashed #e2e8f0', paddingBottom: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#1e293b', letterSpacing: '0.5px' }}>
+                      4. Receipts, Status, Ageing & Remarks
+                    </span>
+                    <span style={{ fontSize: '9px', background: '#ecfdf5', color: '#059669', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', border: '1px solid #a7f3d0' }}>
+                      WRITABLE
+                    </span>
+                  </div>
+                  {!viewSection4Editing ? (
+                    <button
+                      type="button"
+                      onClick={() => setViewSection4Editing(true)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid #93c5fd',
+                        background: '#eff6ff',
+                        color: '#1d4ed8',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Pencil size={12} />
+                      <span>Edit Section 4</span>
+                    </button>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewSection4Data({
+                            status: viewItem.status || 'UNPAID',
+                            amtRcvd: viewItem.amtRcvd !== undefined && viewItem.amtRcvd !== null ? viewItem.amtRcvd : 0,
+                            amtRcvdDate: viewItem.amtRcvdDate ? new Date(viewItem.amtRcvdDate).toISOString().split('T')[0] : '',
+                            completePaymentDate: viewItem.completePaymentDate ? new Date(viewItem.completePaymentDate).toISOString().split('T')[0] : '',
+                            ageingDays: viewItem.ageingDays !== undefined && viewItem.ageingDays !== null ? viewItem.ageingDays : 0,
+                            ageingBucket: viewItem.ageingBucket || 'Yet To Due',
+                            remarks: viewItem.remarks || '',
+                            outstanding: viewItem.outstanding !== undefined && viewItem.outstanding !== null ? viewItem.outstanding : 0
+                          });
+                          setViewSection4Editing(false);
+                        }}
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          background: '#fff',
+                          color: '#64748b',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveViewSection4}
+                        disabled={viewSection4Saving}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '4px 12px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: '#16a34a',
+                          color: '#fff',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Check size={12} />
+                        <span>{viewSection4Saving ? 'Saving...' : 'Save Changes'}</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)', gap: '12px' }}>
+
+                {!viewSection4Editing ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)', gap: '12px' }}>
+                    <div>
+                      <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>15. Status</span>
+                      <span style={{
+                        display: 'inline-block',
+                        marginTop: '2px',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        background:
+                          viewItem.status === 'PAID' ? '#dcfce7' :
+                          viewItem.status === 'PARTIAL' ? '#fef3c7' :
+                          viewItem.status === 'RT' ? '#ede9fe' : '#fee2e2',
+                        color:
+                          viewItem.status === 'PAID' ? '#15803d' :
+                          viewItem.status === 'PARTIAL' ? '#b45309' :
+                          viewItem.status === 'RT' ? '#6d28d9' : '#b91c1c'
+                      }}>
+                        {viewItem.status}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>16. Amt Rcvd</span>
+                      <strong style={{ fontSize: '13px', color: '#15803d' }}>{formatCurrency(viewItem.amtRcvd || 0)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>19. Net Outstanding</span>
+                      <strong style={{ fontSize: '13px', color: Number(viewItem.outstanding) > 0 ? '#b91c1c' : '#15803d' }}>
+                        {formatCurrency(viewItem.outstanding !== undefined && viewItem.outstanding !== null ? viewItem.outstanding : (Number(viewItem.invoiceAmount || 0) - Number(viewItem.amtRcvd || 0)))}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>13. Ageing (Days)</span>
+                      <strong style={{ fontSize: '13px', color: viewItem.ageingDays > 0 && viewItem.status !== 'PAID' ? '#dc2626' : '#16a34a' }}>
+                        {viewItem.ageingDays || 0} Days
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>14. Ageing Bucket</span>
+                      <strong style={{ fontSize: '13px', color: '#334155' }}>{viewItem.ageingBucket || '-'}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>17. Amt Rcvd Date</span>
+                      <strong style={{ fontSize: '13px', color: '#334155' }}>{formatDate(viewItem.amtRcvdDate)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>18. Complete Pay Date</span>
+                      <strong style={{ fontSize: '13px', color: '#334155' }}>{formatDate(viewItem.completePaymentDate)}</strong>
+                    </div>
+                    <div style={{ gridColumn: isMobile ? 'span 2' : 'span 3', background: '#f8fafc', padding: '8px 12px', borderRadius: '6px', border: '1px solid #f1f5f9', marginTop: '4px' }}>
+                      <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>20. Remarks</span>
+                      <span style={{ fontSize: '12px', color: '#334155', wordBreak: 'break-word' }}>{viewItem.remarks || 'No remarks recorded for this invoice.'}</span>
+                    </div>
+                  </div>
+                ) : (
                   <div>
-                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>15. Status</span>
-                    <strong style={{ fontSize: '13px', color: '#0f172a' }}>{viewItem.status}</strong>
+                    {/* Quick helper buttons */}
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px', padding: '8px 10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b', alignSelf: 'center', fontWeight: '600' }}>Quick Presets:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const invAmt = Number(viewItem.invoiceAmount) || 0;
+                          const today = new Date().toISOString().split('T')[0];
+                          setViewSection4Data(prev => ({
+                            ...prev,
+                            status: 'PAID',
+                            amtRcvd: invAmt,
+                            amtRcvdDate: prev.amtRcvdDate || today,
+                            completePaymentDate: prev.completePaymentDate || today,
+                            ageingDays: 0,
+                            ageingBucket: 'Paid / Settled',
+                            outstanding: 0
+                          }));
+                        }}
+                        style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '4px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', fontWeight: '700', cursor: 'pointer' }}
+                      >
+                        ✓ Mark 100% Fully Paid
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewSection4Data(prev => ({ ...prev, status: 'RT' }));
+                        }}
+                        style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '4px', background: '#ede9fe', color: '#6d28d9', border: '1px solid #c4b5fd', fontWeight: '700', cursor: 'pointer' }}
+                      >
+                        📌 Mark RT
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const invAmt = Number(viewItem.invoiceAmount) || 0;
+                          setViewSection4Data(prev => ({
+                            ...prev,
+                            status: 'UNPAID',
+                            amtRcvd: 0,
+                            completePaymentDate: '',
+                            outstanding: invAmt
+                          }));
+                        }}
+                        style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '4px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', fontWeight: '700', cursor: 'pointer' }}
+                      >
+                        ↺ Reset to Unpaid
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)', gap: '10px' }}>
+                      {/* Status */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                          15. Status
+                        </label>
+                        <select
+                          value={viewSection4Data.status}
+                          onChange={(e) => handleViewSection4FieldChange('status', e.target.value)}
+                          style={{ width: '100%', padding: '6px 8px', fontSize: '13px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff', fontWeight: '700' }}
+                        >
+                          <option value="UNPAID">UNPAID</option>
+                          <option value="PARTIAL">PARTIAL</option>
+                          <option value="PAID">PAID</option>
+                          <option value="RT">RT (Retention)</option>
+                        </select>
+                      </div>
+
+                      {/* Amt Rcvd */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                          16. Amt Rcvd (₹)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={viewSection4Data.amtRcvd}
+                          onChange={(e) => handleViewSection4FieldChange('amtRcvd', e.target.value)}
+                          style={{ width: '100%', padding: '6px 8px', fontSize: '13px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none', fontWeight: '700', color: '#15803d' }}
+                        />
+                      </div>
+
+                      {/* Outstanding live preview */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#64748b', marginBottom: '4px' }}>
+                          19. Outstanding (Auto)
+                        </label>
+                        <div style={{
+                          padding: '6px 8px',
+                          fontSize: '13px',
+                          borderRadius: '6px',
+                          background: '#f8fafc',
+                          border: '1px solid #e2e8f0',
+                          fontWeight: '800',
+                          color: (Number(viewItem.invoiceAmount || 0) - Number(viewSection4Data.amtRcvd || 0)) > 0 ? '#b91c1c' : '#15803d'
+                        }}>
+                          {formatCurrency(Math.max(0, Number(viewItem.invoiceAmount || 0) - Number(viewSection4Data.amtRcvd || 0)))}
+                        </div>
+                      </div>
+
+                      {/* Amt Rcvd Date */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                          17. Amt Rcvd Date
+                        </label>
+                        <input
+                          type="date"
+                          value={viewSection4Data.amtRcvdDate}
+                          onChange={(e) => handleViewSection4FieldChange('amtRcvdDate', e.target.value)}
+                          style={{ width: '100%', padding: '6px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                        />
+                      </div>
+
+                      {/* Complete Payment Date */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                          18. Complete Pay Date
+                        </label>
+                        <input
+                          type="date"
+                          value={viewSection4Data.completePaymentDate}
+                          onChange={(e) => handleViewSection4FieldChange('completePaymentDate', e.target.value)}
+                          style={{ width: '100%', padding: '6px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                        />
+                      </div>
+
+                      {/* Ageing Days */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                          13. Ageing (Days)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={viewSection4Data.ageingDays}
+                          onChange={(e) => handleViewSection4FieldChange('ageingDays', e.target.value)}
+                          style={{ width: '100%', padding: '6px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                        />
+                      </div>
+
+                      {/* Ageing Bucket */}
+                      <div style={{ gridColumn: isMobile ? 'span 2' : 'span 3' }}>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                          14. Ageing Bucket
+                        </label>
+                        <select
+                          value={viewSection4Data.ageingBucket}
+                          onChange={(e) => handleViewSection4FieldChange('ageingBucket', e.target.value)}
+                          style={{ width: '100%', padding: '6px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff' }}
+                        >
+                          <option value="Yet To Due">Yet To Due</option>
+                          <option value="1-30 Days">1-30 Days</option>
+                          <option value="31-45 Days">31-45 Days</option>
+                          <option value="46-60 Days">46-60 Days</option>
+                          <option value="61-90 Days">61-90 Days</option>
+                          <option value="91-120 Days">91-120 Days</option>
+                          <option value="More than 120 Days">More than 120 Days</option>
+                          <option value="Paid / Settled">Paid / Settled</option>
+                        </select>
+                      </div>
+
+                      {/* Remarks */}
+                      <div style={{ gridColumn: isMobile ? 'span 2' : 'span 3' }}>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                          20. Remarks
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={viewSection4Data.remarks}
+                          onChange={(e) => handleViewSection4FieldChange('remarks', e.target.value)}
+                          placeholder="Add receipt notes, payment mode, cheque/UTR no., settlement remarks..."
+                          style={{ width: '100%', padding: '6px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none', resize: 'vertical' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                      <button
+                        type="button"
+                        onClick={() => setViewSection4Editing(false)}
+                        style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '12px', fontWeight: '600', color: '#64748b', cursor: 'pointer' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveViewSection4}
+                        disabled={viewSection4Saving}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 16px', borderRadius: '6px', border: 'none', background: '#16a34a', color: '#fff', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
+                      >
+                        <Save size={13} />
+                        <span>{viewSection4Saving ? 'Saving...' : 'Save Receipts & Status'}</span>
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>13. Ageing (Days)</span>
-                    <strong style={{ fontSize: '13px', color: viewItem.ageingDays > 0 && viewItem.status !== 'PAID' ? '#dc2626' : '#16a34a' }}>
-                      {viewItem.ageingDays} Days
-                    </strong>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>14. Ageing Bucket</span>
-                    <strong style={{ fontSize: '13px', color: '#334155' }}>{viewItem.ageingBucket}</strong>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>17. Amt Rcvd Date</span>
-                    <strong style={{ fontSize: '13px', color: '#334155' }}>{formatDate(viewItem.amtRcvdDate)}</strong>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>18. Complete Pay Date</span>
-                    <strong style={{ fontSize: '13px', color: '#334155' }}>{formatDate(viewItem.completePaymentDate)}</strong>
-                  </div>
-                  <div style={{ gridColumn: isMobile ? 'span 2' : 'span 3', background: '#f8fafc', padding: '8px 12px', borderRadius: '6px', border: '1px solid #f1f5f9', marginTop: '4px' }}>
-                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>20. Remarks</span>
-                    <span style={{ fontSize: '12px', color: '#334155', wordBreak: 'break-word' }}>{viewItem.remarks || 'No remarks recorded for this invoice.'}</span>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
 
@@ -2828,6 +3856,34 @@ export default function BackOfficeArSheetView({
                   Close
                 </button>
 
+                {/* Quick Edit Receipts & Status button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const item = viewItem;
+                    setViewModalOpen(false);
+                    handleOpenSection4Edit(item);
+                  }}
+                  className="ar-btn-touch"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '9px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #93c5fd',
+                    background: '#eff6ff',
+                    color: '#1d4ed8',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                  title="Open Quick Edit dialog for Receipts, Status, Ageing & Remarks"
+                >
+                  <Receipt size={14} />
+                  <span>Update Receipts & Status</span>
+                </button>
+
                 {/* Edit / Update Entry button */}
                 <button
                   type="button"
@@ -2857,6 +3913,440 @@ export default function BackOfficeArSheetView({
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* SECTION 4 DEDICATED QUICK EDIT MODAL */}
+      {section4ModalOpen && section4Item && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1050,
+          padding: isMobile ? '10px' : '20px'
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '16px',
+            maxWidth: '620px',
+            width: '100%',
+            maxHeight: '92vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            border: '1px solid #e2e8f0',
+            overflow: 'hidden'
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: isMobile ? '12px 16px' : '16px 20px',
+              borderBottom: '1px solid #e2e8f0',
+              background: '#f8fafc',
+              flexShrink: 0
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#2563eb'
+                }}>
+                  <Receipt size={20} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ margin: 0, fontSize: isMobile ? '15px' : '16px', fontWeight: '800', color: '#0f172a' }}>
+                      Update Receipts, Status & Remarks
+                    </h3>
+                    <span style={{ fontSize: '10px', background: '#ecfdf5', color: '#059669', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', border: '1px solid #a7f3d0' }}>
+                      Section 4 Writable
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>
+                    Update payment receipts, settlement status, and ageing.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSection4ModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px', borderRadius: '6px' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <form onSubmit={handleSaveSection4} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <div style={{ padding: isMobile ? '14px 16px' : '18px 22px', overflowY: 'auto', flex: 1 }}>
+                {/* Invoice Context Card */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)',
+                  gap: '10px',
+                  padding: '12px 14px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '10px',
+                  marginBottom: '16px'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '700', textTransform: 'uppercase' }}>Invoice No</span>
+                    <strong style={{ fontSize: '13px', color: '#0f172a' }}>#{section4Item.invoiceNo}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '700', textTransform: 'uppercase' }}>Customer</span>
+                    <strong style={{ fontSize: '12px', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                      {section4Item.companyName || section4Item.partyName || '-'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '700', textTransform: 'uppercase' }}>Invoice Amount</span>
+                    <strong style={{ fontSize: '13px', color: '#0f172a' }}>{formatCurrency(section4Item.invoiceAmount)}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', fontWeight: '700', textTransform: 'uppercase' }}>Due Date</span>
+                    <strong style={{ fontSize: '12px', color: '#334155' }}>{formatDate(section4Item.dueDate)}</strong>
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                  <span style={{ fontSize: '11px', color: '#64748b', alignSelf: 'center', fontWeight: '700' }}>Quick Actions:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const invAmt = Number(section4Item.invoiceAmount) || 0;
+                      const today = new Date().toISOString().split('T')[0];
+                      setSection4FormData(prev => ({
+                        ...prev,
+                        status: 'PAID',
+                        amtRcvd: invAmt,
+                        amtRcvdDate: prev.amtRcvdDate || today,
+                        completePaymentDate: prev.completePaymentDate || today,
+                        ageingDays: 0,
+                        ageingBucket: 'Paid / Settled',
+                        outstanding: 0
+                      }));
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '11px',
+                      padding: '5px 10px',
+                      borderRadius: '6px',
+                      background: '#dcfce7',
+                      color: '#15803d',
+                      border: '1px solid #86efac',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Check size={12} />
+                    <span>Mark 100% Fully Paid</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSection4FormData(prev => ({ ...prev, status: 'RT' }));
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '11px',
+                      padding: '5px 10px',
+                      borderRadius: '6px',
+                      background: '#ede9fe',
+                      color: '#6d28d9',
+                      border: '1px solid #c4b5fd',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span>📌 Mark Retention (RT)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const invAmt = Number(section4Item.invoiceAmount) || 0;
+                      setSection4FormData(prev => ({
+                        ...prev,
+                        status: 'UNPAID',
+                        amtRcvd: 0,
+                        completePaymentDate: '',
+                        outstanding: invAmt
+                      }));
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '11px',
+                      padding: '5px 10px',
+                      borderRadius: '6px',
+                      background: '#fee2e2',
+                      color: '#b91c1c',
+                      border: '1px solid #fca5a5',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <RotateCcw size={12} />
+                    <span>Reset to Unpaid</span>
+                  </button>
+                </div>
+
+                {/* Section 4 Fields Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: '14px' }}>
+                  {/* Status */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#1e293b', marginBottom: '6px' }}>
+                      15. Status <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <select
+                      value={section4FormData.status}
+                      onChange={(e) => handleSection4FieldChange('status', e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        fontSize: '14px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        outline: 'none',
+                        background: '#fff',
+                        fontWeight: '700',
+                        color: section4FormData.status === 'PAID' ? '#15803d' : section4FormData.status === 'PARTIAL' ? '#b45309' : section4FormData.status === 'RT' ? '#6d28d9' : '#b91c1c'
+                      }}
+                    >
+                      <option value="UNPAID">UNPAID</option>
+                      <option value="PARTIAL">PARTIAL</option>
+                      <option value="PAID">PAID</option>
+                      <option value="RT">RT (Retention)</option>
+                    </select>
+                  </div>
+
+                  {/* Amt Rcvd */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#1e293b', marginBottom: '6px' }}>
+                      16. Amount Received (₹)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={section4FormData.amtRcvd}
+                      onChange={(e) => handleSection4FieldChange('amtRcvd', e.target.value)}
+                      placeholder="0.00"
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        fontSize: '14px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        outline: 'none',
+                        fontWeight: '700',
+                        color: '#15803d'
+                      }}
+                    />
+                  </div>
+
+                  {/* Outstanding (Calculated Live) */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#64748b', marginBottom: '6px' }}>
+                      19. Net Outstanding (Auto-Calculated)
+                    </label>
+                    <div style={{
+                      padding: '9px 12px',
+                      fontSize: '14px',
+                      borderRadius: '8px',
+                      border: '1px solid #e2e8f0',
+                      background: '#f8fafc',
+                      fontWeight: '800',
+                      color: Number(section4FormData.outstanding) > 0 ? '#b91c1c' : '#15803d'
+                    }}>
+                      {formatCurrency(section4FormData.outstanding)}
+                    </div>
+                  </div>
+
+                  {/* Amt Rcvd Date */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#1e293b', marginBottom: '6px' }}>
+                      17. Amount Received Date
+                    </label>
+                    <input
+                      type="date"
+                      value={section4FormData.amtRcvdDate}
+                      onChange={(e) => handleSection4FieldChange('amtRcvdDate', e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        fontSize: '14px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        outline: 'none'
+                      }}
+                    />
+                  </div>
+
+                  {/* Complete Payment Date */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#1e293b', marginBottom: '6px' }}>
+                      18. Complete Payment Date
+                    </label>
+                    <input
+                      type="date"
+                      value={section4FormData.completePaymentDate}
+                      onChange={(e) => handleSection4FieldChange('completePaymentDate', e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        fontSize: '14px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        outline: 'none'
+                      }}
+                    />
+                  </div>
+
+                  {/* Ageing Days */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#1e293b', marginBottom: '6px' }}>
+                      13. Ageing (Days)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={section4FormData.ageingDays}
+                      onChange={(e) => handleSection4FieldChange('ageingDays', e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        fontSize: '14px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        outline: 'none'
+                      }}
+                    />
+                  </div>
+
+                  {/* Ageing Bucket */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#1e293b', marginBottom: '6px' }}>
+                      14. Ageing Bucket
+                    </label>
+                    <select
+                      value={section4FormData.ageingBucket}
+                      onChange={(e) => handleSection4FieldChange('ageingBucket', e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        fontSize: '14px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        outline: 'none',
+                        background: '#fff'
+                      }}
+                    >
+                      <option value="Yet To Due">Yet To Due</option>
+                      <option value="1-30 Days">1-30 Days</option>
+                      <option value="31-45 Days">31-45 Days</option>
+                      <option value="46-60 Days">46-60 Days</option>
+                      <option value="61-90 Days">61-90 Days</option>
+                      <option value="91-120 Days">91-120 Days</option>
+                      <option value="More than 120 Days">More than 120 Days</option>
+                      <option value="Paid / Settled">Paid / Settled</option>
+                    </select>
+                  </div>
+
+                  {/* Remarks */}
+                  <div style={{ gridColumn: isMobile ? '1' : 'span 2' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#1e293b', marginBottom: '6px' }}>
+                      20. Remarks
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={section4FormData.remarks}
+                      onChange={(e) => handleSection4FieldChange('remarks', e.target.value)}
+                      placeholder="Add settlement details, bank transaction ref, cheque no., or follow-up notes..."
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        fontSize: '13px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        outline: 'none',
+                        resize: 'vertical'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+                gap: '10px',
+                padding: isMobile ? '12px 16px' : '14px 20px',
+                borderTop: '1px solid #e2e8f0',
+                background: '#f8fafc',
+                flexShrink: 0
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setSection4ModalOpen(false)}
+                  style={{
+                    padding: '9px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#fff',
+                    color: '#475569',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={section4Saving}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '9px 20px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#16a34a',
+                    color: '#fff',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(22, 163, 74, 0.25)'
+                  }}
+                >
+                  <Save size={15} />
+                  <span>{section4Saving ? 'Saving...' : 'Save Receipts & Status'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

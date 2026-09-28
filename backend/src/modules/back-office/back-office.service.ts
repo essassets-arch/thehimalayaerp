@@ -1241,7 +1241,9 @@ export class BackOfficeService implements OnApplicationBootstrap {
 
     return {
       items: items.map((r: any) => {
-        const { ageingDays, ageingBucket } = this.calculateAgeing(r.dueDate, r.status);
+        const calculated = this.calculateAgeing(r.dueDate, r.status);
+        const ageingDays = (r.ageingDays !== null && r.ageingDays !== undefined) ? Number(r.ageingDays) : calculated.ageingDays;
+        const ageingBucket = (r.ageingBucket && r.ageingBucket.trim()) ? r.ageingBucket.trim() : calculated.ageingBucket;
         return {
           id: r.id,
           srNo: r.srNo,
@@ -1256,6 +1258,8 @@ export class BackOfficeService implements OnApplicationBootstrap {
           dueDate: r.dueDate,
           status: r.status,
           amtRcvd: Number(r.amtRcvd),
+          amtRcvdDate: r.amtRcvdDate,
+          completePaymentDate: r.completePaymentDate,
           outstanding: Number(r.outstanding),
           quarter: r.quarter,
           ageingDays,
