@@ -1,4 +1,4 @@
-import { isTradingProduct, isPureTradingOrder } from '../../shared/utils/dispatchCategory';
+import { isTradingProduct, isPureTradingOrder } from '../../../shared/utils/dispatchCategory';
 
 export function getProductionWorkOrders(state: any) {
   const workOrders = Array.isArray(state?.production?.workOrders)
