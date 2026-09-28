@@ -493,7 +493,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
 
   useEffect(() => {
     if (showPlanningModal && selectedOrderForPlanning) {
-      const items = selectedOrderForPlanning.detailedItems || selectedOrderForPlanning.items || [];
+      const items = (selectedOrderForPlanning.detailedItems || selectedOrderForPlanning.items || []).filter(item => !isTradingProduct(item));
       const plans = {};
       const defaultDate = selectedOrderForPlanning._selectedTargetDate || (selectedOrderForPlanning.targetDate ? selectedOrderForPlanning.targetDate.slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
       const defaultPriority = selectedOrderForPlanning.priority || 'Medium';
@@ -5951,7 +5951,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
       {/* Planning Modal */}
       {/* Fulfillment Decision Modal */}
       {showPlanningModal && selectedOrderForPlanning && (() => {
-        const detailedItems = selectedOrderForPlanning.detailedItems || selectedOrderForPlanning.items || [];
+        const detailedItems = (selectedOrderForPlanning.detailedItems || selectedOrderForPlanning.items || []).filter(item => !isTradingProduct(item));
         const hasPendingFulfillment = detailedItems.some(item => {
           const f = item.fulfillment || {};
           return Number(f.pendingDirectDispatchQty || f.fgAllocatableQty || 0) > 0 ||

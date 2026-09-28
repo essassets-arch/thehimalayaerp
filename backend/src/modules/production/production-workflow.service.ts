@@ -14,6 +14,7 @@ import { isCatalogProduct, getCatalogProductsPrismaWhere } from '../products/cat
 import {
   isTradingProduct,
   isPureTradingOrder,
+  hasManufacturingItems,
 } from '../../common/utils/trading-product.util';
 
 @Injectable()
@@ -55,7 +56,14 @@ export class ProductionWorkflowService {
       },
     });
 
-    return inspections.map((i: any) => ({
+    return inspections
+      .filter((i: any) => {
+        const prod = i.workOrder?.salesOrderItem?.product;
+        if (isTradingProduct(prod, i.workOrder?.salesOrderItem)) return false;
+        if (i.workOrder?.productionPlan?.salesOrder && isPureTradingOrder(i.workOrder.productionPlan.salesOrder)) return false;
+        return true;
+      })
+      .map((i: any) => ({
       ...i.workOrder,
       qcInspectionId: i.id,
       qcInspectionStatus: i.status,
@@ -99,7 +107,14 @@ export class ProductionWorkflowService {
       },
     });
 
-    return inspections.map((i: any) => ({
+    return inspections
+      .filter((i: any) => {
+        const prod = i.workOrder?.salesOrderItem?.product;
+        if (isTradingProduct(prod, i.workOrder?.salesOrderItem)) return false;
+        if (i.workOrder?.productionPlan?.salesOrder && isPureTradingOrder(i.workOrder.productionPlan.salesOrder)) return false;
+        return true;
+      })
+      .map((i: any) => ({
       ...i.workOrder,
       qcInspectionId: i.id,
       qcInspectionStatus: i.status,
@@ -202,7 +217,7 @@ export class ProductionWorkflowService {
         const isStartedOrDone = isActuallyInProductionOrDone(bwoStatus, woAny);
 
         const salesItem = salesOrder.items?.find((item: any) => item.id === woAny.salesOrderItemId) || woAny.salesOrderItem;
-        if (isTradingProduct(salesItem?.product || woAny.salesOrderItem?.product, salesItem || woAny.salesOrderItem)) {
+        if (isPureTradingOrder(salesOrder) || isTradingProduct(salesItem?.product || woAny.salesOrderItem?.product, salesItem || woAny.salesOrderItem)) {
           continue;
         }
         const productName = salesItem?.productNameSnapshot || salesItem?.product?.name || woAny.salesOrderItem?.product?.name || 'Production Item';
@@ -272,7 +287,7 @@ export class ProductionWorkflowService {
 
       for (const plan of activePlans) {
         const soAny = (plan as any).salesOrder;
-        if (!soAny || isPureTradingOrder(soAny)) continue;
+        if (!soAny || isPureTradingOrder(soAny) || !hasManufacturingItems(soAny)) continue;
         const orderId = soAny.id || plan.salesOrderId || plan.id;
         const key = String(soAny.orderNumber || soAny.orderNo || orderId);
         if (!historyMap.has(orderId) && !historyMap.has(key) && !pendingMap.has(orderId) && !pendingMap.has(key)) {
@@ -297,7 +312,8 @@ export class ProductionWorkflowService {
             soAny.clientName ||
             'N/A';
 
-          const items = Array.isArray(soAny.items) ? soAny.items : [];
+          const items = (Array.isArray(soAny.items) ? soAny.items : []).filter((i: any) => !isTradingProduct(i.product || i, i));
+          if (items.length === 0) continue;
           const detailedItems = items.map((i: any) => ({
             productName: i.productNameSnapshot || i.product?.name || 'Item',
             quantity: Number(i.orderedQuantity ?? i.quantity ?? 1),
@@ -340,7 +356,7 @@ export class ProductionWorkflowService {
         where: {
           deletedAt: null,
           NOT: {
-            status: { in: ['CANCELLED', 'LOST'] as any },
+            status: { in: ['CANCELLED', 'LOST', 'DRAFT', 'READY_FOR_DISPATCH'] as any },
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -358,7 +374,7 @@ export class ProductionWorkflowService {
 
       for (const so of assignedSalesOrders) {
         const soAny = so as any;
-        if (isPureTradingOrder(soAny)) continue;
+        if (isPureTradingOrder(soAny) || !hasManufacturingItems(soAny)) continue;
         const key = String(soAny.orderNumber || soAny.orderNo || soAny.id);
         if (!historyMap.has(soAny.id) && !historyMap.has(key) && !pendingMap.has(soAny.id) && !pendingMap.has(key)) {
           const lead = soAny.sourceQuotation?.lead || soAny.quotation?.lead;
@@ -382,7 +398,8 @@ export class ProductionWorkflowService {
             soAny.clientName ||
             'N/A';
 
-          const items = Array.isArray(soAny.items) ? soAny.items : [];
+          const items = (Array.isArray(soAny.items) ? soAny.items : []).filter((i: any) => !isTradingProduct(i.product || i, i));
+          if (items.length === 0) continue;
           const detailedItems = items.map((i: any) => ({
             productName: i.productNameSnapshot || i.product?.name || 'Item',
             quantity: Number(i.orderedQuantity ?? i.quantity ?? 1),
@@ -482,7 +499,11 @@ export class ProductionWorkflowService {
           },
         },
       });
-      return Array.isArray(records) ? records : [];
+      return (Array.isArray(records) ? records : []).filter((wo: any) => {
+        if (isTradingProduct(wo.salesOrderItem?.product, wo.salesOrderItem)) return false;
+        if (wo.productionPlan?.salesOrder && isPureTradingOrder(wo.productionPlan.salesOrder)) return false;
+        return true;
+      });
     } catch (err) {
       console.error(
         `[ProductionWorkflow] getJobsByStatus failed for ${statuses}:`,
@@ -525,7 +546,11 @@ export class ProductionWorkflowService {
           },
         },
       });
-      return Array.isArray(records) ? records : [];
+      return (Array.isArray(records) ? records : []).filter((wo: any) => {
+        if (isTradingProduct(wo.salesOrderItem?.product, wo.salesOrderItem)) return false;
+        if (wo.productionPlan?.salesOrder && isPureTradingOrder(wo.productionPlan.salesOrder)) return false;
+        return true;
+      });
     } catch (err) {
       console.error('[ProductionWorkflow] getQcFailedHistory failed:', err);
       return [];
@@ -668,7 +693,11 @@ export class ProductionWorkflowService {
           },
         },
       });
-      return Array.isArray(records) ? records : [];
+      return (Array.isArray(records) ? records : []).filter((wo: any) => {
+        if (isTradingProduct(wo.salesOrderItem?.product, wo.salesOrderItem)) return false;
+        if (wo.productionPlan?.salesOrder && isPureTradingOrder(wo.productionPlan.salesOrder)) return false;
+        return true;
+      });
     } catch (err) {
       console.error(
         '[ProductionWorkflow] getReadyForDispatchHistory failed:',
@@ -3471,6 +3500,9 @@ export class ProductionWorkflowService {
       const items = salesOrder.items || [];
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
+        if (isTradingProduct(item.product, item)) {
+          continue; // Trading products MUST NEVER have production work orders!
+        }
         const alreadyHasWo = existingWos.some((w) => w.salesOrderItemId === item.id);
         if (!alreadyHasWo) {
           const qty = Number(item.orderedQuantity || 1);

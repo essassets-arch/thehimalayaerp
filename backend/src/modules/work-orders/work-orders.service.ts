@@ -7,6 +7,10 @@ import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { getSalesScope } from '../../common/utils/rbac.util';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  isTradingProduct,
+  isPureTradingOrder,
+} from '../../common/utils/trading-product.util';
 
 @Injectable()
 export class WorkOrdersService {
@@ -87,7 +91,7 @@ export class WorkOrdersService {
       }
     }
 
-    return this.prisma.workOrder.findMany({
+    const workOrders = await this.prisma.workOrder.findMany({
       where,
       include: {
         productionPlan: {
@@ -112,6 +116,13 @@ export class WorkOrdersService {
         workflowState: true,
       },
       orderBy: { createdAt: 'desc' },
+    });
+
+    return workOrders.filter((wo) => {
+      const prod = wo.salesOrderItem?.product;
+      if (isTradingProduct(prod, wo.salesOrderItem)) return false;
+      if (wo.productionPlan?.salesOrder && isPureTradingOrder(wo.productionPlan.salesOrder)) return false;
+      return true;
     });
   }
 

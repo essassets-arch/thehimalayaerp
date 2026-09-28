@@ -12,6 +12,7 @@ import {
   resolveBatchNumber,
   resolveProducedQuantity,
 } from '../../../../store/domains/shared/workflowUtils';
+import { isTradingProduct, isPureTradingOrder } from '../../../../shared/utils/dispatchCategory';
 
 export default function QCPendingView() {
   const { state } = useERP();
@@ -29,16 +30,21 @@ export default function QCPendingView() {
     const entries = state.production?.productionEntries || state.productionEntries || [];
     const orders = state.sales?.orders || [];
     return workOrders
-      .filter((workOrder) => ['PRODUCTION_COMPLETED', 'QC_PENDING', 'REINSPECTION_PENDING']
-        .includes(normalizeStatus(workOrder.status || workOrder.workflowStatus)))
+      .filter((workOrder) => {
+        if (isPureTradingOrder(workOrder.salesOrder || workOrder.productionPlan?.salesOrder)) return false;
+        if (isTradingProduct(workOrder) || isTradingProduct(workOrder.product) || isTradingProduct(workOrder.salesOrderItem?.product, workOrder.salesOrderItem)) return false;
+        return ['PRODUCTION_COMPLETED', 'QC_PENDING', 'REINSPECTION_PENDING']
+          .includes(normalizeStatus(workOrder.status || workOrder.workflowStatus));
+      })
       .map((workOrder) => {
         const orderId = getOrderId(workOrder);
         const order = orders.find((candidate) => String(candidate.id || candidate.orderNo) === orderId) || {};
+        if (isPureTradingOrder(order)) return null;
         const entry = entries.find((candidate) =>
           getOrderId(candidate) === orderId ||
           String(candidate.workOrderId || candidate.workOrderNo) === String(workOrder.id)
         ) || {};
-        const items = normalizeItems(order).length ? normalizeItems(order) : normalizeItems(workOrder);
+        const items = (normalizeItems(order).length ? normalizeItems(order) : normalizeItems(workOrder)).filter(it => !isTradingProduct(it));
         const orderedQuantity = items.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0);
         return {
           ...workOrder,
@@ -58,7 +64,8 @@ export default function QCPendingView() {
           productionShift: entry.shift ?? workOrder.shift,
           productionRemarks: entry.remarks ?? workOrder.remarks,
         };
-      });
+      })
+      .filter(Boolean);
   }, [state]);
 
   const filteredOrders = useMemo(() => {

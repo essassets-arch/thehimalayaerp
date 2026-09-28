@@ -15,6 +15,7 @@ import { backendFetch } from '../../../lib/backendFetch';
 import { useMaterialRequests } from '../../../hooks/useMaterialRequests';
 import { getProductionWorkOrders } from '../utils/getProductionWorkOrders';
 import { selectProductionIncomingOrders, selectProductionWorkOrders } from '../../../store/domains/sales/salesSelectors';
+import { isTradingProduct, isPureTradingOrder, hasManufacturingItems as hasMfgItemsUtil } from '../../../shared/utils/dispatchCategory';
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
 import OrderDetailsModal from '../../../shared/components/OrderDetailsModal';
@@ -1055,7 +1056,8 @@ export default function ProductionPortal() {
     }
   };
   const incomingOrders = useMemo(() => {
-    const combinedOrders = [...(directBackendOrders || []), ...(backendSalesOrders || []), ...(storeOrders || [])];
+    const combinedOrders = [...(directBackendOrders || []), ...(backendSalesOrders || []), ...(storeOrders || [])]
+      .filter(o => hasMfgItemsUtil(o) && !isPureTradingOrder(o));
     const combinedState = {
       ...state,
       sales: {
@@ -1063,15 +1065,18 @@ export default function ProductionPortal() {
         orders: combinedOrders
       }
     };
-    return selectProductionIncomingOrders(combinedState).map((order) => {
-      const quotationRef = order.quotationId;
-      const sourceQuotation = (state.sales?.quotations || []).find((q) => q.id === quotationRef);
-      return normalizeProductionOrder(order, sourceQuotation);
-    });
+    return selectProductionIncomingOrders(combinedState)
+      .filter(order => hasMfgItemsUtil(order) && !isPureTradingOrder(order))
+      .map((order) => {
+        const quotationRef = order.quotationId;
+        const sourceQuotation = (state.sales?.quotations || []).find((q) => q.id === quotationRef);
+        return normalizeProductionOrder(order, sourceQuotation);
+      });
   }, [state, storeOrders, directBackendOrders, backendSalesOrders]);
 
   const orders = useMemo(() => {
-    const combinedOrders = [...(directBackendOrders || []), ...(backendSalesOrders || []), ...(storeOrders || [])];
+    const combinedOrders = [...(directBackendOrders || []), ...(backendSalesOrders || []), ...(storeOrders || [])]
+      .filter(o => hasMfgItemsUtil(o) && !isPureTradingOrder(o));
     const combinedState = {
       ...state,
       sales: {
@@ -1079,16 +1084,20 @@ export default function ProductionPortal() {
         orders: combinedOrders
       }
     };
-    return selectProductionWorkOrders(combinedState).map((order) => {
-      const quotationRef = order.quotationId;
-      const sourceQuotation = (state.sales?.quotations || []).find((q) => q.id === quotationRef);
-      return normalizeProductionOrder(order, sourceQuotation);
-    });
+    return selectProductionWorkOrders(combinedState)
+      .filter(order => hasMfgItemsUtil(order) && !isPureTradingOrder(order))
+      .map((order) => {
+        const quotationRef = order.quotationId;
+        const sourceQuotation = (state.sales?.quotations || []).find((q) => q.id === quotationRef);
+        return normalizeProductionOrder(order, sourceQuotation);
+      });
   }, [state, storeOrders, directBackendOrders, backendSalesOrders]);
   const filteredStoreWOs = getProductionWorkOrders(state);
   const storeWorkOrders = (filteredStoreWOs && filteredStoreWOs.length > 0) ? filteredStoreWOs : mockWorkOrders;
   const workOrders = useMemo(() => {
     const activeOrderWOs = orders.filter(o =>
+      !isPureTradingOrder(o) &&
+      hasMfgItemsUtil(o) &&
       [STATUS.WORK_ORDER_CREATED, STATUS.PRODUCTION_ACCEPTED, STATUS.IN_PRODUCTION, 'PRODUCTION_STARTED', STATUS.PAUSED, STATUS.REWORK, STATUS.PRODUCTION_COMPLETED, STATUS.QC_PENDING, 'WORK_ORDER_CREATED', 'PRODUCTION_ACCEPTED', 'IN_PRODUCTION', 'PAUSED', 'REWORK', 'PRODUCTION_ASSIGNED', 'PLANNED', 'PRODUCTION_PLANNED', 'PLANT_ACCEPTED', 'Completed', 'PRODUCTION_COMPLETED', 'QC_PENDING'].includes(o.status || o.workflowStatus)
     ).map(o => {
       const qty = Number(o.quantity || o.products?.[0]?.quantity || o.total_tonnage || 10) || 10;
@@ -1106,7 +1115,10 @@ export default function ProductionPortal() {
     });
     const mergedWOsMap = new Map();
     storeWorkOrders.forEach(wo => {
-      const items = Array.isArray(wo.items) ? wo.items : [];
+      if (isPureTradingOrder(wo.salesOrder || wo.productionPlan?.salesOrder) || isTradingProduct(wo) || isTradingProduct(wo.salesOrderItem?.product, wo.salesOrderItem)) {
+        return;
+      }
+      const items = (Array.isArray(wo.items) ? wo.items : []).filter(i => !isTradingProduct(i));
       const qty = Number(
         wo.targetQuantity ??
         wo.quantity ??
@@ -1153,8 +1165,11 @@ export default function ProductionPortal() {
       }
     });
     backendWorkOrders.forEach(bwo => {
-      const woId = bwo.id || bwo.workOrderNumber;
       const salesOrder = bwo.productionPlan?.salesOrder || bwo.salesOrder || {};
+      if (isPureTradingOrder(salesOrder) || isTradingProduct(bwo) || isTradingProduct(bwo.salesOrderItem?.product, bwo.salesOrderItem)) {
+        return;
+      }
+      const woId = bwo.id || bwo.workOrderNumber;
       const orderNo = salesOrder.orderNumber || salesOrder.orderNo || bwo.orderNo || bwo.orderNumber || bwo.id;
       const productName = bwo.salesOrderItem?.product?.name || bwo.salesOrderItem?.productNameSnapshot || bwo.productName || 'Production Item';
       const targetQty = Number(bwo.quantity || bwo.targetQuantity || bwo.salesOrderItem?.orderedQuantity || 0);
@@ -1182,7 +1197,9 @@ export default function ProductionPortal() {
         });
       }
     });
-    return Array.from(mergedWOsMap.values()).sort((a, b) => {
+    return Array.from(mergedWOsMap.values())
+      .filter(wo => !isTradingProduct(wo) && !isTradingProduct(wo.salesOrderItem?.product, wo.salesOrderItem) && !isPureTradingOrder(wo.salesOrder || wo.productionPlan?.salesOrder))
+      .sort((a, b) => {
       const tA = new Date(a.createdAt || a.created_at || a.targetDate || 0).getTime();
       const tB = new Date(b.createdAt || b.created_at || b.targetDate || 0).getTime();
       const numA = parseInt(String(a.workOrderNo || a.workOrderNumber || a.orderNo || a.id || '').replace(/\D/g, '')) || 0;
@@ -2042,6 +2059,7 @@ export default function ProductionPortal() {
 
     // A. Add from backend database-verified history (authoritative DB records)
     (Array.isArray(backendIncomingHistory) ? backendIncomingHistory : []).filter(Boolean).forEach((item) => {
+      if (isPureTradingOrder(item) || !hasMfgItemsUtil(item)) return;
       const key = String(item?.orderNo || item?.id || '');
       if (key && !historyMap.has(key)) {
         historyMap.set(key, item);
@@ -2050,6 +2068,7 @@ export default function ProductionPortal() {
 
     // B. Add from persistent / user-accepted history (explicitly clicked Accept/Reject in UI)
     (Array.isArray(acceptedHistory) ? acceptedHistory : []).filter(Boolean).forEach((item) => {
+      if (isPureTradingOrder(item) || !hasMfgItemsUtil(item)) return;
       const key = String(item?.orderNo || item?.id || '');
       if (key && !historyMap.has(key)) {
         historyMap.set(key, item);
@@ -2059,6 +2078,7 @@ export default function ProductionPortal() {
     // C. Add from backend work orders ONLY IF they have actually started or completed production
     (Array.isArray(backendWorkOrders) ? backendWorkOrders : []).filter(Boolean).forEach((bwo) => {
       const salesOrder = bwo.productionPlan?.salesOrder || bwo.salesOrder || {};
+      if (isPureTradingOrder(salesOrder) || isTradingProduct(bwo) || isTradingProduct(bwo.salesOrderItem?.product, bwo.salesOrderItem)) return;
       const key = String(salesOrder.orderNumber || salesOrder.orderNo || bwo.orderNo || bwo.orderNumber || bwo.id || '');
       if (!key) return;
 
@@ -2067,7 +2087,7 @@ export default function ProductionPortal() {
       const isStartedOrDone = isActuallyInProductionOrDone(bwoStatus, bwo);
 
       if (isStartedOrDone && !historyMap.has(key)) {
-        const items = Array.isArray(salesOrder.items) ? salesOrder.items : [];
+        const items = (Array.isArray(salesOrder.items) ? salesOrder.items : []).filter(i => !isTradingProduct(i));
         const prodName = bwo.salesOrderItem?.product?.name || bwo.salesOrderItem?.productNameSnapshot || bwo.productName || (items.length ? items.map(i => i.productName || i.name).filter(Boolean).join(', ') : 'Production Item');
         const targetQty = Number(bwo.quantity || bwo.targetQuantity || bwo.salesOrderItem?.orderedQuantity || salesOrder.totalQuantity || 0);
 
@@ -2092,6 +2112,7 @@ export default function ProductionPortal() {
 
     // D. Add from direct backend sales orders ONLY IF explicitly completed/in progress
     (Array.isArray(directBackendOrders) ? directBackendOrders : []).filter(Boolean).forEach((so) => {
+      if (isPureTradingOrder(so) || !hasMfgItemsUtil(so)) return;
       const key = String(so?.orderNumber || so?.orderNo || so?.id || '');
       if (!key) return;
       const status = String(so?.status || so?.workflowStatus || '').toUpperCase();
@@ -2099,9 +2120,9 @@ export default function ProductionPortal() {
       const isStartedOrDone = isActuallyInProductionOrDone(status, so);
 
       if (isStartedOrDone && !historyMap.has(key)) {
-        const soItems = Array.isArray(so?.items) ? so.items.filter(Boolean) : [];
+        const soItems = (Array.isArray(so?.items) ? so.items.filter(Boolean) : []).filter(i => !isTradingProduct(i));
         const prodName = soItems.map(i => i.productName || i.name).filter(Boolean).join(', ') || 'Production Item';
-        const qty = so?.totalQuantity || so?.quantity || soItems.reduce((sum, i) => sum + (Number(i.orderedQuantity || i.quantity || 0)), 0);
+        const qty = soItems.reduce((sum, i) => sum + (Number(i.orderedQuantity || i.quantity || 0)), 0) || so?.totalQuantity || so?.quantity || 1;
 
         historyMap.set(key, {
           id: so?.id || key,
@@ -2137,6 +2158,7 @@ export default function ProductionPortal() {
 
     // Source 1: backendIncomingPending (direct from DB)
     (Array.isArray(pendingSource) ? pendingSource : []).filter(Boolean).forEach((row) => {
+      if (isPureTradingOrder(row) || !hasMfgItemsUtil(row)) return;
       const key = String(row.orderNo || row.id || '');
       if (key && !acceptedKeys.has(key) && !pendingCandidatesMap.has(key)) {
         pendingCandidatesMap.set(key, row);
@@ -2145,11 +2167,12 @@ export default function ProductionPortal() {
 
     // Source 2: directBackendOrders not yet in history
     (Array.isArray(directBackendOrders) ? directBackendOrders : []).filter(Boolean).forEach((so) => {
+      if (isPureTradingOrder(so) || !hasMfgItemsUtil(so)) return;
       const key = String(so.orderNumber || so.orderNo || so.id || '');
       if (key && !acceptedKeys.has(key) && !pendingCandidatesMap.has(key)) {
-        const soItems = Array.isArray(so.items) ? so.items.filter(Boolean) : [];
+        const soItems = (Array.isArray(so.items) ? so.items.filter(Boolean) : []).filter(i => !isTradingProduct(i));
         const prodName = soItems.map(i => i.productName || i.name).filter(Boolean).join(', ') || 'Production Item';
-        const qty = so.totalQuantity || so.quantity || soItems.reduce((sum, i) => sum + Number(i.orderedQuantity || i.quantity || 0), 0) || 1;
+        const qty = soItems.reduce((sum, i) => sum + Number(i.orderedQuantity || i.quantity || 0), 0) || so.totalQuantity || so.quantity || 1;
         pendingCandidatesMap.set(key, {
           id: so.id || key,
           orderNo: key,
@@ -2170,9 +2193,10 @@ export default function ProductionPortal() {
     // Source 3: backendWorkOrders not yet in history
     (Array.isArray(backendWorkOrders) ? backendWorkOrders : []).filter(Boolean).forEach((bwo) => {
       const salesOrder = bwo.productionPlan?.salesOrder || bwo.salesOrder || {};
+      if (isPureTradingOrder(salesOrder) || isTradingProduct(bwo) || isTradingProduct(bwo.salesOrderItem?.product, bwo.salesOrderItem)) return;
       const key = String(salesOrder.orderNumber || salesOrder.orderNo || bwo.orderNo || bwo.orderNumber || bwo.id || '');
       if (key && !acceptedKeys.has(key) && !pendingCandidatesMap.has(key)) {
-        const items = Array.isArray(salesOrder.items) ? salesOrder.items : [];
+        const items = (Array.isArray(salesOrder.items) ? salesOrder.items : []).filter(i => !isTradingProduct(i));
         const prodName = bwo.salesOrderItem?.product?.name || bwo.salesOrderItem?.productNameSnapshot || bwo.productName || (items.length ? items.map(i => i.productName || i.name).filter(Boolean).join(', ') : 'Production Item');
         const targetQty = Number(bwo.quantity || bwo.targetQuantity || bwo.salesOrderItem?.orderedQuantity || salesOrder.totalQuantity || 0) || 1;
         pendingCandidatesMap.set(key, {

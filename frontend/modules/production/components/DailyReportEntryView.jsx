@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 
 import { useQueryClient } from '@tanstack/react-query';
+import { isTradingProduct } from '../../../shared/utils/dispatchCategory';
 
 // Helper to parse specifications (Size, Type, Capacity) from product name if not explicitly set
 function parseProductSpecs(name = '') {
@@ -548,6 +549,7 @@ export default function DailyReportEntryView({
         const code = String(p.sku || p.product_code || p.publicId || '').toUpperCase();
         const name = String(p.product_name || p.name || '').toLowerCase();
         if (origType === 'RAW_MATERIAL' || origType === 'HARDWARE') return false;
+        if (origType === 'TRADING' || p.dispatchCategory === 'D2' || isTradingProduct(p)) return false;
         if (['raw material', 'hardware', 'electric', 'consumables', 'consumable'].includes(family)) return false;
         if (code.startsWith('HCPPL') || code.startsWith('RM-') || code.startsWith('HM')) return false;
         if (rawKeywords.some(k => name.includes(k))) return false;

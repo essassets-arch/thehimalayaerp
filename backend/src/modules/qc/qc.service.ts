@@ -7,6 +7,10 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  isTradingProduct,
+  isPureTradingOrder,
+} from '../../common/utils/trading-product.util';
 
 @Injectable()
 export class QcService {
@@ -17,7 +21,7 @@ export class QcService {
   ) {}
 
   async listInspections(companyId: string) {
-    return this.prisma.qCInspection.findMany({
+    const inspections = await this.prisma.qCInspection.findMany({
       where: {
         workOrder: {
           productionPlan: {
@@ -33,12 +37,24 @@ export class QcService {
             productionPlan: {
               include: { salesOrder: { include: { customer: true } } },
             },
-            salesOrderItem: true,
+            salesOrderItem: {
+              include: {
+                product: true,
+              },
+            },
           },
         },
         workflowState: true,
       },
       orderBy: { createdAt: 'desc' },
+    });
+
+    return inspections.filter((ins) => {
+      const wo = ins.workOrder;
+      const prod = wo?.salesOrderItem?.product;
+      if (isTradingProduct(prod, wo?.salesOrderItem)) return false;
+      if (wo?.productionPlan?.salesOrder && isPureTradingOrder(wo.productionPlan.salesOrder)) return false;
+      return true;
     });
   }
 

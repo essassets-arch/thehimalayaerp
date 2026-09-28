@@ -294,7 +294,7 @@ const _selectProductionIncomingOrders = (store: ERPStoreState) => {
       const notStarted = !prodSt || prodSt === 'NOT_STARTED' || prodSt === 'CREATED' || prodSt === 'PLANNED';
       return isPlantAssigned && notStarted;
     })
-    .filter((o: any) => hasManufacturingProducts(o))
+    .filter((o: any) => hasManufacturingProducts(o) && !isPureTradingOrder(o))
     .map(toProductionSafeView);
 };
 
@@ -307,7 +307,7 @@ const _selectProductionWorkOrders = (store: ERPStoreState) => {
         o.planningStatus === 'PRODUCTION_PLANNED' ||
         ['WORK_ORDER_CREATED', 'PRODUCTION_ACCEPTED', 'IN_PRODUCTION', 'PAUSED', 'REWORK', 'PRODUCTION_COMPLETED', 'QC_PENDING'].includes(o.productionStatus)
     )
-    .filter((o: any) => hasManufacturingProducts(o))
+    .filter((o: any) => hasManufacturingProducts(o) && !isPureTradingOrder(o))
     .map(toProductionSafeView);
 };
 

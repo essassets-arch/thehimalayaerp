@@ -2,12 +2,19 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { ClipboardCheck, ShieldCheck, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { useERP } from '../../../../shared/context/ERPContext';
+import { isTradingProduct, isPureTradingOrder } from '../../../../shared/utils/dispatchCategory';
 
 export default function QCDashboardView() {
   const navigate = useRouter();
   const { state } = useERP();
   
-  const workOrders = state.production?.workOrders || state.workOrders || [];
+  const rawWorkOrders = state.production?.workOrders || state.workOrders || [];
+  const workOrders = rawWorkOrders.filter(wo => {
+    if (isPureTradingOrder(wo.salesOrder || wo.productionPlan?.salesOrder)) return false;
+    if (isTradingProduct(wo) || isTradingProduct(wo.product) || isTradingProduct(wo.salesOrderItem?.product, wo.salesOrderItem)) return false;
+    return true;
+  });
+
   const pendingOrders = workOrders.filter(wo =>
     ['PRODUCTION_COMPLETED', 'QC_PENDING', 'REINSPECTION_PENDING'].includes(wo.status)
   );
@@ -16,7 +23,12 @@ export default function QCDashboardView() {
     ['QC_FAILED', 'REWORK_REQUIRED', 'REWORK_IN_PROGRESS'].includes(wo.status)
   );
 
-  const qcInspections = state.qcInspections || [];
+  const qcInspections = (state.qcInspections || []).filter(ins => {
+    const wo = ins.workOrder;
+    if (isPureTradingOrder(wo?.salesOrder || wo?.productionPlan?.salesOrder)) return false;
+    if (isTradingProduct(wo) || isTradingProduct(wo?.product) || isTradingProduct(wo?.salesOrderItem?.product, wo?.salesOrderItem) || isTradingProduct(ins.product)) return false;
+    return true;
+  });
   
   const totalInspected = qcInspections.length;
   // A simplistic way to count approved from history is to check the most recent result per work order,
