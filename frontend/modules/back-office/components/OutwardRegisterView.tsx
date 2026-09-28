@@ -34,8 +34,6 @@ import {
   createOutwardRegisterEntry,
   updateOutwardRegisterEntry,
   archiveOutwardRegisterEntry,
-  fetchProductOptions,
-  ProductOption,
   OutwardRegisterEntryDto,
   OutwardRegisterItem,
 } from '../services/outwardRegisterService';
@@ -160,17 +158,16 @@ export default function OutwardRegisterView() {
   const [transportersList, setTransportersList] = useState<string[]>([]);
   const [salesPersonsList, setSalesPersonsList] = useState<string[]>([]);
 
-  // Product catalog from backend
-  const [productCatalog, setProductCatalog] = useState<ProductOption[]>([]);
+  // Responsive mobile state
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    fetchProductOptions()
-      .then((opts) => {
-        if (Array.isArray(opts) && opts.length > 0) {
-          setProductCatalog(opts);
-        }
-      })
-      .catch(() => {});
+    const handleResize = () => {
+      setIsMobile(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // Modal States
@@ -547,15 +544,6 @@ export default function OutwardRegisterView() {
       toast.error('CSV Export failed');
     }
   };
-
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   const getReceivingBadgeStyle = (status: string | undefined | null): React.CSSProperties => {
     if (!status || status.trim() === '' || status === '—') {
@@ -1438,346 +1426,474 @@ export default function OutwardRegisterView() {
         <div style={{
           position: 'fixed',
           inset: 0,
-          zIndex: 50,
+          zIndex: 9999,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '16px',
-          background: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)'
+          padding: isMobile ? '8px' : '20px 16px',
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          overflowY: 'auto'
         }}>
           <div style={{
             background: '#ffffff',
-            borderRadius: '20px',
+            borderRadius: isMobile ? '14px' : '16px',
             maxWidth: '680px',
             width: '100%',
-            padding: '24px',
+            margin: 'auto 0',
+            maxHeight: isMobile ? '96vh' : 'calc(100vh - 40px)',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
             border: '1px solid #e2e8f0',
-            maxHeight: '92vh',
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            overflow: 'hidden'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '16px' }}>
+            {/* Header - Always pinned at top */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: isMobile ? '12px 16px' : '16px 20px',
+              borderBottom: '1px solid #f1f5f9',
+              background: '#ffffff',
+              flexShrink: 0
+            }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ padding: '8px', borderRadius: '10px', background: '#f0f9ff', color: '#0284c7' }}>
                   <Plus size={20} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', margin: 0 }}>Add Outward Register Entry</h3>
+                  <h3 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '800', color: '#0f172a', margin: 0 }}>Add Outward Register Entry</h3>
                   <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0' }}>Record outward material dispatch details manually</p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsAddOpen(false)}
-                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '6px', borderRadius: '6px' }}
+                aria-label="Close"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveAdd} style={{ display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', paddingRight: '4px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    DATE <span style={{ color: '#e11d48' }}>*</span>
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={formState.outwardDate}
-                    onChange={(e) => setFormState({ ...formState, outwardDate: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    TRASNPORTER NAME <span style={{ color: '#e11d48' }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. VRL Logistics, TCI, Direct"
-                    value={formState.transporterName}
-                    onChange={(e) => setFormState({ ...formState, transporterName: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    VEHICLE NO.
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. MH-12-AB-1234"
-                    value={formState.vehicleNo}
-                    onChange={(e) => setFormState({ ...formState, vehicleNo: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }}
-                  />
-                </div>
-
-                {/* PRODUCT-WISE DISPATCH & QUANTITY SECTION */}
-                <div style={{
-                  gridColumn: isMobile ? '1' : 'span 2',
-                  background: '#f8fafc',
-                  border: '1.5px solid #e2e8f0',
-                  borderRadius: '12px',
-                  padding: '12px 14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Boxes size={15} style={{ color: '#0284c7' }} />
-                      <label style={{ fontSize: '11px', fontWeight: '800', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>
-                        PRODUCTS & QUANTITIES <span style={{ color: '#e11d48' }}>*</span>
-                      </label>
-                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
-                        ({formState.items.length} {formState.items.length === 1 ? 'item' : 'items'})
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Total Qty:</span>
-                      <span style={{
-                        fontFamily: 'monospace',
-                        fontSize: '13px',
-                        fontWeight: '800',
-                        color: '#0284c7',
-                        background: '#e0f2fe',
-                        padding: '2px 8px',
-                        borderRadius: '6px'
-                      }}>
-                        {formatQuantity(formState.items.reduce((s, it) => s + (Number(it.quantity) || 0), 0))}
-                      </span>
-                    </div>
+            {/* Form with scrollable body */}
+            <form onSubmit={handleSaveAdd} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', flex: 1, minHeight: 0, overflowY: 'auto', padding: isMobile ? '14px 16px' : '18px 22px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      DATE <span style={{ color: '#e11d48' }}>*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formState.outwardDate}
+                      onChange={(e) => setFormState({ ...formState, outwardDate: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    />
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {formState.items.map((it, idx) => (
-                      <div
-                        key={it.id || idx}
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: isMobile ? '1fr' : '1fr 130px 85px 36px',
-                          gap: '8px',
-                          alignItems: 'center',
-                          background: '#ffffff',
-                          padding: '8px 10px',
-                          borderRadius: '8px',
-                          border: '1px solid #e2e8f0',
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
-                        }}
-                      >
-                        <div>
-                          <label style={{ display: isMobile ? 'block' : 'none', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
-                            PRODUCT #{idx + 1}
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            list="outward-products-catalog"
-                            placeholder={idx === 0 ? "Material description / grade" : "Search or enter product..."}
-                            value={it.productName}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              const matched = productCatalog.find((p) => p.name.toLowerCase() === val.toLowerCase());
-                              handleUpdateItem(idx, {
-                                productName: val,
-                                productId: matched?.id || it.productId,
-                                unit: matched?.unit || it.unit || 'Sets',
-                              });
-                            }}
-                            style={{
-                              width: '100%',
-                              padding: '8px 10px',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e1',
-                              fontSize: '12px',
-                              outline: 'none',
-                              boxSizing: 'border-box'
-                            }}
-                          />
-                        </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      TRASNPORTER NAME <span style={{ color: '#e11d48' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      autoComplete="off"
+                      placeholder="e.g. VRL Logistics, TCI, Direct"
+                      value={formState.transporterName}
+                      onChange={(e) => setFormState({ ...formState, transporterName: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
 
-                        <div>
-                          <label style={{ display: isMobile ? 'block' : 'none', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
-                            QUANTITY
-                          </label>
-                          <input
-                            type="number"
-                            step="0.001"
-                            min="0.001"
-                            required
-                            placeholder="0.000"
-                            value={it.quantity}
-                            onChange={(e) => handleUpdateItem(idx, { quantity: e.target.value })}
-                            style={{
-                              width: '100%',
-                              padding: '8px 10px',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e1',
-                              fontSize: '12px',
-                              outline: 'none',
-                              fontFamily: 'monospace',
-                              boxSizing: 'border-box'
-                            }}
-                          />
-                        </div>
+                  <div style={{ gridColumn: isMobile ? '1' : 'span 2' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      VEHICLE NO.
+                    </label>
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      placeholder="e.g. MH-12-AB-1234"
+                      value={formState.vehicleNo}
+                      onChange={(e) => setFormState({ ...formState, vehicleNo: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }}
+                    />
+                  </div>
 
-                        <div>
-                          <label style={{ display: isMobile ? 'block' : 'none', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
-                            UNIT
-                          </label>
-                          <select
-                            value={it.unit || 'Sets'}
-                            onChange={(e) => handleUpdateItem(idx, { unit: e.target.value })}
-                            style={{
-                              width: '100%',
-                              padding: '8px 6px',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e1',
-                              fontSize: '12px',
-                              outline: 'none',
-                              background: '#ffffff',
-                              boxSizing: 'border-box'
-                            }}
-                          >
-                            <option value="Sets">Sets</option>
-                            <option value="Nos">Nos</option>
-                            <option value="Pcs">Pcs</option>
-                            <option value="Kg">Kg</option>
-                            <option value="Mtr">Mtr</option>
-                            <option value="Boxes">Boxes</option>
-                          </select>
-                        </div>
+                  {/* PRODUCTS & QUANTITIES - STRICTLY MANUAL ENTRY */}
+                  <div style={{
+                    gridColumn: isMobile ? '1' : 'span 2',
+                    background: '#f8fafc',
+                    border: '1.5px solid #e2e8f0',
+                    borderRadius: '12px',
+                    padding: isMobile ? '12px' : '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Boxes size={15} style={{ color: '#0284c7' }} />
+                        <label style={{ fontSize: '11px', fontWeight: '800', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>
+                          PRODUCTS & QUANTITIES <span style={{ color: '#e11d48' }}>*</span>
+                        </label>
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+                          ({formState.items.length} {formState.items.length === 1 ? 'item' : 'items'})
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Total Qty:</span>
+                        <span style={{
+                          fontFamily: 'monospace',
+                          fontSize: '13px',
+                          fontWeight: '800',
+                          color: '#0284c7',
+                          background: '#e0f2fe',
+                          padding: '2px 8px',
+                          borderRadius: '6px'
+                        }}>
+                          {formatQuantity(formState.items.reduce((s, it) => s + (Number(it.quantity) || 0), 0))}
+                        </span>
+                      </div>
+                    </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'center' }}>
-                          {formState.items.length > 1 ? (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(idx)}
-                              title="Remove item"
-                              style={{
-                                background: '#fef2f2',
-                                border: '1px solid #fecaca',
-                                borderRadius: '6px',
-                                width: '32px',
-                                height: '32px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#ef4444',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {formState.items.map((it, idx) => (
+                        <div
+                          key={it.id || idx}
+                          style={{
+                            background: '#ffffff',
+                            padding: isMobile ? '10px' : '8px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid #e2e8f0',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                          }}
+                        >
+                          {isMobile ? (
+                            /* Mobile Stacked Layout */
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '3px' }}>
+                                  PRODUCT #{idx + 1}
+                                </label>
+                                <input
+                                  type="text"
+                                  required
+                                  autoComplete="off"
+                                  autoCorrect="off"
+                                  spellCheck={false}
+                                  placeholder={idx === 0 ? "Material description / grade" : "Material / product name"}
+                                  value={it.productName}
+                                  onChange={(e) => handleUpdateItem(idx, { productName: e.target.value })}
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '13px',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ display: 'block', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '3px' }}>
+                                    QUANTITY
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.001"
+                                    min="0.001"
+                                    required
+                                    placeholder="0.000"
+                                    value={it.quantity}
+                                    onChange={(e) => handleUpdateItem(idx, { quantity: e.target.value })}
+                                    style={{
+                                      width: '100%',
+                                      padding: '8px 10px',
+                                      borderRadius: '6px',
+                                      border: '1px solid #cbd5e1',
+                                      fontSize: '13px',
+                                      outline: 'none',
+                                      fontFamily: 'monospace',
+                                      boxSizing: 'border-box'
+                                    }}
+                                  />
+                                </div>
+                                <div style={{ width: '95px' }}>
+                                  <label style={{ display: 'block', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '3px' }}>
+                                    UNIT
+                                  </label>
+                                  <select
+                                    value={it.unit || 'Sets'}
+                                    onChange={(e) => handleUpdateItem(idx, { unit: e.target.value })}
+                                    style={{
+                                      width: '100%',
+                                      padding: '8px 6px',
+                                      borderRadius: '6px',
+                                      border: '1px solid #cbd5e1',
+                                      fontSize: '12px',
+                                      outline: 'none',
+                                      background: '#ffffff',
+                                      boxSizing: 'border-box'
+                                    }}
+                                  >
+                                    <option value="Sets">Sets</option>
+                                    <option value="Nos">Nos</option>
+                                    <option value="Pcs">Pcs</option>
+                                    <option value="Kg">Kg</option>
+                                    <option value="Mtr">Mtr</option>
+                                    <option value="Boxes">Boxes</option>
+                                  </select>
+                                </div>
+                                <div style={{ width: '36px', display: 'flex', justifyContent: 'center', paddingTop: '16px' }}>
+                                  {formState.items.length > 1 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveItem(idx)}
+                                      title="Remove item"
+                                      style={{
+                                        background: '#fef2f2',
+                                        border: '1px solid #fecaca',
+                                        borderRadius: '6px',
+                                        width: '32px',
+                                        height: '32px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: '#ef4444',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  ) : (
+                                    <span style={{ width: '32px', height: '32px' }} />
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           ) : (
-                            <span style={{ width: '32px', height: '32px' }} />
+                            /* Desktop Grid Layout */
+                            <div style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'minmax(0, 1fr) 130px 95px 36px',
+                              gap: '8px',
+                              alignItems: 'center'
+                            }}>
+                              <div>
+                                <input
+                                  type="text"
+                                  required
+                                  autoComplete="off"
+                                  autoCorrect="off"
+                                  spellCheck={false}
+                                  placeholder={idx === 0 ? "Material description / grade" : "Material / product name"}
+                                  value={it.productName}
+                                  onChange={(e) => handleUpdateItem(idx, { productName: e.target.value })}
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '12px',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
+                              </div>
+
+                              <div>
+                                <input
+                                  type="number"
+                                  step="0.001"
+                                  min="0.001"
+                                  required
+                                  placeholder="0.000"
+                                  value={it.quantity}
+                                  onChange={(e) => handleUpdateItem(idx, { quantity: e.target.value })}
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '12px',
+                                    outline: 'none',
+                                    fontFamily: 'monospace',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
+                              </div>
+
+                              <div>
+                                <select
+                                  value={it.unit || 'Sets'}
+                                  onChange={(e) => handleUpdateItem(idx, { unit: e.target.value })}
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 6px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '12px',
+                                    outline: 'none',
+                                    background: '#ffffff',
+                                    boxSizing: 'border-box'
+                                  }}
+                                >
+                                  <option value="Sets">Sets</option>
+                                  <option value="Nos">Nos</option>
+                                  <option value="Pcs">Pcs</option>
+                                  <option value="Kg">Kg</option>
+                                  <option value="Mtr">Mtr</option>
+                                  <option value="Boxes">Boxes</option>
+                                </select>
+                              </div>
+
+                              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                {formState.items.length > 1 ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveItem(idx)}
+                                    title="Remove item"
+                                    style={{
+                                      background: '#fef2f2',
+                                      border: '1px solid #fecaca',
+                                      borderRadius: '6px',
+                                      width: '32px',
+                                      height: '32px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: '#ef4444',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                ) : (
+                                  <span style={{ width: '32px', height: '32px' }} />
+                                )}
+                              </div>
+                            </div>
                           )}
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '4px' }}>
+                      <button
+                        type="button"
+                        onClick={handleAddItem}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: '1px dashed #0284c7',
+                          background: '#f0f9ff',
+                          color: '#0284c7',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Plus size={13} />
+                        Add Another Product
+                      </button>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>
+                        Enter manual material description and quantities
+                      </span>
+                    </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '4px' }}>
-                    <button
-                      type="button"
-                      onClick={handleAddItem}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        border: '1px dashed #0284c7',
-                        background: '#f0f9ff',
-                        color: '#0284c7',
-                        fontSize: '11px',
-                        fontWeight: '700',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <Plus size={13} />
-                      Add Another Product
-                    </button>
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>
-                      Select catalog product or type custom item
-                    </span>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      PARTY NAME <span style={{ color: '#e11d48' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      autoComplete="off"
+                      placeholder="Enter customer / party name"
+                      value={formState.partyName}
+                      onChange={(e) => setFormState({ ...formState, partyName: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    />
                   </div>
-                </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    PARTY NAME <span style={{ color: '#e11d48' }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Enter customer / party name"
-                    value={formState.partyName}
-                    onChange={(e) => setFormState({ ...formState, partyName: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      SALES PERSON
+                    </label>
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      placeholder="Sales representative name"
+                      value={formState.salesPerson}
+                      onChange={(e) => setFormState({ ...formState, salesPerson: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    SALES PERSON
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Sales representative name"
-                    value={formState.salesPerson}
-                    onChange={(e) => setFormState({ ...formState, salesPerson: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      INVOICE NO
+                    </label>
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      placeholder="Invoice or Challan number"
+                      value={formState.invoiceNo}
+                      onChange={(e) => setFormState({ ...formState, invoiceNo: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }}
+                    />
+                  </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    INVOICE NO
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Invoice or Challan number"
-                    value={formState.invoiceNo}
-                    onChange={(e) => setFormState({ ...formState, invoiceNo: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }}
-                  />
-                </div>
+                  <div style={{ gridColumn: isMobile ? '1' : 'span 2' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      RECEIVING MANUALLY
+                    </label>
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      placeholder="e.g. Received, Pending, Delivered with signed copy"
+                      value={formState.receivingManually}
+                      onChange={(e) => setFormState({ ...formState, receivingManually: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
 
-                <div style={{ gridColumn: isMobile ? '1' : 'span 2' }}>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    RECEIVING MANUALLY
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Received, Pending, Delivered with signed copy"
-                    value={formState.receivingManually}
-                    onChange={(e) => setFormState({ ...formState, receivingManually: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
-
-                <div style={{ gridColumn: isMobile ? '1' : 'span 2' }}>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    REMARK
-                  </label>
-                  <textarea
-                    rows={2}
-                    placeholder="Optional remarks, destination notes, or follow-up details"
-                    value={formState.remark}
-                    onChange={(e) => setFormState({ ...formState, remark: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                  />
+                  <div style={{ gridColumn: isMobile ? '1' : 'span 2' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      REMARK
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="Optional remarks, destination notes, or follow-up details"
+                      value={formState.remark}
+                      onChange={(e) => setFormState({ ...formState, remark: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
+              {/* Footer - Always pinned at bottom */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: '10px',
+                padding: isMobile ? '12px 16px' : '14px 22px',
+                borderTop: '1px solid #f1f5f9',
+                background: '#ffffff',
+                flexShrink: 0
+              }}>
                 <button
                   type="button"
                   onClick={() => setIsAddOpen(false)}
@@ -1814,339 +1930,467 @@ export default function OutwardRegisterView() {
         <div style={{
           position: 'fixed',
           inset: 0,
-          zIndex: 50,
+          zIndex: 9999,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '16px',
-          background: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)'
+          padding: isMobile ? '8px' : '20px 16px',
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          overflowY: 'auto'
         }}>
           <div style={{
             background: '#ffffff',
-            borderRadius: '20px',
+            borderRadius: isMobile ? '14px' : '16px',
             maxWidth: '680px',
             width: '100%',
-            padding: '24px',
+            margin: 'auto 0',
+            maxHeight: isMobile ? '96vh' : 'calc(100vh - 40px)',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
             border: '1px solid #e2e8f0',
-            maxHeight: '92vh',
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            overflow: 'hidden'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '16px' }}>
+            {/* Header - Always pinned at top */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: isMobile ? '12px 16px' : '16px 20px',
+              borderBottom: '1px solid #f1f5f9',
+              background: '#ffffff',
+              flexShrink: 0
+            }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ padding: '8px', borderRadius: '10px', background: '#fffbeb', color: '#d97706' }}>
                   <Edit2 size={20} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', margin: 0 }}>Edit Outward Register Entry</h3>
+                  <h3 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '800', color: '#0f172a', margin: 0 }}>Edit Outward Register Entry</h3>
                   <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0' }}>Update outward material dispatch details</p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsEditOpen(false)}
-                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '6px', borderRadius: '6px' }}
+                aria-label="Close"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', paddingRight: '4px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    DATE <span style={{ color: '#e11d48' }}>*</span>
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={formState.outwardDate}
-                    onChange={(e) => setFormState({ ...formState, outwardDate: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    TRASNPORTER NAME <span style={{ color: '#e11d48' }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formState.transporterName}
-                    onChange={(e) => setFormState({ ...formState, transporterName: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    VEHICLE NO.
-                  </label>
-                  <input
-                    type="text"
-                    value={formState.vehicleNo}
-                    onChange={(e) => setFormState({ ...formState, vehicleNo: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }}
-                  />
-                </div>
-
-                {/* PRODUCT-WISE DISPATCH & QUANTITY SECTION */}
-                <div style={{
-                  gridColumn: isMobile ? '1' : 'span 2',
-                  background: '#f8fafc',
-                  border: '1.5px solid #e2e8f0',
-                  borderRadius: '12px',
-                  padding: '12px 14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Boxes size={15} style={{ color: '#0284c7' }} />
-                      <label style={{ fontSize: '11px', fontWeight: '800', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>
-                        PRODUCTS & QUANTITIES <span style={{ color: '#e11d48' }}>*</span>
-                      </label>
-                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
-                        ({formState.items.length} {formState.items.length === 1 ? 'item' : 'items'})
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Total Qty:</span>
-                      <span style={{
-                        fontFamily: 'monospace',
-                        fontSize: '13px',
-                        fontWeight: '800',
-                        color: '#0284c7',
-                        background: '#e0f2fe',
-                        padding: '2px 8px',
-                        borderRadius: '6px'
-                      }}>
-                        {formatQuantity(formState.items.reduce((s, it) => s + (Number(it.quantity) || 0), 0))}
-                      </span>
-                    </div>
+            {/* Form with scrollable body */}
+            <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', flex: 1, minHeight: 0, overflowY: 'auto', padding: isMobile ? '14px 16px' : '18px 22px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      DATE <span style={{ color: '#e11d48' }}>*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formState.outwardDate}
+                      onChange={(e) => setFormState({ ...formState, outwardDate: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    />
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {formState.items.map((it, idx) => (
-                      <div
-                        key={it.id || idx}
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: isMobile ? '1fr' : '1fr 130px 85px 36px',
-                          gap: '8px',
-                          alignItems: 'center',
-                          background: '#ffffff',
-                          padding: '8px 10px',
-                          borderRadius: '8px',
-                          border: '1px solid #e2e8f0',
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
-                        }}
-                      >
-                        <div>
-                          <label style={{ display: isMobile ? 'block' : 'none', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
-                            PRODUCT #{idx + 1}
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            list="outward-products-catalog"
-                            placeholder={idx === 0 ? "Material description / grade" : "Search or enter product..."}
-                            value={it.productName}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              const matched = productCatalog.find((p) => p.name.toLowerCase() === val.toLowerCase());
-                              handleUpdateItem(idx, {
-                                productName: val,
-                                productId: matched?.id || it.productId,
-                                unit: matched?.unit || it.unit || 'Sets',
-                              });
-                            }}
-                            style={{
-                              width: '100%',
-                              padding: '8px 10px',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e1',
-                              fontSize: '12px',
-                              outline: 'none',
-                              boxSizing: 'border-box'
-                            }}
-                          />
-                        </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      TRASNPORTER NAME <span style={{ color: '#e11d48' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      autoComplete="off"
+                      value={formState.transporterName}
+                      onChange={(e) => setFormState({ ...formState, transporterName: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
 
-                        <div>
-                          <label style={{ display: isMobile ? 'block' : 'none', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
-                            QUANTITY
-                          </label>
-                          <input
-                            type="number"
-                            step="0.001"
-                            min="0.001"
-                            required
-                            placeholder="0.000"
-                            value={it.quantity}
-                            onChange={(e) => handleUpdateItem(idx, { quantity: e.target.value })}
-                            style={{
-                              width: '100%',
-                              padding: '8px 10px',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e1',
-                              fontSize: '12px',
-                              outline: 'none',
-                              fontFamily: 'monospace',
-                              boxSizing: 'border-box'
-                            }}
-                          />
-                        </div>
+                  <div style={{ gridColumn: isMobile ? '1' : 'span 2' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      VEHICLE NO.
+                    </label>
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      value={formState.vehicleNo}
+                      onChange={(e) => setFormState({ ...formState, vehicleNo: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }}
+                    />
+                  </div>
 
-                        <div>
-                          <label style={{ display: isMobile ? 'block' : 'none', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
-                            UNIT
-                          </label>
-                          <select
-                            value={it.unit || 'Sets'}
-                            onChange={(e) => handleUpdateItem(idx, { unit: e.target.value })}
-                            style={{
-                              width: '100%',
-                              padding: '8px 6px',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e1',
-                              fontSize: '12px',
-                              outline: 'none',
-                              background: '#ffffff',
-                              boxSizing: 'border-box'
-                            }}
-                          >
-                            <option value="Sets">Sets</option>
-                            <option value="Nos">Nos</option>
-                            <option value="Pcs">Pcs</option>
-                            <option value="Kg">Kg</option>
-                            <option value="Mtr">Mtr</option>
-                            <option value="Boxes">Boxes</option>
-                          </select>
-                        </div>
+                  {/* PRODUCTS & QUANTITIES - STRICTLY MANUAL ENTRY */}
+                  <div style={{
+                    gridColumn: isMobile ? '1' : 'span 2',
+                    background: '#f8fafc',
+                    border: '1.5px solid #e2e8f0',
+                    borderRadius: '12px',
+                    padding: isMobile ? '12px' : '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Boxes size={15} style={{ color: '#0284c7' }} />
+                        <label style={{ fontSize: '11px', fontWeight: '800', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>
+                          PRODUCTS & QUANTITIES <span style={{ color: '#e11d48' }}>*</span>
+                        </label>
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+                          ({formState.items.length} {formState.items.length === 1 ? 'item' : 'items'})
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Total Qty:</span>
+                        <span style={{
+                          fontFamily: 'monospace',
+                          fontSize: '13px',
+                          fontWeight: '800',
+                          color: '#0284c7',
+                          background: '#e0f2fe',
+                          padding: '2px 8px',
+                          borderRadius: '6px'
+                        }}>
+                          {formatQuantity(formState.items.reduce((s, it) => s + (Number(it.quantity) || 0), 0))}
+                        </span>
+                      </div>
+                    </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'center' }}>
-                          {formState.items.length > 1 ? (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(idx)}
-                              title="Remove item"
-                              style={{
-                                background: '#fef2f2',
-                                border: '1px solid #fecaca',
-                                borderRadius: '6px',
-                                width: '32px',
-                                height: '32px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#ef4444',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {formState.items.map((it, idx) => (
+                        <div
+                          key={it.id || idx}
+                          style={{
+                            background: '#ffffff',
+                            padding: isMobile ? '10px' : '8px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid #e2e8f0',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                          }}
+                        >
+                          {isMobile ? (
+                            /* Mobile Stacked Layout */
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '3px' }}>
+                                  PRODUCT #{idx + 1}
+                                </label>
+                                <input
+                                  type="text"
+                                  required
+                                  autoComplete="off"
+                                  autoCorrect="off"
+                                  spellCheck={false}
+                                  placeholder={idx === 0 ? "Material description / grade" : "Material / product name"}
+                                  value={it.productName}
+                                  onChange={(e) => handleUpdateItem(idx, { productName: e.target.value })}
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '13px',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ display: 'block', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '3px' }}>
+                                    QUANTITY
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.001"
+                                    min="0.001"
+                                    required
+                                    placeholder="0.000"
+                                    value={it.quantity}
+                                    onChange={(e) => handleUpdateItem(idx, { quantity: e.target.value })}
+                                    style={{
+                                      width: '100%',
+                                      padding: '8px 10px',
+                                      borderRadius: '6px',
+                                      border: '1px solid #cbd5e1',
+                                      fontSize: '13px',
+                                      outline: 'none',
+                                      fontFamily: 'monospace',
+                                      boxSizing: 'border-box'
+                                    }}
+                                  />
+                                </div>
+                                <div style={{ width: '95px' }}>
+                                  <label style={{ display: 'block', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '3px' }}>
+                                    UNIT
+                                  </label>
+                                  <select
+                                    value={it.unit || 'Sets'}
+                                    onChange={(e) => handleUpdateItem(idx, { unit: e.target.value })}
+                                    style={{
+                                      width: '100%',
+                                      padding: '8px 6px',
+                                      borderRadius: '6px',
+                                      border: '1px solid #cbd5e1',
+                                      fontSize: '12px',
+                                      outline: 'none',
+                                      background: '#ffffff',
+                                      boxSizing: 'border-box'
+                                    }}
+                                  >
+                                    <option value="Sets">Sets</option>
+                                    <option value="Nos">Nos</option>
+                                    <option value="Pcs">Pcs</option>
+                                    <option value="Kg">Kg</option>
+                                    <option value="Mtr">Mtr</option>
+                                    <option value="Boxes">Boxes</option>
+                                  </select>
+                                </div>
+                                <div style={{ width: '36px', display: 'flex', justifyContent: 'center', paddingTop: '16px' }}>
+                                  {formState.items.length > 1 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveItem(idx)}
+                                      title="Remove item"
+                                      style={{
+                                        background: '#fef2f2',
+                                        border: '1px solid #fecaca',
+                                        borderRadius: '6px',
+                                        width: '32px',
+                                        height: '32px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: '#ef4444',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  ) : (
+                                    <span style={{ width: '32px', height: '32px' }} />
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           ) : (
-                            <span style={{ width: '32px', height: '32px' }} />
+                            /* Desktop Grid Layout */
+                            <div style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'minmax(0, 1fr) 130px 95px 36px',
+                              gap: '8px',
+                              alignItems: 'center'
+                            }}>
+                              <div>
+                                <input
+                                  type="text"
+                                  required
+                                  autoComplete="off"
+                                  autoCorrect="off"
+                                  spellCheck={false}
+                                  placeholder={idx === 0 ? "Material description / grade" : "Material / product name"}
+                                  value={it.productName}
+                                  onChange={(e) => handleUpdateItem(idx, { productName: e.target.value })}
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '12px',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
+                              </div>
+
+                              <div>
+                                <input
+                                  type="number"
+                                  step="0.001"
+                                  min="0.001"
+                                  required
+                                  placeholder="0.000"
+                                  value={it.quantity}
+                                  onChange={(e) => handleUpdateItem(idx, { quantity: e.target.value })}
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '12px',
+                                    outline: 'none',
+                                    fontFamily: 'monospace',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
+                              </div>
+
+                              <div>
+                                <select
+                                  value={it.unit || 'Sets'}
+                                  onChange={(e) => handleUpdateItem(idx, { unit: e.target.value })}
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 6px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '12px',
+                                    outline: 'none',
+                                    background: '#ffffff',
+                                    boxSizing: 'border-box'
+                                  }}
+                                >
+                                  <option value="Sets">Sets</option>
+                                  <option value="Nos">Nos</option>
+                                  <option value="Pcs">Pcs</option>
+                                  <option value="Kg">Kg</option>
+                                  <option value="Mtr">Mtr</option>
+                                  <option value="Boxes">Boxes</option>
+                                </select>
+                              </div>
+
+                              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                {formState.items.length > 1 ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveItem(idx)}
+                                    title="Remove item"
+                                    style={{
+                                      background: '#fef2f2',
+                                      border: '1px solid #fecaca',
+                                      borderRadius: '6px',
+                                      width: '32px',
+                                      height: '32px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: '#ef4444',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                ) : (
+                                  <span style={{ width: '32px', height: '32px' }} />
+                                )}
+                              </div>
+                            </div>
                           )}
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '4px' }}>
+                      <button
+                        type="button"
+                        onClick={handleAddItem}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: '1px dashed #0284c7',
+                          background: '#f0f9ff',
+                          color: '#0284c7',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Plus size={13} />
+                        Add Another Product
+                      </button>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>
+                        Enter manual material description and quantities
+                      </span>
+                    </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '4px' }}>
-                    <button
-                      type="button"
-                      onClick={handleAddItem}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        border: '1px dashed #0284c7',
-                        background: '#f0f9ff',
-                        color: '#0284c7',
-                        fontSize: '11px',
-                        fontWeight: '700',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <Plus size={13} />
-                      Add Another Product
-                    </button>
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>
-                      Select catalog product or type custom item
-                    </span>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      PARTY NAME <span style={{ color: '#e11d48' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      autoComplete="off"
+                      value={formState.partyName}
+                      onChange={(e) => setFormState({ ...formState, partyName: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    />
                   </div>
-                </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    PARTY NAME <span style={{ color: '#e11d48' }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formState.partyName}
-                    onChange={(e) => setFormState({ ...formState, partyName: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      SALES PERSON
+                    </label>
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      value={formState.salesPerson}
+                      onChange={(e) => setFormState({ ...formState, salesPerson: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    SALES PERSON
-                  </label>
-                  <input
-                    type="text"
-                    value={formState.salesPerson}
-                    onChange={(e) => setFormState({ ...formState, salesPerson: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      INVOICE NO
+                    </label>
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      value={formState.invoiceNo}
+                      onChange={(e) => setFormState({ ...formState, invoiceNo: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }}
+                    />
+                  </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    INVOICE NO
-                  </label>
-                  <input
-                    type="text"
-                    value={formState.invoiceNo}
-                    onChange={(e) => setFormState({ ...formState, invoiceNo: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }}
-                  />
-                </div>
+                  <div style={{ gridColumn: isMobile ? '1' : 'span 2' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      RECEIVING MANUALLY
+                    </label>
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      value={formState.receivingManually}
+                      onChange={(e) => setFormState({ ...formState, receivingManually: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
 
-                <div style={{ gridColumn: isMobile ? '1' : 'span 2' }}>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    RECEIVING MANUALLY
-                  </label>
-                  <input
-                    type="text"
-                    value={formState.receivingManually}
-                    onChange={(e) => setFormState({ ...formState, receivingManually: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
-
-                <div style={{ gridColumn: isMobile ? '1' : 'span 2' }}>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    REMARK
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={formState.remark}
-                    onChange={(e) => setFormState({ ...formState, remark: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                  />
+                  <div style={{ gridColumn: isMobile ? '1' : 'span 2' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      REMARK
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={formState.remark}
+                      onChange={(e) => setFormState({ ...formState, remark: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
+              {/* Footer - Always pinned at bottom */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: '10px',
+                padding: isMobile ? '12px 16px' : '14px 22px',
+                borderTop: '1px solid #f1f5f9',
+                background: '#ffffff',
+                flexShrink: 0
+              }}>
                 <button
                   type="button"
                   onClick={() => setIsEditOpen(false)}
@@ -2183,46 +2427,60 @@ export default function OutwardRegisterView() {
         <div style={{
           position: 'fixed',
           inset: 0,
-          zIndex: 50,
+          zIndex: 9999,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '16px',
-          background: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)'
+          padding: isMobile ? '8px' : '20px 16px',
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          overflowY: 'auto'
         }}>
           <div style={{
             background: '#ffffff',
-            borderRadius: '20px',
-            maxWidth: '560px',
+            borderRadius: isMobile ? '14px' : '16px',
+            maxWidth: '620px',
             width: '100%',
-            padding: '24px',
+            margin: 'auto 0',
+            maxHeight: isMobile ? '96vh' : 'calc(100vh - 40px)',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
             border: '1px solid #e2e8f0',
-            maxHeight: '92vh',
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            overflow: 'hidden'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '16px' }}>
+            {/* Header - Always pinned at top */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: isMobile ? '12px 16px' : '16px 20px',
+              borderBottom: '1px solid #f1f5f9',
+              background: '#ffffff',
+              flexShrink: 0
+            }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ padding: '8px', borderRadius: '10px', background: '#f0f9ff', color: '#0284c7' }}>
                   <Truck size={20} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', margin: 0 }}>Outward Register Details</h3>
+                  <h3 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '800', color: '#0f172a', margin: 0 }}>Outward Register Details</h3>
                   <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0' }}>SR NO: {selectedRecord.srNo}</p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsViewOpen(false)}
-                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '6px', borderRadius: '6px' }}
+                aria-label="Close"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', paddingRight: '4px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+            {/* Scrollable Details Body */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', flex: 1, minHeight: 0, overflowY: 'auto', padding: isMobile ? '14px 16px' : '18px 22px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px', background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                 <div>
                   <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', display: 'block' }}>Date</span>
                   <span style={{ fontWeight: '700', color: '#0f172a' }}>{formatDate(selectedRecord.outwardDate)}</span>
@@ -2233,7 +2491,7 @@ export default function OutwardRegisterView() {
                     {formatQuantity(selectedRecord.quantity)}
                   </span>
                 </div>
-                <div style={{ gridColumn: 'span 2' }}>
+                <div style={{ gridColumn: isMobile ? '1' : 'span 2' }}>
                   <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', display: 'block' }}>Party Name</span>
                   <span style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a' }}>{selectedRecord.partyName}</span>
                 </div>
@@ -2245,8 +2503,8 @@ export default function OutwardRegisterView() {
                   <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', display: 'block' }}>Vehicle No.</span>
                   <span style={{ fontFamily: 'monospace', fontWeight: '600', color: '#334155' }}>{selectedRecord.vehicleNo || '—'}</span>
                 </div>
-                <div style={{ gridColumn: 'span 2', background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div style={{ gridColumn: isMobile ? '1' : 'span 2', background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Boxes size={14} style={{ color: '#0284c7' }} />
                       <span style={{ fontSize: '11px', color: '#1e293b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -2258,26 +2516,28 @@ export default function OutwardRegisterView() {
                     </span>
                   </div>
 
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '11px', textAlign: 'left' }}>
-                        <th style={{ padding: '6px 8px', width: '32px' }}>#</th>
-                        <th style={{ padding: '6px 8px' }}>Product Name / Description</th>
-                        <th style={{ padding: '6px 8px', textAlign: 'right', width: '120px' }}>Quantity</th>
-                        <th style={{ padding: '6px 8px', width: '60px' }}>Unit</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(selectedRecord.items && selectedRecord.items.length > 0 ? selectedRecord.items : [{ productName: selectedRecord.material, quantity: selectedRecord.quantity, unit: 'Sets' }]).map((it: any, i: number) => (
-                        <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '6px 8px', color: '#94a3b8', fontFamily: 'monospace', fontWeight: '700' }}>{i + 1}</td>
-                          <td style={{ padding: '6px 8px', fontWeight: '600', color: '#0f172a' }}>{it.productName || it.product || selectedRecord.material}</td>
-                          <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: '700', color: '#0284c7' }}>{formatQuantity(it.quantity)}</td>
-                          <td style={{ padding: '6px 8px', color: '#64748b' }}>{it.unit || 'Sets'}</td>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '11px', textAlign: 'left' }}>
+                          <th style={{ padding: '6px 8px', width: '32px' }}>#</th>
+                          <th style={{ padding: '6px 8px' }}>Product Name / Description</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'right', width: '110px' }}>Quantity</th>
+                          <th style={{ padding: '6px 8px', width: '60px' }}>Unit</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {(selectedRecord.items && selectedRecord.items.length > 0 ? selectedRecord.items : [{ productName: selectedRecord.material, quantity: selectedRecord.quantity, unit: 'Sets' }]).map((it: any, i: number) => (
+                          <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '6px 8px', color: '#94a3b8', fontFamily: 'monospace', fontWeight: '700' }}>{i + 1}</td>
+                            <td style={{ padding: '6px 8px', fontWeight: '600', color: '#0f172a' }}>{it.productName || it.product || selectedRecord.material}</td>
+                            <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: '700', color: '#0284c7' }}>{formatQuantity(it.quantity)}</td>
+                            <td style={{ padding: '6px 8px', color: '#64748b' }}>{it.unit || 'Sets'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', display: 'block' }}>Sales Person</span>
@@ -2287,7 +2547,7 @@ export default function OutwardRegisterView() {
                   <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', display: 'block' }}>Invoice No</span>
                   <span style={{ fontFamily: 'monospace', fontWeight: '600', color: '#334155' }}>{selectedRecord.invoiceNo || '—'}</span>
                 </div>
-                <div style={{ gridColumn: 'span 2' }}>
+                <div style={{ gridColumn: isMobile ? '1' : 'span 2' }}>
                   <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', display: 'block' }}>RECEIVING MANUALLY</span>
                   <span
                     style={{
@@ -2316,8 +2576,10 @@ export default function OutwardRegisterView() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '16px', marginTop: '16px', borderTop: '1px solid #e2e8f0' }}>
+            {/* Footer - Always pinned at bottom */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: isMobile ? '12px 16px' : '14px 22px', borderTop: '1px solid #e2e8f0', background: '#ffffff', flexShrink: 0 }}>
               <button
+                type="button"
                 onClick={() => setIsViewOpen(false)}
                 style={{
                   padding: '8px 20px',
@@ -2336,15 +2598,6 @@ export default function OutwardRegisterView() {
           </div>
         </div>
       )}
-
-      {/* Product Catalog Autocomplete DataList */}
-      <datalist id="outward-products-catalog">
-        {productCatalog.map((p) => (
-          <option key={p.id} value={p.name}>
-            {p.sku ? `${p.sku} • ` : ''}{p.unit || 'Sets'}
-          </option>
-        ))}
-      </datalist>
     </div>
   );
 }
