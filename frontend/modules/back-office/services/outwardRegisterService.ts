@@ -20,14 +20,31 @@ export interface OutwardRegisterQuery {
   exportAll?: boolean;
 }
 
+export interface OutwardRegisterItem {
+  productId?: string;
+  productName: string;
+  product?: string;
+  quantity: number | string;
+  unit?: string;
+}
+
+export interface ProductOption {
+  id: string;
+  name: string;
+  sku: string;
+  unit: string;
+  category: string;
+}
+
 export interface OutwardRegisterEntryDto {
   id?: string;
   srNo?: number;
   outwardDate: string;
   transporterName: string;
   vehicleNo?: string;
-  material: string;
-  quantity: number | string;
+  material?: string;
+  quantity?: number | string;
+  items?: OutwardRegisterItem[];
   partyName: string;
   salesPerson?: string;
   invoiceNo?: string;
@@ -68,4 +85,14 @@ export async function archiveOutwardRegisterEntry(id: string) {
   return backendFetch(`/back-office/outward-register/${id}`, {
     method: 'DELETE',
   });
+}
+
+export async function fetchProductOptions(search?: string): Promise<ProductOption[]> {
+  try {
+    const query = search ? `?search=${encodeURIComponent(search)}` : '';
+    const res: any = await backendFetch(`/back-office/product-options${query}`);
+    return Array.isArray(res) ? res : res?.data || [];
+  } catch {
+    return [];
+  }
 }

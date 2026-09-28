@@ -435,6 +435,27 @@ export class BackOfficeController {
     return this.backOfficeService.archiveSampleTrackerEntry(id, userId);
   }
 
+  @Get('product-options')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async getProductOptions(@Query('search') search?: string) {
+    return this.backOfficeService.getProductOptions(search);
+  }
+
   /**
    * OUTWARD REGISTER — MANUAL DATA ENTRY REGISTER
    */

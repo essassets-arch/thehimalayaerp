@@ -4528,6 +4528,7 @@ model OutwardRegisterEntry {
   invoiceNo         String?
   receivingManually String?
   remark            String?
+  items             Json?
   isArchived        Boolean   @default(false)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

@@ -2398,22 +2398,37 @@ export class BackOfficeService implements OnApplicationBootstrap {
       : allMatches.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
     const startIndex = (pageNum - 1) * limitNum;
-    const mappedItems = pagedRecords.map((r: any, idx: number) => ({
-      srNo: isExport ? idx + 1 : startIndex + idx + 1,
-      id: r.id,
-      outwardDate: r.outwardDate,
-      transporterName: r.transporterName,
-      vehicleNo: r.vehicleNo || '—',
-      material: r.material,
-      quantity: Number(r.quantity) || 0,
-      partyName: r.partyName,
-      salesPerson: r.salesPerson || '—',
-      invoiceNo: r.invoiceNo || '—',
-      receivingManually: r.receivingManually || '—',
-      remark: r.remark || '',
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
-    }));
+    const mappedItems = pagedRecords.map((r: any, idx: number) => {
+      let itemsList: any[] = [];
+      if (Array.isArray(r.items) && r.items.length > 0) {
+        itemsList = r.items;
+      } else if (r.material) {
+        itemsList = [{
+          productName: r.material,
+          product: r.material,
+          quantity: Number(r.quantity) || 0,
+          unit: 'Sets'
+        }];
+      }
+
+      return {
+        srNo: isExport ? idx + 1 : startIndex + idx + 1,
+        id: r.id,
+        outwardDate: r.outwardDate,
+        transporterName: r.transporterName,
+        vehicleNo: r.vehicleNo || '—',
+        material: r.material,
+        quantity: Number(r.quantity) || 0,
+        items: itemsList,
+        partyName: r.partyName,
+        salesPerson: r.salesPerson || '—',
+        invoiceNo: r.invoiceNo || '—',
+        receivingManually: r.receivingManually || '—',
+        remark: r.remark || '',
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+      };
+    });
 
     // 7. Distinct filter options
     const allActive = await (this.prisma as any).outwardRegisterEntry.findMany({
@@ -2447,19 +2462,38 @@ export class BackOfficeService implements OnApplicationBootstrap {
   }
 
   async createOutwardRegisterEntry(userId: string, dto: any) {
-    if (!dto.outwardDate || !dto.transporterName || !dto.material || !dto.partyName) {
-      throw new BadRequestException('Date, Transporter Name, Material, and Party Name are required.');
+    let items = Array.isArray(dto.items) && dto.items.length > 0 ? dto.items : null;
+    let material = dto.material ? String(dto.material).trim() : '';
+    let quantityNum = dto.quantity !== undefined ? Number(dto.quantity) || 0 : 0;
+
+    if (items && items.length > 0) {
+      const itemsSum = items.reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
+      if (itemsSum > 0 || quantityNum === 0) {
+        quantityNum = itemsSum;
+      }
+      if (!material) {
+        if (items.length === 1) {
+          material = String(items[0].productName || items[0].product || '').trim();
+        } else {
+          material = items
+            .map((it: any) => `${it.productName || it.product || 'Item'} (${Number(it.quantity) || 0}${it.unit ? ` ${it.unit}` : ''})`)
+            .join(', ');
+        }
+      }
     }
 
-    const quantityNum = Number(dto.quantity) || 0;
+    if (!dto.outwardDate || !dto.transporterName || !material || !dto.partyName) {
+      throw new BadRequestException('Date, Transporter Name, Product/Material, and Party Name are required.');
+    }
 
     return (this.prisma as any).outwardRegisterEntry.create({
       data: {
         outwardDate: new Date(dto.outwardDate),
         transporterName: String(dto.transporterName).trim(),
         vehicleNo: dto.vehicleNo ? String(dto.vehicleNo).trim() : null,
-        material: String(dto.material).trim(),
+        material,
         quantity: quantityNum.toFixed(3),
+        items: items ? items : undefined,
         partyName: String(dto.partyName).trim(),
         salesPerson: dto.salesPerson ? String(dto.salesPerson).trim() : null,
         invoiceNo: dto.invoiceNo ? String(dto.invoiceNo).trim() : null,
@@ -2480,7 +2514,26 @@ export class BackOfficeService implements OnApplicationBootstrap {
       throw new NotFoundException('Outward Register Entry not found');
     }
 
-    const quantityNum = dto.quantity !== undefined ? Number(dto.quantity) : Number(existing.quantity);
+    let items = Array.isArray(dto.items) ? dto.items : existing.items;
+    let material = dto.material !== undefined ? String(dto.material).trim() : existing.material;
+    let quantityNum = dto.quantity !== undefined ? Number(dto.quantity) : Number(existing.quantity);
+
+    if (Array.isArray(dto.items) && dto.items.length > 0) {
+      items = dto.items;
+      const itemsSum = items.reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
+      if (itemsSum > 0 || dto.quantity === undefined) {
+        quantityNum = itemsSum;
+      }
+      if (!dto.material) {
+        if (items.length === 1) {
+          material = String(items[0].productName || items[0].product || '').trim();
+        } else {
+          material = items
+            .map((it: any) => `${it.productName || it.product || 'Item'} (${Number(it.quantity) || 0}${it.unit ? ` ${it.unit}` : ''})`)
+            .join(', ');
+        }
+      }
+    }
 
     return (this.prisma as any).outwardRegisterEntry.update({
       where: { id },
@@ -2488,8 +2541,9 @@ export class BackOfficeService implements OnApplicationBootstrap {
         outwardDate: dto.outwardDate ? new Date(dto.outwardDate) : existing.outwardDate,
         transporterName: dto.transporterName ? String(dto.transporterName).trim() : existing.transporterName,
         vehicleNo: dto.vehicleNo !== undefined ? (dto.vehicleNo ? String(dto.vehicleNo).trim() : null) : existing.vehicleNo,
-        material: dto.material ? String(dto.material).trim() : existing.material,
+        material,
         quantity: quantityNum.toFixed(3),
+        items: items !== undefined ? items : existing.items,
         partyName: dto.partyName ? String(dto.partyName).trim() : existing.partyName,
         salesPerson: dto.salesPerson !== undefined ? (dto.salesPerson ? String(dto.salesPerson).trim() : null) : existing.salesPerson,
         invoiceNo: dto.invoiceNo !== undefined ? (dto.invoiceNo ? String(dto.invoiceNo).trim() : null) : existing.invoiceNo,
@@ -2498,6 +2552,35 @@ export class BackOfficeService implements OnApplicationBootstrap {
         updatedById: userId,
       },
     });
+  }
+
+  async getProductOptions(search?: string) {
+    const where: any = { isActive: true };
+    if (search && search.trim()) {
+      where.OR = [
+        { name: { contains: search.trim(), mode: 'insensitive' } },
+        { sku: { contains: search.trim(), mode: 'insensitive' } },
+      ];
+    }
+    const products = await (this.prisma as any).product.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        unit: true,
+        category: true,
+      },
+      orderBy: { name: 'asc' },
+      take: 250,
+    });
+    return products.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      sku: p.sku || '',
+      unit: p.unit || 'Sets',
+      category: p.category || '',
+    }));
   }
 
   async archiveOutwardRegisterEntry(id: string, userId: string) {

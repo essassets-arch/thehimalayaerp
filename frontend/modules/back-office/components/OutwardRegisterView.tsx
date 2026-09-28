@@ -25,6 +25,7 @@ import {
   Layers,
   FileText,
   Boxes,
+  Trash2,
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { toast } from 'sonner';
@@ -33,7 +34,10 @@ import {
   createOutwardRegisterEntry,
   updateOutwardRegisterEntry,
   archiveOutwardRegisterEntry,
+  fetchProductOptions,
+  ProductOption,
   OutwardRegisterEntryDto,
+  OutwardRegisterItem,
 } from '../services/outwardRegisterService';
 
 // Format quantity with 3 decimal places (authoritative ERP precision)
@@ -102,6 +106,7 @@ export interface OutwardRecord {
   vehicleNo: string;
   material: string;
   quantity: number;
+  items?: OutwardRegisterItem[];
   partyName: string;
   salesPerson: string;
   invoiceNo: string;
@@ -109,6 +114,18 @@ export interface OutwardRecord {
   remark: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface FormItem {
+  id: string;
+  productId?: string;
+  productName: string;
+  quantity: number | string;
+  unit: string;
+}
+
+export interface FormState extends OutwardRegisterEntryDto {
+  items: FormItem[];
 }
 
 export default function OutwardRegisterView() {
@@ -143,6 +160,19 @@ export default function OutwardRegisterView() {
   const [transportersList, setTransportersList] = useState<string[]>([]);
   const [salesPersonsList, setSalesPersonsList] = useState<string[]>([]);
 
+  // Product catalog from backend
+  const [productCatalog, setProductCatalog] = useState<ProductOption[]>([]);
+
+  useEffect(() => {
+    fetchProductOptions()
+      .then((opts) => {
+        if (Array.isArray(opts) && opts.length > 0) {
+          setProductCatalog(opts);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Modal States
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -150,12 +180,15 @@ export default function OutwardRegisterView() {
   const [selectedRecord, setSelectedRecord] = useState<OutwardRecord | null>(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
-  const initialForm: OutwardRegisterEntryDto = {
+  const initialForm: FormState = {
     outwardDate: new Date().toISOString().split('T')[0],
     transporterName: '',
     vehicleNo: '',
     material: '',
-    quantity: 0,
+    quantity: '',
+    items: [
+      { id: 'item-1', productId: '', productName: '', quantity: '', unit: 'Sets' }
+    ],
     partyName: '',
     salesPerson: '',
     invoiceNo: '',
@@ -163,7 +196,7 @@ export default function OutwardRegisterView() {
     remark: '',
   };
 
-  const [formState, setFormState] = useState<OutwardRegisterEntryDto>(initialForm);
+  const [formState, setFormState] = useState<FormState>(initialForm);
 
   // Load Data
   const loadData = useCallback(async () => {
@@ -246,6 +279,9 @@ export default function OutwardRegisterView() {
     setFormState({
       ...initialForm,
       outwardDate: new Date().toISOString().split('T')[0],
+      items: [
+        { id: `item-${Date.now()}`, productId: '', productName: '', quantity: '', unit: 'Sets' },
+      ],
     });
     setIsAddOpen(true);
   };
@@ -256,6 +292,28 @@ export default function OutwardRegisterView() {
     const dateFormatted = rec.outwardDate
       ? new Date(rec.outwardDate).toISOString().split('T')[0]
       : '';
+
+    let initialItems: FormItem[] = [];
+    if (Array.isArray(rec.items) && rec.items.length > 0) {
+      initialItems = rec.items.map((it: any, idx: number) => ({
+        id: `edit-item-${idx}`,
+        productId: it.productId || '',
+        productName: it.productName || it.product || '',
+        quantity: it.quantity,
+        unit: it.unit || 'Sets',
+      }));
+    } else {
+      initialItems = [
+        {
+          id: 'edit-item-0',
+          productId: '',
+          productName: rec.material || '',
+          quantity: rec.quantity || '',
+          unit: 'Sets',
+        },
+      ];
+    }
+
     setFormState({
       id: rec.id,
       outwardDate: dateFormatted,
@@ -263,6 +321,7 @@ export default function OutwardRegisterView() {
       vehicleNo: rec.vehicleNo !== '—' ? rec.vehicleNo : '',
       material: rec.material,
       quantity: rec.quantity,
+      items: initialItems,
       partyName: rec.partyName,
       salesPerson: rec.salesPerson !== '—' ? rec.salesPerson : '',
       invoiceNo: rec.invoiceNo !== '—' ? rec.invoiceNo : '',
@@ -270,6 +329,76 @@ export default function OutwardRegisterView() {
       remark: rec.remark || '',
     });
     setIsEditOpen(true);
+  };
+
+  // Item List Handlers
+  const handleAddItem = () => {
+    setFormState((prev) => ({
+      ...prev,
+      items: [
+        ...prev.items,
+        { id: `item-${Date.now()}-${Math.random()}`, productId: '', productName: '', quantity: '', unit: 'Sets' },
+      ],
+    }));
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setFormState((prev) => {
+      const updated = prev.items.filter((_, i) => i !== index);
+      return {
+        ...prev,
+        items: updated.length > 0 ? updated : [
+          { id: `item-${Date.now()}`, productId: '', productName: '', quantity: '', unit: 'Sets' },
+        ],
+      };
+    });
+  };
+
+  const handleUpdateItem = (index: number, patch: Partial<FormItem>) => {
+    setFormState((prev) => ({
+      ...prev,
+      items: prev.items.map((it, i) => (i === index ? { ...it, ...patch } : it)),
+    }));
+  };
+
+  // Helper to validate and build payload
+  const buildOutwardPayload = () => {
+    if (!formState.outwardDate || !formState.transporterName || !formState.partyName) {
+      toast.error('Date, Transporter Name, and Party Name are required.');
+      return null;
+    }
+
+    const validItems = (formState.items || []).filter(
+      (it) => it.productName && it.productName.trim() !== ''
+    );
+    if (validItems.length === 0) {
+      toast.error('Please enter at least one product with its quantity.');
+      return null;
+    }
+
+    const anyInvalidQty = validItems.some((it) => isNaN(Number(it.quantity)) || Number(it.quantity) <= 0);
+    if (anyInvalidQty) {
+      toast.error('Please enter a valid quantity greater than zero for all products.');
+      return null;
+    }
+
+    const totalQty = validItems.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+    const derivedMaterial = validItems.length === 1
+      ? validItems[0].productName.trim()
+      : validItems.map((it) => `${it.productName.trim()} (${formatQuantity(it.quantity)}${it.unit ? ` ${it.unit}` : ''})`).join(', ');
+
+    return {
+      ...formState,
+      material: derivedMaterial,
+      quantity: totalQty,
+      items: validItems.map((it) => ({
+        productId: it.productId,
+        productName: it.productName.trim(),
+        product: it.productName.trim(),
+        quantity: Number(it.quantity) || 0,
+        unit: it.unit || 'Sets',
+      })),
+    };
   };
 
   // Open View Modal
@@ -281,14 +410,12 @@ export default function OutwardRegisterView() {
   // Save Create
   const handleSaveAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formState.outwardDate || !formState.transporterName || !formState.material || !formState.partyName) {
-      toast.error('Date, Transporter Name, Material, and Party Name are required.');
-      return;
-    }
+    const payload = buildOutwardPayload();
+    if (!payload) return;
 
     setFormSubmitting(true);
     try {
-      await createOutwardRegisterEntry(formState);
+      await createOutwardRegisterEntry(payload);
       toast.success('Outward Register Entry created successfully');
       setIsAddOpen(false);
       loadData();
@@ -303,14 +430,12 @@ export default function OutwardRegisterView() {
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formState.id) return;
-    if (!formState.outwardDate || !formState.transporterName || !formState.material || !formState.partyName) {
-      toast.error('Date, Transporter Name, Material, and Party Name are required.');
-      return;
-    }
+    const payload = buildOutwardPayload();
+    if (!payload) return;
 
     setFormSubmitting(true);
     try {
-      await updateOutwardRegisterEntry(formState.id, formState);
+      await updateOutwardRegisterEntry(formState.id, payload);
       toast.success('Outward Register Entry updated successfully');
       setIsEditOpen(false);
       loadData();
@@ -372,10 +497,10 @@ export default function OutwardRegisterView() {
       const headers = [
         'SR NO',
         'DATE',
-        'TRASNPORTER NAME',
+        'TRANSPORTER NAME',
         'VEHICLE NO.',
-        'MATERIAL',
-        'QUANTITY',
+        'PRODUCT(S) & QUANTITY',
+        'TOTAL QUANTITY',
         'PARTY NAME',
         'SALES PERSON',
         'INVOICE NO',
@@ -386,12 +511,19 @@ export default function OutwardRegisterView() {
       const csvRows = [headers.join(',')];
 
       items.forEach((item, idx) => {
+        let productSummary = item.material || '';
+        if (Array.isArray(item.items) && item.items.length > 0) {
+          productSummary = item.items
+            .map((it: any) => `${it.productName || it.product || 'Product'} (${Number(it.quantity || 0).toFixed(3)}${it.unit ? ` ${it.unit}` : ''})`)
+            .join('; ');
+        }
+
         const row = [
           idx + 1,
           `"${item.outwardDate ? new Date(item.outwardDate).toISOString().split('T')[0] : ''}"`,
           `"${(item.transporterName || '').replace(/"/g, '""')}"`,
           `"${(item.vehicleNo || '').replace(/"/g, '""')}"`,
-          `"${(item.material || '').replace(/"/g, '""')}"`,
+          `"${productSummary.replace(/"/g, '""')}"`,
           Number(item.quantity || 0).toFixed(3),
           `"${(item.partyName || '').replace(/"/g, '""')}"`,
           `"${(item.salesPerson || '').replace(/"/g, '""')}"`,
@@ -1024,10 +1156,10 @@ export default function OutwardRegisterView() {
               <tr>
                 <th style={{ padding: '12px 10px', fontWeight: '700', textAlign: 'center', width: '56px', fontSize: '11px', letterSpacing: '0.04em' }}>SR NO</th>
                 <th style={{ padding: '12px 10px', fontWeight: '700', width: '110px', fontSize: '11px', letterSpacing: '0.04em' }}>DATE</th>
-                <th style={{ padding: '12px 14px', fontWeight: '700', width: '180px', fontSize: '11px', letterSpacing: '0.04em' }}>TRASNPORTER NAME</th>
+                <th style={{ padding: '12px 14px', fontWeight: '700', width: '180px', fontSize: '11px', letterSpacing: '0.04em' }}>TRANSPORTER NAME</th>
                 <th style={{ padding: '12px 10px', fontWeight: '700', width: '130px', fontSize: '11px', letterSpacing: '0.04em' }}>VEHICLE NO.</th>
-                <th style={{ padding: '12px 14px', fontWeight: '700', width: '170px', fontSize: '11px', letterSpacing: '0.04em' }}>MATERIAL</th>
-                <th style={{ padding: '12px 10px', fontWeight: '700', textAlign: 'right', width: '120px', fontSize: '11px', letterSpacing: '0.04em' }}>QUANTITY</th>
+                <th style={{ padding: '12px 14px', fontWeight: '700', width: '240px', fontSize: '11px', letterSpacing: '0.04em' }}>PRODUCT(S) & QTY</th>
+                <th style={{ padding: '12px 10px', fontWeight: '700', textAlign: 'right', width: '130px', fontSize: '11px', letterSpacing: '0.04em' }}>TOTAL QTY</th>
                 <th style={{ padding: '12px 14px', fontWeight: '700', width: '200px', fontSize: '11px', letterSpacing: '0.04em' }}>PARTY NAME</th>
                 <th style={{ padding: '12px 10px', fontWeight: '700', width: '140px', fontSize: '11px', letterSpacing: '0.04em' }}>SALES PERSON</th>
                 <th style={{ padding: '12px 10px', fontWeight: '700', width: '120px', fontSize: '11px', letterSpacing: '0.04em' }}>INVOICE NO</th>
@@ -1099,11 +1231,58 @@ export default function OutwardRegisterView() {
                     <td style={{ padding: '12px 10px', whiteSpace: 'nowrap', fontFamily: 'monospace', color: '#334155', fontWeight: '600' }}>
                       {rec.vehicleNo || '—'}
                     </td>
-                    <td style={{ padding: '12px 14px', whiteSpace: 'nowrap', color: '#0f172a', fontWeight: '600' }}>
-                      {rec.material}
+                    <td style={{ padding: '10px 14px', minWidth: '220px' }}>
+                      {rec.items && rec.items.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {rec.items.map((it: any, itIdx: number) => (
+                            <div
+                              key={itIdx}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '8px',
+                                fontSize: '12px',
+                              }}
+                            >
+                              <span style={{ fontWeight: '600', color: '#0f172a' }}>
+                                {it.productName || it.product || rec.material}
+                              </span>
+                              <span
+                                style={{
+                                  fontFamily: 'monospace',
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  color: '#0284c7',
+                                  background: '#f0f9ff',
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  whiteSpace: 'nowrap',
+                                  border: '1px solid #e0f2fe',
+                                }}
+                              >
+                                {formatQuantity(it.quantity)} {it.unit || ''}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span style={{ color: '#0f172a', fontWeight: '600', fontSize: '12px' }}>
+                          {rec.material}
+                        </span>
+                      )}
                     </td>
-                    <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: '700', fontFamily: 'monospace', color: '#0284c7', whiteSpace: 'nowrap' }}>
-                      {formatQuantity(rec.quantity)}
+                    <td style={{ padding: '10px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                        <span style={{ fontWeight: '700', fontFamily: 'monospace', color: '#0284c7', fontSize: '13px' }}>
+                          {formatQuantity(rec.quantity)}
+                        </span>
+                        {rec.items && rec.items.length > 1 && (
+                          <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '600' }}>
+                            {rec.items.length} products
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: '12px 14px', fontWeight: '700', color: '#0f172a', whiteSpace: 'nowrap' }}>
                       {rec.partyName}
@@ -1339,32 +1518,196 @@ export default function OutwardRegisterView() {
                   />
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    MATERIAL <span style={{ color: '#e11d48' }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Material description / grade"
-                    value={formState.material}
-                    onChange={(e) => setFormState({ ...formState, material: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
+                {/* PRODUCT-WISE DISPATCH & QUANTITY SECTION */}
+                <div style={{
+                  gridColumn: isMobile ? '1' : 'span 2',
+                  background: '#f8fafc',
+                  border: '1.5px solid #e2e8f0',
+                  borderRadius: '12px',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Boxes size={15} style={{ color: '#0284c7' }} />
+                      <label style={{ fontSize: '11px', fontWeight: '800', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>
+                        PRODUCTS & QUANTITIES <span style={{ color: '#e11d48' }}>*</span>
+                      </label>
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+                        ({formState.items.length} {formState.items.length === 1 ? 'item' : 'items'})
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Total Qty:</span>
+                      <span style={{
+                        fontFamily: 'monospace',
+                        fontSize: '13px',
+                        fontWeight: '800',
+                        color: '#0284c7',
+                        background: '#e0f2fe',
+                        padding: '2px 8px',
+                        borderRadius: '6px'
+                      }}>
+                        {formatQuantity(formState.items.reduce((s, it) => s + (Number(it.quantity) || 0), 0))}
+                      </span>
+                    </div>
+                  </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    QUANTITY
-                  </label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    placeholder="0.000"
-                    value={formState.quantity}
-                    onChange={(e) => setFormState({ ...formState, quantity: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }}
-                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {formState.items.map((it, idx) => (
+                      <div
+                        key={it.id || idx}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: isMobile ? '1fr' : '1fr 130px 85px 36px',
+                          gap: '8px',
+                          alignItems: 'center',
+                          background: '#ffffff',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: '1px solid #e2e8f0',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                        }}
+                      >
+                        <div>
+                          <label style={{ display: isMobile ? 'block' : 'none', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
+                            PRODUCT #{idx + 1}
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            list="outward-products-catalog"
+                            placeholder={idx === 0 ? "Material description / grade" : "Search or enter product..."}
+                            value={it.productName}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const matched = productCatalog.find((p) => p.name.toLowerCase() === val.toLowerCase());
+                              handleUpdateItem(idx, {
+                                productName: val,
+                                productId: matched?.id || it.productId,
+                                unit: matched?.unit || it.unit || 'Sets',
+                              });
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '12px',
+                              outline: 'none',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: isMobile ? 'block' : 'none', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
+                            QUANTITY
+                          </label>
+                          <input
+                            type="number"
+                            step="0.001"
+                            min="0.001"
+                            required
+                            placeholder="0.000"
+                            value={it.quantity}
+                            onChange={(e) => handleUpdateItem(idx, { quantity: e.target.value })}
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '12px',
+                              outline: 'none',
+                              fontFamily: 'monospace',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: isMobile ? 'block' : 'none', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
+                            UNIT
+                          </label>
+                          <select
+                            value={it.unit || 'Sets'}
+                            onChange={(e) => handleUpdateItem(idx, { unit: e.target.value })}
+                            style={{
+                              width: '100%',
+                              padding: '8px 6px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '12px',
+                              outline: 'none',
+                              background: '#ffffff',
+                              boxSizing: 'border-box'
+                            }}
+                          >
+                            <option value="Sets">Sets</option>
+                            <option value="Nos">Nos</option>
+                            <option value="Pcs">Pcs</option>
+                            <option value="Kg">Kg</option>
+                            <option value="Mtr">Mtr</option>
+                            <option value="Boxes">Boxes</option>
+                          </select>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                          {formState.items.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(idx)}
+                              title="Remove item"
+                              style={{
+                                background: '#fef2f2',
+                                border: '1px solid #fecaca',
+                                borderRadius: '6px',
+                                width: '32px',
+                                height: '32px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#ef4444',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          ) : (
+                            <span style={{ width: '32px', height: '32px' }} />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={handleAddItem}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        border: '1px dashed #0284c7',
+                        background: '#f0f9ff',
+                        color: '#0284c7',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Plus size={13} />
+                      Add Another Product
+                    </button>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>
+                      Select catalog product or type custom item
+                    </span>
+                  </div>
                 </div>
 
                 <div>
@@ -1549,30 +1892,196 @@ export default function OutwardRegisterView() {
                   />
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    MATERIAL <span style={{ color: '#e11d48' }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formState.material}
-                    onChange={(e) => setFormState({ ...formState, material: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
+                {/* PRODUCT-WISE DISPATCH & QUANTITY SECTION */}
+                <div style={{
+                  gridColumn: isMobile ? '1' : 'span 2',
+                  background: '#f8fafc',
+                  border: '1.5px solid #e2e8f0',
+                  borderRadius: '12px',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Boxes size={15} style={{ color: '#0284c7' }} />
+                      <label style={{ fontSize: '11px', fontWeight: '800', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>
+                        PRODUCTS & QUANTITIES <span style={{ color: '#e11d48' }}>*</span>
+                      </label>
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+                        ({formState.items.length} {formState.items.length === 1 ? 'item' : 'items'})
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Total Qty:</span>
+                      <span style={{
+                        fontFamily: 'monospace',
+                        fontSize: '13px',
+                        fontWeight: '800',
+                        color: '#0284c7',
+                        background: '#e0f2fe',
+                        padding: '2px 8px',
+                        borderRadius: '6px'
+                      }}>
+                        {formatQuantity(formState.items.reduce((s, it) => s + (Number(it.quantity) || 0), 0))}
+                      </span>
+                    </div>
+                  </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    QUANTITY
-                  </label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={formState.quantity}
-                    onChange={(e) => setFormState({ ...formState, quantity: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }}
-                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {formState.items.map((it, idx) => (
+                      <div
+                        key={it.id || idx}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: isMobile ? '1fr' : '1fr 130px 85px 36px',
+                          gap: '8px',
+                          alignItems: 'center',
+                          background: '#ffffff',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: '1px solid #e2e8f0',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                        }}
+                      >
+                        <div>
+                          <label style={{ display: isMobile ? 'block' : 'none', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
+                            PRODUCT #{idx + 1}
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            list="outward-products-catalog"
+                            placeholder={idx === 0 ? "Material description / grade" : "Search or enter product..."}
+                            value={it.productName}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const matched = productCatalog.find((p) => p.name.toLowerCase() === val.toLowerCase());
+                              handleUpdateItem(idx, {
+                                productName: val,
+                                productId: matched?.id || it.productId,
+                                unit: matched?.unit || it.unit || 'Sets',
+                              });
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '12px',
+                              outline: 'none',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: isMobile ? 'block' : 'none', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
+                            QUANTITY
+                          </label>
+                          <input
+                            type="number"
+                            step="0.001"
+                            min="0.001"
+                            required
+                            placeholder="0.000"
+                            value={it.quantity}
+                            onChange={(e) => handleUpdateItem(idx, { quantity: e.target.value })}
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '12px',
+                              outline: 'none',
+                              fontFamily: 'monospace',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: isMobile ? 'block' : 'none', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '2px' }}>
+                            UNIT
+                          </label>
+                          <select
+                            value={it.unit || 'Sets'}
+                            onChange={(e) => handleUpdateItem(idx, { unit: e.target.value })}
+                            style={{
+                              width: '100%',
+                              padding: '8px 6px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '12px',
+                              outline: 'none',
+                              background: '#ffffff',
+                              boxSizing: 'border-box'
+                            }}
+                          >
+                            <option value="Sets">Sets</option>
+                            <option value="Nos">Nos</option>
+                            <option value="Pcs">Pcs</option>
+                            <option value="Kg">Kg</option>
+                            <option value="Mtr">Mtr</option>
+                            <option value="Boxes">Boxes</option>
+                          </select>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                          {formState.items.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(idx)}
+                              title="Remove item"
+                              style={{
+                                background: '#fef2f2',
+                                border: '1px solid #fecaca',
+                                borderRadius: '6px',
+                                width: '32px',
+                                height: '32px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#ef4444',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          ) : (
+                            <span style={{ width: '32px', height: '32px' }} />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={handleAddItem}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        border: '1px dashed #0284c7',
+                        background: '#f0f9ff',
+                        color: '#0284c7',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Plus size={13} />
+                      Add Another Product
+                    </button>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>
+                      Select catalog product or type custom item
+                    </span>
+                  </div>
                 </div>
 
                 <div>
@@ -1736,9 +2245,39 @@ export default function OutwardRegisterView() {
                   <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', display: 'block' }}>Vehicle No.</span>
                   <span style={{ fontFamily: 'monospace', fontWeight: '600', color: '#334155' }}>{selectedRecord.vehicleNo || '—'}</span>
                 </div>
-                <div style={{ gridColumn: 'span 2' }}>
-                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', display: 'block' }}>Material</span>
-                  <span style={{ fontWeight: '700', color: '#0f172a' }}>{selectedRecord.material}</span>
+                <div style={{ gridColumn: 'span 2', background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Boxes size={14} style={{ color: '#0284c7' }} />
+                      <span style={{ fontSize: '11px', color: '#1e293b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Product-Wise Dispatch Items
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#0284c7', background: '#e0f2fe', padding: '2px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>
+                      Total Qty: {formatQuantity(selectedRecord.quantity)}
+                    </span>
+                  </div>
+
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '11px', textAlign: 'left' }}>
+                        <th style={{ padding: '6px 8px', width: '32px' }}>#</th>
+                        <th style={{ padding: '6px 8px' }}>Product Name / Description</th>
+                        <th style={{ padding: '6px 8px', textAlign: 'right', width: '120px' }}>Quantity</th>
+                        <th style={{ padding: '6px 8px', width: '60px' }}>Unit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(selectedRecord.items && selectedRecord.items.length > 0 ? selectedRecord.items : [{ productName: selectedRecord.material, quantity: selectedRecord.quantity, unit: 'Sets' }]).map((it: any, i: number) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '6px 8px', color: '#94a3b8', fontFamily: 'monospace', fontWeight: '700' }}>{i + 1}</td>
+                          <td style={{ padding: '6px 8px', fontWeight: '600', color: '#0f172a' }}>{it.productName || it.product || selectedRecord.material}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: '700', color: '#0284c7' }}>{formatQuantity(it.quantity)}</td>
+                          <td style={{ padding: '6px 8px', color: '#64748b' }}>{it.unit || 'Sets'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', display: 'block' }}>Sales Person</span>
@@ -1797,6 +2336,15 @@ export default function OutwardRegisterView() {
           </div>
         </div>
       )}
+
+      {/* Product Catalog Autocomplete DataList */}
+      <datalist id="outward-products-catalog">
+        {productCatalog.map((p) => (
+          <option key={p.id} value={p.name}>
+            {p.sku ? `${p.sku} • ` : ''}{p.unit || 'Sets'}
+          </option>
+        ))}
+      </datalist>
     </div>
   );
 }
