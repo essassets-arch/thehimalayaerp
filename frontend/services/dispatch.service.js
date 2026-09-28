@@ -1,4 +1,5 @@
 import { apiClient } from '../lib/apiClient';
+import { isTradingProduct } from '../shared/utils/dispatchCategory';
 
 export const dispatchService = {
   createDispatch: async (state, dispatchData, dispatch, currentUser) => {
@@ -20,9 +21,14 @@ export const dispatchService = {
       const orderId = order?.id || parseInt(orderNo.replace('ORD-', '')) || 1;
 
       const invoiceNum = dispatchData.invoiceNumber || dispatchData.invoice_number || dispatchData.invoiceNo;
+      const isTrading = isTradingProduct(order);
+      const dispatchCat = isTrading ? 'D2' : 'D1';
 
       const payload = {
         order_id: orderId,
+        salesOrderId: orderId,
+        dispatch_category: dispatchCat,
+        dispatchCategory: dispatchCat,
         vehicle_number: dispatchData.vehicleNo,
         driver_name: dispatchData.driverName,
         driver_mobile: dispatchData.driverMobile || '9988776655',

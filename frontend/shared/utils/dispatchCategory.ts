@@ -36,6 +36,19 @@ export function isTradingProduct(entity?: any, productsMap?: Map<string, any>): 
   ).toUpperCase();
   if (dCat === 'D2' || dCat === 'DISPATCH 2' || dCat === 'DISPATCH_2' || dCat.includes('CAT 2') || dCat.includes('CATEGORY 2')) return true;
 
+  // 1b. Check items array if entity is an order / sample / replacement / return container
+  const items = entity.items || entity.products || entity.sampleItems || entity.orderItems || entity.detailedItems || [];
+  if (Array.isArray(items) && items.length > 0) {
+    return items.some((it) => isTradingProduct(it, productsMap));
+  }
+
+  // 1c. Fallback to product map lookup if productId exists
+  const pId = entity.productId || entity.product?.id;
+  if (pId && productsMap && productsMap.has(pId)) {
+    const matched = productsMap.get(pId);
+    if (isTradingProduct(matched)) return true;
+  }
+
   const cat = String(
     entity.category ||
     entity.product_family ||
@@ -63,7 +76,7 @@ export function isTradingProduct(entity?: any, productsMap?: Map<string, any>): 
   ).toUpperCase();
 
   const nameOrSku = `${name} ${sku}`;
-  const cleanNameOrSku = nameOrSku.replace(/\bHIMALAYA\b/g, '').trim();
+  const cleanNameOrSku = nameOrSku.replace(/\bHIMALAYA\b/g, '').replace(/\bHCPPL\b/g, '').trim();
 
   if (
     nameOrSku.includes('MOULDED') ||
@@ -97,19 +110,6 @@ export function isTradingProduct(entity?: any, productsMap?: Map<string, any>): 
 
   if (['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING', 'FRP GRATINGS'].includes(cat) || cat.includes('GRATING')) return true;
   if (['FRP COVERS', 'MANUFACTURING', 'FINISHED GOODS'].includes(cat)) return false;
-
-  // 2. Check items array if entity is an order / sample / replacement / return container
-  const items = entity.items || entity.products || entity.sampleItems || entity.orderItems || entity.detailedItems || [];
-  if (Array.isArray(items) && items.length > 0) {
-    return items.some((it) => isTradingProduct(it, productsMap));
-  }
-
-  // 3. Fallback to product map lookup if productId exists
-  const pId = entity.productId || entity.product?.id;
-  if (pId && productsMap && productsMap.has(pId)) {
-    const matched = productsMap.get(pId);
-    return isTradingProduct(matched);
-  }
 
   if (pType === 'MANUFACTURING' || dCat === 'D1' || dCat.includes('1')) return false;
 

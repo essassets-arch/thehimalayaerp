@@ -399,6 +399,18 @@ export function mapSalesOrder(
           (item as any).product?.productType ||
           (isTrading ? 'TRADING' : 'MANUFACTURING'),
         isTrading,
+        dispatchCategory: isTrading ? 'D2' : ((item as any).product?.dispatchCategory || 'D1'),
+        category: (item as any).product?.category || null,
+        product: (item as any).product
+          ? {
+              id: (item as any).product.id,
+              name: (item as any).product.name,
+              sku: (item as any).product.sku,
+              category: (item as any).product.category,
+              productType: (item as any).product.productType,
+              dispatchCategory: (item as any).product.dispatchCategory,
+            }
+          : undefined,
         orderedQuantity: Number(item.orderedQuantity),
         deliveredQuantity,
         returnedQuantity,
@@ -455,7 +467,7 @@ export function mapSalesOrder(
         : undefined,
     sentToDispatch2: isOrderAllTrading && (effectiveStatus === 'READY_FOR_DISPATCH' || effectiveStatus === 'COMPLETED' || Boolean(dispatches.length)),
     sentToDispatch2At: isOrderAllTrading && effectiveStatus === 'READY_FOR_DISPATCH' ? order.updatedAt?.toISOString() : undefined,
-    dispatchCategory: isOrderAllTrading ? 'D2' : 'D1',
+    dispatchCategory: isOrderAllTrading ? 'D2' : (order.items.some((i) => isTradingProduct((i as any).product || i, i)) ? 'D2' : 'D1'),
     currentDepartment: isOrderAllTrading ? (effectiveStatus === 'READY_FOR_DISPATCH' ? 'Dispatch 2' : 'Sales') : undefined,
     planningStatus: isOrderAllTrading
       ? 'NOT_REQUIRED'

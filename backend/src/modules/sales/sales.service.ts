@@ -945,7 +945,7 @@ export class SalesService {
         include: {
           customer: true,
           salesExecutive: { select: { id: true, name: true, email: true } },
-          items: true,
+          items: { include: { product: true } },
           workflowState: true,
           productionPlans: {
             orderBy: { createdAt: 'desc' },
@@ -1245,7 +1245,7 @@ export class SalesService {
         include: {
           customer: true,
           salesExecutive: { select: { id: true, name: true, email: true } },
-          items: true,
+          items: { include: { product: true } },
           workflowState: true,
           productionPlans: {
             orderBy: { createdAt: 'desc' },

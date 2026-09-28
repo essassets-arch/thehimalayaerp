@@ -16,6 +16,19 @@ export function isTradingProduct(product?: any, item?: any): boolean {
   if (product?.isTrading === true || item?.isTrading === true) return true;
   if (product?.isTrading === false && item?.isTrading === false) return false;
 
+  // 1b. Check if entity is an order / container with items
+  const containerItems =
+    product?.items ||
+    product?.orderItems ||
+    product?.detailedItems ||
+    product?.products ||
+    item?.items ||
+    item?.orderItems ||
+    item?.detailedItems;
+  if (Array.isArray(containerItems) && containerItems.length > 0) {
+    return containerItems.some((it) => isTradingProduct(it.product || it, it));
+  }
+
   // 2. Explicit TRADING productType
   const pType = String(
     product?.productType ||

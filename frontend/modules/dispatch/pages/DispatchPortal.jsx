@@ -20,7 +20,7 @@ import { PlusCircle, Box, Truck, ClipboardList, FlaskConical, ArrowRight, X, Fil
 import DispatchBillModal from '../../../shared/components/DispatchBillModal';
 import ReturnsPortal from './ReturnsPortal';
 import { backendFetch } from '../../../lib/backendFetch';
-import { isTradingProduct, normalizeDispatchCategory } from '../../../shared/utils/dispatchCategory';
+import { isTradingProduct, isPureTradingOrder, normalizeDispatchCategory } from '../../../shared/utils/dispatchCategory';
 import FinishedGoodsStockView from '@/components/FinishedGoodsStockView';
 import DailyReportEntryView from '../../production/components/DailyReportEntryView';
 import DailyReportHistoryView from '../../production/components/DailyReportHistoryView';
@@ -432,33 +432,37 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     return orderList.filter((o) => {
       if (!o) return false;
 
-      // 1. Direct record dispatchCategory
-      const rawCat = o.dispatchCategory || o.dispatch_category || o.product?.dispatchCategory || o.salesOrderItem?.product?.dispatchCategory;
-      const directNorm = normalizeDispatchCategory(rawCat);
-      if (directNorm) {
-        return directNorm === effectiveDispatchCat;
+      // 1. Trading product check: Trading products/orders ALWAYS belong to Dispatch 2 (Sahad Dispatch)
+      const isTrading = isPureTradingOrder(o) || isTradingProduct(o);
+      if (isTrading) {
+        return effectiveDispatchCat === 'D2';
       }
 
-      // 2. Check items array if present
-      const items = o.items || o.order_items || o.salesOrder?.items || [];
+      // 2. Check items array if present: if any item is trading, it routes to D2
+      const items = o.items || o.order_items || o.salesOrder?.items || o.detailedItems || [];
       if (Array.isArray(items) && items.length > 0) {
         const hasTradingItem = items.some((item) => {
           const itemCat = normalizeDispatchCategory(
             item.dispatchCategory || item.dispatch_category || item.product?.dispatchCategory || item.salesOrderItem?.product?.dispatchCategory
           );
           if (itemCat === 'D2') return true;
-          if (itemCat === 'D1') return false;
           return isTradingProduct(item.salesOrderItem?.product || item.product || item);
         });
 
-        const orderCat = hasTradingItem ? 'D2' : 'D1';
-        return orderCat === effectiveDispatchCat;
+        if (hasTradingItem) {
+          return effectiveDispatchCat === 'D2';
+        }
       }
 
-      // 3. Fallback classification using isTradingProduct
-      const isTrading = isTradingProduct(o);
-      const computedCat = isTrading ? 'D2' : 'D1';
-      return computedCat === effectiveDispatchCat;
+      // 3. Direct record dispatchCategory for manufacturing
+      const rawCat = o.dispatchCategory || o.dispatch_category || o.product?.dispatchCategory || o.salesOrderItem?.product?.dispatchCategory;
+      const directNorm = normalizeDispatchCategory(rawCat);
+      if (directNorm) {
+        return directNorm === effectiveDispatchCat;
+      }
+
+      // 4. Default non-trading is D1
+      return effectiveDispatchCat === 'D1';
     });
   }, [effectiveDispatchCat]);
 
@@ -489,7 +493,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
   );
 
   const dispatchQueueOrders = useMemo(() => {
-    const list = Array.isArray(backendDispatchQueue) ? [...backendDispatchQueue] : [];
+    const list = Array.isArray(backendDispatchQueue) ? filterOrdersByDispatch(backendDispatchQueue) : [];
     const existingOrderNos = new Set(
       list.map(d => String(d.orderNo || d.orderId || d.salesOrderId || '').toUpperCase())
     );
@@ -2092,6 +2096,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
           driverPhone: formValues.driverMobile,
           driverMobile: formValues.driverMobile,
           invoiceNumber: formValues.invoiceNumber || undefined,
+          dispatchCategory: isTradingProduct(queueRecord) ? 'D2' : (queueRecord.dispatchCategory || effectiveDispatchCat),
           items: (queueRecord.items || []).map((item) => ({
             salesOrderItemId: item.salesOrderItemId,
             quantity: Number(item.dispatchableQuantity || item.approvedQuantity),
@@ -2456,7 +2461,8 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       ? value.map(item => typeof item === 'string' ? item : item.productName || item.product_name || item.name).filter(Boolean).join(', ')
       : value;
 
-    const backendDispatchesMapped = (backendDispatches || []).map((d) => {
+    const scopedBackendDispatches = filterOrdersByDispatch(backendDispatches || []);
+    const backendDispatchesMapped = scopedBackendDispatches.map((d) => {
       const order = orders.find((o) => o.orderNo === d.orderNumber || o.id === d.salesOrderId || d.salesOrder?.orderNumber === o.orderNo);
       const items = d.items || [];
       const prodText = items.map((i) => i.productName || i.salesOrderItem?.product?.name || i.name).filter(Boolean).join(', ') || d.salesOrder?.items?.[0]?.product?.name || 'Finished Goods';
@@ -2476,7 +2482,8 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       };
     });
 
-    const orderDispatchesMapped = dispatches.map(d => {
+    const scopedStoreDispatches = filterOrdersByDispatch(dispatches || []);
+    const orderDispatchesMapped = scopedStoreDispatches.map(d => {
       const order = orders.find(o => o.orderNo === d.orderNo || String(o.id) === String(d.orderId || d.order_id || d.sales_order_id));
       return {
         id: d.id || d.dispatchId || d.dispatch_number,

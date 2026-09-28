@@ -1277,8 +1277,8 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
         const orderDbId = matchedOrder ? matchedOrder.id || matchedOrder.dbId : orderId;
         const encodedId = encodeURIComponent(String(orderDbId || ''));
 
-        if (status === 'SEND_TO_PLANT_HEAD_DIRECT' || status === 'SEND_TO_PLANT' || status === 'PLANT_PENDING') {
-          const isTrading = Boolean(matchedOrder && (isPureTradingOrder(matchedOrder) || isTradingProduct(matchedOrder)));
+        if (status === 'SEND_TO_PLANT_HEAD_DIRECT' || status === 'SEND_TO_PLANT' || status === 'PLANT_PENDING' || status === 'SEND_TO_DISPATCH_2') {
+          const isTrading = status === 'SEND_TO_DISPATCH_2' || Boolean(matchedOrder && (isPureTradingOrder(matchedOrder) || isTradingProduct(matchedOrder)));
 
           if (isTrading) {
             showToast('Routing trading order to Dispatch 2…');
@@ -1291,7 +1291,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
               await backendFetch(`/api/backend/sales/orders/${encodedId}/send-to-plant-head`, {
                 method: 'POST',
-                body: { action: 'SEND_TO_PLANT', orderId: orderDbId, id: orderDbId, actor: user?.name || 'Sales' },
+                body: { action: 'SEND_TO_DISPATCH_2', orderId: orderDbId, id: orderDbId, actor: user?.name || 'Sales' },
               });
 
               dispatch({

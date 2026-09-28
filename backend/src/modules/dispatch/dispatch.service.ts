@@ -27,6 +27,22 @@ function normalizeDispatchCategory(cat?: string | null): 'D1' | 'D2' | null {
   return null;
 }
 
+const tradingProductFilter = {
+  OR: [
+    { dispatchCategory: { in: ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2', 'CAT 2', 'CAT_2', '2'] } },
+    { productType: 'TRADING' },
+    { category: { in: ['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING', 'FRP GRATINGS'] } },
+    { sku: { contains: 'GRATING', mode: 'insensitive' as const } },
+    { sku: { startsWith: 'FRPMOULDED', mode: 'insensitive' as const } },
+    { sku: { startsWith: 'FRPGRT', mode: 'insensitive' as const } },
+    { name: { contains: 'MOULDED GRATING', mode: 'insensitive' as const } },
+    { name: { contains: 'COVER BLOCK', mode: 'insensitive' as const } },
+    { name: { contains: 'COVERBLOCK', mode: 'insensitive' as const } },
+    { name: { contains: 'FRC COVER', mode: 'insensitive' as const } },
+    { name: { contains: 'RCC PIPE', mode: 'insensitive' as const } },
+  ],
+};
+
 @Injectable()
 export class DispatchService {
   constructor(
@@ -53,23 +69,16 @@ export class DispatchService {
     if (effectiveCat === 'D1') {
       scope = {
         ...scope,
-        OR: [
-          { dispatchCategory: { in: d1CategoryValues } },
+        AND: [
+          { dispatchCategory: { notIn: d2CategoryValues } },
           {
-            AND: [
-              { dispatchCategory: null },
-              {
-                items: {
-                  none: {
-                    salesOrderItem: {
-                      product: {
-                        dispatchCategory: { in: d2CategoryValues },
-                      },
-                    },
-                  },
+            items: {
+              none: {
+                salesOrderItem: {
+                  product: tradingProductFilter,
                 },
               },
-            ],
+            },
           },
         ],
       };
@@ -79,20 +88,13 @@ export class DispatchService {
         OR: [
           { dispatchCategory: { in: d2CategoryValues } },
           {
-            AND: [
-              { dispatchCategory: null },
-              {
-                items: {
-                  some: {
-                    salesOrderItem: {
-                      product: {
-                        dispatchCategory: { in: d2CategoryValues },
-                      },
-                    },
-                  },
+            items: {
+              some: {
+                salesOrderItem: {
+                  product: tradingProductFilter,
                 },
               },
-            ],
+            },
           },
         ],
       };
@@ -115,23 +117,16 @@ export class DispatchService {
         if (norm === 'D1') {
           scope = {
             ...scope,
-            OR: [
-              { dispatchCategory: { in: d1CategoryValues } },
+            AND: [
+              { dispatchCategory: { notIn: d2CategoryValues } },
               {
-                AND: [
-                  { dispatchCategory: null },
-                  {
-                    items: {
-                      none: {
-                        salesOrderItem: {
-                          product: {
-                            dispatchCategory: { in: d2CategoryValues },
-                          },
-                        },
-                      },
+                items: {
+                  none: {
+                    salesOrderItem: {
+                      product: tradingProductFilter,
                     },
                   },
-                ],
+                },
               },
             ],
           };
@@ -141,20 +136,13 @@ export class DispatchService {
             OR: [
               { dispatchCategory: { in: d2CategoryValues } },
               {
-                AND: [
-                  { dispatchCategory: null },
-                  {
-                    items: {
-                      some: {
-                        salesOrderItem: {
-                          product: {
-                            dispatchCategory: { in: d2CategoryValues },
-                          },
-                        },
-                      },
+                items: {
+                  some: {
+                    salesOrderItem: {
+                      product: tradingProductFilter,
                     },
                   },
-                ],
+                },
               },
             ],
           };
@@ -208,23 +196,16 @@ export class DispatchService {
     if (normalizedRole === 'DISPATCH_1') {
       scope = {
         ...scope,
-        OR: [
-          { dispatchCategory: { in: d1CategoryValues } },
+        AND: [
+          { dispatchCategory: { notIn: d2CategoryValues } },
           {
-            AND: [
-              { dispatchCategory: null },
-              {
-                items: {
-                  none: {
-                    salesOrderItem: {
-                      product: {
-                        dispatchCategory: { in: d2CategoryValues },
-                      },
-                    },
-                  },
+            items: {
+              none: {
+                salesOrderItem: {
+                  product: tradingProductFilter,
                 },
               },
-            ],
+            },
           },
         ],
       };
@@ -234,20 +215,13 @@ export class DispatchService {
         OR: [
           { dispatchCategory: { in: d2CategoryValues } },
           {
-            AND: [
-              { dispatchCategory: null },
-              {
-                items: {
-                  some: {
-                    salesOrderItem: {
-                      product: {
-                        dispatchCategory: { in: d2CategoryValues },
-                      },
-                    },
-                  },
+            items: {
+              some: {
+                salesOrderItem: {
+                  product: tradingProductFilter,
                 },
               },
-            ],
+            },
           },
         ],
       };
@@ -270,23 +244,16 @@ export class DispatchService {
         if (norm === 'D1') {
           scope = {
             ...scope,
-            OR: [
-              { dispatchCategory: { in: d1CategoryValues } },
+            AND: [
+              { dispatchCategory: { notIn: d2CategoryValues } },
               {
-                AND: [
-                  { dispatchCategory: null },
-                  {
-                    items: {
-                      none: {
-                        salesOrderItem: {
-                          product: {
-                            dispatchCategory: { in: d2CategoryValues },
-                          },
-                        },
-                      },
+                items: {
+                  none: {
+                    salesOrderItem: {
+                      product: tradingProductFilter,
                     },
                   },
-                ],
+                },
               },
             ],
           };
@@ -296,20 +263,13 @@ export class DispatchService {
             OR: [
               { dispatchCategory: { in: d2CategoryValues } },
               {
-                AND: [
-                  { dispatchCategory: null },
-                  {
-                    items: {
-                      some: {
-                        salesOrderItem: {
-                          product: {
-                            dispatchCategory: { in: d2CategoryValues },
-                          },
-                        },
-                      },
+                items: {
+                  some: {
+                    salesOrderItem: {
+                      product: tradingProductFilter,
                     },
                   },
-                ],
+                },
               },
             ],
           };
@@ -768,22 +728,23 @@ export class DispatchService {
         }
 
         // Auto-detect D1 vs D2 dispatchCategory from dto or ordered items
-        let detectedCategory = dto.dispatchCategory || 'D1';
-        if (!dto.dispatchCategory) {
+        let detectedCategory = dto.dispatchCategory;
+        if (!detectedCategory || detectedCategory === 'D1') {
           for (const item of dto.items) {
             const soItem = soItemsMap.get(item.salesOrderItemId);
             if (soItem?.productId) {
               const prod = await tx.product.findUnique({
                 where: { id: soItem.productId },
-                select: { dispatchCategory: true },
+                select: { id: true, dispatchCategory: true, productType: true, category: true, sku: true, name: true },
               });
-              if (prod?.dispatchCategory) {
-                detectedCategory = prod.dispatchCategory;
+              if (prod && isTradingProduct(prod, soItem)) {
+                detectedCategory = 'D2';
                 break;
               }
             }
           }
         }
+        if (!detectedCategory) detectedCategory = 'D1';
 
         // Create Dispatch record starting directly as IN_TRANSIT
         const dispatch = await tx.dispatch.create({
@@ -1503,7 +1464,8 @@ export class DispatchService {
       if (!salesOrderItem) continue;
 
       const product = salesOrderItem.product;
-      const dispatchCat = product?.dispatchCategory || 'D1';
+      const isTrading = isTradingProduct(product, salesOrderItem);
+      const dispatchCat = isTrading ? 'D2' : (product?.dispatchCategory || 'D1');
 
       // Apply category context filtering
       if (userCategory) {
@@ -1588,7 +1550,8 @@ export class DispatchService {
         const salesOrder = wo.productionPlan?.salesOrder;
         const customer = salesOrder?.customer;
         const product = wo.salesOrderItem?.product;
-        const dispatchCat = product?.dispatchCategory || 'D1';
+        const isTrading = isTradingProduct(product, wo.salesOrderItem);
+        const dispatchCat = isTrading ? 'D2' : (product?.dispatchCategory || 'D1');
 
         if (userCategory) {
           const c1 = String(dispatchCat).trim().toUpperCase();
@@ -1699,7 +1662,8 @@ export class DispatchService {
         const salesOrder = wo?.productionPlan?.salesOrder;
         const customer = salesOrder?.customer;
         const product = fg.product || wo?.salesOrderItem?.product;
-        const dispatchCat = product?.dispatchCategory || 'D1';
+        const isTrading = isTradingProduct(product, (fg as any).salesOrderItem || wo?.salesOrderItem);
+        const dispatchCat = isTrading ? 'D2' : (product?.dispatchCategory || 'D1');
 
         if (userCategory) {
           const c1 = String(dispatchCat).trim().toUpperCase();
@@ -1782,7 +1746,7 @@ export class DispatchService {
     try {
       const readyTradingOrders: any = await this.prisma.salesOrder.findMany({
         where: {
-          status: 'READY_FOR_DISPATCH',
+          status: { in: ['READY_FOR_DISPATCH', 'CONFIRMED'] as any },
           deletedAt: null,
           ...(companyId ? { customer: { companyId } } : {}),
         },
@@ -1800,7 +1764,7 @@ export class DispatchService {
         for (const item of items) {
           const product = item.product;
           const isTrading = isTradingProduct(product, item);
-          const dispatchCat = product?.dispatchCategory || (isTrading ? 'D2' : 'D1');
+          const dispatchCat = isTrading ? 'D2' : (product?.dispatchCategory || 'D1');
 
           // Strict category matching
           if (userCategory) {

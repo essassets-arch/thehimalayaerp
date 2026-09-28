@@ -13,6 +13,7 @@ import { useERPStore } from '@/store/erpStore';
 import { useSalesBackend } from '../shared/context/ERPContext.jsx';
 import styles from './OrdersView.module.css';
 import { exportOrdersToCSV } from '../services/sales/salesExportService';
+import { isTradingProduct, isPureTradingOrder } from '@/shared/utils/dispatchCategory';
 
 export default function OrdersView({ 
   orders, 
@@ -367,57 +368,9 @@ export default function OrdersView({
     return isDeliveredOrder(order) && getAvailableAfterSalesQuantity(order) > 0 && !hasActiveReturn(order) && !hasFullReturnCompleted(order);
   };
 
-  const isTradingItem = (item) => {
-    if (!item) return false;
-    if (item.isTrading === true || item.product?.isTrading === true) return true;
-    const type = String(item.productType || item.product?.productType || item.product_type || '').toUpperCase();
-    if (type === 'TRADING') return true;
-    const dCat = String(item.dispatchCategory || item.dispatch_category || item.product?.dispatchCategory || item.product?.dispatch_category || '').toUpperCase();
-    if (dCat === 'D2' || dCat === 'DISPATCH 2' || dCat === 'DISPATCH_2' || dCat.includes('2')) return true;
-    const cat = String(item.category || item.product?.category || item.product_family || item.brand || '').toUpperCase();
-    if (['RCC PIPE', 'FRC COVER', 'COVERBLOCK', 'OTHERS', 'TRADING', 'FRP GRATINGS'].includes(cat) || cat.includes('GRATING')) return true;
-    const nameOrSku = String(item.productName || item.productNameSnapshot || item.name || item.product?.name || item.sku || item.productCode || item.productCodeSnapshot || '').toUpperCase();
-    if (
-      nameOrSku.startsWith('FRCCP') ||
-      nameOrSku.startsWith('FRCT') ||
-      nameOrSku.startsWith('FRCSQRC') ||
-      nameOrSku.startsWith('FRC') ||
-      nameOrSku.startsWith('RCC') ||
-      nameOrSku.startsWith('WCB') ||
-      nameOrSku.startsWith('PCB') ||
-      nameOrSku.startsWith('HTCB') ||
-      nameOrSku.startsWith('DTCB') ||
-      nameOrSku.startsWith('MCB') ||
-      nameOrSku.startsWith('BTCB') ||
-      nameOrSku.includes('COVERBLOCK') ||
-      nameOrSku.includes('COVER BLOCK') ||
-      nameOrSku.includes('FRC COVER') ||
-      nameOrSku.includes('RCC PIPE') ||
-      nameOrSku.includes('MOULDED') ||
-      nameOrSku.includes('GRATING') ||
-      nameOrSku.startsWith('FRPMOULDED') ||
-      nameOrSku.startsWith('FRPGRT')
-    ) {
-      return true;
-    }
-    if (['FRP COVERS', 'MANUFACTURING'].includes(cat)) return false;
-    if (type === 'MANUFACTURING' || dCat === 'D1') return false;
-    return false;
-  };
+  const isTradingItem = (item) => isTradingProduct(item);
 
-  const isTradingOrder = (order) => {
-    const items = Array.isArray(order?.items) && order.items.length > 0
-      ? order.items
-      : (Array.isArray(order?.orderItems) && order.orderItems.length > 0
-        ? order.orderItems
-        : (Array.isArray(order?.detailedItems) && order.detailedItems.length > 0
-          ? order.detailedItems
-          : []));
-    if (items.length === 0) {
-      return isTradingItem(order);
-    }
-    return items.every(isTradingItem);
-  };
+  const isTradingOrder = (order) => isPureTradingOrder(order) || isTradingProduct(order);
 
   const renderOrderProducts = (order) => {
     const rawItems = (Array.isArray(order?.items) && order.items.length > 0)
@@ -1782,7 +1735,7 @@ export default function OrdersView({
                                   if (!confirmation.isConfirmed) return;
                                   setSendingOrderId(orderId);
                                   try {
-                                    const sent = await onUpdateOrderStatus?.(orderId, 'SEND_TO_PLANT');
+                                    const sent = await onUpdateOrderStatus?.(orderId, isTrading ? 'SEND_TO_DISPATCH_2' : 'SEND_TO_PLANT');
                                     if (sent !== false) {
                                       await Swal.fire({
                                         title: isTrading ? 'Sent to Dispatch 2' : 'Order Sent Successfully',
@@ -2530,7 +2483,8 @@ export default function OrdersView({
                       <button
                         type="button"
                         onClick={() => {
-                          onUpdateOrderStatus?.(currentDetailsOrder.orderNo || currentDetailsOrder.id, 'SEND_TO_PLANT');
+                          const isTrading = isTradingOrder(currentDetailsOrder);
+                          onUpdateOrderStatus?.(currentDetailsOrder.orderNo || currentDetailsOrder.id, isTrading ? 'SEND_TO_DISPATCH_2' : 'SEND_TO_PLANT');
                           setSelectedOrder(null);
                         }}
                         style={{

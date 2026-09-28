@@ -656,6 +656,8 @@ function toDispatchSafeView(order: SalesOrder) {
   const totalQty = Number((order as any).totalQuantity || (order as any).quantity || (totalItemQty > 0 ? totalItemQty : 1));
   const orderNumber = (order as any).orderNumber || order.orderNo || order.id;
 
+  const hasTrading = isTrading || safeItems.some((it) => isTradingProduct(it));
+
   return {
     ...order,
     id: order.id,
@@ -666,12 +668,14 @@ function toDispatchSafeView(order: SalesOrder) {
     contactPerson: order.contactPerson,
     deliveryAddress: order.deliveryAddress,
     requiredDeliveryDate: order.requiredDeliveryDate,
-    dispatchStatus: order.dispatchStatus || (isTrading ? ((order as any).status || 'READY_FOR_DISPATCH') : undefined),
+    dispatchStatus: order.dispatchStatus || (hasTrading ? ((order as any).status || 'READY_FOR_DISPATCH') : undefined),
     qcStatus: order.qcStatus,
-    status: (order as any).workflowStatus || (order as any).status || (isTrading ? 'READY_FOR_DISPATCH' : undefined),
-    workflowStatus: (order as any).workflowStatus || (order as any).status || (isTrading ? 'READY_FOR_DISPATCH' : undefined),
-    dispatchCategory: (order as any).dispatchCategory || (isTrading ? 'D2' : 'D1'),
-    isTrading,
+    status: (order as any).workflowStatus || (order as any).status || (hasTrading ? 'READY_FOR_DISPATCH' : undefined),
+    workflowStatus: (order as any).workflowStatus || (order as any).status || (hasTrading ? 'READY_FOR_DISPATCH' : undefined),
+    dispatchCategory: hasTrading ? 'D2' : ((order as any).dispatchCategory || 'D1'),
+    isTrading: hasTrading,
+    sentToDispatch2: hasTrading,
+    sentToPlantHead: hasTrading ? false : (order as any).sentToPlantHead,
     quantity: totalQty,
     availableQuantity: totalQty,
     products: productStr,
