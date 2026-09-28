@@ -18,6 +18,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   });
 }
 
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const token =
+    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
+    request.cookies.get('accessToken')?.value ||
+    request.cookies.get('token')?.value ||
+    request.cookies.get('himalaya_token')?.value;
+  const body = await request.json();
+
+  return forwardBackendRequest({
+    token,
+    path: `/crm/quotations/${id}`,
+    method: 'PATCH',
+    body,
+    idempotencyKey: request.headers.get('idempotency-key') ?? undefined,
+    requestId: request.headers.get('x-request-id') ?? undefined,
+    headers: {
+      ...(request.headers.get('x-company-id') ? { 'x-company-id': request.headers.get('x-company-id')! } : {}),
+    },
+  });
+}
+
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params;
   const authHeader = request.headers.get('Authorization');
