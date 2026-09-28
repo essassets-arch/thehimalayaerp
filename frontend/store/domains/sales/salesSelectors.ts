@@ -26,7 +26,7 @@ import {
   QuotationLineItem,
 } from './salesTypes';
 import { normalizeStatus } from '../shared/workflowUtils';
-import { isPureTradingOrder } from '@/shared/utils/dispatchCategory';
+import { isPureTradingOrder, isTradingProduct } from '@/shared/utils/dispatchCategory';
 import {
   calculatePendingAmount,
   getAvailableAfterSalesQuantity,
@@ -322,18 +322,45 @@ const _selectDispatchOrders = (store: ERPStoreState) => {
   const eligibleDispatch = ['READY_FOR_DISPATCH', 'DISPATCH_CREATED', 'PENDING', 'IN_TRANSIT'];
 
   return orders
-    .filter(
-      (o) =>
-        (eligibleQC.includes(o.qcStatus) ||
-         eligibleProduction.includes(o.productionStatus) ||
-         eligibleDispatch.includes(o.dispatchStatus) ||
+    .filter((o) => {
+      if (!o) return false;
+      const orderSt = String(o.status || o.workflowStatus || '').toUpperCase();
+      const dispSt = String(o.dispatchStatus || '').toUpperCase();
+      const qcSt = String(o.qcStatus || '').toUpperCase();
+      const prodSt = String(o.productionStatus || '').toUpperCase();
+
+      const isTrading = isPureTradingOrder(o);
+
+      if (isTrading) {
+        if (['CANCELLED', 'LOST', 'DELETED', 'REJECTED'].includes(orderSt)) return false;
+        if (dispSt === 'DELIVERED' || orderSt === 'DELIVERED') return false;
+
+        return (
+          orderSt === 'READY_FOR_DISPATCH' ||
+          dispSt === 'READY_FOR_DISPATCH' ||
+          dispSt === 'DISPATCH_READY' ||
+          orderSt === 'DISPATCH_READY' ||
+          Boolean((o as any).sentToDispatch2) ||
+          Boolean((o as any).sentToDispatchAt) ||
+          (o as any).currentDepartment === 'Dispatch 2' ||
+          eligibleDispatch.includes(dispSt) ||
+          eligibleDispatch.includes(orderSt) ||
+          ((o as any).dispatchCategory === 'D2' && ['CONFIRMED', 'ORDER_CONFIRMED', 'READY_FOR_DISPATCH'].includes(orderSt))
+        );
+      }
+
+      return (
+        (eligibleQC.includes(qcSt) ||
+         eligibleProduction.includes(prodSt) ||
+         eligibleDispatch.includes(dispSt) ||
          (o as any).sentToDispatchAt ||
          (o as any).dispatchStatus === 'SENT_TO_DISPATCH') &&
-        o.qcStatus !== 'REWORK_REQUIRED' &&
-        o.qcStatus !== 'REJECTED' &&
-        o.dispatchStatus !== 'DELIVERED' &&
-        (o.dispatchStatus as string) !== 'CONFIRMED'
-    )
+        qcSt !== 'REWORK_REQUIRED' &&
+        qcSt !== 'REJECTED' &&
+        dispSt !== 'DELIVERED' &&
+        dispSt !== 'CONFIRMED'
+      );
+    })
     .map(toDispatchSafeView);
 };
 
@@ -624,17 +651,29 @@ function toProductionSafeView(order: SalesOrder) {
 function toDispatchSafeView(order: SalesOrder) {
   const safeItems = Array.isArray(order.items) ? order.items : [];
   const productStr = (order as any).products || (safeItems.length > 0 ? safeItems.map(i => i?.productName || (i as any)?.name || 'Item').join(', ') : 'Custom Engineered Product');
+  const isTrading = isPureTradingOrder(order);
+  const totalItemQty = safeItems.reduce((acc, it) => acc + Number((it as any).quantity ?? (it as any).orderedQuantity ?? 0), 0);
+  const totalQty = Number((order as any).totalQuantity || (order as any).quantity || (totalItemQty > 0 ? totalItemQty : 1));
+  const orderNumber = (order as any).orderNumber || order.orderNo || order.id;
+
   return {
     ...order,
     id: order.id,
-    orderNo: order.orderNo || order.id,
-    order_no: order.orderNo || order.id,
+    orderNo: orderNumber,
+    order_no: orderNumber,
+    orderNumber: orderNumber,
     customerName: resolveCustomerName(order) || order.customerName,
     contactPerson: order.contactPerson,
     deliveryAddress: order.deliveryAddress,
     requiredDeliveryDate: order.requiredDeliveryDate,
-    dispatchStatus: order.dispatchStatus,
+    dispatchStatus: order.dispatchStatus || (isTrading ? ((order as any).status || 'READY_FOR_DISPATCH') : undefined),
     qcStatus: order.qcStatus,
+    status: (order as any).workflowStatus || (order as any).status || (isTrading ? 'READY_FOR_DISPATCH' : undefined),
+    workflowStatus: (order as any).workflowStatus || (order as any).status || (isTrading ? 'READY_FOR_DISPATCH' : undefined),
+    dispatchCategory: (order as any).dispatchCategory || (isTrading ? 'D2' : 'D1'),
+    isTrading,
+    quantity: totalQty,
+    availableQuantity: totalQty,
     products: productStr,
     productName: (order as any).productName || productStr,
     items: safeItems.map(toOperationalItem),
@@ -645,15 +684,19 @@ function toDispatchSafeView(order: SalesOrder) {
 /** Strip pricing fields from line items for non-commercial roles */
 function toOperationalItem(item: QuotationLineItem) {
   if (!item) return {} as any;
+  const isTrading = (item as any).isTrading ?? isTradingProduct(item);
   return {
     id: item.id,
     productId: item.productId,
+    product: (item as any).product || undefined,
     productName: item.productName || (item as any).name || '',
     specifications: item.specifications || (item as any).specification || '',
     quantity: item.quantity ?? (item as any).orderedQuantity ?? 0,
     unit: item.unit,
     hsnCode: item.hsnCode,
     fulfillment: (item as any).fulfillment || undefined,
+    isTrading,
+    dispatchCategory: (item as any).dispatchCategory || (isTrading ? 'D2' : 'D1'),
   };
 }
 

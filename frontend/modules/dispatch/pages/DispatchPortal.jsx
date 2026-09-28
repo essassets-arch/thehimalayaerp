@@ -398,16 +398,12 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
 
   const isMobile = useMediaQuery('(max-width: 768px)');
 
-  // Canonical Dispatch Queue (from Finished Goods & Live Backend Stock)
-  const storeDispatchQueueOrders = useERPStore(s => s.dispatch?.dispatchOrders || s.state?.dispatch?.dispatchOrders) || [];
-
-  const dispatchQueueOrders = useMemo(() => {
-    return backendDispatchQueue || [];
-  }, [backendDispatchQueue]);
-
   // Legacy selector-based orders (for existing QC-passed records compatibility)
   const orders = useERPStore(selectDispatchOrders);
   const dispatches = state.dispatches || [];
+
+  // Canonical Dispatch Queue (from Finished Goods & Live Backend Stock)
+  const storeDispatchQueueOrders = useERPStore(s => s.dispatch?.dispatchOrders || s.state?.dispatch?.dispatchOrders) || [];
 
   // ── Dispatch Category RBAC Filtering ─────────────────────────────────────
   // Determine user's dispatch category: 'D1' vs 'D2'
@@ -474,8 +470,75 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       return Math.max(0, o.approvedQuantity - o.dispatchedQuantity);
     }
     const raw = o.availableQuantity ?? (o.dispatch?.remaining ?? (o.quantity || o.estimatedQuantity || o.total_tonnage || 0));
-    return typeof raw === 'string' ? parseFloat(raw.replace(/[^0-9.]/g, '')) || 0 : raw || 0;
+    const parsed = typeof raw === 'string' ? parseFloat(raw.replace(/[^0-9.]/g, '')) || 0 : raw || 0;
+    if (parsed > 0) return parsed;
+    // Fallback: calculate sum of items quantity if raw is 0
+    const items = o.items || o.detailedItems || o.orderItems || [];
+    if (Array.isArray(items) && items.length > 0) {
+      const itemsQty = items.reduce((sum, it) => sum + Number(it.quantity ?? it.orderedQuantity ?? it.dispatchableQuantity ?? it.approvedQuantity ?? 0), 0);
+      if (itemsQty > 0) return itemsQty;
+    }
+    return 1;
   };
+
+  // Filter active orders awaiting dispatch (QC Passed, partially delivered, or currently in transit/created with balance)
+  // filteredOrders is already role-filtered by dispatch category (D1/D2 Operator restriction)
+  const qcPassed = filteredOrders.filter(o =>
+    ['QC_APPROVED', 'QC Passed', 'QC_PASSED', 'DISPATCH_READY', 'Dispatch Created', 'DISPATCH_CREATED', 'IN_TRANSIT', 'In Transit', 'Partially Delivered', 'READY_FOR_DISPATCH', 'Ready for Dispatch'].includes(o.status || o.workflowStatus) &&
+    getRemainingQty(o) > 0
+  );
+
+  const dispatchQueueOrders = useMemo(() => {
+    const list = Array.isArray(backendDispatchQueue) ? [...backendDispatchQueue] : [];
+    const existingOrderNos = new Set(
+      list.map(d => String(d.orderNo || d.orderId || d.salesOrderId || '').toUpperCase())
+    );
+
+    (qcPassed || []).forEach(o => {
+      const orderRef = String(o.orderNo || o.id || o.orderNumber || '').toUpperCase();
+      if (!existingOrderNos.has(orderRef)) {
+        list.push({
+          id: `queue-${o.id || o.orderNo}`,
+          orderId: o.orderNo || o.orderNumber || o.id,
+          orderNo: o.orderNo || o.orderNumber || o.id,
+          salesOrderId: o.id || o.orderNo,
+          batchId: o.batchId || (isTradingProduct(o) ? 'TRADING-STOCK' : 'QC-STOCK'),
+          customerName: o.customerName || o.customer?.companyName || o.customer?.name || 'Customer',
+          salesperson: o.salesperson || o.salesExecutive?.name || 'Sales Executive',
+          salesExecutive: o.salesExecutive,
+          deliveryAddress: o.deliveryAddress || 'Customer Delivery Site',
+          status: o.status || 'READY_FOR_DISPATCH',
+          dispatchCategory: o.dispatchCategory || (isTradingProduct(o) ? 'D2' : 'D1'),
+          items: Array.isArray(o.items) && o.items.length > 0
+            ? o.items.map((it, idx) => ({
+                allocationId: `item-${it.id || idx}`,
+                salesOrderItemId: it.id,
+                productId: it.productId,
+                productCode: it.productCode || '',
+                productName: it.productName || it.name || 'Trading Product',
+                approvedQuantity: Number(it.quantity ?? it.orderedQuantity ?? 1),
+                dispatchableQuantity: Number(it.quantity ?? it.orderedQuantity ?? 1),
+                unit: it.unit || 'PCS',
+                dispatchCategory: it.dispatchCategory || (isTradingProduct(it) ? 'D2' : 'D1'),
+              }))
+            : [{
+                allocationId: `item-${o.id}`,
+                salesOrderItemId: o.id,
+                productId: o.productId,
+                productCode: '',
+                productName: o.productName || o.products || 'Trading Product',
+                approvedQuantity: getRemainingQty(o),
+                dispatchableQuantity: getRemainingQty(o),
+                unit: 'PCS',
+                dispatchCategory: o.dispatchCategory || (isTradingProduct(o) ? 'D2' : 'D1'),
+              }],
+        });
+        existingOrderNos.add(orderRef);
+      }
+    });
+
+    return list;
+  }, [backendDispatchQueue, qcPassed]);
 
   React.useEffect(() => {
     setDispatchQuantities(prev => {
@@ -506,13 +569,6 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       }
     }
   }, [currentView, filteredOrders, navigate, basePath]);
-
-  // Filter active orders awaiting dispatch (QC Passed, partially delivered, or currently in transit/created with balance)
-  // filteredOrders is already role-filtered by dispatch category (D1/D2 Operator restriction)
-  const qcPassed = filteredOrders.filter(o =>
-    ['QC_APPROVED', 'QC Passed', 'QC_PASSED', 'DISPATCH_READY', 'Dispatch Created', 'DISPATCH_CREATED', 'IN_TRANSIT', 'In Transit', 'Partially Delivered', 'READY_FOR_DISPATCH', 'Ready for Dispatch'].includes(o.status || o.workflowStatus) &&
-    getRemainingQty(o) > 0
-  );
 
   const handleAutoFillOne = () => {
     const activeOrders = selectedOrderNos

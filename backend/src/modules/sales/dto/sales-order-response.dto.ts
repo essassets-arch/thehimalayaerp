@@ -65,6 +65,10 @@ export interface SalesOrderResponseDto {
   status: SalesOrderStatus;
   sentToPlantHead?: boolean;
   sentToPlantHeadAt?: string;
+  sentToDispatch2?: boolean;
+  sentToDispatch2At?: string;
+  dispatchCategory?: string;
+  currentDepartment?: string;
   planningStatus?: string;
   productionPlanId?: string | null;
   productionStatus?: string | null;

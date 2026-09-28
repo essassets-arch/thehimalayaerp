@@ -94,7 +94,7 @@ export function mapSalesOrder(
       completedDispatchStatuses.has(dispatch.status),
     )
       ? 'DELIVERED'
-      : dispatches[0]?.status;
+      : dispatches[0]?.status || (isOrderAllTrading && effectiveStatus === 'READY_FOR_DISPATCH' ? 'READY_FOR_DISPATCH' : undefined);
   const deliveredAt = dispatches
     .filter((dispatch) => completedDispatchStatuses.has(dispatch.status))
     .map((dispatch) => dispatch.deliveredAt)
@@ -453,6 +453,10 @@ export function mapSalesOrder(
       : order.status === 'SENT_TO_PLANT_HEAD' || order.status === 'PLANT_APPROVED'
         ? order.updatedAt?.toISOString()
         : undefined,
+    sentToDispatch2: isOrderAllTrading && (effectiveStatus === 'READY_FOR_DISPATCH' || effectiveStatus === 'COMPLETED' || Boolean(dispatches.length)),
+    sentToDispatch2At: isOrderAllTrading && effectiveStatus === 'READY_FOR_DISPATCH' ? order.updatedAt?.toISOString() : undefined,
+    dispatchCategory: isOrderAllTrading ? 'D2' : 'D1',
+    currentDepartment: isOrderAllTrading ? (effectiveStatus === 'READY_FOR_DISPATCH' ? 'Dispatch 2' : 'Sales') : undefined,
     planningStatus: isOrderAllTrading
       ? 'NOT_REQUIRED'
       : order.status === 'SENT_TO_PLANT_HEAD'

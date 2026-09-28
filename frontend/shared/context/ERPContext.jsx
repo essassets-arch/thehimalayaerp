@@ -519,7 +519,7 @@ export const useERP = () => {
           nextState.sales = {
             ...(nextState.sales || {}),
             orders: (nextState.sales?.orders || []).map(o =>
-              (o.id === orderId || o.orderNo === orderId) ? { ...o, ...payload } : o
+              (o.id === orderId || o.orderNo === orderId || o.orderNumber === orderId) ? { ...o, ...payload } : o
             ),
           };
           store.setState(nextState);

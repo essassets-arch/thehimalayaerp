@@ -23,7 +23,7 @@ import { useERP, useERPStore, useSalesBackend } from '../../../shared/context/ER
 import { useAuth } from '../../../shared/context/AuthContext.jsx';
 import { apiClient } from '../../../lib/apiClient.js';
 import { backendFetch } from '../../../lib/backendFetch';
-import { isPureTradingOrder } from '../../../shared/utils/dispatchCategory';
+import { isPureTradingOrder, isTradingProduct } from '../../../shared/utils/dispatchCategory';
 
 // Feature hooks (new FSD layer)
 import { useLeads } from '../hooks/useLeads.js';
@@ -1278,7 +1278,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
         const encodedId = encodeURIComponent(String(orderDbId || ''));
 
         if (status === 'SEND_TO_PLANT_HEAD_DIRECT' || status === 'SEND_TO_PLANT' || status === 'PLANT_PENDING') {
-          const isTrading = Boolean(matchedOrder && isPureTradingOrder(matchedOrder));
+          const isTrading = Boolean(matchedOrder && (isPureTradingOrder(matchedOrder) || isTradingProduct(matchedOrder)));
 
           if (isTrading) {
             showToast('Routing trading order to Dispatch 2…');
@@ -1297,14 +1297,17 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
               dispatch({
                 type: 'UPDATE_ORDER_STATUS',
                 payload: {
-                  orderNo: orderId,
+                  orderNo: matchedOrder?.orderNo || orderId,
                   id: orderDbId,
                   status: 'READY_FOR_DISPATCH',
                   workflowStatus: 'READY_FOR_DISPATCH',
+                  dispatchStatus: 'READY_FOR_DISPATCH',
                   salesStatus: 'Confirmed',
                   currentDepartment: 'Dispatch 2',
                   overallStage: 'Ready for Dispatch',
                   dispatchCategory: 'D2',
+                  sentToDispatch2: true,
+                  sentToDispatch2At: new Date().toISOString(),
                 }
               });
               showToast('✅ Trading order sent to Dispatch 2!');

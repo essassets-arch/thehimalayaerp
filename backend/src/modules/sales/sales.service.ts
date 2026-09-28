@@ -1082,6 +1082,7 @@ export class SalesService {
         SEND_TO_PLANT: isPureTrading
           ? SalesOrderStatus.READY_FOR_DISPATCH
           : SalesOrderStatus.SENT_TO_PLANT_HEAD,
+        SEND_TO_DISPATCH_2: SalesOrderStatus.READY_FOR_DISPATCH,
         PLANT_APPROVE: SalesOrderStatus.PLANT_APPROVED,
         PLANT_REJECT: SalesOrderStatus.CONFIRMED,
         PLAN_PRODUCTION: SalesOrderStatus.READY_FOR_PRODUCTION,
@@ -1092,7 +1093,7 @@ export class SalesService {
       };
 
       let readyDispatchState: any = null;
-      if (actionName === 'SEND_TO_PLANT' && isPureTrading) {
+      if ((actionName === 'SEND_TO_PLANT' || actionName === 'SEND_TO_DISPATCH_2') && isPureTrading) {
         readyDispatchState = await tx.workflowState.findFirst({
           where: { workflow: { code: 'SALES_ORDER' }, code: 'READY_FOR_DISPATCH' },
         });
@@ -1120,7 +1121,7 @@ export class SalesService {
           ...(actionName === 'CONFIRM' ? { confirmedAt: new Date() } : {}),
           ...(dto.remarks
             ? { remarks: dto.remarks }
-            : isPureTrading && actionName === 'SEND_TO_PLANT'
+            : isPureTrading && (actionName === 'SEND_TO_PLANT' || actionName === 'SEND_TO_DISPATCH_2')
             ? { remarks: 'Direct to Dispatch 2 (Sahad Dispatch)' }
             : {}),
           version: { increment: 1 },
@@ -1271,7 +1272,7 @@ export class SalesService {
       const order = result.originalOrder;
       const companyId = order.customer?.companyId;
 
-      if (dto.action === 'SEND_TO_PLANT') {
+      if (dto.action === 'SEND_TO_PLANT' || dto.action === 'SEND_TO_DISPATCH_2') {
         const productIds = order.items.map((i: any) => i.productId).filter(Boolean);
         const orderProducts = await this.prisma.product.findMany({
           where: { id: { in: productIds } },

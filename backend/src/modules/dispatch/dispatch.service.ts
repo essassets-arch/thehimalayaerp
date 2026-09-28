@@ -1780,10 +1780,11 @@ export class DispatchService {
 
     // 5. Also fetch direct SalesOrders with status READY_FOR_DISPATCH (for Trading goods D2)
     try {
-      const readyTradingOrders = await this.prisma.salesOrder.findMany({
+      const readyTradingOrders: any = await this.prisma.salesOrder.findMany({
         where: {
           status: 'READY_FOR_DISPATCH',
-          customer: { companyId },
+          deletedAt: null,
+          ...(companyId ? { customer: { companyId } } : {}),
         },
         include: {
           customer: true,
@@ -1827,7 +1828,7 @@ export class DispatchService {
               orderNo: so.orderNumber,
               salesOrderId: so.id,
               batchId: product?.sku || 'SO-STOCK',
-              customerName: customer?.companyName || 'Trading Customer',
+              customerName: customer?.companyName || customer?.name || 'Trading Customer',
               salesperson: so.salesExecutive?.name || 'Sales Executive',
               salesExecutive: so.salesExecutive,
               deliveryAddress:
@@ -1835,8 +1836,9 @@ export class DispatchService {
                   ? so.shippingAddress
                   : so.shippingAddress
                     ? JSON.stringify(so.shippingAddress)
-                    : 'Customer Delivery Site',
+                    : (customer?.shippingAddress || customer?.address || 'Customer Delivery Site'),
               status: 'READY_FOR_DISPATCH',
+              dispatchCategory: dispatchCat,
               items: [],
             });
           }

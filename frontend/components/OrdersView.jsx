@@ -343,6 +343,15 @@ export default function OrdersView({
 
   const canSendToPlantHead = (order) => {
     if (!order) return false;
+    if (isTradingOrder(order)) {
+      const status = String(order.status || order.orderStatus || order.workflowStateCode || order.workflowState?.code || '').toUpperCase();
+      const isSent =
+        status === 'READY_FOR_DISPATCH' ||
+        order.dispatchStatus === 'READY_FOR_DISPATCH' ||
+        Boolean(order.sentToDispatch2 || order.sentToDispatch2At || order.currentDepartment === 'Dispatch 2') ||
+        ['DISPATCHED', 'DELIVERED', 'IN_TRANSIT', 'COMPLETED'].includes(status);
+      return !isSent;
+    }
     if (order.sentToPlantHead || order.sentToPlantHeadAt) return false;
     if (order.planningStatus && order.planningStatus !== 'NOT_SENT') return false;
     const status = String(order.status || order.orderStatus || order.workflowStateCode || order.workflowState?.code || '').toUpperCase();
@@ -810,8 +819,30 @@ export default function OrdersView({
 
     const isTrading = isTradingOrder(order);
 
+    if (isTrading) {
+      if (backendStatus === 'DELIVERED' || order.dispatchStatus === 'DELIVERED') {
+        return { action: null, label: 'Delivered' };
+      }
+      if (['IN_TRANSIT', 'DISPATCHED'].includes(backendStatus) || ['IN_TRANSIT', 'DISPATCHED'].includes(String(order.dispatchStatus || '').toUpperCase())) {
+        return { action: null, label: 'In Transit' };
+      }
+      const isSentToDispatch2 =
+        backendStatus === 'READY_FOR_DISPATCH' ||
+        order.dispatchStatus === 'READY_FOR_DISPATCH' ||
+        order.dispatchStatus === 'DISPATCH_READY' ||
+        backendStatus === 'DISPATCH_READY' ||
+        Boolean(order.sentToDispatch2 || order.sentToDispatch2At || order.currentDepartment === 'Dispatch 2');
+
+      if (isSentToDispatch2) {
+        return { action: null, label: 'Sent to Dispatch 2' };
+      }
+
+      // If not yet sent to Dispatch 2, show the action button!
+      return { action: 'SEND_TO_PLANT', label: 'Send to Dispatch 2' };
+    }
+
     if (backendStatus === 'READY_FOR_DISPATCH') {
-      return { action: null, label: isTrading ? 'Sent to Dispatch 2' : 'Ready for Dispatch' };
+      return { action: null, label: 'Ready for Dispatch' };
     }
 
     const isAlreadySent = Boolean(
@@ -831,12 +862,10 @@ export default function OrdersView({
       if (['PRODUCTION_STARTED', 'PRODUCTION_IN_PROGRESS', 'IN_PRODUCTION'].includes(order.productionStatus) || backendStatus === 'IN_PRODUCTION') {
         return { action: null, label: 'In Production' };
       }
-      return { action: null, label: isTrading ? 'Sent to Dispatch 2' : 'Sent to Plant Head' };
+      return { action: null, label: 'Sent to Plant Head' };
     }
 
-    const actionLabel = isTrading ? 'Send to Dispatch 2' : 'Send to Plant Head';
-
-    return { action: 'SEND_TO_PLANT', label: actionLabel };
+    return { action: 'SEND_TO_PLANT', label: 'Send to Plant Head' };
   };
 
   const resolveOrderCustomerName = (o) => {
@@ -2501,15 +2530,18 @@ export default function OrdersView({
                       <button
                         type="button"
                         onClick={() => {
-                          onUpdateOrderStatus?.(currentDetailsOrder.orderNo || currentDetailsOrder.id, 'PLANT_PENDING');
+                          onUpdateOrderStatus?.(currentDetailsOrder.orderNo || currentDetailsOrder.id, 'SEND_TO_PLANT');
                           setSelectedOrder(null);
                         }}
                         style={{
                           padding: '10px 20px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0,
-                          background: '#c9f03d', border: '1px solid #b5da2a', color: '#1a2600', cursor: 'pointer'
+                          background: isTradingOrder(currentDetailsOrder) ? '#0284c7' : '#c9f03d',
+                          border: isTradingOrder(currentDetailsOrder) ? '1px solid #0369a1' : '1px solid #b5da2a',
+                          color: isTradingOrder(currentDetailsOrder) ? '#ffffff' : '#1a2600',
+                          cursor: 'pointer'
                         }}
                       >
-                        ✓ Send to Plant Head
+                        {isTradingOrder(currentDetailsOrder) ? '✓ Send to Dispatch 2' : '✓ Send to Plant Head'}
                       </button>
                     )}
                     {canAskForPayment(currentDetailsOrder) && (

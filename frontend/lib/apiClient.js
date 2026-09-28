@@ -106,7 +106,7 @@ function isTradingOrder(order) {
       const itemDCat = String(it.dispatchCategory || it.dispatch_category || '').toUpperCase();
       if (pType === 'TRADING' || itemDCat === 'D2' || itemDCat.includes('2')) return true;
       if (cat.includes('COVERBLOCK') || cat.includes('FRC') || cat.includes('RCC') || cat.includes('TRADING') || cat.includes('OTHERS')) return true;
-      if (name.includes('COVERBLOCK') || name.includes('COVER BLOCK') || name.includes('FRC') || name.includes('RCC') || name.includes('MOULDED')) return true;
+      if (name.includes('COVERBLOCK') || name.includes('COVER BLOCK') || name.includes('FRC') || name.includes('RCC') || name.includes('MOULDED') || name.includes('GRATING')) return true;
       if (sku.startsWith('WCB') || sku.startsWith('PCB') || sku.startsWith('HTCB') || sku.startsWith('DTCB') || sku.startsWith('MCB') || sku.startsWith('BTCB') || sku.startsWith('FRC') || sku.startsWith('RCC')) return true;
       return false;
     });
