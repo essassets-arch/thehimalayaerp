@@ -32,12 +32,13 @@ const resolveSalesLogPaymentDate = (entity, fallbackOrder) => {
 
   const extractFromSinglePayment = (p) => {
     if (!p) return null;
-    if (p.paymentDate) return extractDate(p.paymentDate);
-    if (p.receivedAt) return extractDate(p.receivedAt);
+    // Extract date from sales remarks first if present (e.g. "Date: 2026-06-03")
     if (p.remarks) {
       const match = String(p.remarks).match(/Date:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})/i);
       if (match) return match[1];
     }
+    if (p.paymentDate) return extractDate(p.paymentDate);
+    if (p.receivedAt) return extractDate(p.receivedAt);
     if (p.createdAt) return extractDate(p.createdAt);
     return null;
   };
@@ -125,6 +126,28 @@ export default function FinanceSalesConfirmationView() {
   };
 
   const rows = queueData?.rows || [];
+
+  // Sort rows to prioritize actionable pending payments, then logged payments, then recent orders
+  const sortedRows = useMemo(() => {
+    if (!rows || rows.length === 0) return [];
+    return [...rows].sort((a, b) => {
+      // 1. Pending verification always at the very top
+      const aPending = (a.pendingPayments || []).length > 0 ? 0 : 1;
+      const bPending = (b.pendingPayments || []).length > 0 ? 0 : 1;
+      if (aPending !== bPending) return aPending - bPending;
+
+      // 2. Orders with logged payments next
+      const aHasPayment = (a.payments || []).length > 0 || a.salesLogPaymentDate ? 0 : 1;
+      const bHasPayment = (b.payments || []).length > 0 || b.salesLogPaymentDate ? 0 : 1;
+      if (aHasPayment !== bHasPayment) return aHasPayment - bHasPayment;
+
+      // 3. Fallback date desc
+      const aDate = a.salesLogPaymentDate || a.orderDate || '';
+      const bDate = b.salesLogPaymentDate || b.orderDate || '';
+      return bDate.localeCompare(aDate);
+    });
+  }, [rows]);
+
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -133,11 +156,11 @@ export default function FinanceSalesConfirmationView() {
     setCurrentPage(1);
   }, [activeTab, searchQuery, paymentTermsFilter, dueStateFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
   const paginatedRows = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
-    return rows.slice(start, start + pageSize);
-  }, [rows, currentPage, pageSize]);
+    return sortedRows.slice(start, start + pageSize);
+  }, [sortedRows, currentPage, pageSize]);
 
   // ── Action: Handle Payment Verification ───────────────────────────────────
   const handleVerify = async (paymentId, orderRef) => {
@@ -655,7 +678,7 @@ export default function FinanceSalesConfirmationView() {
                     </div>
                   </td>
                 </tr>
-              ) : rows.length === 0 ? (
+              ) : sortedRows.length === 0 ? (
                 <tr>
                   <td colSpan={15} style={{ padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
@@ -817,12 +840,24 @@ export default function FinanceSalesConfirmationView() {
                       <td style={{ padding: '12px 14px' }}>
                         {(() => {
                           const logDate = resolveSalesLogPaymentDate(r);
-                          if (!logDate) return <span style={{ color: '#94A3B8', fontSize: '12px' }}>—</span>;
+                          if (logDate) {
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span style={{ fontWeight: 700, color: '#1E293B', fontSize: '12.5px' }}>{logDate}</span>
+                                <span style={{ fontSize: '10px', color: hasPending ? '#D97706' : '#16A34A', fontWeight: 700 }}>
+                                  {hasPending ? 'Logged by Sales' : 'Recorded'}
+                                </span>
+                              </div>
+                            );
+                          }
+                          const orderPlacedDate = r.orderDate ? String(r.orderDate).split('T')[0] : (r.paymentTermStartDate ? String(r.paymentTermStartDate).split('T')[0] : null);
                           return (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              <span style={{ fontWeight: 700, color: '#1E293B', fontSize: '12.5px' }}>{logDate}</span>
-                              <span style={{ fontSize: '10.5px', color: hasPending ? '#D97706' : '#64748B', fontWeight: hasPending ? 700 : 600 }}>
-                                {hasPending ? 'Logged by Sales' : 'Recorded'}
+                              <span style={{ fontWeight: 600, color: '#475569', fontSize: '12px' }}>
+                                {orderPlacedDate || '—'}
+                              </span>
+                              <span style={{ fontSize: '10px', color: '#94A3B8', fontWeight: 600 }}>
+                                Order Date (Pending Log)
                               </span>
                             </div>
                           );
@@ -945,7 +980,7 @@ export default function FinanceSalesConfirmationView() {
               <RefreshCw className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
               <span style={{ fontWeight: 600, fontSize: '13.5px' }}>Loading payment records...</span>
             </div>
-          ) : rows.length === 0 ? (
+          ) : sortedRows.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 16px', color: '#94A3B8' }}>
               <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>📭</span>
               <span style={{ fontWeight: 600, fontSize: '14px' }}>No orders found matching the filter criteria.</span>
@@ -1010,12 +1045,25 @@ export default function FinanceSalesConfirmationView() {
                       <span>•</span>
                       <span>{r.salespersonName || 'Sales'}</span>
                     </div>
-                    {resolveSalesLogPaymentDate(r) && (
-                      <div style={{ fontSize: '11px', color: '#D97706', marginTop: '4px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span>Sales Log Payment Date:</span>
-                        <span style={{ color: '#1E293B' }}>{resolveSalesLogPaymentDate(r)}</span>
-                      </div>
-                    )}
+                    {(() => {
+                      const logDate = resolveSalesLogPaymentDate(r);
+                      if (logDate) {
+                        return (
+                          <div style={{ fontSize: '11px', color: '#D97706', marginTop: '4px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span>Sales Log Payment Date:</span>
+                            <span style={{ color: '#1E293B', fontFamily: 'monospace' }}>{logDate}</span>
+                          </div>
+                        );
+                      }
+                      const orderPlacedDate = r.orderDate ? String(r.orderDate).split('T')[0] : (r.paymentTermStartDate ? String(r.paymentTermStartDate).split('T')[0] : null);
+                      return (
+                        <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span>Order Date:</span>
+                          <span style={{ color: '#1E293B', fontFamily: 'monospace' }}>{orderPlacedDate || '—'}</span>
+                          <span style={{ fontSize: '10px', color: '#94A3B8' }}>(Pending Log)</span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* 3 Metric Columns */}
@@ -1120,13 +1168,13 @@ export default function FinanceSalesConfirmationView() {
         </div>
 
         {/* Pagination Controls */}
-        {rows.length > 0 && (
+        {sortedRows.length > 0 && (
           <PaginationControl
             currentPage={currentPage}
             totalPages={totalPages}
-            totalItems={rows.length}
+            totalItems={sortedRows.length}
             pageSize={pageSize}
-            pageSizeOptions={[10, 25, 50, 100]}
+            pageSizeOptions={[10, 25, 50, 100, 500]}
             onPageChange={setCurrentPage}
             onPageSizeChange={(newSize) => {
               setPageSize(newSize);

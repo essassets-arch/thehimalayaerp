@@ -137,11 +137,12 @@ export class PaymentsService {
       const targetPayment = pendingPayments[0] || latestPayment;
       let salesLogPaymentDate: string | null = null;
       if (targetPayment) {
-        if (targetPayment.receivedAt) {
-          salesLogPaymentDate = new Date(targetPayment.receivedAt).toISOString().split('T')[0];
-        } else if (targetPayment.remarks) {
+        if (targetPayment.remarks) {
           const match = String(targetPayment.remarks).match(/Date:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})/i);
           if (match) salesLogPaymentDate = match[1];
+        }
+        if (!salesLogPaymentDate && targetPayment.receivedAt) {
+          salesLogPaymentDate = new Date(targetPayment.receivedAt).toISOString().split('T')[0];
         }
         if (!salesLogPaymentDate && targetPayment.createdAt) {
           salesLogPaymentDate = new Date(targetPayment.createdAt).toISOString().split('T')[0];
@@ -328,14 +329,13 @@ export class PaymentsService {
       LOW: 4,
     };
     filtered.sort((a, b) => {
-      const wA =
-        a.pendingVerificationCount > 0 && a.priority !== 'CRITICAL'
-          ? 2
-          : priorityWeight[a.priority] || 5;
-      const wB =
-        b.pendingVerificationCount > 0 && b.priority !== 'CRITICAL'
-          ? 2
-          : priorityWeight[b.priority] || 5;
+      // 1. Pending verification always at the very top
+      const aPending = a.pendingVerificationCount > 0 ? 0 : 1;
+      const bPending = b.pendingVerificationCount > 0 ? 0 : 1;
+      if (aPending !== bPending) return aPending - bPending;
+
+      const wA = priorityWeight[a.priority] || 5;
+      const wB = priorityWeight[b.priority] || 5;
       if (wA !== wB) return wA - wB;
       return new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime();
     });
