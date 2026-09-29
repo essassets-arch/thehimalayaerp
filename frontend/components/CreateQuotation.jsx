@@ -197,7 +197,22 @@ export default function CreateQuotation({
         let discountPct = Number(item.discount ?? item.discountPercent ?? 0);
         if (discountPct > 100) discountPct = 0;
 
-        let taxPct = item.tax !== undefined ? Number(item.tax) : (item.gstRate !== undefined ? Number(item.gstRate) : (item.taxPercent !== undefined ? Number(item.taxPercent) : 18));
+        let taxPct = (item.tax !== undefined && item.tax !== null && item.tax !== '')
+          ? Number(item.tax)
+          : (item.taxRate !== undefined && item.taxRate !== null && item.taxRate !== ''
+              ? Number(item.taxRate)
+              : (item.gstRate !== undefined
+                  ? Number(item.gstRate)
+                  : (item.taxPercent !== undefined ? Number(item.taxPercent) : 18)));
+        // Sanitize legacy bug where rupee tax amount was saved into item.tax (e.g. ₹72 on ₹400 taxable = 18%)
+        if (taxPct > 28 && gross > 0) {
+          const derivedRate = Math.round((taxPct / gross) * 100);
+          if (derivedRate <= 28) {
+            taxPct = derivedRate;
+          } else {
+            taxPct = 18;
+          }
+        }
         if (taxPct > 100) taxPct = 18;
 
         const spec = item.specification ?? item.productDetails ?? item.description ?? item.product?.description ?? '';
@@ -728,7 +743,9 @@ export default function CreateQuotation({
           code: product.code,
           productDetails: product.description || item.productDetails || '',
           unitPrice: Number(product.price || product.selling_price || product.base_price || 100),
-          tax: product.gst !== undefined ? product.gst : (item.tax || 18)
+          tax: (item.tax !== undefined && item.tax !== null && item.tax !== '')
+            ? item.tax
+            : (product.gst !== undefined ? product.gst : 18)
         };
       }
       return item;
@@ -747,7 +764,7 @@ export default function CreateQuotation({
     const itemSubtotal = itemQty * itemUnitPrice;
     const itemDiscountAmt = (itemSubtotal * (Number(item.discount) || 0)) / 100;
     const itemTaxable = itemSubtotal - itemDiscountAmt;
-    const taxPct = (item.tax !== undefined && item.tax !== null && item.tax !== '') ? Number(item.tax) : 18;
+    const taxPct = (item.tax !== undefined && item.tax !== null && item.tax !== '') ? Number(item.tax) : 0;
     if (taxPct > 0 && detectedGstRate === null) detectedGstRate = taxPct;
     const itemTaxAmt = (itemTaxable * taxPct) / 100;
     
@@ -758,7 +775,7 @@ export default function CreateQuotation({
   
   const transportVal = Number(transportCharge || 0);
   const itemsTaxable = subtotal - discountAmtTotal;
-  const effectiveGstRate = itemsTaxable > 0 ? (itemsTaxAmtTotal / itemsTaxable) * 100 : (detectedGstRate ?? 18);
+  const effectiveGstRate = itemsTaxable > 0 ? (itemsTaxAmtTotal / itemsTaxable) * 100 : (detectedGstRate ?? 0);
   const transportTaxAmt = (transportVal * effectiveGstRate) / 100;
   const taxAmtTotal = itemsTaxAmtTotal + transportTaxAmt;
   const taxableSubtotal = itemsTaxable + transportVal;
@@ -853,7 +870,7 @@ export default function CreateQuotation({
         const itemUnitPrice = Number(item.unitPrice) || 0;
         const gross = itemQty * itemUnitPrice;
         const discPct = Number(item.discount) || 0;
-        const taxPct = item.tax !== undefined ? Number(item.tax) : 18;
+        const taxPct = (item.tax !== undefined && item.tax !== null && item.tax !== '') ? Number(item.tax) : 0;
         const discountAmt = gross * (discPct / 100);
         const taxable = gross - discountAmt;
         const taxAmt = taxable * (taxPct / 100);
@@ -868,6 +885,9 @@ export default function CreateQuotation({
           unitPrice: itemUnitPrice,
           discount: discPct,
           tax: taxPct,
+          taxRate: taxPct,
+          taxPercent: taxPct,
+          taxAmount: taxAmt,
           amount: Math.round((taxable + taxAmt) * 100) / 100,
         };
       }),
@@ -1206,7 +1226,7 @@ export default function CreateQuotation({
                 const itemSubtotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
                 const itemDiscountAmt = (itemSubtotal * (Number(item.discount) || 0)) / 100;
                 const itemTaxable = itemSubtotal - itemDiscountAmt;
-                const itemTaxAmt = (itemTaxable * (item.tax !== undefined ? Number(item.tax) : 18)) / 100;
+                const itemTaxAmt = (itemTaxable * ((item.tax !== undefined && item.tax !== null && item.tax !== '') ? Number(item.tax) : 0)) / 100;
                 const lineTotal = itemTaxable + itemTaxAmt;
 
                 return (
@@ -1267,7 +1287,7 @@ export default function CreateQuotation({
                               code: p.product_code,
                               price: p.selling_price || p.price || p.base_price || 100,
                               unit: p.unit_of_measure || 'PCS',
-                              gst: p.gst_rate || 18,
+                              gst: p.gst_rate !== undefined && p.gst_rate !== null ? p.gst_rate : undefined,
                               description: p.description
                             });
                           } else {
@@ -1359,7 +1379,9 @@ export default function CreateQuotation({
                           className="form-input"
                           min="0"
                           max="100"
-                          value={item.tax === '' ? '' : (item.tax !== undefined ? item.tax : 18)}
+                          step="any"
+                          placeholder="0"
+                          value={item.tax !== undefined && item.tax !== null ? item.tax : ''}
                           onChange={e => handleRowChange(item.id, 'tax', e.target.value === '' ? '' : Number(e.target.value))}
                           style={{ padding: '9px 10px', width: '100%', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: 600, color: '#1e293b' }}
                         />
@@ -1413,7 +1435,7 @@ export default function CreateQuotation({
                                     code: p.product_code,
                                     price: p.selling_price || p.price || p.base_price || 100,
                                     unit: p.unit_of_measure || 'PCS',
-                                    gst: p.gst_rate || 18,
+                                    gst: p.gst_rate !== undefined && p.gst_rate !== null ? p.gst_rate : undefined,
                                     description: p.description
                                   });
                                 } else {
@@ -1516,7 +1538,8 @@ export default function CreateQuotation({
                           min="0" 
                           max="100" 
                           step="any"
-                          value={item.tax === '' ? '' : (item.tax !== undefined ? item.tax : 18)} 
+                          placeholder="0"
+                          value={item.tax !== undefined && item.tax !== null ? item.tax : ''} 
                           onChange={e => handleRowChange(item.id, 'tax', e.target.value === '' ? '' : Number(e.target.value))}
                           style={{ padding: '8px 10px', width: '100%', maxWidth: '85px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
                         />
@@ -1526,7 +1549,7 @@ export default function CreateQuotation({
                           const itemSubtotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
                           const itemDiscountAmt = (itemSubtotal * (Number(item.discount) || 0)) / 100;
                           const itemTaxable = itemSubtotal - itemDiscountAmt;
-                          const itemTaxAmt = (itemTaxable * (item.tax !== undefined ? Number(item.tax) : 18)) / 100;
+                          const itemTaxAmt = (itemTaxable * ((item.tax !== undefined && item.tax !== null && item.tax !== '') ? Number(item.tax) : 0)) / 100;
                           return formatINR(itemTaxable + itemTaxAmt);
                         })()}
                       </td>

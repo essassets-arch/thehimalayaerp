@@ -325,34 +325,58 @@ export class QuotationsService {
       const itemDiscount = new Decimal(item.discount || 0);
       const taxable = gross.sub(itemDiscount);
       let itemTaxAmount: Decimal;
-      if (item.tax !== undefined && item.tax !== null && item.tax !== '') {
-        const rawTax = new Decimal(item.tax);
+      let effectiveRate: Decimal;
+      const rateInput = (item.taxRate !== undefined && item.taxRate !== null && item.taxRate !== '')
+        ? item.taxRate
+        : (item.taxPercent !== undefined && item.taxPercent !== null && item.taxPercent !== '')
+          ? item.taxPercent
+          : item.tax;
+
+      if (rateInput !== undefined && rateInput !== null && rateInput !== '') {
+        const rawTax = new Decimal(rateInput);
         if (rawTax.lte(28) && rawTax.gte(0)) {
           // Indian GST slabs (0, 3, 5, 12, 18, 28)
           itemTaxAmount = taxable.mul(rawTax).div(100);
+          effectiveRate = rawTax;
           if (detectedGstRate === null && rawTax.gt(0)) detectedGstRate = rawTax;
+        } else if (taxable.gt(0)) {
+          // Check if rawTax was sent as rupee amount (e.g. ₹72 on ₹400 taxable = 18%)
+          const calcRate = rawTax.mul(100).div(taxable);
+          if (calcRate.lte(28)) {
+            itemTaxAmount = rawTax;
+            effectiveRate = calcRate;
+            if (detectedGstRate === null && calcRate.gt(0)) detectedGstRate = calcRate;
+          } else {
+            itemTaxAmount = taxable.mul(rawTax).div(100);
+            effectiveRate = rawTax;
+            if (detectedGstRate === null && rawTax.gt(0)) detectedGstRate = rawTax;
+          }
         } else {
           itemTaxAmount = rawTax;
-          if (taxable.gt(0) && detectedGstRate === null) {
-            detectedGstRate = itemTaxAmount.mul(100).div(taxable);
-          }
+          effectiveRate = new Decimal(0);
         }
       } else {
-        itemTaxAmount = taxable.mul(18).div(100);
-        if (detectedGstRate === null) detectedGstRate = new Decimal(18);
+        itemTaxAmount = new Decimal(0);
+        effectiveRate = new Decimal(0);
       }
       const lineTotal = taxable.add(itemTaxAmount);
       subtotal = subtotal.add(gross);
       discount = discount.add(itemDiscount);
       itemsTax = itemsTax.add(itemTaxAmount);
-      return { ...item, lineTotal: lineTotal.toNumber() };
+      return {
+        ...item,
+        tax: effectiveRate.toNumber(),
+        taxRate: effectiveRate.toNumber(),
+        taxAmount: itemTaxAmount.toNumber(),
+        lineTotal: lineTotal.toNumber(),
+      };
     });
 
     const transport = new Decimal(expectedTransportationCost || 0);
     const itemsTaxable = subtotal.sub(discount);
     const effectiveGstRate = itemsTaxable.gt(0)
       ? itemsTax.mul(100).div(itemsTaxable)
-      : (detectedGstRate ?? new Decimal(18));
+      : (detectedGstRate ?? new Decimal(0));
     const transportTax = transport.mul(effectiveGstRate).div(100);
     const totalTax = itemsTax.add(transportTax);
     const taxableSubtotal = itemsTaxable.add(transport);
@@ -1501,9 +1525,9 @@ export class QuotationsService {
               unit: productById.get(item.productId)?.unit || 'NOS',
               unitPrice: item.unitPrice,
               discountAmount: item.discount,
-              taxableAmount: Number(item.lineTotal) - Number(item.tax),
-              taxRate: 0,
-              taxAmount: item.tax,
+              taxableAmount: (Number(item.quantity) * Number(item.unitPrice)) - Number(item.discount || 0),
+              taxRate: Number(item.tax || 0),
+              taxAmount: ((Number(item.quantity) * Number(item.unitPrice)) - Number(item.discount || 0)) * (Number(item.tax || 0) / 100),
               lineTotal: item.lineTotal,
             })),
           },

@@ -2041,18 +2041,28 @@ export const calculateQuotationTotals = (items = [], transportationCost = 0) => 
     const quantity = Number(item.quantity ?? item.qty ?? 0);
     const rate = Number(item.unitPrice ?? item.rate ?? item.price ?? 0);
     const discountPercent = Number(item.discount ?? item.discountPercent ?? 0);
-    const gstPercent = (item.tax !== undefined && item.tax !== null && item.tax !== '')
-      ? Number(item.tax ?? item.gstPercent ?? 18)
-      : (item.gstPercent !== undefined && item.gstPercent !== null && item.gstPercent !== '')
-        ? Number(item.gstPercent)
-        : 18;
+    let gstPercent = (item.tax !== undefined && item.tax !== null && item.tax !== '')
+      ? Number(item.tax)
+      : (item.taxRate !== undefined && item.taxRate !== null && item.taxRate !== '')
+        ? Number(item.taxRate)
+        : (item.gstPercent !== undefined && item.gstPercent !== null && item.gstPercent !== '')
+          ? Number(item.gstPercent)
+          : (item.taxPercent !== undefined && item.taxPercent !== null && item.taxPercent !== '')
+            ? Number(item.taxPercent)
+            : 0;
+
+    const lineSubtotal = quantity * rate;
+    const lineDiscount = (lineSubtotal * discountPercent) / 100;
+    const lineTaxable = lineSubtotal - lineDiscount;
+
+    if (gstPercent > 28 && lineTaxable > 0) {
+      const derived = Math.round((gstPercent / lineTaxable) * 100);
+      if (derived <= 28) gstPercent = derived;
+    }
 
     if (gstPercent > 0 && detectedGstRate === null) {
       detectedGstRate = gstPercent;
     }
-    const lineSubtotal = quantity * rate;
-    const lineDiscount = (lineSubtotal * discountPercent) / 100;
-    const lineTaxable = lineSubtotal - lineDiscount;
     subtotal += lineSubtotal;
     discountAmount += lineDiscount;
     itemsGstAmount += (lineTaxable * gstPercent) / 100;
@@ -2060,10 +2070,10 @@ export const calculateQuotationTotals = (items = [], transportationCost = 0) => 
 
   const transport = Number(transportationCost) || 0;
   const itemsTaxable = subtotal - discountAmount;
-  // Effective GST rate across quotation items (defaults to 18%)
+  // Effective GST rate across quotation items
   const gstRate = itemsTaxable > 0
     ? (itemsGstAmount / itemsTaxable) * 100
-    : (detectedGstRate ?? 18);
+    : (detectedGstRate ?? 0);
 
   // Transportation Cost is included in the Taxable Subtotal before calculating GST
   const taxableSubtotal = itemsTaxable + transport;

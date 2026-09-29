@@ -3,7 +3,7 @@ import { resolveQuotationTerms } from './quotationTerms';
 export const statusLabel = (code?: string): string => {
   const value = String(code || 'DRAFT').toUpperCase();
   if (value === 'CONVERTED_TO_SO') return 'Converted';
-  return value.charAt(0) + value.slice(1).toLowerCase().replaceAll('_', ' ');
+  return value.charAt(0) + value.slice(1).toLowerCase().replace(/_/g, ' ');
 };
 
 export const normalizeQuotation = (quotation: any): any => {
@@ -51,22 +51,35 @@ export const normalizeQuotation = (quotation: any): any => {
     if (item.taxPercent !== undefined && item.taxPercent !== null) {
       taxPct = Number(item.taxPercent);
       taxRupees = taxable * (taxPct / 100);
+    } else if (item.taxRate !== undefined && item.taxRate !== null) {
+      taxPct = Number(item.taxRate);
+      taxRupees = taxable * (taxPct / 100);
     } else if (item.taxAmount !== undefined && item.taxAmount !== null) {
       taxRupees = Number(item.taxAmount);
-      taxPct = taxable > 0 ? Math.round((taxRupees / taxable) * 100) : 18;
+      taxPct = taxable > 0 ? Math.round((taxRupees / taxable) * 100) : 0;
     } else if (item.tax !== undefined && item.tax !== null) {
       const rawTax = Number(item.tax);
-      if (taxable > 0 && rawTax > 100) {
-        // Stored as rupee amount
-        taxRupees = rawTax;
-        taxPct = Math.round((rawTax / taxable) * 100);
+      if (taxable > 0 && rawTax > 28) {
+        // Indian GST slabs never exceed 28%. If rawTax > 28, it was stored as rupee tax amount (e.g. ₹72 on ₹400 taxable = 18%)
+        const derivedRate = Math.round((rawTax / taxable) * 100);
+        if (derivedRate <= 28) {
+          taxRupees = rawTax;
+          taxPct = derivedRate;
+        } else if (rawTax > 100) {
+          taxRupees = rawTax;
+          taxPct = derivedRate;
+        } else {
+          taxPct = rawTax;
+          taxRupees = taxable * (taxPct / 100);
+        }
       } else {
-        // Stored as percentage
+        // Standard manual GST slab or percentage (0, 3, 5, 12, 18, 28)
         taxPct = rawTax;
         taxRupees = taxable * (taxPct / 100);
       }
     } else {
-      taxRupees = taxable * 0.18;
+      taxPct = 0;
+      taxRupees = 0;
     }
     if (taxPct > 100) taxPct = 18;
 

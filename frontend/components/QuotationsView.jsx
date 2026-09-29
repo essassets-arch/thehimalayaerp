@@ -277,7 +277,18 @@ export default function QuotationsView({
       quantity: Number(item.quantity ?? item.qty ?? 0),
       unitPrice: Number(item.unitPrice ?? item.rate ?? item.price ?? 0),
       discount: Number(item.discount ?? item.discountPercent ?? 0),
-      tax: Number(item.tax ?? item.gstPercent ?? 0),
+      tax: (() => {
+        const raw = Number(item.tax ?? item.gstPercent ?? item.taxRate ?? 0);
+        const qty = Number(item.quantity ?? item.qty ?? 0);
+        const rate = Number(item.unitPrice ?? item.rate ?? item.price ?? 0);
+        const disc = Number(item.discount ?? item.discountPercent ?? 0);
+        const taxable = (qty * rate) * (1 - disc / 100);
+        if (raw > 28 && taxable > 0) {
+          const derived = Math.round((raw / taxable) * 100);
+          if (derived <= 28) return derived;
+        }
+        return raw;
+      })(),
     }));
   };
 
@@ -2074,7 +2085,12 @@ export default function QuotationsView({
                       const itemSubtotal = itemQty * itemPrice;
                       const discountValue = itemSubtotal * (Number(item.discount) || 0) / 100;
                       const taxable = itemSubtotal - discountValue;
-                      const taxValue = taxable * (item.tax !== undefined ? Number(item.tax) : 18) / 100;
+                      let itemTaxRate = (item.tax !== undefined && item.tax !== null && item.tax !== '') ? Number(item.tax) : 0;
+                      if (itemTaxRate > 28 && taxable > 0) {
+                        const derived = Math.round((itemTaxRate / taxable) * 100);
+                        if (derived <= 28) itemTaxRate = derived;
+                      }
+                      const taxValue = taxable * itemTaxRate / 100;
                       const itemTotal = taxable + taxValue;
                       const cleanSpecs = formatCleanProductSpecs(item);
 
@@ -2112,7 +2128,7 @@ export default function QuotationsView({
 
                           {/* TAX */}
                           <td className="product-tax" style={{ width: '11%', padding: '12px 8px', textAlign: 'center', fontWeight: '600', color: '#475569', fontSize: '13px', display: 'table-cell', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                            {item.tax !== undefined ? item.tax : 18}%
+                            {itemTaxRate}%
                           </td>
 
                           {/* TOTAL */}
