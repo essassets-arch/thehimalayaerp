@@ -134,6 +134,19 @@ export class PaymentsService {
       );
 
       const latestPayment = order.customerPayments?.[0];
+      const targetPayment = pendingPayments[0] || latestPayment;
+      let salesLogPaymentDate: string | null = null;
+      if (targetPayment) {
+        if (targetPayment.receivedAt) {
+          salesLogPaymentDate = new Date(targetPayment.receivedAt).toISOString().split('T')[0];
+        } else if (targetPayment.remarks) {
+          const match = String(targetPayment.remarks).match(/Date:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})/i);
+          if (match) salesLogPaymentDate = match[1];
+        }
+        if (!salesLogPaymentDate && targetPayment.createdAt) {
+          salesLogPaymentDate = new Date(targetPayment.createdAt).toISOString().split('T')[0];
+        }
+      }
 
       return {
         ...evaluation,
@@ -147,12 +160,18 @@ export class PaymentsService {
         orderDate: order.orderDate
           ? new Date(order.orderDate).toISOString()
           : order.createdAt.toISOString(),
+        salesLogPaymentDate,
         pendingPayments: pendingPayments.map((p) => ({
           id: p.id,
           paymentNo: p.paymentNo,
           amount: Number(p.amount),
           status: p.status,
           receivedAt: p.receivedAt,
+          createdAt: p.createdAt,
+          remarks: p.remarks,
+          paymentDate: p.receivedAt
+            ? new Date(p.receivedAt).toISOString().split('T')[0]
+            : (p.createdAt ? new Date(p.createdAt).toISOString().split('T')[0] : null),
           proofUrl: p.proofUrl,
           method: p.method,
           transactionReference: p.transactionReference,
@@ -163,6 +182,10 @@ export class PaymentsService {
           amount: Number(p.amount),
           status: p.status,
           receivedAt: p.receivedAt,
+          createdAt: p.createdAt,
+          paymentDate: p.receivedAt
+            ? new Date(p.receivedAt).toISOString().split('T')[0]
+            : (p.createdAt ? new Date(p.createdAt).toISOString().split('T')[0] : null),
           verifiedAt: p.verifiedAt,
           verifiedById: p.verifiedById,
           rejectedAt: p.rejectedAt,
@@ -829,6 +852,9 @@ export class PaymentsService {
           status: 'SUBMITTED',
           workflowStateId: initialState?.id,
           createdById: userId,
+          receivedAt: (dto as any).paymentDate
+            ? new Date((dto as any).paymentDate)
+            : undefined,
         },
       });
 
@@ -893,7 +919,7 @@ export class PaymentsService {
     const combinedRemarks = remarksParts.join(' | ') || undefined;
 
     const payment = await this.createPayment(
-      { ...dto, remarks: combinedRemarks },
+      { ...dto, paymentDate: dto.paymentDate, remarks: combinedRemarks } as any,
       userId,
       role,
     );

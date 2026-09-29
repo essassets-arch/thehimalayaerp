@@ -17,6 +17,54 @@ const formatINR = (value) => {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(num);
 };
 
+const resolveSalesLogPaymentDate = (entity, fallbackOrder) => {
+  if (!entity && !fallbackOrder) return null;
+
+  const extractDate = (val) => {
+    if (!val) return null;
+    const s = String(val).trim();
+    if (s.includes('T')) return s.split('T')[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    return s;
+  };
+
+  const extractFromSinglePayment = (p) => {
+    if (!p) return null;
+    if (p.paymentDate) return extractDate(p.paymentDate);
+    if (p.receivedAt) return extractDate(p.receivedAt);
+    if (p.remarks) {
+      const match = String(p.remarks).match(/Date:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})/i);
+      if (match) return match[1];
+    }
+    if (p.createdAt) return extractDate(p.createdAt);
+    return null;
+  };
+
+  // 1. Direct property on entity
+  if (entity?.salesLogPaymentDate) return extractDate(entity.salesLogPaymentDate);
+  if (entity?.paymentDate) return extractDate(entity.paymentDate);
+
+  // 2. If entity is directly a payment object
+  const singleCandidate = extractFromSinglePayment(entity);
+  if (singleCandidate) return singleCandidate;
+
+  // 3. If entity is an order with pendingPayments or payments
+  const orderTarget = (entity?.pendingPayments && entity.pendingPayments.length > 0)
+    ? entity.pendingPayments[0]
+    : (entity?.payments && entity.payments.length > 0 ? entity.payments[0] : null);
+  const orderCandidate = extractFromSinglePayment(orderTarget);
+  if (orderCandidate) return orderCandidate;
+
+  // 4. Fallback order if entity was payment
+  if (fallbackOrder) {
+    return resolveSalesLogPaymentDate(fallbackOrder);
+  }
+
+  return null;
+};
+
 export default function FinanceSalesConfirmationView() {
   const queryClient = useQueryClient();
   const state = useERPStore((s) => s.state);
@@ -592,6 +640,7 @@ export default function FinanceSalesConfirmationView() {
                 <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '110px' }}>Paid Amount</th>
                 <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '110px' }}>Outstanding</th>
                 <th style={{ padding: '12px 14px', minWidth: '130px' }}>Payment Status</th>
+                <th style={{ padding: '12px 14px', minWidth: '140px' }}>Sales Log Payment Date</th>
                 <th style={{ padding: '12px 14px', minWidth: '130px' }}>Verification</th>
                 <th style={{ padding: '12px 14px', textAlign: 'right', minWidth: '240px' }}>Actions</th>
               </tr>
@@ -599,7 +648,7 @@ export default function FinanceSalesConfirmationView() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={14} style={{ padding: '48px 24px', textAlign: 'center', color: '#64748B' }}>
+                  <td colSpan={15} style={{ padding: '48px 24px', textAlign: 'center', color: '#64748B' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                       <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
                       <span style={{ fontWeight: 600, fontSize: '14px' }}>Loading payment records...</span>
@@ -608,7 +657,7 @@ export default function FinanceSalesConfirmationView() {
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={14} style={{ padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
+                  <td colSpan={15} style={{ padding: '48px 24px', textAlign: 'center', color: '#94A3B8' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                       <span style={{ fontSize: '32px' }}>📭</span>
                       <span style={{ fontWeight: 600, fontSize: '14px' }}>No orders found matching the filter criteria.</span>
@@ -762,6 +811,22 @@ export default function FinanceSalesConfirmationView() {
                         }}>
                           {r.paymentStatus?.replace(/_/g, ' ')}
                         </span>
+                      </td>
+
+                      {/* Sales Log Payment Date */}
+                      <td style={{ padding: '12px 14px' }}>
+                        {(() => {
+                          const logDate = resolveSalesLogPaymentDate(r);
+                          if (!logDate) return <span style={{ color: '#94A3B8', fontSize: '12px' }}>—</span>;
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontWeight: 700, color: '#1E293B', fontSize: '12.5px' }}>{logDate}</span>
+                              <span style={{ fontSize: '10.5px', color: hasPending ? '#D97706' : '#64748B', fontWeight: hasPending ? 700 : 600 }}>
+                                {hasPending ? 'Logged by Sales' : 'Recorded'}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Verification Status */}
@@ -945,6 +1010,12 @@ export default function FinanceSalesConfirmationView() {
                       <span>•</span>
                       <span>{r.salespersonName || 'Sales'}</span>
                     </div>
+                    {resolveSalesLogPaymentDate(r) && (
+                      <div style={{ fontSize: '11px', color: '#D97706', marginTop: '4px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>Sales Log Payment Date:</span>
+                        <span style={{ color: '#1E293B' }}>{resolveSalesLogPaymentDate(r)}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* 3 Metric Columns */}
@@ -1156,6 +1227,22 @@ export default function FinanceSalesConfirmationView() {
                   <span style={{ fontWeight: 600, color: '#64748B' }}>Payment Amount:</span>
                   <span style={{ fontWeight: 900, color: '#16A34A', fontSize: '16px' }}>{formatINR(verifyModal.payment?.amount)}</span>
 
+                  <span style={{ fontWeight: 600, color: '#64748B' }}>Log Payment Date:</span>
+                  <span style={{ fontWeight: 700, color: '#1E293B', fontSize: '13.5px' }}>
+                    {(() => {
+                      const logDate = resolveSalesLogPaymentDate(verifyModal.payment, verifyModal.order);
+                      if (!logDate) return <span style={{ color: '#94A3B8' }}>—</span>;
+                      return (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0F172A' }}>{logDate}</span>
+                          <span style={{ fontSize: '10.5px', background: '#FEF3C7', color: '#B45309', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                            Logged by Sales
+                          </span>
+                        </span>
+                      );
+                    })()}
+                  </span>
+
                   <span style={{ fontWeight: 600, color: '#64748B' }}>Method:</span>
                   <span style={{ fontWeight: 700, color: '#334155' }}>{verifyModal.payment?.method || 'BANK_TRANSFER'}</span>
 
@@ -1172,6 +1259,13 @@ export default function FinanceSalesConfirmationView() {
                   <span style={{ fontWeight: 900, color: '#4F46E5', fontSize: '15px' }}>
                     {formatINR(Math.max(0, Number(verifyModal.order?.outstandingAmount || 0) - Number(verifyModal.payment?.amount || 0)))}
                   </span>
+
+                  {verifyModal.payment?.remarks && (
+                    <>
+                      <span style={{ fontWeight: 600, color: '#64748B' }}>Remarks:</span>
+                      <span style={{ color: '#334155', fontSize: '12.5px', wordBreak: 'break-word' }}>{verifyModal.payment.remarks}</span>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1392,6 +1486,9 @@ export default function FinanceSalesConfirmationView() {
               <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0', fontSize: '13.5px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div><strong>Order:</strong> <span style={{ fontFamily: 'monospace', color: '#1E3A8A', fontWeight: 800, marginLeft: '4px' }}>{rejectModal.order?.orderNumber}</span></div>
                 <div><strong>Payment Ref:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 700, marginLeft: '4px' }}>{rejectModal.payment?.paymentNo}</span></div>
+                {resolveSalesLogPaymentDate(rejectModal.payment, rejectModal.order) && (
+                  <div><strong>Log Payment Date:</strong> <span style={{ fontWeight: 700, color: '#D97706', marginLeft: '4px' }}>{resolveSalesLogPaymentDate(rejectModal.payment, rejectModal.order)}</span></div>
+                )}
                 <div><strong>Amount:</strong> <span style={{ fontWeight: 800, color: '#DC2626', marginLeft: '4px' }}>{formatINR(rejectModal.payment?.amount)}</span></div>
               </div>
 
