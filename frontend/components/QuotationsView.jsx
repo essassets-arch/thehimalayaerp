@@ -1016,7 +1016,7 @@ export default function QuotationsView({
     itemsList,
     selectedQuotation?.transportCharge ?? selectedQuotation?.expectedTransportationCost ?? 0
   );
-  const calculatedSubtotal = quotationTotals.subtotal;
+  const calculatedSubtotal = quotationTotals.itemsTaxable ?? (quotationTotals.subtotal - quotationTotals.discountAmount);
   const discountAmt = quotationTotals.discountAmount;
   const calculatedTaxAmt = quotationTotals.gstAmount;
 
@@ -2081,10 +2081,33 @@ export default function QuotationsView({
                   <tbody style={{ display: 'table-row-group' }}>
                     {itemsList.map((item, index) => {
                       const itemQty = (item.quantity !== undefined && item.quantity !== null && item.quantity !== '') ? Number(item.quantity) : 1;
-                      const itemPrice = Number(item.unitPrice) || 0;
+                      const itemPrice = Number(item.unitPrice ?? item.rate ?? item.price ?? 0);
                       const itemSubtotal = itemQty * itemPrice;
-                      const discountValue = itemSubtotal * (Number(item.discount) || 0) / 100;
-                      const taxable = itemSubtotal - discountValue;
+
+                      let discPct = 0;
+                      let discountValue = 0;
+                      if (item.discountPercent !== undefined && item.discountPercent !== null && item.discountPercent !== '') {
+                        discPct = Number(item.discountPercent);
+                        discountValue = itemSubtotal * (discPct / 100);
+                      } else if (item.discountAmount !== undefined && item.discountAmount !== null && item.discountAmount !== '') {
+                        discountValue = Number(item.discountAmount);
+                        discPct = itemSubtotal > 0 ? Math.round((discountValue / itemSubtotal) * 100) : 0;
+                      } else if (item.discount !== undefined && item.discount !== null && item.discount !== '') {
+                        const rawDisc = Number(item.discount);
+                        if (itemSubtotal > 0 && rawDisc > 100) {
+                          discountValue = rawDisc;
+                          discPct = Math.round((rawDisc / itemSubtotal) * 100);
+                        } else {
+                          discPct = rawDisc;
+                          discountValue = itemSubtotal * (discPct / 100);
+                        }
+                      }
+                      if (discPct > 100) discPct = 0;
+
+                      const taxable = Math.max(0, itemSubtotal - discountValue);
+                      const discountedRate = itemQty > 0 ? (taxable / itemQty) : (discPct > 0 ? itemPrice * (1 - discPct / 100) : itemPrice);
+                      const hasDiscount = (discPct > 0 || discountValue > 0) && Math.abs(discountedRate - itemPrice) > 0.001;
+
                       let itemTaxRate = (item.tax !== undefined && item.tax !== null && item.tax !== '') ? Number(item.tax) : 0;
                       if (itemTaxRate > 28 && taxable > 0) {
                         const derived = Math.round((itemTaxRate / taxable) * 100);
@@ -2123,7 +2146,12 @@ export default function QuotationsView({
 
                           {/* RATE */}
                           <td className="product-rate" style={{ width: '13%', padding: '12px 10px', textAlign: 'right', fontWeight: '700', color: '#002e5d', fontSize: '13.5px', display: 'table-cell', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                            {formatINR(itemPrice)}
+                            <div>{formatINR(discountedRate)}</div>
+                            {hasDiscount && (
+                              <div style={{ fontSize: '11px', color: '#94a3b8', textDecoration: 'line-through', fontWeight: '500' }}>
+                                {formatINR(itemPrice)}
+                              </div>
+                            )}
                           </td>
 
                           {/* TAX */}

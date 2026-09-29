@@ -2315,12 +2315,34 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
 
   const tableRows = items.map((item, idx) => {
     const qty = Number(item.quantity !== undefined && item.quantity !== null && item.quantity !== '' ? item.quantity : (item.qty ?? 0));
-    const rate = Number(item.unitPrice || item.price) || 0;
+    const rate = Number(item.unitPrice || item.price || item.rate) || 0;
     const taxRate = Number(item.tax) || 0;
     const sub = qty * rate;
-    const discount = sub * (Number(item.discount ?? item.discountPercent ?? 0) / 100);
-    const taxAmt = (sub - discount) * (taxRate / 100);
-    const tot = sub - discount + taxAmt;
+
+    let discPct = 0;
+    let discount = 0;
+    if (item.discountPercent !== undefined && item.discountPercent !== null && item.discountPercent !== '') {
+      discPct = Number(item.discountPercent);
+      discount = sub * (discPct / 100);
+    } else if (item.discountAmount !== undefined && item.discountAmount !== null && item.discountAmount !== '') {
+      discount = Number(item.discountAmount);
+      discPct = sub > 0 ? Math.round((discount / sub) * 100) : 0;
+    } else if (item.discount !== undefined && item.discount !== null && item.discount !== '') {
+      const rawDisc = Number(item.discount);
+      if (sub > 0 && rawDisc > 100) {
+        discount = rawDisc;
+        discPct = Math.round((rawDisc / sub) * 100);
+      } else {
+        discPct = rawDisc;
+        discount = sub * (discPct / 100);
+      }
+    }
+    if (discPct > 100) discPct = 0;
+
+    const taxable = Math.max(0, sub - discount);
+    const discountedRate = qty > 0 ? (taxable / qty) : (discPct > 0 ? rate * (1 - discPct / 100) : rate);
+    const taxAmt = taxable * (taxRate / 100);
+    const tot = taxable + taxAmt;
 
     let cleanDetails = item.productDetails;
     if (typeof cleanDetails === 'string') {
@@ -2337,13 +2359,13 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
       idx + 1,
       [item.productName || item.name || 'Item', cleanDetails, item.code ? `Code: ${item.code}` : ''].filter(Boolean).join('\n'),
       qty,
-      `Rs. ${rate.toFixed(2)}`,
+      `Rs. ${discountedRate.toFixed(2)}`,
       `${taxRate}%`,
       `Rs. ${tot.toFixed(2)}`
     ];
   });
 
-  const { subtotal: itemsSubtotal, gstAmount: totalTax, grandTotal } = quotationTotals;
+  const { itemsTaxable, subtotal: itemsSubtotal, gstAmount: totalTax, grandTotal } = quotationTotals;
 
   autoTable(doc, {
     head: [['#', 'PRODUCT DETAILS', 'QTY', 'RATE', 'TAX (GST)', 'TOTAL']],
@@ -2379,7 +2401,7 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
   doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'normal');
   doc.text('Items Subtotal:', pageWidth - margin - 66, y + 4.5);
-  doc.text(`Rs. ${itemsSubtotal.toFixed(2)}`, pageWidth - margin - 4, y + 4.5, { align: 'right' });
+  doc.text(`Rs. ${(itemsTaxable ?? itemsSubtotal).toFixed(2)}`, pageWidth - margin - 4, y + 4.5, { align: 'right' });
 
   doc.text('Transportation Cost:', pageWidth - margin - 66, y + 9);
   doc.text(`+Rs. ${transportationCost.toFixed(2)}`, pageWidth - margin - 4, y + 9, { align: 'right' });
