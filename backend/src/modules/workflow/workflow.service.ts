@@ -144,15 +144,23 @@ export class WorkflowService {
         fromStateId = initialState.id;
       }
 
+      const canonicalActionMap: Record<string, string> = {
+        SEND: 'SENT',
+        APPROVE: 'APPROVED',
+        REJECT: 'REJECTED',
+        CONVERT: 'CONVERTED_TO_SO',
+      };
+      const preferredCode = canonicalActionMap[params.actionName] || params.actionName;
+
       let toState = workflow.states.find(
-        (s) => s.code === params.actionName || s.name === params.actionName,
+        (s) => s.code === preferredCode || s.code === params.actionName || s.name === params.actionName,
       );
       if (!toState) {
         toState = await db.workflowState.create({
           data: {
             workflowId: workflow.id,
             name: params.actionName,
-            code: params.actionName,
+            code: preferredCode,
             sequence: (workflow.states.length + 1) * 10,
           },
         });

@@ -557,18 +557,41 @@ export default function QuotationsView({
     return false;
   };
 
+  const TERMINAL_OR_LOCKED_STATUSES = [
+    'CONVERTED',
+    'CONVERTED_TO_SO',
+    'ORDERED',
+    'WON',
+    'ORDER_CONFIRMED',
+    'CLOSED',
+    'REJECTED',
+    'QUOTATION_REJECTED',
+    'CANCELLED',
+    'EXPIRED',
+    'SUPERSEDED',
+    'DELETED',
+  ];
+
   const canSendQuotation = (q) => {
-    if (!q || isQuotationConverted(q)) return false;
-    const status = typeof q === 'string' ? q : (q.status || q.quotationStatus || q.workflowState?.code || q.workflowStateCode || '');
-    return ['DRAFT', 'NEW', 'INTERNAL_REVIEW', 'QUOTATION_DRAFT', 'PENDING', 'CREATED']
-      .includes(normalizedQuotationStatus(status));
+    if (!q || isQuotationConverted(q) || isQuotationDeleted(q)) return false;
+    const status = normalizedQuotationStatus(
+      typeof q === 'string' ? q : (q.status || q.quotationStatus || q.workflowState?.code || q.workflowStateCode || '')
+    );
+    if (TERMINAL_OR_LOCKED_STATUSES.includes(status)) return false;
+    return true;
   };
 
   const canConvertQuotation = (q) => {
-    if (!q || isQuotationConverted(q)) return false;
-    const status = typeof q === 'string' ? q : (q.status || q.quotationStatus || q.workflowState?.code || q.workflowStateCode || '');
-    return ['SENT', 'QUOTATION_SENT', 'APPROVED', 'QUOTATION_APPROVED', 'ACCEPTED', 'CONFIRMED', 'NEGOTIATION', 'UNDER_NEGOTIATION']
-      .includes(normalizedQuotationStatus(status));
+    if (!q || isQuotationConverted(q) || isQuotationDeleted(q)) return false;
+    const status = normalizedQuotationStatus(
+      typeof q === 'string' ? q : (q.status || q.quotationStatus || q.workflowState?.code || q.workflowStateCode || '')
+    );
+    if (TERMINAL_OR_LOCKED_STATUSES.includes(status)) return false;
+    return [
+      'NEW', 'DRAFT', 'CREATED', 'PENDING', 'INTERNAL_REVIEW', 'QUOTATION_DRAFT',
+      'SEND', 'SENT', 'QUOTATION_SENT', 'APPROVED', 'QUOTATION_APPROVED',
+      'ACCEPTED', 'CONFIRMED', 'NEGOTIATION', 'UNDER_NEGOTIATION', 'IN_REVIEW', 'DISPATCHED'
+    ].includes(status) || !status;
   };
 
   const salesBackend = useSalesBackend();
@@ -742,7 +765,7 @@ export default function QuotationsView({
     } else if (filter === 'Draft') {
       matchesFilter = ['DRAFT', 'NEW', 'INTERNALREVIEW', 'PENDING', 'CREATED'].includes(qNorm);
     } else if (filter === 'Sent') {
-      matchesFilter = ['SENT', 'QUOTATIONSENT', 'DISPATCHED', 'UNDERNEGOTIATION', 'NEGOTIATION', 'INREVIEW'].includes(qNorm);
+      matchesFilter = ['SENT', 'SEND', 'QUOTATIONSENT', 'DISPATCHED', 'UNDERNEGOTIATION', 'NEGOTIATION', 'INREVIEW'].includes(qNorm);
     } else if (filter === 'Approved') {
       matchesFilter = ['APPROVED', 'QUOTATIONAPPROVED', 'ACCEPTED', 'CONFIRMED', 'CONVERTED', 'WON', 'ORDERED'].includes(qNorm);
     } else if (filter === 'Rejected') {
@@ -1231,12 +1254,12 @@ export default function QuotationsView({
         ) : (
           <table className="crm-table responsive-table flat-table">
             <colgroup>
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '22%' }} />
-              <col style={{ width: '28%' }} />
-              <col style={{ width: '12%' }} />
+              <col style={{ width: '13%' }} />
+              <col style={{ width: '19%' }} />
+              <col style={{ width: '23%' }} />
+              <col style={{ width: '11%' }} />
               <col style={{ width: '10%' }} />
-              <col style={{ width: '14%' }} />
+              <col style={{ width: '24%' }} />
             </colgroup>
             <thead>
               <tr>
@@ -1322,55 +1345,62 @@ export default function QuotationsView({
                           >
                             ✓ Order Booked
                           </button>
-                        ) : canConvertQuotation(q) ? (
-                          <button
-                            data-testid={`quotation-convert-order-${q.quotationNo || q.id}`}
-                            type="button"
-                            onClick={() => handleConvertToOrderClick(q)}
-                            style={{
-                              background: '#2F4375',
-                              color: '#ffffff',
-                              border: '1px solid #2F4375',
-                              padding: '6px 14px',
-                              borderRadius: '10px',
-                              fontWeight: '800',
-                              fontSize: '11.5px',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              whiteSpace: 'nowrap',
-                              flexShrink: 0,
-                              boxShadow: '0 1px 4px rgba(47,67,117,0.3)'
-                            }}
-                          >
-                            Convert to Order →
-                          </button>
-                        ) : canSendQuotation(q) ? (
-                          <button
-                            data-testid={`quotation-send-${q.quotationNo || q.id}`}
-                            type="button"
-                            onClick={() => handleSendQuotationClick(q)}
-                            style={{
-                              background: '#2F4375',
-                              color: '#ffffff',
-                              border: '1px solid #2F4375',
-                              padding: '6px 14px',
-                              borderRadius: '10px',
-                              fontWeight: '800',
-                              fontSize: '11.5px',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              whiteSpace: 'nowrap',
-                              flexShrink: 0,
-                              boxShadow: '0 1px 4px rgba(47,67,117,0.3)'
-                            }}
-                          >
-                            Send Quotation →
-                          </button>
-                        ) : null}
+                        ) : (
+                          <>
+                            {canConvertQuotation(q) && (
+                              <button
+                                data-testid={`quotation-convert-order-${q.quotationNo || q.id}`}
+                                type="button"
+                                title="Convert to Sales Order"
+                                onClick={() => handleConvertToOrderClick(q)}
+                                style={{
+                                  background: '#00a877',
+                                  color: '#ffffff',
+                                  border: '1px solid #008f65',
+                                  padding: '6px 12px',
+                                  borderRadius: '8px',
+                                  fontWeight: '800',
+                                  fontSize: '11.5px',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0,
+                                  boxShadow: '0 1px 3px rgba(0,168,119,0.25)'
+                                }}
+                              >
+                                Convert to Order →
+                              </button>
+                            )}
+                            {canSendQuotation(q) && (
+                              <button
+                                data-testid={`quotation-send-${q.quotationNo || q.id}`}
+                                type="button"
+                                title="Send Quotation to Customer"
+                                onClick={() => handleSendQuotationClick(q)}
+                                style={{
+                                  background: '#2F4375',
+                                  color: '#ffffff',
+                                  border: '1px solid #2F4375',
+                                  padding: '6px 12px',
+                                  borderRadius: '8px',
+                                  fontWeight: '800',
+                                  fontSize: '11.5px',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0,
+                                  boxShadow: '0 1px 3px rgba(47,67,117,0.25)'
+                                }}
+                              >
+                                Send Quotation →
+                              </button>
+                            )}
+                          </>
+                        )}
 
                         <button
                           title="View Quotation"
@@ -1530,29 +1560,34 @@ export default function QuotationsView({
                         >
                           ✓ Order Booked
                         </button>
-                      ) : canConvertQuotation(q) ? (
-                        <button
-                          onClick={() => handleConvertToOrderClick(q)}
-                          style={{
-                            background: '#2F4375', color: '#ffffff', border: '1px solid #2F4375',
-                            padding: '6px 12px', borderRadius: '8px', fontWeight: '800', fontSize: '11.5px',
-                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', flexShrink: 0
-                          }}
-                        >
-                          Convert to Order →
-                        </button>
-                      ) : canSendQuotation(q) ? (
-                        <button
-                          onClick={() => handleSendQuotationClick(q)}
-                          style={{
-                            background: '#2F4375', color: '#ffffff', border: '1px solid #2F4375',
-                            padding: '6px 12px', borderRadius: '8px', fontWeight: '800', fontSize: '11.5px',
-                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', flexShrink: 0
-                          }}
-                        >
-                          Send Quotation →
-                        </button>
-                      ) : null}
+                      ) : (
+                        <>
+                          {canConvertQuotation(q) && (
+                            <button
+                              onClick={() => handleConvertToOrderClick(q)}
+                              style={{
+                                background: '#00a877', color: '#ffffff', border: '1px solid #008f65',
+                                padding: '6px 10px', borderRadius: '8px', fontWeight: '800', fontSize: '11px',
+                                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', flexShrink: 0
+                              }}
+                            >
+                              Convert to Order →
+                            </button>
+                          )}
+                          {canSendQuotation(q) && (
+                            <button
+                              onClick={() => handleSendQuotationClick(q)}
+                              style={{
+                                background: '#2F4375', color: '#ffffff', border: '1px solid #2F4375',
+                                padding: '6px 10px', borderRadius: '8px', fontWeight: '800', fontSize: '11px',
+                                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', flexShrink: 0
+                              }}
+                            >
+                              Send Quotation →
+                            </button>
+                          )}
+                        </>
+                      )}
 
                       <button
                         title="View Quotation"
@@ -2466,29 +2501,30 @@ export default function QuotationsView({
                     ✓ Order Already Booked
                   </button>
                 </div>
-              ) : canSendQuotation(selectedQuotation) ? (
-                <div>
-                  <button
-                    type="button"
-                    className="btn-small btn-primary-small sheet-actions-primary-btn"
-                    onClick={() => handleSendQuotationClick(selectedQuotation)}
-                    style={{ background: '#2F4375', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', margin: 0 }}
-                  >
-                    Send Quotation →
-                  </button>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {canSendQuotation(selectedQuotation) && (
+                    <button
+                      type="button"
+                      className="btn-small btn-primary-small sheet-actions-primary-btn"
+                      onClick={() => handleSendQuotationClick(selectedQuotation)}
+                      style={{ background: '#2F4375', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 18px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', margin: 0 }}
+                    >
+                      Send Quotation →
+                    </button>
+                  )}
+                  {canConvertQuotation(selectedQuotation) && (
+                    <button
+                      type="button"
+                      className="btn-small btn-primary-small sheet-actions-primary-btn"
+                      onClick={() => handleConvertToOrderClick(selectedQuotation, true)}
+                      style={{ background: '#00a877', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 18px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', margin: 0 }}
+                    >
+                      Book Order Now
+                    </button>
+                  )}
                 </div>
-              ) : canConvertQuotation(selectedQuotation) ? (
-                <div>
-                  <button
-                    type="button"
-                    className="btn-small btn-primary-small sheet-actions-primary-btn"
-                    onClick={() => handleConvertToOrderClick(selectedQuotation, true)}
-                    style={{ background: '#00a877', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', margin: 0 }}
-                  >
-                    Book Order Now
-                  </button>
-                </div>
-              ) : null}
+              )}
             </div>
 
           </div>

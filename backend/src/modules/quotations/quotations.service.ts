@@ -1247,12 +1247,15 @@ export class QuotationsService {
       const allowedCodes = [
         'APPROVED',
         'SENT',
+        'SEND',
         'NEGOTIATION',
         'NEW',
         'DRAFT',
         'INTERNAL_REVIEW',
         'QUOTATION_SENT',
         'QUOTATION_APPROVED',
+        'CREATED',
+        'PENDING',
       ];
       if (!allowedCodes.includes(quotation.workflowState?.code || '')) {
         throw new BadRequestException(

@@ -3,6 +3,7 @@ import { resolveQuotationTerms } from './quotationTerms';
 export const statusLabel = (code?: string): string => {
   const value = String(code || 'DRAFT').toUpperCase();
   if (value === 'CONVERTED_TO_SO') return 'Converted';
+  if (value === 'SEND') return 'Sent';
   return value.charAt(0) + value.slice(1).toLowerCase().replace(/_/g, ' ');
 };
 
