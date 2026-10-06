@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { calculateQuotationTotals, exportQuotationImage, shareQuotationImage } from '../services/export.service';
+import { calculateQuotationTotals, exportQuotationImage, shareQuotationImage, exportQuotationHighQualityPDF } from '../services/export.service';
 import {
   himalayaLogoBase64,
   himalayaLogoMarkBase64,
@@ -1375,6 +1375,35 @@ export default function QuotationsView({
                         >
                           <Eye size={14} />
                         </button>
+                        <button
+                          title="Download High Quality PDF"
+                          disabled={downloadingPdf}
+                          onClick={() => {
+                            setSelectedQuotation(q);
+                            setTimeout(async () => {
+                              try {
+                                setDownloadingPdf(true);
+                                const qNo = resolveQuotationNumber(q);
+                                const safeQNo = String(qNo).replace(/[\/\\]/g, '_') || 'Draft';
+                                const custName = (resolveQuotationCustomerName(q) || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+                                const safeFilename = `Quotation_${safeQNo}${custName ? `_${custName}` : ''}.pdf`;
+                                await exportQuotationHighQualityPDF('quotation-printable-area', safeFilename);
+                              } catch (e) {
+                                console.error('Error generating PDF:', e);
+                              } finally {
+                                setDownloadingPdf(false);
+                              }
+                            }, 250);
+                          }}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: '32px', height: '32px',
+                            background: '#ffffff', border: '1px solid #D6E2F0',
+                            borderRadius: '8px', cursor: 'pointer', color: '#002e5d', flexShrink: 0
+                          }}
+                        >
+                          <FileText size={14} />
+                        </button>
                         {!isQuotationDeleted(q) && (
                           <>
                             <button
@@ -1551,6 +1580,30 @@ export default function QuotationsView({
                         style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer', flexShrink: 0 }}
                       >
                         <Eye size={15} />
+                      </button>
+                      <button
+                        title="Download High Quality PDF"
+                        disabled={downloadingPdf}
+                        onClick={() => {
+                          setSelectedQuotation(q);
+                          setTimeout(async () => {
+                            try {
+                              setDownloadingPdf(true);
+                              const qNo = resolveQuotationNumber(q);
+                              const safeQNo = String(qNo).replace(/[\/\\]/g, '_') || 'Draft';
+                              const custName = (resolveQuotationCustomerName(q) || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+                              const safeFilename = `Quotation_${safeQNo}${custName ? `_${custName}` : ''}.pdf`;
+                              await exportQuotationHighQualityPDF('quotation-printable-area', safeFilename);
+                            } catch (e) {
+                              console.error('Error generating PDF:', e);
+                            } finally {
+                              setDownloadingPdf(false);
+                            }
+                          }, 250);
+                        }}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#002e5d', cursor: 'pointer', flexShrink: 0 }}
+                      >
+                        <FileText size={15} />
                       </button>
                       {!isQuotationDeleted(q) && (
                         <>
@@ -2346,6 +2399,60 @@ export default function QuotationsView({
                     Delete
                   </button>
                 )}
+                <button
+                  type="button"
+                  disabled={downloadingPdf}
+                  className="btn-small btn-primary-small"
+                  onClick={async () => {
+                    if (downloadingPdf) return;
+                    try {
+                      setDownloadingPdf(true);
+                      const qNo = resolveQuotationNumber(selectedQuotation);
+                      const safeQNo = String(qNo).replace(/[\/\\]/g, '_') || 'Draft';
+                      const custName = (clientCustomerName || selectedQuotation.customerName || selectedQuotation.customer || selectedQuotation.partyName || '')
+                        .trim()
+                        .replace(/[^a-zA-Z0-9_-]/g, '_');
+                      const safeFilename = `Quotation_${safeQNo}${custName ? `_${custName}` : ''}.pdf`;
+                      await exportQuotationHighQualityPDF('quotation-printable-area', safeFilename);
+                    } catch (err) {
+                      console.error('Error generating high quality PDF:', err);
+                      Swal.fire({
+                        icon: 'error',
+                        title: 'PDF Export Failed',
+                        text: 'Failed to generate high quality PDF. Please try again.',
+                      });
+                    } finally {
+                      setDownloadingPdf(false);
+                    }
+                  }}
+                  style={{
+                    padding: '9px 18px',
+                    fontSize: '12.5px',
+                    fontWeight: '800',
+                    borderRadius: '8px',
+                    margin: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: '#002e5d',
+                    color: '#ffffff',
+                    border: '1px solid #002e5d',
+                    cursor: downloadingPdf ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 6px rgba(0, 46, 93, 0.25)'
+                  }}
+                >
+                  {downloadingPdf ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14, border: '2px solid #ffffff', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.6s linear infinite' }} />
+                      <span>Saving HD PDF...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileText size={15} />
+                      <span>Download PDF</span>
+                    </>
+                  )}
+                </button>
                 <button
                   type="button"
                   disabled={downloadingImage}

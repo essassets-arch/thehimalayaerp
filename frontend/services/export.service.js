@@ -2095,9 +2095,16 @@ export const calculateQuotationTotals = (items = [], transportationCost = 0) => 
   };
 };
 
-/** Generate a fixed-geometry, PDF-native A4 quotation. */
+/** Generate an ultra-high-quality A4 quotation PDF. */
 export const exportQuotationPDF = async (quotation, returnBlob = false) => {
   if (!quotation) return null;
+
+  if (typeof document !== 'undefined' && document.getElementById('quotation-printable-area')) {
+    const qNo = quotation.quotationNumber || quotation.quotation_number || quotation.quotationNo || quotation.id || 'Draft';
+    const filename = `Quotation_${String(qNo).replace(/[\/\\]/g, '_')}.pdf`;
+    const res = await exportQuotationHighQualityPDF('quotation-printable-area', filename, { save: !returnBlob });
+    return returnBlob ? res.blob : true;
+  }
 
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -2574,7 +2581,7 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
 /**
  * Export a DOM element to a high-quality PNG image (⭐ GUARANTEED CANONICAL 794px A4 LAYOUT ON ANY DEVICE)
  */
-export const exportQuotationImage = async (elementId, filename = 'quotation.png', { save = true } = {}) => {
+export const exportQuotationImage = async (elementId, filename = 'quotation.png', { save = true, pixelRatio = 2.5 } = {}) => {
   const element = typeof elementId === 'string' ? document.getElementById(elementId) : elementId;
   if (!element) {
     throw new Error(`Element with id "${elementId}" not found`);
@@ -2700,9 +2707,9 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
     let dataUrl;
 
     try {
-      // Primary ultra-fast capture: htmlToImage at high 2.5x pixel ratio for crystal clear text and logo
+      // Primary ultra-fast capture: htmlToImage at high pixel ratio for crystal clear text, vector waves, and logos
       dataUrl = await htmlToImage.toPng(clone, {
-        pixelRatio: 2.5,
+        pixelRatio: pixelRatio || 2.5,
         width: 794,
         height: clone.scrollHeight || 1123,
         backgroundColor: '#ffffff',
@@ -2715,7 +2722,7 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
       console.warn('htmlToImage primary capture failed, trying fallback:', primaryErr);
       try {
         const canvas = await html2canvas(clone, {
-          scale: 2.5,
+          scale: pixelRatio || 2.5,
           width: 794,
           height: clone.scrollHeight || 1123,
           windowWidth: 794,
@@ -2742,6 +2749,84 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
       wrapper.parentNode.removeChild(wrapper);
     }
   }
+};
+
+/**
+ * Export a quotation DOM element to a pixel-perfect, ultra-high-quality A4 PDF
+ * (Matches the exact on-screen visual design, full-bleed header/footer waves, and crisp typography like the image)
+ */
+export const exportQuotationHighQualityPDF = async (elementId, filename = 'quotation.pdf', { save = true, pixelRatio = 2.5 } = {}) => {
+  const element = typeof elementId === 'string' ? document.getElementById(elementId) : elementId;
+  if (!element) {
+    throw new Error(`Element with id "${elementId}" not found`);
+  }
+
+  // 1. Capture ultra-crisp snapshot of the quotation element via canonical 794px desktop clone pipeline
+  const safeImgFilename = `${String(filename).replace(/\.pdf$/i, '')}.png`;
+  const exportRes = await exportQuotationImage(elementId, safeImgFilename, { save: false, pixelRatio });
+  const { dataUrl } = exportRes;
+  if (!dataUrl) {
+    throw new Error('Failed to generate high-resolution snapshot for PDF');
+  }
+
+  // 2. Measure natural image dimensions
+  const img = new Image();
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = () => reject(new Error('Failed to load captured image for PDF conversion'));
+    img.src = dataUrl;
+  });
+
+  const imgW = img.naturalWidth || img.width || 1985;
+  const imgH = img.naturalHeight || img.height || 2808;
+
+  const pdf = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+    compress: true
+  });
+
+  const a4Ratio = 297 / 210; // 1.4142857
+  // Allow a ~8% margin of error so a standard 1-page quotation with slight overflow doesn't spill onto page 2
+  const singlePageMaxHeight = Math.round(imgW * a4Ratio * 1.08);
+
+  if (imgH <= singlePageMaxHeight) {
+    // Fits cleanly on a single full-bleed A4 page (210mm x 297mm)
+    pdf.addImage(dataUrl, 'PNG', 0, 0, 210, 297, undefined, 'FAST');
+  } else {
+    // Multi-page document: slice cleanly into separate A4 pages
+    const pageCanvasHeight = Math.round(imgW * a4Ratio);
+    let sourceY = 0;
+    let pageNum = 0;
+
+    while (sourceY < imgH) {
+      if (pageNum > 0) {
+        pdf.addPage();
+      }
+      const sliceH = Math.min(pageCanvasHeight, imgH - sourceY);
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = imgW;
+      pageCanvas.height = pageCanvasHeight;
+      const ctx = pageCanvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+      ctx.drawImage(img, 0, sourceY, imgW, sliceH, 0, 0, imgW, sliceH);
+
+      const sliceDataUrl = pageCanvas.toDataURL('image/png');
+      pdf.addImage(sliceDataUrl, 'PNG', 0, 0, 210, 297, undefined, 'FAST');
+      sourceY += pageCanvasHeight;
+      pageNum++;
+    }
+  }
+
+  const safeFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+  if (save) {
+    await safeSaveFile(pdf, safeFilename, 'application/pdf');
+  }
+
+  const blob = pdf.output('blob');
+  return { pdf, blob };
 };
 
 /**
