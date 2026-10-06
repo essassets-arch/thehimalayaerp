@@ -1677,15 +1677,24 @@ export class FinanceSalesAnalyticsService {
       // 4. Base Query Conditions
       const fyOrderNumPattern = `/${String(startYear).slice(-2)}${String(endYear).slice(-2)}/`;
       const prevFyOrderNumPattern = `/${String(startYear - 1).slice(-2)}${String(endYear - 1).slice(-2)}/`;
+      const isAllFy = Boolean(query.financialYear && (query.financialYear.toLowerCase() === 'all' || query.financialYear === 'All'));
+
+      const fyTimeCondition = isAllFy
+        ? []
+        : [
+            {
+              OR: [
+                { orderDate: { gte: fyStart, lte: fyEnd } },
+                { orderNumber: { contains: fyOrderNumPattern } },
+                { orderNumber: { contains: `${String(startYear).slice(-2)}${String(endYear).slice(-2)}` } },
+                { createdAt: { gte: fyStart, lte: fyEnd } },
+              ],
+            },
+          ];
 
       const orderAndConditions: any[] = [
-        {
-          OR: [
-            { orderDate: { gte: fyStart, lte: fyEnd } },
-            { orderNumber: { contains: fyOrderNumPattern } },
-          ],
-        },
-        { status: { in: this.metricService.ELIGIBLE_ORDER_STATUSES as any } },
+        ...fyTimeCondition,
+        { status: { notIn: ['CANCELLED', 'LOST'] as any } },
         { deletedAt: null },
       ];
 
@@ -1710,9 +1719,11 @@ export class FinanceSalesAnalyticsService {
           OR: [
             { orderDate: { gte: prevFyStart, lte: prevFyEnd } },
             { orderNumber: { contains: prevFyOrderNumPattern } },
+            { orderNumber: { contains: `${String(startYear - 1).slice(-2)}${String(endYear - 1).slice(-2)}` } },
+            { createdAt: { gte: prevFyStart, lte: prevFyEnd } },
           ],
         },
-        { status: { in: this.metricService.ELIGIBLE_ORDER_STATUSES as any } },
+        { status: { notIn: ['CANCELLED', 'LOST'] as any } },
         { deletedAt: null },
       ];
 
@@ -1739,6 +1750,7 @@ export class FinanceSalesAnalyticsService {
             id: true,
             orderNumber: true,
             orderDate: true,
+            createdAt: true,
             totalAmount: true,
             paidAmount: true,
             paymentTerms: true,
@@ -1776,7 +1788,7 @@ export class FinanceSalesAnalyticsService {
               select: { id: true, paymentNo: true, amount: true, receivedAt: true, status: true },
             },
           },
-          orderBy: { orderDate: 'desc' },
+          orderBy: [{ orderDate: 'desc' }, { createdAt: 'desc' }],
         }),
         this.prisma.salesOrder.aggregate({
           where: prevOrderWhere,
@@ -1862,6 +1874,7 @@ export class FinanceSalesAnalyticsService {
           id: o.id,
           orderNo: o.orderNumber,
           orderDate: o.orderDate,
+          createdAt: o.createdAt,
           customer: o.customer?.companyName || o.customer?.contactPerson || 'Valued Customer',
           customerId: o.customerId,
           salesperson: o.salesExecutive?.name || 'Unassigned',
@@ -1889,9 +1902,11 @@ export class FinanceSalesAnalyticsService {
         const mEnd = new Date(Date.UTC(m.year, m.monthNum + 1, 0, 23, 59, 59, 999));
 
         const monthOrders = computedOrders.filter((o) => {
-          const od = new Date(o.orderDate);
+          const rawDate = o.orderDate || o.createdAt;
+          if (!rawDate) return false;
+          const od = new Date(rawDate);
           if (od >= mStart && od <= mEnd) return true;
-          if (o.orderNo && o.orderNo.includes(fyOrderNumPattern) && od.getMonth() === m.monthNum) {
+          if (od.getMonth() === m.monthNum && (!o.orderDate || (o.orderNo && (o.orderNo.includes(fyOrderNumPattern) || o.orderNo.includes(`${String(startYear).slice(-2)}${String(endYear).slice(-2)}`))))) {
             return true;
           }
           return false;
@@ -2022,8 +2037,8 @@ export class FinanceSalesAnalyticsService {
       const customerOutstanding = Array.from(custMap.values()).sort((a, b) => b.due - a.due);
 
       return {
-        financialYear: `${startYear}–${String(endYear).slice(-2)}`,
-        availableFYs: ['2024–25', '2025–26', '2026–27', '2027–28'],
+        financialYear: isAllFy ? 'All' : `${startYear}–${String(endYear).slice(-2)}`,
+        availableFYs: ['All', '2024–25', '2025–26', '2026–27', '2027–28'],
         executiveSummary: {
           totalSales,
           totalOrders,
@@ -2059,7 +2074,7 @@ export class FinanceSalesAnalyticsService {
           : computedOrders,
         customerOutstanding,
         filters: {
-          financialYears: ['2024–25', '2025–26', '2026–27', '2027–28'],
+          financialYears: ['All', '2024–25', '2025–26', '2026–27', '2027–28'],
           months: monthDefs.map((m) => ({ index: m.index, name: m.label, short: m.short })),
           companies: dbCompanies.map((c) => ({ id: c.id, name: c.name, publicId: c.publicId })),
           salespersons: distinctSalespersons.map((s) => ({ id: s.id, name: s.name })),

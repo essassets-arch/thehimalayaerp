@@ -17105,3 +17105,24 @@ body, #root, .app-container {
     max-height: none !important;
   }
 }
+
+/* ── FINANCE MONTHLY SALES & COLLECTION TABLE SCROLL CONTAINER ── */
+.finance-orders-scroll-container {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+.finance-orders-scroll-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.finance-orders-scroll-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+.finance-orders-scroll-container::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 4px;
+}
+.finance-orders-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

@@ -127,12 +127,13 @@ export default function FinanceMonthlySalesWorkspace() {
 
   // Current month metadata for display
   const currentMonthInfo = useMemo(() => {
+    const isAllYears = Boolean(financialYear && financialYear.toLowerCase() === 'all');
     if (selectedMonth === 'all') {
       return {
         isAll: true,
-        title: `All Months Overview (FY ${financialYear})`,
-        badge: `Full Financial Year (12 Months)`,
-        name: `All Months (FY ${financialYear})`
+        title: isAllYears ? 'All Orders & Collections (All Financial Years)' : `All Months Overview (FY ${financialYear})`,
+        badge: isAllYears ? 'All Financial Years' : `Full Financial Year (12 Months)`,
+        name: isAllYears ? 'All Financial Years' : `All Months (FY ${financialYear})`
       };
     }
     const found = monthsList.find(m => m.index.toString() === selectedMonth);
@@ -140,7 +141,7 @@ export default function FinanceMonthlySalesWorkspace() {
     return {
       isAll: false,
       title: `${mName} Breakdown`,
-      badge: `Month ${parseInt(selectedMonth, 10) + 1} of 12 (FY ${financialYear})`,
+      badge: isAllYears ? `${mName}` : `Month ${parseInt(selectedMonth, 10) + 1} of 12 (FY ${financialYear})`,
       name: mName
     };
   }, [selectedMonth, monthsList, financialYear]);
@@ -304,7 +305,7 @@ export default function FinanceMonthlySalesWorkspace() {
   }, [totalCustomerPages, customerPage]);
 
   const filters = workspaceData?.filters || {
-    financialYears: ['2024–25', '2025–26', '2026–27', '2027–28'],
+    financialYears: ['All', '2024–25', '2025–26', '2026–27', '2027–28'],
     companies: [],
     salespersons: [],
     customers: [],
@@ -522,8 +523,8 @@ export default function FinanceMonthlySalesWorkspace() {
   return (
     <div style={{
       width: '100%',
-      minHeight: '100vh',
-      padding: '24px 32px',
+      minHeight: '100%',
+      padding: '16px 20px',
       background: '#F8FAFC',
       display: 'flex',
       flexDirection: 'column',
@@ -579,7 +580,7 @@ export default function FinanceMonthlySalesWorkspace() {
               }}
             >
               {filters.financialYears.map(fy => (
-                <option key={fy} value={fy}>{fy}</option>
+                <option key={fy} value={fy}>{fy === 'All' ? '🌐 All Financial Years' : fy}</option>
               ))}
             </select>
           </div>
@@ -1056,21 +1057,34 @@ export default function FinanceMonthlySalesWorkspace() {
             </div>
           </div>
 
-          {/* Orders Table */}
-          <div style={{ overflowX: 'auto', width: '100%' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
-              <thead>
+          {/* Orders Table Container with Dedicated Smooth Scrolling & Sticky Header */}
+          <div
+            className="finance-orders-scroll-container"
+            style={{
+              overflowX: 'auto',
+              overflowY: 'auto',
+              maxHeight: 'calc(100vh - 280px)',
+              minHeight: '450px',
+              width: '100%',
+              position: 'relative',
+              WebkitOverflowScrolling: 'touch',
+              overscrollBehavior: 'contain',
+              borderTop: '1px solid #E2E8F0',
+            }}
+          >
+            <table style={{ width: '100%', minWidth: '1050px', borderCollapse: 'separate', borderSpacing: 0, fontSize: '12.5px', textAlign: 'left' }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr style={{ background: '#002E5D', color: '#ffffff', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  <th style={{ padding: '12px 14px' }}>Order No</th>
-                  <th style={{ padding: '12px 14px' }}>Order Date</th>
-                  <th style={{ padding: '12px 14px' }}>Customer</th>
-                  <th style={{ padding: '12px 14px' }}>Salesperson</th>
-                  <th style={{ padding: '12px 14px' }}>Invoice</th>
-                  <th style={{ padding: '12px 14px' }}>Terms &amp; Due</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Sales Amt</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Collected</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Balance Due</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'center' }}>Status</th>
+                  <th style={{ padding: '12px 14px', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Order No</th>
+                  <th style={{ padding: '12px 14px', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Order Date</th>
+                  <th style={{ padding: '12px 14px', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Customer</th>
+                  <th style={{ padding: '12px 14px', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Salesperson</th>
+                  <th style={{ padding: '12px 14px', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Invoice</th>
+                  <th style={{ padding: '12px 14px', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Terms &amp; Due</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Sales Amt</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Collected</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Balance Due</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'center', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -1100,10 +1114,10 @@ export default function FinanceMonthlySalesWorkspace() {
                         onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                       >
-                        <td style={{ padding: '12px 14px', fontWeight: '800', color: '#002E5D' }}>
+                        <td style={{ padding: '12px 14px', fontWeight: '800', color: '#002E5D', borderBottom: '1px solid #F1F5F9' }}>
                           {o.orderNo}
                         </td>
-                        <td style={{ padding: '12px 14px', color: '#475569', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '12px 14px', color: '#475569', whiteSpace: 'nowrap', borderBottom: '1px solid #F1F5F9' }}>
                           <div>{formatDate(o.orderDate)}</div>
                           {o.orderDate && (
                             <div style={{ fontSize: '10.5px', color: '#64748B', marginTop: '2px' }}>
@@ -1111,16 +1125,16 @@ export default function FinanceMonthlySalesWorkspace() {
                             </div>
                           )}
                         </td>
-                        <td style={{ padding: '12px 14px', fontWeight: '700', color: '#0F172A', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '12px 14px', fontWeight: '700', color: '#0F172A', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderBottom: '1px solid #F1F5F9' }}>
                           {o.customer}
                         </td>
-                        <td style={{ padding: '12px 14px', color: '#475569' }}>
+                        <td style={{ padding: '12px 14px', color: '#475569', borderBottom: '1px solid #F1F5F9' }}>
                           {o.salesperson}
                         </td>
-                        <td style={{ padding: '12px 14px', color: '#334155', fontWeight: '600' }}>
+                        <td style={{ padding: '12px 14px', color: '#334155', fontWeight: '600', borderBottom: '1px solid #F1F5F9' }}>
                           {o.invoice || '—'}
                         </td>
-                        <td style={{ padding: '12px 14px', color: '#475569', fontSize: '11.5px', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '12px 14px', color: '#475569', fontSize: '11.5px', whiteSpace: 'nowrap', borderBottom: '1px solid #F1F5F9' }}>
                           <div>{o.paymentTerms}</div>
                           {o.paymentDueDate && (
                             <div style={{ color: o.dueDays !== null && o.dueDays < 0 ? '#DC2626' : '#64748B', fontWeight: '600', marginTop: '2px' }}>
@@ -1128,16 +1142,16 @@ export default function FinanceMonthlySalesWorkspace() {
                             </div>
                           )}
                         </td>
-                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '850', color: '#0F172A' }}>
+                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '850', color: '#0F172A', borderBottom: '1px solid #F1F5F9' }}>
                           {formatINR(o.sales)}
                         </td>
-                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: '#059669' }}>
+                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: '#059669', borderBottom: '1px solid #F1F5F9' }}>
                           {formatINR(o.collected)}
                         </td>
-                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: isOverdue ? '#DC2626' : (o.due > 0 ? '#D97706' : '#94A3B8') }}>
+                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: isOverdue ? '#DC2626' : (o.due > 0 ? '#D97706' : '#94A3B8'), borderBottom: '1px solid #F1F5F9' }}>
                           {formatINR(o.due)}
                         </td>
-                        <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                        <td style={{ padding: '12px 14px', textAlign: 'center', borderBottom: '1px solid #F1F5F9' }}>
                           <span style={{
                             padding: '3px 8px',
                             borderRadius: '4px',
@@ -1156,23 +1170,23 @@ export default function FinanceMonthlySalesWorkspace() {
                 )}
               </tbody>
 
-              {/* Table Summary Footer */}
+              {/* Sticky Table Summary Footer */}
               {orderInvoiceDetails.length > 0 && (
-                <tfoot>
-                  <tr style={{ background: '#F8FAFC', borderTop: '2px solid #CBD5E1', fontWeight: '850' }}>
-                    <td colSpan={6} style={{ padding: '12px 14px', color: '#0F172A' }}>
+                <tfoot style={{ position: 'sticky', bottom: 0, zIndex: 20 }}>
+                  <tr style={{ background: '#F8FAFC', fontWeight: '850', boxShadow: '0 -2px 6px rgba(0,0,0,0.06)' }}>
+                    <td colSpan={6} style={{ padding: '12px 14px', color: '#0F172A', position: 'sticky', bottom: 0, background: '#F8FAFC', borderTop: '2px solid #CBD5E1', zIndex: 21 }}>
                       TOTAL ({orderInvoiceDetails.length} {orderInvoiceDetails.length === 1 ? 'Order' : 'Orders'} Filtered)
                     </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', color: '#0F172A', fontWeight: '900' }}>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', color: '#0F172A', fontWeight: '900', position: 'sticky', bottom: 0, background: '#F8FAFC', borderTop: '2px solid #CBD5E1', zIndex: 21 }}>
                       {formatINR(orderTotals.sales)}
                     </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', color: '#059669', fontWeight: '900' }}>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', color: '#059669', fontWeight: '900', position: 'sticky', bottom: 0, background: '#F8FAFC', borderTop: '2px solid #CBD5E1', zIndex: 21 }}>
                       {formatINR(orderTotals.collected)}
                     </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', color: orderTotals.due > 0 ? '#D97706' : '#94A3B8', fontWeight: '900' }}>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', color: orderTotals.due > 0 ? '#D97706' : '#94A3B8', fontWeight: '900', position: 'sticky', bottom: 0, background: '#F8FAFC', borderTop: '2px solid #CBD5E1', zIndex: 21 }}>
                       {formatINR(orderTotals.due)}
                     </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'center', color: '#DC2626', fontSize: '11px', fontWeight: '800' }}>
+                    <td style={{ padding: '12px 14px', textAlign: 'center', color: '#DC2626', fontSize: '11px', fontWeight: '800', position: 'sticky', bottom: 0, background: '#F8FAFC', borderTop: '2px solid #CBD5E1', zIndex: 21 }}>
                       {orderTotals.overdue > 0 ? `Overdue: ${formatINR(orderTotals.overdue)}` : 'No Overdue'}
                     </td>
                   </tr>
@@ -1511,17 +1525,30 @@ export default function FinanceMonthlySalesWorkspace() {
           </div>
 
           {/* Table */}
-          <div style={{ overflowX: 'auto', width: '100%' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
-              <thead>
+          <div
+            className="finance-orders-scroll-container"
+            style={{
+              overflowX: 'auto',
+              overflowY: 'auto',
+              maxHeight: 'calc(100vh - 300px)',
+              minHeight: '400px',
+              width: '100%',
+              position: 'relative',
+              WebkitOverflowScrolling: 'touch',
+              overscrollBehavior: 'contain',
+              borderTop: '1px solid #E2E8F0',
+            }}
+          >
+            <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'separate', borderSpacing: 0, fontSize: '13px', textAlign: 'left' }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
                 <tr style={{ background: '#002E5D', color: '#ffffff', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  <th style={{ padding: '12px 14px' }}>Customer Name</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'center' }}>Orders</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Sales Total</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Collected</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Total Due</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Overdue</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'center' }}>Action</th>
+                  <th style={{ padding: '12px 14px', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Customer Name</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'center', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Orders</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Sales Total</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Collected</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Total Due</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Overdue</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'center', position: 'sticky', top: 0, background: '#002E5D', zIndex: 21 }}>Action</th>
                 </tr>
               </thead>
               <tbody>
