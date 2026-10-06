@@ -38,7 +38,7 @@ export class PrismaService
   async onModuleInit() {
     await this.$connect();
     try {
-      await this.$executeRawUnsafe(`
+      const ddl = `
         ALTER TABLE "ProductionDailyReport" ADD COLUMN IF NOT EXISTS "reportNo" TEXT;
         ALTER TABLE "ProductionDailyReport" ADD COLUMN IF NOT EXISTS "shift" TEXT;
         ALTER TABLE "ProductionDailyReport" ADD COLUMN IF NOT EXISTS "supervisorName" TEXT;
@@ -142,7 +142,10 @@ export class PrismaService
         -- Auto-heal Quotation schema
         ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "siteInchargeName" TEXT;
         ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "siteInchargeMobile" TEXT;
-      `);
+      `;
+      for (const statement of ddl.split(';').map(s => s.trim()).filter(Boolean)) {
+        await this.$executeRawUnsafe(statement).catch(() => {});
+      }
     } catch (e) {
       // Ignore if table does not exist yet
     }

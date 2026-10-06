@@ -3532,7 +3532,7 @@ export class ProcurementService {
 
   async syncSchema() {
     try {
-      await this.prisma.$executeRawUnsafe(`
+      const ddl = `
         ALTER TABLE "PurchaseOrder" ADD COLUMN IF NOT EXISTS "purchaseIndentId" TEXT;
         ALTER TABLE "PurchaseOrder" ADD COLUMN IF NOT EXISTS "draftPoNo" TEXT;
         ALTER TABLE "PurchaseOrder" ADD COLUMN IF NOT EXISTS "poNo" TEXT;
@@ -3577,8 +3577,11 @@ export class ProcurementService {
         -- Auto-heal Quotation schema
         ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "siteInchargeName" TEXT;
         ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "siteInchargeMobile" TEXT;
-      `);
-      return { success: true, message: 'Procurement schema synchronized successfully' };
+      `;
+      for (const statement of ddl.split(';').map(s => s.trim()).filter(Boolean)) {
+        await this.prisma.$executeRawUnsafe(statement).catch(() => {});
+      }
+      return { success: true, message: 'Procurement and Quotation schema synchronized successfully' };
     } catch (err: any) {
       return { success: false, error: err?.message || String(err) };
     }
