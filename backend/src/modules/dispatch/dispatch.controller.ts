@@ -78,6 +78,12 @@ export class DispatchController {
     return { success: true, data };
   }
 
+  @Get('next-invoice-number')
+  @RequirePermissions('logistics.dispatches.read')
+  async getNextInvoiceNumber() {
+    return this.dispatchService.getNextInvoiceNumber();
+  }
+
   @Get(':id')
   @RequirePermissions('logistics.dispatches.read')
   async getDispatch(

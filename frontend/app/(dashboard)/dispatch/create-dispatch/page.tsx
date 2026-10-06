@@ -671,6 +671,42 @@ export default function CreateDispatchPage() {
     },
   });
 
+  // Fetch next suggested unique invoice number and all existing invoice numbers
+  const { data: invoiceMeta, refetch: refetchInvoiceMeta } = useQuery<{
+    nextInvoiceNumber: string;
+    existingInvoices: string[];
+  }>({
+    queryKey: ["next-invoice-number-meta"],
+    queryFn: async () => {
+      const res = await backendFetch<any>("/api/backend/logistics/dispatches/next-invoice-number").catch(() => null);
+      return res || null;
+    },
+    staleTime: 5000,
+  });
+
+  // Pre-fill next unique invoice number if draft invoice number is empty
+  useEffect(() => {
+    if (invoiceMeta?.nextInvoiceNumber && (!invoiceNumber || !invoiceNumber.trim())) {
+      setField("invoiceNumber", invoiceMeta.nextInvoiceNumber);
+    }
+  }, [invoiceMeta, invoiceNumber, setField]);
+
+  const handleGenerateUniqueInvoice = () => {
+    if (invoiceMeta?.nextInvoiceNumber) {
+      setField("invoiceNumber", invoiceMeta.nextInvoiceNumber);
+      handleInputChange("invoiceNumber", invoiceMeta.nextInvoiceNumber);
+      toast.success(`Assigned unique invoice: ${invoiceMeta.nextInvoiceNumber}`);
+    } else {
+      refetchInvoiceMeta().then((res) => {
+        if (res.data?.nextInvoiceNumber) {
+          setField("invoiceNumber", res.data.nextInvoiceNumber);
+          handleInputChange("invoiceNumber", res.data.nextInvoiceNumber);
+          toast.success(`Assigned unique invoice: ${res.data.nextInvoiceNumber}`);
+        }
+      });
+    }
+  };
+
   // Fetch products to retrieve correct dispatchCategory for synthetic items
   const { data: products = EMPTY_ARRAY } = useQuery<any[]>({
     queryKey: ["products-list-create-dispatch"],
@@ -1634,6 +1670,19 @@ export default function CreateDispatchPage() {
       errors.invoiceNumber = "Invoice Number is required.";
     } else if (!/^[A-Za-z0-9\-\/]+$/.test(inv)) {
       errors.invoiceNumber = "Only alphanumeric characters, '-' and '/' are allowed.";
+    } else {
+      const invLower = inv.toLowerCase();
+      const isDuplicateInDispatches = existingDispatches.some((d: any) => {
+        const dInv = (d.invoiceNumber || d.invoice_number || "").trim().toLowerCase();
+        return dInv === invLower;
+      });
+      const isDuplicateInInvoices = (invoiceMeta?.existingInvoices || []).some(
+        (existing: string) => existing.toLowerCase() === invLower
+      );
+
+      if (isDuplicateInDispatches || isDuplicateInInvoices) {
+        errors.invoiceNumber = "This invoice is already exist.";
+      }
     }
 
     // 2. Challan Number: Text/Alphanumeric. Minimum 1 character. No unnecessary spaces/special chars except '-' and '/'.
@@ -1753,6 +1802,7 @@ export default function CreateDispatchPage() {
     expectedDeliveryDate,
     actualFreightPaidAmount,
     existingDispatches,
+    invoiceMeta,
   ]);
 
   useEffect(() => {
@@ -2748,17 +2798,85 @@ export default function CreateDispatchPage() {
 
           {/* Invoice Number */}
           <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Invoice Number<span className={styles.required}>*</span></label>
-            <input
-              type="text"
-              value={invoiceNumber}
-              onChange={(e) => handleInputChange("invoiceNumber", e.target.value)}
-              className={styles.formInput}
-              placeholder="e.g. INV-2026-001"
-            />
-            {touchedFields.invoiceNumber && fieldErrors.invoiceNumber && (
-              <span style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px", display: "block", fontWeight: 600 }}>
-                {fieldErrors.invoiceNumber}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <label className={styles.formLabel} style={{ marginBottom: 0 }}>
+                Invoice Number<span className={styles.required}>*</span>
+              </label>
+              <button
+                type="button"
+                onClick={handleGenerateUniqueInvoice}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "#2563eb",
+                  background: "#eff6ff",
+                  border: "1px solid #bfdbfe",
+                  borderRadius: 6,
+                  padding: "2px 8px",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+                title="Generate next guaranteed unique invoice number"
+              >
+                <RotateCcw size={11} />
+                Generate Unique #
+              </button>
+            </div>
+            <div style={{ position: "relative" }}>
+              <input
+                type="text"
+                value={invoiceNumber}
+                onChange={(e) => handleInputChange("invoiceNumber", e.target.value)}
+                className={styles.formInput}
+                placeholder="e.g. INV-2026-001"
+                style={{
+                  borderColor:
+                    (touchedFields.invoiceNumber || invoiceNumber) && fieldErrors.invoiceNumber
+                      ? "#ef4444"
+                      : invoiceNumber && !fieldErrors.invoiceNumber
+                      ? "#16a34a"
+                      : undefined,
+                  paddingRight: 32,
+                }}
+              />
+              {invoiceNumber && !fieldErrors.invoiceNumber && (
+                <span
+                  style={{
+                    position: "absolute",
+                    right: 10,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "#16a34a",
+                    fontSize: 14,
+                    fontWeight: 800,
+                  }}
+                  title="Unique invoice number"
+                >
+                  ✓
+                </span>
+              )}
+            </div>
+            {(touchedFields.invoiceNumber || invoiceNumber) && fieldErrors.invoiceNumber && (
+              <span
+                style={{
+                  color: "#ef4444",
+                  fontSize: "12px",
+                  marginTop: "5px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  fontWeight: 600,
+                }}
+              >
+                ⚠️ {fieldErrors.invoiceNumber}
+              </span>
+            )}
+            {!fieldErrors.invoiceNumber && invoiceNumber && (
+              <span style={{ color: "#16a34a", fontSize: "11.5px", marginTop: "4px", display: "flex", alignItems: "center", gap: "4px", fontWeight: 600 }}>
+                ✓ Guaranteed unique invoice number
               </span>
             )}
           </div>

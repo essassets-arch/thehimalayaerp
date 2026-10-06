@@ -315,6 +315,51 @@ export class DispatchService {
     return dispatch;
   }
 
+  async getNextInvoiceNumber(): Promise<{ nextInvoiceNumber: string; existingInvoices: string[] }> {
+    const currentYear = new Date().getFullYear();
+    const dispatches = await this.prisma.dispatch.findMany({
+      where: {
+        invoiceNumber: { not: null },
+      },
+      select: { invoiceNumber: true },
+    });
+    const invoices = await this.prisma.salesInvoice.findMany({
+      where: {
+        invoiceNumber: { not: '' },
+        status: { notIn: ['CANCELLED', 'VOID'] },
+      },
+      select: { invoiceNumber: true },
+    });
+
+    const set = new Set<string>();
+    const allNums: number[] = [];
+
+    const processNum = (inv?: string | null) => {
+      if (!inv) return;
+      const clean = inv.trim();
+      set.add(clean.toLowerCase());
+      const match = clean.match(/(\d+)$/);
+      if (match) {
+        allNums.push(parseInt(match[1], 10));
+      }
+    };
+
+    dispatches.forEach((d) => processNum(d.invoiceNumber));
+    invoices.forEach((i) => processNum(i.invoiceNumber));
+
+    let nextNum = (allNums.length > 0 ? Math.max(...allNums) : 0) + 1;
+    let candidate = `INV-${currentYear}-${String(nextNum).padStart(4, '0')}`;
+    while (set.has(candidate.toLowerCase())) {
+      nextNum++;
+      candidate = `INV-${currentYear}-${String(nextNum).padStart(4, '0')}`;
+    }
+
+    return {
+      nextInvoiceNumber: candidate,
+      existingInvoices: Array.from(set),
+    };
+  }
+
   async createDispatch(dto: CreateDispatchDto, userId?: string) {
     if (!dto.items?.length)
       throw new BadRequestException('At least one dispatch item is required');
@@ -746,6 +791,31 @@ export class DispatchService {
         }
         if (!detectedCategory) detectedCategory = 'D1';
 
+        // Validate Invoice Number Uniqueness across both dispatches and invoices
+        if (dto.invoiceNumber?.trim()) {
+          const trimmedInv = dto.invoiceNumber.trim();
+          const existingDisp = await tx.dispatch.findFirst({
+            where: {
+              invoiceNumber: { equals: trimmedInv, mode: 'insensitive' },
+            },
+            select: { id: true, dispatchNo: true },
+          });
+          if (existingDisp) {
+            throw new BadRequestException('This invoice is already exist.');
+          }
+
+          const existingInv = await tx.salesInvoice.findFirst({
+            where: {
+              invoiceNumber: { equals: trimmedInv, mode: 'insensitive' },
+              status: { notIn: ['CANCELLED', 'VOID'] },
+            },
+            select: { id: true },
+          });
+          if (existingInv) {
+            throw new BadRequestException('This invoice is already exist.');
+          }
+        }
+
         // Create Dispatch record starting directly as IN_TRANSIT
         const dispatch = await tx.dispatch.create({
           data: {
@@ -866,19 +936,13 @@ export class DispatchService {
           'INVOICE',
           tx,
         );
-        let invoiceNumber = await this.sequenceService.generateNextWithTx(
-          tx,
-          'invoice_number',
-          `INV - ${new Date().getFullYear()} -`,
-        );
-        if (dto.invoiceNumber?.trim()) {
-          const trimmedInv = dto.invoiceNumber.trim();
-          const existingInv = await tx.salesInvoice.findUnique({
-            where: { invoiceNumber: trimmedInv },
-          });
-          if (!existingInv) {
-            invoiceNumber = trimmedInv;
-          }
+        let invoiceNumber = dto.invoiceNumber?.trim();
+        if (!invoiceNumber) {
+          invoiceNumber = await this.sequenceService.generateNextWithTx(
+            tx,
+            'invoice_number',
+            `INV - ${new Date().getFullYear()} -`,
+          );
         }
         await tx.salesInvoice.create({
           data: {
