@@ -39,10 +39,48 @@ import {
 } from 'recharts';
 import { financeSalesAnalyticsService } from '../../../services/financeSalesAnalytics.service';
 
+// 12 Indian Financial Months (Apr -> Mar)
+const MONTH_NAMES = [
+  'April', 'May', 'June', 'July', 'August', 'September',
+  'October', 'November', 'December', 'January', 'February', 'March'
+];
+
+const getStartYearFromFY = (fyStr) => {
+  const cleanFy = (fyStr || '2026–27').replace(/[–—]/g, '-');
+  const match = cleanFy.match(/(\d{4})/);
+  return match ? parseInt(match[1], 10) : 2026;
+};
+
+// Pure Currency & Date Formatters
+const formatINR = (val) => {
+  if (val === null || val === undefined || isNaN(val)) return '₹0';
+  const num = Math.round(Number(val));
+  return `₹${num.toLocaleString('en-IN')}`;
+};
+
+const formatLakh = (val) => {
+  if (val === null || val === undefined || val === 0) return '₹0';
+  const num = Number(val);
+  if (Math.abs(num) >= 10000000) return `₹${(num / 10000000).toFixed(2)} Cr`;
+  if (Math.abs(num) >= 100000) return `₹${(num / 100000).toFixed(2)}L`;
+  if (Math.abs(num) >= 1000) return `₹${(num / 1000).toFixed(1)}K`;
+  return `₹${Math.round(num).toLocaleString('en-IN')}`;
+};
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return String(dateStr);
+  }
+};
+
 export default function FinanceMonthlySalesWorkspace() {
   const router = useRouter();
 
-  // Filters State
+  // 1. All Component State Hooks (Declared first to avoid TDZ ReferenceErrors)
   const [financialYear, setFinancialYear] = useState('2026–27');
   const [selectedMonth, setSelectedMonth] = useState('all'); // 'all' or '0'..'11'
   const [selectedCompany, setSelectedCompany] = useState('all');
@@ -50,20 +88,17 @@ export default function FinanceMonthlySalesWorkspace() {
   const [selectedCustomer, setSelectedCustomer] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('All');
 
-  // Compute Indian Financial Year Start Year & 12 Months
-  const getStartYearFromFY = (fyStr) => {
-    const cleanFy = (fyStr || '2026–27').replace(/[–—]/g, '-');
-    const match = cleanFy.match(/(\d{4})/);
-    return match ? parseInt(match[1], 10) : 2026;
-  };
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [workspaceData, setWorkspaceData] = useState(null);
+  const [error, setError] = useState(null);
 
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+
+  // 2. Computed Financial Year & Months
   const startYear = useMemo(() => getStartYearFromFY(financialYear), [financialYear]);
   const endYear = startYear + 1;
-
-  const MONTH_NAMES = [
-    'April', 'May', 'June', 'July', 'August', 'September',
-    'October', 'November', 'December', 'January', 'February', 'March'
-  ];
 
   const monthsList = useMemo(() => {
     if (workspaceData?.filters?.months?.length === 12) {
@@ -102,42 +137,6 @@ export default function FinanceMonthlySalesWorkspace() {
       name: mName
     };
   }, [selectedMonth, monthsList, financialYear]);
-
-  // Data Loading & State
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [workspaceData, setWorkspaceData] = useState(null);
-  const [error, setError] = useState(null);
-
-  // Search filter for tables
-  const [orderSearchQuery, setOrderSearchQuery] = useState('');
-  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
-
-  // Currency Formatter
-  const formatINR = (val) => {
-    if (val === null || val === undefined || isNaN(val)) return '₹0';
-    const num = Math.round(Number(val));
-    return `₹${num.toLocaleString('en-IN')}`;
-  };
-
-  const formatLakh = (val) => {
-    if (val === null || val === undefined || val === 0) return '₹0';
-    const num = Number(val);
-    if (Math.abs(num) >= 10000000) return `₹${(num / 10000000).toFixed(2)} Cr`;
-    if (Math.abs(num) >= 100000) return `₹${(num / 100000).toFixed(2)}L`;
-    if (Math.abs(num) >= 1000) return `₹${(num / 1000).toFixed(1)}K`;
-    return `₹${Math.round(num).toLocaleString('en-IN')}`;
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '—';
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    } catch {
-      return String(dateStr);
-    }
-  };
 
   // Fetch Data from Backend Analytics API
   const loadWorkspace = async (isManualRefresh = false) => {
