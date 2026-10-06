@@ -580,6 +580,7 @@ export default function CreateDispatchPage() {
   const salesOrderItemId = searchParams.get("salesOrderItemId");
   const workOrderIdsParam = searchParams.get("workOrderIds");
   const deliveryAddressParam = searchParams.get("deliveryAddress");
+  const invoiceNumberParam = searchParams.get("invoiceNumber");
 
   const requestedWorkOrderIds = React.useMemo(() => {
     const ids: string[] = [];
@@ -659,8 +660,9 @@ export default function CreateDispatchPage() {
       salesOrderItemId,
       workOrderId,
       deliveryAddress: deliveryAddressParam,
+      invoiceNumber: invoiceNumberParam,
     });
-  }, [salesOrderId, orderNumber, salesOrderItemId, workOrderId, deliveryAddressParam, initializeContext]);
+  }, [salesOrderId, orderNumber, salesOrderItemId, workOrderId, deliveryAddressParam, invoiceNumberParam, initializeContext]);
 
   // Fetch existing dispatches for duplicate Invoice + Challan validation
   const { data: existingDispatches = EMPTY_ARRAY } = useQuery<any[]>({
@@ -684,24 +686,17 @@ export default function CreateDispatchPage() {
     staleTime: 5000,
   });
 
-  // Pre-fill next unique invoice number if draft invoice number is empty
-  useEffect(() => {
-    if (invoiceMeta?.nextInvoiceNumber && (!invoiceNumber || !invoiceNumber.trim())) {
-      setField("invoiceNumber", invoiceMeta.nextInvoiceNumber);
-    }
-  }, [invoiceMeta, invoiceNumber, setField]);
-
   const handleGenerateUniqueInvoice = () => {
     if (invoiceMeta?.nextInvoiceNumber) {
       setField("invoiceNumber", invoiceMeta.nextInvoiceNumber);
       handleInputChange("invoiceNumber", invoiceMeta.nextInvoiceNumber);
-      toast.success(`Assigned unique invoice: ${invoiceMeta.nextInvoiceNumber}`);
+      toast.success(`Suggested invoice number: ${invoiceMeta.nextInvoiceNumber}`);
     } else {
       refetchInvoiceMeta().then((res) => {
         if (res.data?.nextInvoiceNumber) {
           setField("invoiceNumber", res.data.nextInvoiceNumber);
           handleInputChange("invoiceNumber", res.data.nextInvoiceNumber);
-          toast.success(`Assigned unique invoice: ${res.data.nextInvoiceNumber}`);
+          toast.success(`Suggested invoice number: ${res.data.nextInvoiceNumber}`);
         }
       });
     }
@@ -1664,12 +1659,12 @@ export default function CreateDispatchPage() {
   const validateForm = React.useCallback(() => {
     const errors: Record<string, string> = {};
 
-    // 1. Invoice Number: Text/Alphanumeric. Minimum 1 character. No special characters except '-' and '/'.
+    // 1. Invoice Number: Text/Alphanumeric. Minimum 1 character. Allow hyphens, slashes, dots, hashes, and spaces.
     const inv = invoiceNumber.trim();
     if (!inv) {
       errors.invoiceNumber = "Invoice Number is required.";
-    } else if (!/^[A-Za-z0-9\-\/]+$/.test(inv)) {
-      errors.invoiceNumber = "Only alphanumeric characters, '-' and '/' are allowed.";
+    } else if (!/^[A-Za-z0-9\-\/\.\s_#]+$/.test(inv)) {
+      errors.invoiceNumber = "Only alphanumeric characters, '-', '/', '.', '#', and spaces are allowed.";
     } else {
       const invLower = inv.toLowerCase();
       const isDuplicateInDispatches = existingDispatches.some((d: any) => {
@@ -1681,7 +1676,7 @@ export default function CreateDispatchPage() {
       );
 
       if (isDuplicateInDispatches || isDuplicateInInvoices) {
-        errors.invoiceNumber = "This invoice is already exist.";
+        errors.invoiceNumber = "This invoice already exists.";
       }
     }
 
@@ -2819,10 +2814,10 @@ export default function CreateDispatchPage() {
                   cursor: "pointer",
                   transition: "all 0.15s ease",
                 }}
-                title="Generate next guaranteed unique invoice number"
+                title="Click to auto-generate a unique invoice number suggestion"
               >
                 <RotateCcw size={11} />
-                Generate Unique #
+                Auto-Suggest #
               </button>
             </div>
             <div style={{ position: "relative" }}>
@@ -2831,7 +2826,7 @@ export default function CreateDispatchPage() {
                 value={invoiceNumber}
                 onChange={(e) => handleInputChange("invoiceNumber", e.target.value)}
                 className={styles.formInput}
-                placeholder="e.g. INV-2026-001"
+                placeholder="Enter manual invoice number (e.g. 0494, INV/2627/0494)"
                 style={{
                   borderColor:
                     (touchedFields.invoiceNumber || invoiceNumber) && fieldErrors.invoiceNumber
@@ -2853,7 +2848,7 @@ export default function CreateDispatchPage() {
                     fontSize: 14,
                     fontWeight: 800,
                   }}
-                  title="Unique invoice number"
+                  title="Invoice number entered"
                 >
                   ✓
                 </span>
@@ -2876,7 +2871,7 @@ export default function CreateDispatchPage() {
             )}
             {!fieldErrors.invoiceNumber && invoiceNumber && (
               <span style={{ color: "#16a34a", fontSize: "11.5px", marginTop: "4px", display: "flex", alignItems: "center", gap: "4px", fontWeight: 600 }}>
-                ✓ Guaranteed unique invoice number
+                ✓ Manual invoice number entered
               </span>
             )}
           </div>

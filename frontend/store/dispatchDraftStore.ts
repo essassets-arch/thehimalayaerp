@@ -68,6 +68,7 @@ export interface DispatchDraftState {
     salesOrderItemId?: string | null;
     workOrderId?: string | null;
     deliveryAddress?: string | null;
+    invoiceNumber?: string | null;
   }) => void;
 }
 
@@ -375,6 +376,11 @@ export const useDispatchDraftStore = create<DispatchDraftState>()(
         const updates: Partial<DispatchDraftState> = {};
         if (params.salesOrderId && params.salesOrderId !== state.salesOrderId) {
           updates.salesOrderId = params.salesOrderId;
+          // Clear previous order's invoice number so new order starts clean for manual entry
+          updates.invoiceNumber = params.invoiceNumber || "";
+          updates.challanNumber = "";
+        } else if (params.invoiceNumber && !state.invoiceNumber) {
+          updates.invoiceNumber = params.invoiceNumber;
         }
         if (params.orderNumber && params.orderNumber !== state.orderNumber) {
           updates.orderNumber = params.orderNumber;
