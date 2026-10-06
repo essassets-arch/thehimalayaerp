@@ -15,13 +15,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Determine SSH Configuration
+        id: ssh-config
+        run: |
+          PORT="${{ secrets.VPS_PORT }}"
+          if [ -z "$PORT" ]; then
+            PORT="22"
+          fi
+          echo "port=$PORT" >> "$GITHUB_OUTPUT"
+
       - name: Execute remote deployment script over SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
+          port: ${{ steps.ssh-config.outputs.port }}
           script: |
             TARGET_DIR=""
             for dir in \
@@ -30,8 +39,10 @@ jobs:
               "$HOME/the_himalaya_erp" \
               "/home/himalay/the_himalaya_erp" \
               "/home/himalaya/the_himalaya_erp" \
-              "/opt/himalaya-erp"; do
-              if [ -d "$dir" ]; then
+              "/opt/himalaya-erp" \
+              /home/*/the_himalaya_erp \
+              /home/*/*/the_himalaya_erp; do
+              if [ -d "$dir" ] && [ -f "$dir/scripts/deploy-vps.sh" ]; then
                 TARGET_DIR="$dir"
                 break
               fi
