@@ -244,11 +244,13 @@ export default function ProductionFloorPage() {
   // Resolve product name helper
   const getProductName = (job: any) => {
     return (
+      (job.productName && job.productName !== 'FRP High Grade Product' ? job.productName : null) ||
       job.salesOrderItem?.productNameSnapshot ||
       job.salesOrderItem?.product?.name ||
-      job.productName ||
-      job.product ||
-      'FRP High Grade Product'
+      job.FinishedGoods?.product?.name ||
+      job.finishedGoods?.product?.name ||
+      (job.product && job.product !== 'FRP High Grade Product' ? job.product : null) ||
+      'Production Item'
     );
   };
 
@@ -350,13 +352,24 @@ export default function ProductionFloorPage() {
 
       const resolvedSoNumber = soNumber || matchedSO?.orderNumber || (job.workOrderNumber ? `SO-2026-${job.workOrderNumber.replace(/\D/g, '').slice(-5).padStart(5, '0')}` : 'SO-2026-00001');
 
+      const soCustomer = job.productionPlan?.salesOrder?.customer || matchedSO?.customer;
+      const soLead =
+        job.productionPlan?.salesOrder?.sourceQuotation?.lead ||
+        job.productionPlan?.salesOrder?.quotation?.lead ||
+        matchedSO?.sourceQuotation?.lead ||
+        matchedSO?.quotation?.lead;
+
       const customerName =
-        job.customerName ||
-        job.productionPlan?.salesOrder?.customer?.companyName ||
-        matchedSO?.customerName ||
-        matchedSO?.customer?.companyName ||
-        matchedSO?.customer?.name ||
-        'Standard Production';
+        (job.customerName && job.customerName !== 'Standard Production' && job.customerName.trim()) ||
+        (soCustomer?.companyName && soCustomer.companyName.trim()) ||
+        (soLead?.groupName && soLead.groupName.trim()) ||
+        (soLead?.projectName && soLead.projectName.trim()) ||
+        (soLead?.companyName && soLead.companyName.trim()) ||
+        (matchedSO?.customerName && matchedSO.customerName.trim()) ||
+        (soCustomer?.name && soCustomer.name.trim()) ||
+        (soCustomer?.contactPerson && soCustomer.contactPerson.trim()) ||
+        (soLead?.contactPerson && soLead.contactPerson.trim()) ||
+        'Customer Order';
 
       const enrichedJob = {
         ...job,
@@ -493,7 +506,7 @@ export default function ProductionFloorPage() {
 
   const handleOpenItemModal = (job: FloorWorkOrder) => {
     const rawSo = (job as any).resolvedSoNumber || job.productionPlan?.salesOrder?.orderNumber || job.workOrderNumber;
-    const customerName = (job as any).resolvedCustomer || job.productionPlan?.salesOrder?.customer?.companyName || 'Standard Production';
+    const customerName = (job as any).resolvedCustomer || job.productionPlan?.salesOrder?.customer?.companyName || 'Customer Order';
     const rawSO = (job as any).matchedSalesOrder || job.productionPlan?.salesOrder;
     const cust = rawSO?.customer;
 

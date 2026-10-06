@@ -126,13 +126,25 @@ export default function WorkOrderListPage() {
               String(so.id) === String(wo.productionPlan?.salesOrderId)
             );
 
+          const soCustomer = wo.productionPlan?.salesOrder?.customer || matchedSO?.customer;
+          const soLead =
+            wo.productionPlan?.salesOrder?.sourceQuotation?.lead ||
+            wo.productionPlan?.salesOrder?.quotation?.lead ||
+            matchedSO?.sourceQuotation?.lead ||
+            matchedSO?.quotation?.lead;
+
           const customerName =
-            wo.customerName ||
-            wo.productionPlan?.salesOrder?.customer?.companyName ||
-            matchedSO?.customerName ||
-            matchedSO?.customer?.companyName ||
-            matchedSO?.customer?.name ||
-            'Standard Production';
+            (wo.customerName && wo.customerName !== 'Standard Production' && wo.customerName.trim()) ||
+            (soCustomer?.companyName && soCustomer.companyName.trim()) ||
+            (soLead?.groupName && soLead.groupName.trim()) ||
+            (soLead?.projectName && soLead.projectName.trim()) ||
+            (soLead?.companyName && soLead.companyName.trim()) ||
+            (soLead?.customerName && soLead.customerName.trim()) ||
+            (matchedSO?.customerName && matchedSO.customerName.trim()) ||
+            (soCustomer?.name && soCustomer.name.trim()) ||
+            (soCustomer?.contactPerson && soCustomer.contactPerson.trim()) ||
+            (soLead?.contactPerson && soLead.contactPerson.trim()) ||
+            'Customer Order';
 
           return {
             ...wo,
@@ -220,11 +232,20 @@ export default function WorkOrderListPage() {
   // Product name helper
   const getProductName = (wo: any) => {
     return (
+      (wo.productName && wo.productName !== 'FRP High Grade Product' ? wo.productName : null) ||
       wo.salesOrderItem?.productNameSnapshot ||
       wo.salesOrderItem?.product?.name ||
-      wo.productName ||
-      wo.product ||
-      'FRP High Grade Product'
+      wo.FinishedGoods?.product?.name ||
+      wo.finishedGoods?.product?.name ||
+      wo.matchedSalesOrder?.items?.find((i: any) => i.id === wo.salesOrderItemId)?.productNameSnapshot ||
+      wo.matchedSalesOrder?.items?.find((i: any) => i.id === wo.salesOrderItemId)?.product?.name ||
+      (wo.FinishedGoods?.productId && wo.matchedSalesOrder?.items?.find((i: any) => i.productId === wo.FinishedGoods.productId)?.productNameSnapshot) ||
+      (wo.FinishedGoods?.productId && wo.matchedSalesOrder?.items?.find((i: any) => i.productId === wo.FinishedGoods.productId)?.product?.name) ||
+      (wo.matchedSalesOrder?.items?.length === 1 ? (wo.matchedSalesOrder.items[0].productNameSnapshot || wo.matchedSalesOrder.items[0].product?.name) : null) ||
+      (wo.productionPlan?.salesOrder?.items?.length === 1 ? (wo.productionPlan.salesOrder.items[0].productNameSnapshot || wo.productionPlan.salesOrder.items[0].product?.name) : null) ||
+      (wo.productionPlan?.salesOrder?.items?.[0]?.productNameSnapshot || wo.productionPlan?.salesOrder?.items?.[0]?.product?.name) ||
+      (wo.product && wo.product !== 'FRP High Grade Product' ? wo.product : null) ||
+      'Production Item'
     );
   };
 
@@ -239,7 +260,7 @@ export default function WorkOrderListPage() {
         groups[orderKey] = {
           orderKey,
           salesOrderNumber: orderKey,
-          customerName: wo.resolvedCustomer || 'Standard Production',
+          customerName: (wo.resolvedCustomer && wo.resolvedCustomer !== 'Standard Production' ? wo.resolvedCustomer : 'Customer Order'),
           targetDate: getDisplayDate(wo),
           priority: wo.priority || 'Medium',
           items: [],

@@ -73,6 +73,8 @@ const resolveOrderCustomerName = (o) => {
     o.sourceQuotation?.lead ||
     o.quotation?.lead;
   const leadName =
+    (lead?.groupName && lead.groupName.trim()) ||
+    (lead?.projectName && lead.projectName.trim()) ||
     lead?.companyName ||
     lead?.customerName ||
     lead?.name ||
@@ -2088,7 +2090,7 @@ export default function ProductionPortal() {
 
       if (isStartedOrDone && !historyMap.has(key)) {
         const items = (Array.isArray(salesOrder.items) ? salesOrder.items : []).filter(i => !isTradingProduct(i));
-        const prodName = bwo.salesOrderItem?.product?.name || bwo.salesOrderItem?.productNameSnapshot || bwo.productName || (items.length ? items.map(i => i.productName || i.name).filter(Boolean).join(', ') : 'Production Item');
+        const prodName = bwo.salesOrderItem?.product?.name || bwo.salesOrderItem?.productNameSnapshot || bwo.productName || bwo.FinishedGoods?.product?.name || bwo.finishedGoods?.product?.name || (items.length ? items.map(i => i.productName || i.name).filter(Boolean).join(', ') : 'Production Item');
         const targetQty = Number(bwo.quantity || bwo.targetQuantity || bwo.salesOrderItem?.orderedQuantity || salesOrder.totalQuantity || 0);
 
         historyMap.set(key, {
@@ -2197,7 +2199,7 @@ export default function ProductionPortal() {
       const key = String(salesOrder.orderNumber || salesOrder.orderNo || bwo.orderNo || bwo.orderNumber || bwo.id || '');
       if (key && !acceptedKeys.has(key) && !pendingCandidatesMap.has(key)) {
         const items = (Array.isArray(salesOrder.items) ? salesOrder.items : []).filter(i => !isTradingProduct(i));
-        const prodName = bwo.salesOrderItem?.product?.name || bwo.salesOrderItem?.productNameSnapshot || bwo.productName || (items.length ? items.map(i => i.productName || i.name).filter(Boolean).join(', ') : 'Production Item');
+        const prodName = bwo.salesOrderItem?.product?.name || bwo.salesOrderItem?.productNameSnapshot || bwo.productName || bwo.FinishedGoods?.product?.name || bwo.finishedGoods?.product?.name || (items.length ? items.map(i => i.productName || i.name).filter(Boolean).join(', ') : 'Production Item');
         const targetQty = Number(bwo.quantity || bwo.targetQuantity || bwo.salesOrderItem?.orderedQuantity || salesOrder.totalQuantity || 0) || 1;
         pendingCandidatesMap.set(key, {
           id: bwo.id || salesOrder.id || key,
@@ -3592,7 +3594,7 @@ export default function ProductionPortal() {
     workOrders.forEach(wo => {
       const orderKey = wo.orderNo || wo.orderId || wo.id || 'SO-UNASSIGNED';
       const matchedOrder = orders.find(o => String(o.orderNo) === String(orderKey) || String(o.id) === String(orderKey) || String(o.order_no) === String(orderKey));
-      const customerName = matchedOrder?.customerName || matchedOrder?.customer?.companyName || matchedOrder?.customer?.name || matchedOrder?.companyName || wo.customerName || 'Standard Production';
+      const customerName = resolveOrderCustomerName(matchedOrder) || resolveOrderCustomerName(wo) || (matchedOrder?.customerName && matchedOrder.customerName.trim()) || (wo.customerName && wo.customerName.trim()) || 'Customer Order';
 
       if (!groupedOrdersMap[orderKey]) {
         groupedOrdersMap[orderKey] = {
@@ -3711,7 +3713,7 @@ export default function ProductionPortal() {
                       {group.items.map((row, idx) => (
                         <tr key={row.id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '10px 16px', color: '#94a3b8', fontWeight: '700' }}>{idx + 1}</td>
-                          <td style={{ padding: '10px 16px', fontWeight: '700', color: '#0f172a' }}>{row.productName || 'Product Item'}</td>
+                          <td style={{ padding: '10px 16px', fontWeight: '700', color: '#0f172a' }}>{row.productName || row.product || row.FinishedGoods?.product?.name || 'Production Item'}</td>
                           <td style={{ padding: '10px 16px', fontFamily: 'monospace', fontSize: '11px', color: '#475569' }}>{row.workOrderNumber || '—'}</td>
                           <td style={{ padding: '10px 16px', textAlign: 'center' }}>
                             <span style={{ border: '1.5px solid #0284c7', borderRadius: '6px', padding: '3px 8px', color: '#0284c7', fontWeight: '900', background: '#f0f9ff', fontSize: '12px' }}>

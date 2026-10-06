@@ -153,6 +153,9 @@ export function mapSalesOrder(
       : (latestReplacement.dispatchStatus ?? latestReplacement.status)
     : undefined;
     const leadName =
+      (order as any).quotation?.lead?.groupName ||
+      (order as any).sourceQuotation?.lead?.groupName ||
+      (order as any).lead?.groupName ||
       (order as any).quotation?.lead?.companyName ||
       (order as any).quotation?.lead?.projectName ||
       (order as any).quotation?.lead?.name ||

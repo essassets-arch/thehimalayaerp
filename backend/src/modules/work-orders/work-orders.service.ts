@@ -109,6 +109,9 @@ export class WorkOrdersService {
         salesOrderItem: {
           include: { dispatchItems: true, product: true },
         },
+        FinishedGoods: {
+          include: { product: true },
+        },
         qcInspections: {
           where: { status: 'APPROVED' },
           orderBy: [{ approvedAt: 'desc' }, { createdAt: 'desc' }],
@@ -118,17 +121,59 @@ export class WorkOrdersService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return workOrders.filter((wo) => {
-      const prod = wo.salesOrderItem?.product;
-      if (isTradingProduct(prod, wo.salesOrderItem)) return false;
-      if (wo.productionPlan?.salesOrder && isPureTradingOrder(wo.productionPlan.salesOrder)) return false;
-      return true;
-    });
+    return workOrders
+      .filter((wo) => {
+        const prod = wo.salesOrderItem?.product || (wo as any).FinishedGoods?.product;
+        if (isTradingProduct(prod, wo.salesOrderItem)) return false;
+        if (wo.productionPlan?.salesOrder && isPureTradingOrder(wo.productionPlan.salesOrder)) return false;
+        return true;
+      })
+      .map((wo: any) => {
+        const so = wo.productionPlan?.salesOrder;
+        const lead = so?.sourceQuotation?.lead || so?.quotation?.lead;
+        const customer = so?.customer;
+
+        const resolvedCustomer =
+          (customer?.companyName && customer.companyName.trim()) ||
+          (lead?.groupName && lead.groupName.trim()) ||
+          (lead?.projectName && lead.projectName.trim()) ||
+          (lead?.companyName && lead.companyName.trim()) ||
+          (customer?.name && customer.name.trim()) ||
+          (customer?.contactPerson && customer.contactPerson.trim()) ||
+          (lead?.contactPerson && lead.contactPerson.trim()) ||
+          (so?.customerName && so.customerName.trim()) ||
+          'Customer Order';
+
+        const matchedItem =
+          (wo.salesOrderItemId && so?.items?.find((i: any) => i.id === wo.salesOrderItemId)) ||
+          wo.salesOrderItem ||
+          (wo.FinishedGoods?.productId && so?.items?.find((i: any) => i.productId === wo.FinishedGoods.productId)) ||
+          (so?.items?.length === 1 ? so.items[0] : null);
+
+        const resolvedProductName =
+          wo.salesOrderItem?.productNameSnapshot ||
+          wo.salesOrderItem?.product?.name ||
+          wo.FinishedGoods?.product?.name ||
+          matchedItem?.productNameSnapshot ||
+          matchedItem?.product?.name ||
+          so?.items?.[0]?.productNameSnapshot ||
+          so?.items?.[0]?.product?.name ||
+          lead?.productInterest ||
+          'Production Item';
+
+        return {
+          ...wo,
+          productName: resolvedProductName,
+          customerName: resolvedCustomer,
+          resolvedCustomer,
+          resolvedSoNumber: so?.orderNumber || (wo.workOrderNumber ? `SO-2026-${wo.workOrderNumber.replace(/\D/g, '').slice(-5).padStart(5, '0')}` : 'SO-2026-00001'),
+        };
+      });
   }
 
   async getWorkOrder(id: string, userId?: string, role?: string) {
     const scope = getSalesScope(userId, role, 'WorkOrder');
-    const wo = await this.prisma.workOrder.findFirst({
+    const wo: any = await this.prisma.workOrder.findFirst({
       where: { id, ...scope },
       include: {
         productionPlan: {
@@ -146,12 +191,54 @@ export class WorkOrdersService {
         salesOrderItem: {
           include: { product: true },
         },
+        FinishedGoods: {
+          include: { product: true },
+        },
         workflowState: true,
         productionBatches: true,
       },
     });
     if (!wo) throw new NotFoundException('Work Order not found');
-    return wo;
+
+    const so = wo.productionPlan?.salesOrder;
+    const lead = so?.sourceQuotation?.lead || so?.quotation?.lead;
+    const customer = so?.customer;
+
+    const resolvedCustomer =
+      (customer?.companyName && customer.companyName.trim()) ||
+      (lead?.groupName && lead.groupName.trim()) ||
+      (lead?.projectName && lead.projectName.trim()) ||
+      (lead?.companyName && lead.companyName.trim()) ||
+      (customer?.name && customer.name.trim()) ||
+      (customer?.contactPerson && customer.contactPerson.trim()) ||
+      (lead?.contactPerson && lead.contactPerson.trim()) ||
+      (so?.customerName && so.customerName.trim()) ||
+      'Customer Order';
+
+    const matchedItem =
+      (wo.salesOrderItemId && so?.items?.find((i: any) => i.id === wo.salesOrderItemId)) ||
+      wo.salesOrderItem ||
+      (wo.FinishedGoods?.productId && so?.items?.find((i: any) => i.productId === wo.FinishedGoods.productId)) ||
+      (so?.items?.length === 1 ? so.items[0] : null);
+
+    const resolvedProductName =
+      wo.salesOrderItem?.productNameSnapshot ||
+      wo.salesOrderItem?.product?.name ||
+      wo.FinishedGoods?.product?.name ||
+      matchedItem?.productNameSnapshot ||
+      matchedItem?.product?.name ||
+      so?.items?.[0]?.productNameSnapshot ||
+      so?.items?.[0]?.product?.name ||
+      lead?.productInterest ||
+      'Production Item';
+
+    return {
+      ...wo,
+      productName: resolvedProductName,
+      customerName: resolvedCustomer,
+      resolvedCustomer,
+      resolvedSoNumber: so?.orderNumber,
+    };
   }
 
   async processAction(

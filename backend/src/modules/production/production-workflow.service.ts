@@ -159,6 +159,11 @@ export class ProductionWorkflowService {
         orderBy: { updatedAt: 'desc' },
         include: {
           workflowState: true,
+          FinishedGoods: {
+            include: {
+              product: true,
+            },
+          },
           productionPlan: {
             include: {
               salesOrder: {
@@ -193,34 +198,52 @@ export class ProductionWorkflowService {
         const orderId = salesOrder.id || plan.salesOrderId || woAny.id;
         const lead = salesOrder.sourceQuotation?.lead || salesOrder.quotation?.lead;
         const leadCustomer =
-          lead?.companyName ||
-          lead?.customerName ||
-          lead?.name ||
-          lead?.projectName ||
-          lead?.contactPerson;
+          (lead?.groupName && lead.groupName.trim()) ||
+          (lead?.projectName && lead.projectName.trim()) ||
+          (lead?.companyName && lead.companyName.trim()) ||
+          (lead?.customerName && lead.customerName.trim()) ||
+          (lead?.name && lead.name.trim()) ||
+          (lead?.contactPerson && lead.contactPerson.trim());
         const directCustomer =
-          salesOrder.customer?.companyName ||
-          salesOrder.customer?.name ||
-          salesOrder.customer?.contactPerson;
+          (salesOrder.customer?.companyName && salesOrder.customer.companyName.trim()) ||
+          (salesOrder.customer?.name && salesOrder.customer.name.trim()) ||
+          (salesOrder.customer?.contactPerson && salesOrder.customer.contactPerson.trim());
         const resolvedCustomer =
-          salesOrder.customerName ||
-          salesOrder.customer_name ||
+          (salesOrder.customerName && salesOrder.customerName.trim()) ||
+          (salesOrder.customer_name && salesOrder.customer_name.trim()) ||
           (salesOrder.quotationId || salesOrder.sourceQuotationId
             ? leadCustomer || directCustomer
             : directCustomer || leadCustomer) ||
-          salesOrder.companyName ||
-          salesOrder.clientName ||
-          'N/A';
+          leadCustomer ||
+          directCustomer ||
+          (salesOrder.companyName && salesOrder.companyName.trim()) ||
+          (salesOrder.clientName && salesOrder.clientName.trim()) ||
+          'Customer Order';
 
         const bwoStatus = String(woAny.workflowState?.code || woAny.status || woAny.productionStatus || '').toUpperCase();
         const isReject = bwoStatus.includes('REJECT') || bwoStatus.includes('CANCEL');
         const isStartedOrDone = isActuallyInProductionOrDone(bwoStatus, woAny);
 
-        const salesItem = salesOrder.items?.find((item: any) => item.id === woAny.salesOrderItemId) || woAny.salesOrderItem;
-        if (isPureTradingOrder(salesOrder) || isTradingProduct(salesItem?.product || woAny.salesOrderItem?.product, salesItem || woAny.salesOrderItem)) {
+        const salesItem =
+          (woAny.salesOrderItemId && salesOrder.items?.find((item: any) => item.id === woAny.salesOrderItemId)) ||
+          woAny.salesOrderItem ||
+          (woAny.FinishedGoods?.productId && salesOrder.items?.find((item: any) => item.productId === woAny.FinishedGoods.productId)) ||
+          (salesOrder.items?.length === 1 ? salesOrder.items[0] : null);
+
+        if (isPureTradingOrder(salesOrder) || isTradingProduct(salesItem?.product || woAny.salesOrderItem?.product || woAny.FinishedGoods?.product, salesItem || woAny.salesOrderItem)) {
           continue;
         }
-        const productName = salesItem?.productNameSnapshot || salesItem?.product?.name || woAny.salesOrderItem?.product?.name || 'Production Item';
+
+        const productName =
+          woAny.salesOrderItem?.productNameSnapshot ||
+          woAny.salesOrderItem?.product?.name ||
+          woAny.FinishedGoods?.product?.name ||
+          salesItem?.productNameSnapshot ||
+          salesItem?.product?.name ||
+          salesOrder.items?.[0]?.productNameSnapshot ||
+          salesOrder.items?.[0]?.product?.name ||
+          lead?.productInterest ||
+          'Production Item';
         const itemQuantity = Number(woAny.quantity || salesItem?.orderedQuantity || 0);
 
         const targetMap = isStartedOrDone ? historyMap : pendingMap;
@@ -293,24 +316,27 @@ export class ProductionWorkflowService {
         if (!historyMap.has(orderId) && !historyMap.has(key) && !pendingMap.has(orderId) && !pendingMap.has(key)) {
           const lead = soAny.sourceQuotation?.lead || soAny.quotation?.lead;
           const leadCustomer =
-            lead?.companyName ||
-            lead?.customerName ||
-            lead?.name ||
-            lead?.projectName ||
-            lead?.contactPerson;
+            (lead?.groupName && lead.groupName.trim()) ||
+            (lead?.projectName && lead.projectName.trim()) ||
+            (lead?.companyName && lead.companyName.trim()) ||
+            (lead?.customerName && lead.customerName.trim()) ||
+            (lead?.name && lead.name.trim()) ||
+            (lead?.contactPerson && lead.contactPerson.trim());
           const directCustomer =
-            soAny.customer?.companyName ||
-            soAny.customer?.name ||
-            soAny.customer?.contactPerson;
+            (soAny.customer?.companyName && soAny.customer.companyName.trim()) ||
+            (soAny.customer?.name && soAny.customer.name.trim()) ||
+            (soAny.customer?.contactPerson && soAny.customer.contactPerson.trim());
           const resolvedCustomer =
-            soAny.customerName ||
-            soAny.customer_name ||
+            (soAny.customerName && soAny.customerName.trim()) ||
+            (soAny.customer_name && soAny.customer_name.trim()) ||
             (soAny.quotationId || soAny.sourceQuotationId
               ? leadCustomer || directCustomer
               : directCustomer || leadCustomer) ||
-            soAny.companyName ||
-            soAny.clientName ||
-            'N/A';
+            leadCustomer ||
+            directCustomer ||
+            (soAny.companyName && soAny.companyName.trim()) ||
+            (soAny.clientName && soAny.clientName.trim()) ||
+            'Customer Order';
 
           const items = (Array.isArray(soAny.items) ? soAny.items : []).filter((i: any) => !isTradingProduct(i.product || i, i));
           if (items.length === 0) continue;
@@ -379,24 +405,27 @@ export class ProductionWorkflowService {
         if (!historyMap.has(soAny.id) && !historyMap.has(key) && !pendingMap.has(soAny.id) && !pendingMap.has(key)) {
           const lead = soAny.sourceQuotation?.lead || soAny.quotation?.lead;
           const leadCustomer =
-            lead?.companyName ||
-            lead?.customerName ||
-            lead?.name ||
-            lead?.projectName ||
-            lead?.contactPerson;
+            (lead?.groupName && lead.groupName.trim()) ||
+            (lead?.projectName && lead.projectName.trim()) ||
+            (lead?.companyName && lead.companyName.trim()) ||
+            (lead?.customerName && lead.customerName.trim()) ||
+            (lead?.name && lead.name.trim()) ||
+            (lead?.contactPerson && lead.contactPerson.trim());
           const directCustomer =
-            soAny.customer?.companyName ||
-            soAny.customer?.name ||
-            soAny.customer?.contactPerson;
+            (soAny.customer?.companyName && soAny.customer.companyName.trim()) ||
+            (soAny.customer?.name && soAny.customer.name.trim()) ||
+            (soAny.customer?.contactPerson && soAny.customer.contactPerson.trim());
           const resolvedCustomer =
-            soAny.customerName ||
-            soAny.customer_name ||
+            (soAny.customerName && soAny.customerName.trim()) ||
+            (soAny.customer_name && soAny.customer_name.trim()) ||
             (soAny.quotationId || soAny.sourceQuotationId
               ? leadCustomer || directCustomer
               : directCustomer || leadCustomer) ||
-            soAny.companyName ||
-            soAny.clientName ||
-            'N/A';
+            leadCustomer ||
+            directCustomer ||
+            (soAny.companyName && soAny.companyName.trim()) ||
+            (soAny.clientName && soAny.clientName.trim()) ||
+            'Customer Order';
 
           const items = (Array.isArray(soAny.items) ? soAny.items : []).filter((i: any) => !isTradingProduct(i.product || i, i));
           if (items.length === 0) continue;

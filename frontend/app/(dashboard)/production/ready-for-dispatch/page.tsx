@@ -153,11 +153,13 @@ export default function ReadyForDispatchPage() {
 
   const getProductName = (job: ReadyJob) => {
     return (
+      (job.productName && job.productName !== 'FRP High Grade Product' ? job.productName : null) ||
       job.salesOrderItem?.productNameSnapshot ||
       job.salesOrderItem?.product?.name ||
-      job.productName ||
-      job.product ||
-      'FRP High Grade Product'
+      (job as any).FinishedGoods?.product?.name ||
+      (job as any).finishedGoods?.product?.name ||
+      (job.product && job.product !== 'FRP High Grade Product' ? job.product : null) ||
+      'Production Item'
     );
   };
 
@@ -237,6 +239,7 @@ export default function ReadyForDispatchPage() {
       const leadObj = so?.quotation?.lead || so?.sourceQuotation?.lead || job.quotation?.lead || job.sourceQuotation?.lead;
       const customerObj = so?.customer || job.customer || {};
       const customerName =
+        (leadObj?.groupName && leadObj.groupName.trim()) ||
         customerObj.companyName ||
         customerObj.name ||
         leadObj?.companyName ||
