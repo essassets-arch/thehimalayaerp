@@ -45,6 +45,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const badges = useBadgeStore((s: any) => s.badges);
 
+  const isDispatchPanel = Boolean(
+    pathname?.startsWith('/dispatch') ||
+    pathname?.startsWith('/dispatch-2') ||
+    pathname?.includes('/dispatch') ||
+    String(user?.role || '').toLowerCase().includes('dispatch') ||
+    String((user as any)?.department || '').toLowerCase().includes('dispatch')
+  );
+
   const getBadgeKey = (itemId: string, role: string) => {
     let prefix = String(role).toLowerCase().replace(/\s+/g, '_');
     if (prefix === 'plant_head') prefix = 'plant';
@@ -169,8 +177,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Dynamic Toast notifications */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
-      {/* Mandatory Security & Compliance Modal for Notifications & Location */}
-      <MandatoryPermissionsModal />
+      {/* Mandatory Security & Compliance Modal for Notifications & Location (exempt for dispatch panel) */}
+      {!isDispatchPanel && <MandatoryPermissionsModal />}
 
     </div>
     </LocationTrackingProvider>

@@ -55,14 +55,37 @@ const checkIsFlutterApk = (): boolean => {
 
 export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPermissionsModalProps) {
   const pathname = usePathname();
+  const { isAuthenticated, logout, user, role } = useAuthStore();
 
-  // Exempt dispatch creation routes to prevent permission prompts from disrupting operator and resetting form data
-  if (
-    pathname?.includes('/dispatch/create-dispatch') ||
-    pathname?.includes('/dispatch-2/create-dispatch') ||
-    pathname?.includes('/dispatch/create') ||
-    pathname?.includes('/dispatch-2/create')
-  ) {
+  // Exempt entire dispatch user panel and dispatch users from mandatory permissions gate.
+  // Dispatch users enter directly without any blocking permission modal. Location is handled contextually during punch in/out.
+  const isDispatchPath = Boolean(
+    pathname?.startsWith('/dispatch') ||
+    pathname?.startsWith('/dispatch-2') ||
+    pathname?.includes('/dispatch/') ||
+    pathname?.includes('/dispatch-2/') ||
+    pathname === '/dispatch' ||
+    pathname === '/dispatch-2'
+  );
+
+  const roleStr = String(role || (user as any)?.role || '').toLowerCase().trim();
+  const deptStr = String((user as any)?.department || '').toLowerCase().trim();
+  const isDispatchRole = roleStr.includes('dispatch') || deptStr.includes('dispatch');
+
+  const isDispatchStored = typeof window !== 'undefined' && (() => {
+    try {
+      const rawUser = window.localStorage.getItem('erpUser') || window.sessionStorage.getItem('erpUser');
+      if (!rawUser) return false;
+      const u = JSON.parse(rawUser);
+      const r = String(u?.role || '').toLowerCase();
+      const d = String(u?.department || '').toLowerCase();
+      return r.includes('dispatch') || d.includes('dispatch');
+    } catch {
+      return false;
+    }
+  })();
+
+  if (isDispatchPath || isDispatchRole || isDispatchStored) {
     return null;
   }
 
@@ -73,8 +96,6 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
   );
 
   if (isE2EBypass) return null;
-
-  const { isAuthenticated, logout } = useAuthStore();
 
   const [notificationState, setNotificationState] = useState<PermissionLifecycleState>('prompt');
   const [locationState, setLocationState] = useState<PermissionLifecycleState>('prompt');

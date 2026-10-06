@@ -81,6 +81,15 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
     pathname?.includes('/dispatch-2/create');
 
   const { isAuthenticated, accessToken, user } = useAuthStore();
+
+  const isDispatchPanel = Boolean(
+    pathname?.startsWith('/dispatch') ||
+    pathname?.startsWith('/dispatch-2') ||
+    pathname?.includes('/dispatch') ||
+    String((user as any)?.role || '').toLowerCase().includes('dispatch') ||
+    String((user as any)?.department || '').toLowerCase().includes('dispatch')
+  );
+  const isDispatchExempt = isDispatchCreate || isDispatchPanel;
   const [sessionId, setSessionIdState] = useState<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
 
@@ -145,7 +154,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
   }, []);
 
   const startTracking = useCallback(() => {
-    if (isDispatchCreate) return;
+    if (isDispatchExempt) return;
     if (typeof window === 'undefined' || !window.navigator.geolocation) {
       setPermissionState('UNSUPPORTED');
       syncPermission('UNSUPPORTED');
@@ -370,7 +379,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
       {children}
 
       {/* Tracking Privacy Alert / Consent Notice Modal */}
-      {showNotice && !isDispatchCreate && (
+      {showNotice && !isDispatchExempt && (
         <div style={{
           position: 'fixed',
           bottom: '24px',
