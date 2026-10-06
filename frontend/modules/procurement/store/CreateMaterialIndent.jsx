@@ -3,13 +3,14 @@ import { createMaterialIndent } from '../../../store/procurementActions';
 import { Package, Plus, Trash2, Calendar, MapPin, Send, CheckCircle2 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useERPStore } from '../../../store/erpStore';
+import { resolveMaterialUnit } from '../../../shared/utils/unitResolver';
 
 /** Returns true when an id looks like a real DB UUID (not a dummy placeholder). */
 const isRealId = (id) => id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 export default function CreateMaterialIndent() {
   const [items, setItems] = useState([
-    { id: 1, materialId: '', materialName: '', quantity: '', unit: 'Nos', reason: '' }
+    { id: 1, materialId: '', materialName: '', quantity: '', unit: '', reason: '' }
   ]);
   const [department, setDepartment] = useState('Production');
   const [requiredDate, setRequiredDate] = useState(() => {
@@ -32,7 +33,7 @@ export default function CreateMaterialIndent() {
   }, [warehouses, warehouseId]);
 
   const handleAddItem = () => {
-    setItems([...items, { id: Date.now(), materialId: '', materialName: '', quantity: '', unit: 'Nos', reason: '' }]);
+    setItems([...items, { id: Date.now(), materialId: '', materialName: '', quantity: '', unit: '', reason: '' }]);
   };
 
   const handleRemoveItem = (id) => {
@@ -48,7 +49,7 @@ export default function CreateMaterialIndent() {
           const invItem = inventory.find(i => i.id === value);
           if (invItem) {
             updated.materialName = invItem.material || 'Selected Material';
-            updated.unit = invItem.unit || 'Nos';
+            updated.unit = resolveMaterialUnit(invItem);
           }
         }
         return updated;
@@ -79,7 +80,7 @@ export default function CreateMaterialIndent() {
         icon: 'success',
         confirmButtonColor: '#2F4375'
       });
-      setItems([{ id: 1, materialId: '', materialName: '', quantity: '', unit: 'Nos', reason: '' }]);
+      setItems([{ id: 1, materialId: '', materialName: '', quantity: '', unit: '', reason: '' }]);
       setRequiredDate('');
       setWarehouseId(warehouses[0]?.id || '');
     } catch (err) {
@@ -337,7 +338,7 @@ export default function CreateMaterialIndent() {
                     <label style={{...labelStyle, fontSize: '11px'}}>Unit of Measure</label>
                     <input
                       type="text"
-                      placeholder="Nos"
+                      placeholder="—"
                       value={item.unit}
                       style={{ ...inputStyle, background: '#f1f5f9', cursor: 'not-allowed', color: '#64748b', fontWeight: '600' }}
                       readOnly

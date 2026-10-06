@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { useERPStore } from '../../../store/erpStore';
 import { purchaseIndentService } from '../../../services/procurement/purchaseIndentService';
+import { resolveMaterialUnit } from '../../../shared/utils/unitResolver';
 
 const STATUS_COLORS = {
   'PENDING_PLANT_HEAD_APPROVAL': { bg: '#FEF3C7', color: '#92400E', label: 'Pending Approval' },
@@ -322,7 +323,7 @@ export default function IndentHistory({ hideHeader = false } = {}) {
                                       <td style={{ ...tdStyle, padding: '8px 12px', color: '#5E6B82' }}>{idx + 1}</td>
                                       <td style={{ ...tdStyle, padding: '8px 12px', fontWeight: 600 }}>{item.product?.name || item.materialName || item.materialId || '—'}</td>
                                       <td style={{ ...tdStyle, padding: '8px 12px' }}>{item.quantity || '—'}</td>
-                                      <td style={{ ...tdStyle, padding: '8px 12px' }}>{item.unit || 'Nos'}</td>
+                                      <td style={{ ...tdStyle, padding: '8px 12px' }}>{resolveMaterialUnit(item)}</td>
                                       <td style={{ ...tdStyle, padding: '8px 12px', color: '#5E6B82' }}>{item.reason || '—'}</td>
                                     </tr>
                                   ))}
@@ -450,7 +451,7 @@ export default function IndentHistory({ hideHeader = false } = {}) {
                                 #{idx + 1} {item.product?.name || item.materialName || item.materialId || 'Material Item'}
                               </div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', fontSize: '11.5px' }}>
-                                <span>Quantity: <strong style={{ color: '#0369a1' }}>{item.quantity || '—'} {item.unit || 'Nos'}</strong></span>
+                                <span>Quantity: <strong style={{ color: '#0369a1' }}>{item.quantity || '—'} {resolveMaterialUnit(item)}</strong></span>
                                 {item.reason && <span style={{ fontStyle: 'italic' }}>{item.reason}</span>}
                               </div>
                             </div>

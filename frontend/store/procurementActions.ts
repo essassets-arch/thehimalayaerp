@@ -261,7 +261,9 @@ export async function createMaterialIndent(data: any, actorName: string) {
       productId: it.materialId || it.productId || null,
       quantity: Number(it.quantity || it.requestedQuantity || it.requiredQuantity || 0),
       estimatedUnitRate: Number(it.rate || it.unitPrice || 0),
-      lineRemarks: it.reason || it.remarks || ''
+      lineRemarks: it.reason || it.remarks || '',
+      unit: it.unit || it.uom || null,
+      uom: it.unit || it.uom || null
     }))
   };
 

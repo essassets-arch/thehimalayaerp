@@ -6,6 +6,7 @@ import { Package, CheckCircle, XCircle, ArrowLeft, Clock, AlertCircle, ShieldChe
 import Swal from 'sweetalert2';
 import { backendFetch } from '../../../lib/backendFetch';
 import { purchaseIndentService } from '../../../services/procurement/purchaseIndentService';
+import { resolveMaterialUnit } from '../../../shared/utils/unitResolver';
 
 const EMPTY_INDENTS = [];
 
@@ -166,7 +167,7 @@ export default function MaterialIndentApproval() {
         materialId: indent.materialId || indent.materialCode || '',
         materialName: indent.materialName || 'Material',
         quantity: indent.requiredQuantity || indent.quantity || 0,
-        unit: indent.unit || 'PCS'
+        unit: resolveMaterialUnit(indent, 'PCS')
       }
     ];
     items.forEach((item, idx) => {
@@ -204,7 +205,7 @@ export default function MaterialIndentApproval() {
         materialId: selectedIndent.materialId || selectedIndent.materialCode || '',
         materialName: selectedIndent.materialName || 'Material',
         quantity: selectedIndent.requiredQuantity || selectedIndent.quantity || 0,
-        unit: selectedIndent.unit || 'PCS'
+        unit: resolveMaterialUnit(selectedIndent, 'PCS')
       }
     ];
 
@@ -675,7 +676,7 @@ export default function MaterialIndentApproval() {
                         const items = indent.items || [];
                         const displayMaterial = indent.materialName || items[0]?.product?.name || (items[0]?.materialName) || 'Material';
                         const reqQty = indent.requiredQuantity || indent.quantity || (items[0]?.quantity) || 0;
-                        const unit = indent.unit || (items[0]?.unit) || 'PCS';
+                        const unit = resolveMaterialUnit(items[0] || indent, 'PCS');
                         const isHigh = (indent.priority || '').toUpperCase() === 'HIGH' || (indent.priority || '').toUpperCase() === 'URGENT';
                         const isNewlyApproved = indent.id === newlyApprovedId;
 
@@ -815,7 +816,7 @@ export default function MaterialIndentApproval() {
                     const items = indent.items || [];
                     const displayMaterial = indent.materialName || items[0]?.product?.name || (items[0]?.materialName) || 'Material';
                     const reqQty = indent.requiredQuantity || indent.quantity || (items[0]?.quantity) || 0;
-                    const unit = indent.unit || (items[0]?.unit) || 'PCS';
+                    const unit = resolveMaterialUnit(items[0] || indent, 'PCS');
                     const isHigh = (indent.priority || '').toUpperCase() === 'HIGH' || (indent.priority || '').toUpperCase() === 'URGENT';
                     const isNewlyApproved = indent.id === newlyApprovedId;
 
@@ -1090,15 +1091,15 @@ export default function MaterialIndentApproval() {
             }}>
               <div>
                 <span style={{ color: '#94A3B8', fontWeight: 800, fontSize: '10px', textTransform: 'uppercase', display: 'block' }}>Current Stock</span>
-                <span style={{ fontWeight: 900, color: '#1E293B' }}>{selectedIndent.currentStock ?? 0} {selectedIndent.unit || 'PCS'}</span>
+                <span style={{ fontWeight: 900, color: '#1E293B' }}>{selectedIndent.currentStock ?? 0} {resolveMaterialUnit(selectedIndent, 'PCS')}</span>
               </div>
               <div>
                 <span style={{ color: '#94A3B8', fontWeight: 800, fontSize: '10px', textTransform: 'uppercase', display: 'block' }}>Minimum Stock</span>
-                <span style={{ fontWeight: 900, color: '#D97706' }}>{selectedIndent.minimumStock ?? 0} {selectedIndent.unit || 'PCS'}</span>
+                <span style={{ fontWeight: 900, color: '#D97706' }}>{selectedIndent.minimumStock ?? 0} {resolveMaterialUnit(selectedIndent, 'PCS')}</span>
               </div>
               <div>
                 <span style={{ color: '#94A3B8', fontWeight: 800, fontSize: '10px', textTransform: 'uppercase', display: 'block' }}>Requested Qty</span>
-                <span style={{ fontWeight: 900, color: '#4F46E5' }}>{selectedIndent.requiredQuantity || selectedIndent.quantity || 0} {selectedIndent.unit || 'PCS'}</span>
+                <span style={{ fontWeight: 900, color: '#4F46E5' }}>{selectedIndent.requiredQuantity || selectedIndent.quantity || 0} {resolveMaterialUnit(selectedIndent, 'PCS')}</span>
               </div>
               <div>
                 <span style={{ color: '#94A3B8', fontWeight: 800, fontSize: '10px', textTransform: 'uppercase', display: 'block' }}>Source</span>
@@ -1143,7 +1144,7 @@ export default function MaterialIndentApproval() {
                         materialId: selectedIndent.materialId || selectedIndent.materialCode || '',
                         materialName: selectedIndent.materialName || 'Material',
                         quantity: selectedIndent.requiredQuantity || selectedIndent.quantity || 0,
-                        unit: selectedIndent.unit || 'PCS'
+                        unit: resolveMaterialUnit(selectedIndent, 'PCS')
                       }
                     ]).map((item, idx) => {
                       const itemKey = item.id || item.indentItemId || item.materialId || `fallback-${idx}`;
@@ -1161,7 +1162,7 @@ export default function MaterialIndentApproval() {
                             {item.product?.sku || item.product?.id?.slice(0, 8) || item.productId?.slice(0, 8) || item.materialId || selectedIndent.materialCode || '-'}
                           </td>
                           <td style={{ padding: '16px 20px', textAlign: 'right', fontWeight: 800, color: '#334155' }}>
-                            {item.quantity || item.requiredQuantity || selectedIndent.requiredQuantity} {item.unit || selectedIndent.unit || 'PCS'}
+                            {item.quantity || item.requiredQuantity || selectedIndent.requiredQuantity} {resolveMaterialUnit(item, resolveMaterialUnit(selectedIndent, 'PCS'))}
                           </td>
                           <td style={{ padding: '16px 20px', textAlign: 'right' }}>
                             {isReadOnly ? (
@@ -1178,7 +1179,7 @@ export default function MaterialIndentApproval() {
                                 fontSize: '13px'
                               }}>
                                 <CheckCircle style={{ width: 15, height: 15, color: '#059669' }} />
-                                {approvedVal} {item.unit || selectedIndent.unit || 'PCS'} Approved
+                                {approvedVal} {resolveMaterialUnit(item, resolveMaterialUnit(selectedIndent, 'PCS'))} Approved
                               </span>
                             ) : (
                               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
@@ -1201,7 +1202,7 @@ export default function MaterialIndentApproval() {
                                     outline: 'none'
                                   }}
                                 />
-                                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748B' }}>{item.unit || selectedIndent.unit || 'PCS'}</span>
+                                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748B' }}>{resolveMaterialUnit(item, resolveMaterialUnit(selectedIndent, 'PCS'))}</span>
                               </div>
                             )}
                           </td>
@@ -1222,7 +1223,7 @@ export default function MaterialIndentApproval() {
                     materialId: selectedIndent.materialId || selectedIndent.materialCode || '',
                     materialName: selectedIndent.materialName || 'Material',
                     quantity: selectedIndent.requiredQuantity || selectedIndent.quantity || 0,
-                    unit: selectedIndent.unit || 'PCS'
+                    unit: resolveMaterialUnit(selectedIndent, 'PCS')
                   }
                 ]).map((item, idx) => {
                   const itemKey = item.id || item.indentItemId || item.materialId || `fallback-${idx}`;
@@ -1241,12 +1242,12 @@ export default function MaterialIndentApproval() {
                       <div style={{ background: '#F8FAFC', padding: '10px 12px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '12px' }}>
                         <span style={{ color: '#64748B', fontWeight: 700, display: 'block' }}>REQUESTED QTY</span>
                         <span style={{ fontWeight: 900, color: '#0F172A', fontSize: '14px' }}>
-                          {item.quantity || item.requiredQuantity || selectedIndent.requiredQuantity} {item.unit || selectedIndent.unit || 'PCS'}
+                          {item.quantity || item.requiredQuantity || selectedIndent.requiredQuantity} {resolveMaterialUnit(item, resolveMaterialUnit(selectedIndent, 'PCS'))}
                         </span>
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '12px', fontWeight: 800, color: '#312E81' }}>Approved Quantity ({item.unit || selectedIndent.unit || 'PCS'})</label>
+                        <label style={{ fontSize: '12px', fontWeight: 800, color: '#312E81' }}>Approved Quantity ({resolveMaterialUnit(item, resolveMaterialUnit(selectedIndent, 'PCS'))})</label>
                         {isReadOnly ? (
                           <div style={{
                             padding: '10px 12px',
@@ -1260,7 +1261,7 @@ export default function MaterialIndentApproval() {
                             gap: '6px'
                           }}>
                             <CheckCircle style={{ width: 16, height: 16, color: '#059669' }} />
-                            <span>{approvedVal} {item.unit || selectedIndent.unit || 'PCS'} Approved</span>
+                            <span>{approvedVal} {resolveMaterialUnit(item, resolveMaterialUnit(selectedIndent, 'PCS'))} Approved</span>
                           </div>
                         ) : (
                           <input

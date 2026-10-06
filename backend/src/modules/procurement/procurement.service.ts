@@ -1803,7 +1803,7 @@ export class ProcurementService {
                   sku: rawMaterial.sku,
                   category: rawMaterial.category || 'Raw Material',
                   productType: 'RAW_MATERIAL',
-                  unit: rawMaterial.unit || 'PCS',
+                  unit: (i as any).unit || (i as any).uom || rawMaterial.unit || 'PCS',
                   unitPrice: MONEY(0),
                   minimumStock: rawMaterial.minimumStock || MONEY(0),
                 },
@@ -1861,7 +1861,7 @@ export class ProcurementService {
           lineRemarks: i.lineRemarks,
           materialCode: product?.sku || '',
           materialName: product?.name || '',
-          uom: product?.unit || '',
+          uom: (i as any).unit || (i as any).uom || rawMaterial?.unit || product?.unit || '',
           currentStockSnapshot: MONEY(currentStock),
           minimumStockSnapshot: product?.minimumStock || MONEY(0),
         });

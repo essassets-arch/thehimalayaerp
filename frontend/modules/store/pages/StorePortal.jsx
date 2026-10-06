@@ -3434,6 +3434,8 @@ export default function StorePortal() {
             materialCode: item.code,
             materialName: item.material,
             quantity: Number(item.quantity),
+            unit: item.unit,
+            uom: item.unit,
             targetDate: itemTarget,
             requiredDate: itemTarget,
             estimatedUnitRate: Number(item.rate || 0),
