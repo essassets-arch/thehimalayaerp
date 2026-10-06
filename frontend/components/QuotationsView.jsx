@@ -2097,7 +2097,6 @@ export default function QuotationsView({
 
                       const taxable = Math.max(0, itemSubtotal - discountValue);
                       const discountedRate = itemQty > 0 ? (taxable / itemQty) : (discPct > 0 ? itemPrice * (1 - discPct / 100) : itemPrice);
-                      const hasDiscount = (discPct > 0 || discountValue > 0) && Math.abs(discountedRate - itemPrice) > 0.001;
 
                       let itemTaxRate = (item.tax !== undefined && item.tax !== null && item.tax !== '') ? Number(item.tax) : 0;
                       if (itemTaxRate > 28 && taxable > 0) {
@@ -2138,11 +2137,6 @@ export default function QuotationsView({
                           {/* RATE */}
                           <td className="product-rate" style={{ width: '13%', padding: '12px 10px', textAlign: 'right', fontWeight: '700', color: '#002e5d', fontSize: '13.5px', display: 'table-cell', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                             <div>{formatINR(discountedRate)}</div>
-                            {hasDiscount && (
-                              <div style={{ fontSize: '11px', color: '#94a3b8', textDecoration: 'line-through', fontWeight: '500' }}>
-                                {formatINR(itemPrice)}
-                              </div>
-                            )}
                           </td>
 
                           {/* TAX */}
