@@ -38,6 +38,7 @@ import VendorInvoiceWorkspace from '../../procurement/finance/VendorInvoiceWorks
 import FinanceBrandAnalysis from './FinanceBrandAnalysis';
 import FinanceSalesAnalyticsView from './FinanceSalesAnalyticsView';
 import FinanceSalespersonDetailView from './FinanceSalespersonDetailView';
+import FinanceMonthlySalesWorkspace from './FinanceMonthlySalesWorkspace';
 import SalesAnalyticsSummaryCard from '../components/SalesAnalyticsSummaryCard';
 import SalesPortal from '../../sales/pages/SalesPortal';
 import FinanceManagerDashboardView from '../components/FinanceManagerDashboardView';
@@ -46,6 +47,7 @@ import ExpenseManagementView from '../../../shared/components/ExpenseManagementV
 const financeMenu = {
   "Finance": [
     "dashboard",
+    "monthly-sales-collection",
     "daily-tasks",
     "sales",
     "sales-analytics",
@@ -75,6 +77,7 @@ const financeMenu = {
   ],
   "finance-lead": [
     "dashboard",
+    "monthly-sales-collection",
     "daily-tasks",
     "sales",
     "sales-analytics",
@@ -116,6 +119,7 @@ const financeMenu = {
   ],
   "Super Admin": [
     "dashboard",
+    "monthly-sales-collection",
     "daily-tasks",
     "sales",
     "sales-analytics",
@@ -444,9 +448,7 @@ export default function FinancePortal({ initialView, forceView }) {
   const currentView = view;
 
   useEffect(() => {
-    if (view === 'sales' || view === 'sales-analytics') {
-      navigate.replace('/finance/dashboard');
-    } else if (view === 'pending-requests') {
+    if (view === 'pending-requests') {
       navigate.push('/finance/po-requests?tab=Pending Requests', { replace: true });
     } else if (view === 'create-po') {
       navigate.push('/finance/po-requests?tab=Create PO', { replace: true });
@@ -4055,6 +4057,8 @@ export default function FinancePortal({ initialView, forceView }) {
     const tabParam = nextSearchParams?.get('tab');
 
     const KNOWN_SALES_VIEWS = [
+      'monthly-workspace',
+      'monthly-sales-collection',
       'analytics',
       'dashboard',
       'daily-task',
@@ -4087,9 +4091,10 @@ export default function FinancePortal({ initialView, forceView }) {
       );
     }
 
-    const activeSalesView = subSlug || tabParam || 'analytics';
+    const activeSalesView = subSlug || tabParam || 'monthly-workspace';
 
     const salesTabs = [
+      { id: 'monthly-workspace', label: 'Monthly Sales & Collection', path: '/finance/monthly-sales-collection' },
       { id: 'analytics', label: 'Sales Analytics', path: '/finance/sales?tab=analytics' },
       { id: 'dashboard', label: 'Sales Dashboard', path: '/finance/sales/dashboard' },
       { id: 'daily-task', label: 'Daily Tasks', path: '/finance/sales/daily-task' },
@@ -4121,7 +4126,7 @@ export default function FinancePortal({ initialView, forceView }) {
           boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
         }}>
           {salesTabs.map(t => {
-            const isActive = activeSalesView === t.id || (activeSalesView === 'sales' && t.id === 'analytics');
+            const isActive = activeSalesView === t.id || (activeSalesView === 'sales' && t.id === 'monthly-workspace');
             return (
               <button
                 key={t.id}
@@ -4146,7 +4151,9 @@ export default function FinancePortal({ initialView, forceView }) {
         </div>
 
         {/* Tab Content */}
-        {activeSalesView === 'analytics' ? (
+        {activeSalesView === 'monthly-workspace' || activeSalesView === 'monthly-sales-collection' ? (
+          <FinanceMonthlySalesWorkspace />
+        ) : activeSalesView === 'analytics' ? (
           <FinanceSalesAnalyticsView />
         ) : (
           <SalesPortal overrideView={activeSalesView} />
@@ -4158,6 +4165,7 @@ export default function FinancePortal({ initialView, forceView }) {
   return (
     <>
       {view === 'dashboard' && renderDashboard()}
+      {view === 'monthly-sales-collection' && <div data-testid="finance-monthly-sales-view" className="sales-portal-view"><FinanceMonthlySalesWorkspace /></div>}
       {(view === 'sales' || view === 'sales-analytics') && <div data-testid="finance-sales-view" className="sales-portal-view">{renderFinanceSalesWorkspace()}</div>}
       {view === 'profile' && <div data-testid="finance-profile-view" className="sales-portal-view"><MyProfileView /></div>}
       {view === 'invoices' && <div data-testid="finance-invoices-view" className="sales-portal-view">{renderInvoices()}</div>}

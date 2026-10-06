@@ -1,6 +1,10 @@
 import { apiClient } from '../lib/apiClient';
 
 export const financeSalesAnalyticsService = {
+  getMonthlyWorkspace: async (params = {}) => {
+    return apiClient.get('/finance/sales/monthly-workspace', { params });
+  },
+
   getSummary: async (params = {}) => {
     return apiClient.get('/finance/sales/summary', { params });
   },

@@ -12,6 +12,15 @@ export class FinanceSalesAnalyticsController {
     private readonly analyticsService: FinanceSalesAnalyticsService,
   ) {}
 
+  @Get('monthly-workspace')
+  @RequirePermissions('finance.sales-analytics.read')
+  async getMonthlyWorkspace(
+    @Query() query: FinanceSalesAnalyticsQueryDto,
+    @Req() req: any,
+  ) {
+    return this.analyticsService.getMonthlyWorkspace(query, req?.user);
+  }
+
   @Get('summary')
   @RequirePermissions('finance.sales-analytics.read')
   async getSummary(@Query() query: FinanceSalesAnalyticsQueryDto) {

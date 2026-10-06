@@ -89,6 +89,22 @@ export class FinanceSalesAnalyticsQueryDto {
 
   @IsOptional()
   @IsString()
+  financialYear?: string;
+
+  @IsOptional()
+  @IsString()
+  month?: string;
+
+  @IsOptional()
+  @IsString()
+  companyId?: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @IsOptional()
+  @IsString()
   search?: string;
 
   @IsOptional()

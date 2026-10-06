@@ -149,6 +149,7 @@ export const navigationConfig = {
   ],
   'Finance': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/finance/dashboard' },
+    { id: 'monthly-sales-collection', label: 'Monthly Sales & Collection', icon: TrendingUp, path: '/finance/monthly-sales-collection' },
     { id: 'salary-verification', label: 'Salary Verification', icon: FileCheck, path: '/finance/salary-verification' },
     { id: 'salary-disbursement', label: 'Salary Disbursement', icon: CreditCard, path: '/finance/salary-disbursement' },
     { id: 'salary-history', label: 'Salary History', icon: History, path: '/finance/salary-history' },
@@ -187,6 +188,7 @@ export const navigationConfig = {
   ],
   'finance-lead': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/finance/dashboard' },
+    { id: 'monthly-sales-collection', label: 'Monthly Sales & Collection', icon: TrendingUp, path: '/finance/monthly-sales-collection' },
     { id: 'daily-tasks', label: 'Daily Tasks', icon: ClipboardList, path: '/finance/daily-tasks' },
     {
       id: 'payments',

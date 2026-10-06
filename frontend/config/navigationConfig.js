@@ -279,6 +279,7 @@ export const navigationConfig = {
 
   'Finance': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/finance/dashboard' },
+    { id: 'monthly-sales-collection', label: 'Monthly Sales & Collection', icon: TrendingUp, path: '/finance/monthly-sales-collection' },
     { id: 'daily-tasks', label: 'Daily Tasks', icon: ClipboardList, path: '/finance/daily-tasks' },
     {
       id: 'payment-verification',
