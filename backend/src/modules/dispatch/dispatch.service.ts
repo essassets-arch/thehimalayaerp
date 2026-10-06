@@ -13,7 +13,11 @@ import { CreateDispatchDto } from './dto/create-dispatch.dto';
 import { ConfirmDeliveryDto } from './dto/confirm-delivery.dto';
 
 import { NotificationsService } from '../notifications/notifications.service';
-import { isTradingProduct } from '../../common/utils/trading-product.util';
+import {
+  isTradingProduct,
+  isPureTradingOrder,
+  hasManufacturingItems,
+} from '../../common/utils/trading-product.util';
 
 function normalizeDispatchCategory(cat?: string | null): 'D1' | 'D2' | null {
   if (!cat) return null;
@@ -1507,6 +1511,7 @@ export class DispatchService {
         reservedQuantity: { gt: 0 },
         salesOrder: {
           customer: { companyId },
+          status: { in: ['READY_FOR_DISPATCH', 'COMPLETED'] },
         },
       },
       include: {
@@ -1522,6 +1527,19 @@ export class DispatchService {
 
     const ordersMap = new Map<string, any>();
     for (const alloc of allocations) {
+      const soStatus = String(alloc.salesOrder?.status || '').toUpperCase();
+      if (
+        soStatus === 'IN_PRODUCTION' ||
+        soStatus === 'READY_FOR_PRODUCTION' ||
+        soStatus === 'SENT_TO_PLANT' ||
+        soStatus === 'SENT_TO_PLANT_HEAD' ||
+        soStatus === 'PLANT_APPROVED' ||
+        soStatus === 'CONFIRMED' ||
+        soStatus === 'DRAFT'
+      ) {
+        continue;
+      }
+
       const salesOrderItem = alloc.salesOrder.items.find(
         (i) => i.id === alloc.salesOrderItemId,
       );
@@ -1611,7 +1629,29 @@ export class DispatchService {
       });
 
       for (const wo of readyWorkOrders) {
+        const woProdStatus = String(wo.productionStatus || '').toUpperCase();
+        const woStatus = String(wo.status || '').toUpperCase();
+        if (
+          woProdStatus === 'IN_PRODUCTION' ||
+          woStatus === 'IN_PRODUCTION' ||
+          woProdStatus === 'QC_FAILED' ||
+          woProdStatus === 'REWORK_IN_PROGRESS' ||
+          woStatus === 'CANCELLED'
+        ) {
+          continue;
+        }
+
         const salesOrder = wo.productionPlan?.salesOrder;
+        const soStatus = String(salesOrder?.status || '').toUpperCase();
+        if (
+          soStatus === 'IN_PRODUCTION' &&
+          woProdStatus !== 'READY_FOR_DISPATCH' &&
+          woStatus !== 'READY_FOR_DISPATCH' &&
+          !wo.sentToDispatchAt
+        ) {
+          continue;
+        }
+
         const customer = salesOrder?.customer;
         const product = wo.salesOrderItem?.product;
         const isTrading = isTradingProduct(product, wo.salesOrderItem);
@@ -1817,11 +1857,68 @@ export class DispatchService {
         include: {
           customer: true,
           salesExecutive: { select: { id: true, name: true, email: true } },
-          items: { include: { product: true } },
+          items: {
+            include: {
+              product: true,
+              workOrders: { select: { id: true, status: true, productionStatus: true } },
+            },
+          },
+          productionPlans: {
+            select: {
+              id: true,
+              status: true,
+              workOrders: { select: { id: true, status: true, productionStatus: true } },
+            },
+          },
         },
       });
 
       for (const so of readyTradingOrders) {
+        const soStatus = String(so.status || '').toUpperCase();
+        const isTrading = isPureTradingOrder(so);
+        const planWos = (so.productionPlans || []).flatMap((p: any) => p.workOrders || []);
+        const itemWos = (so.items || []).flatMap((i: any) => i.workOrders || []);
+        const allWos = [...planWos, ...itemWos];
+        const hasManufacturing =
+          hasManufacturingItems(so) ||
+          allWos.length > 0 ||
+          (so.productionPlans && so.productionPlans.length > 0);
+
+        // Strict Workflow Guard: If order is in production or in plant approval, NEVER show in dispatch
+        if (
+          soStatus === 'IN_PRODUCTION' ||
+          soStatus === 'READY_FOR_PRODUCTION' ||
+          soStatus === 'SENT_TO_PLANT' ||
+          soStatus === 'SENT_TO_PLANT_HEAD' ||
+          soStatus === 'PLANT_APPROVED' ||
+          soStatus === 'PRODUCTION_PLANNED' ||
+          soStatus === 'DRAFT' ||
+          soStatus === 'PENDING_APPROVAL'
+        ) {
+          continue;
+        }
+
+        // If order has work orders still in production, NEVER show in dispatch
+        if (
+          allWos.some((w: any) =>
+            ['IN_PRODUCTION', 'STARTED', 'PARTIALLY_COMPLETED', 'PLANNED', 'READY', 'MATERIAL_PENDING'].includes(String(w.status || '').toUpperCase()) ||
+            ['IN_PRODUCTION', 'QC_FAILED', 'REWORK_IN_PROGRESS'].includes(String(w.productionStatus || '').toUpperCase())
+          )
+        ) {
+          continue;
+        }
+
+        // If status is CONFIRMED: ONLY pure trading orders (D2) can be dispatched directly without production!
+        // Manufacturing orders with status CONFIRMED are awaiting/undergoing production and MUST NOT show in dispatch!
+        if (soStatus === 'CONFIRMED' && (!isTrading || hasManufacturing)) {
+          continue;
+        }
+
+        // Manufacturing orders MUST have status READY_FOR_DISPATCH or COMPLETED!
+        if (!isTrading && soStatus !== 'READY_FOR_DISPATCH' && soStatus !== 'COMPLETED') {
+          continue;
+        }
+
         const customer = so.customer;
         const items = so.items || [];
 

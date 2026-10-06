@@ -487,13 +487,49 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
 
   // Filter active orders awaiting dispatch (QC Passed, partially delivered, or currently in transit/created with balance)
   // filteredOrders is already role-filtered by dispatch category (D1/D2 Operator restriction)
-  const qcPassed = filteredOrders.filter(o =>
-    ['QC_APPROVED', 'QC Passed', 'QC_PASSED', 'DISPATCH_READY', 'Dispatch Created', 'DISPATCH_CREATED', 'IN_TRANSIT', 'In Transit', 'Partially Delivered', 'READY_FOR_DISPATCH', 'Ready for Dispatch'].includes(o.status || o.workflowStatus) &&
-    getRemainingQty(o) > 0
-  );
+  const qcPassed = filteredOrders.filter(o => {
+    const st = String(o.status || o.workflowStatus || '').toUpperCase();
+    const prodSt = String(o.productionStatus || '').toUpperCase();
+    if (
+      st === 'IN_PRODUCTION' ||
+      prodSt === 'IN_PRODUCTION' ||
+      st === 'READY_FOR_PRODUCTION' ||
+      st === 'SENT_TO_PLANT' ||
+      st === 'SENT_TO_PLANT_HEAD' ||
+      st === 'PLANT_APPROVED' ||
+      st === 'CONFIRMED' ||
+      st === 'DRAFT'
+    ) {
+      if (st !== 'READY_FOR_DISPATCH' && !o.sentToDispatchAt) {
+        return false;
+      }
+    }
+    return (
+      ['QC_APPROVED', 'QC Passed', 'QC_PASSED', 'DISPATCH_READY', 'Dispatch Created', 'DISPATCH_CREATED', 'IN_TRANSIT', 'In Transit', 'Partially Delivered', 'READY_FOR_DISPATCH', 'Ready for Dispatch'].includes(st) &&
+      getRemainingQty(o) > 0
+    );
+  });
 
   const dispatchQueueOrders = useMemo(() => {
-    const list = Array.isArray(backendDispatchQueue) ? filterOrdersByDispatch(backendDispatchQueue) : [];
+    const rawList = Array.isArray(backendDispatchQueue) ? filterOrdersByDispatch(backendDispatchQueue) : [];
+    const list = rawList.filter(d => {
+      const st = String(d.status || d.orderStatus || '').toUpperCase();
+      const prodSt = String(d.productionStatus || '').toUpperCase();
+      if (
+        st === 'IN_PRODUCTION' ||
+        prodSt === 'IN_PRODUCTION' ||
+        st === 'READY_FOR_PRODUCTION' ||
+        st === 'SENT_TO_PLANT' ||
+        st === 'SENT_TO_PLANT_HEAD' ||
+        st === 'PLANT_APPROVED'
+      ) {
+        return false;
+      }
+      if (st === 'CONFIRMED' && !isTradingProduct(d)) {
+        return false;
+      }
+      return true;
+    });
     const existingOrderNos = new Set(
       list.map(d => String(d.orderNo || d.orderId || d.salesOrderId || '').toUpperCase())
     );

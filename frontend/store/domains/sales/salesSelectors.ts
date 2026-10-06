@@ -319,7 +319,7 @@ const _selectDispatchOrders = (store: ERPStoreState) => {
   const { orders } = getSales(store);
   const eligibleQC = ['APPROVED', 'QC_APPROVED', 'PASSED', 'QC_PASSED', 'PARTIALLY_APPROVED', 'FINISHED_GOODS', 'READY', 'READY_FOR_DISPATCH', 'SENT_TO_DISPATCH'];
   const eligibleProduction = ['PRODUCTION_COMPLETED', 'COMPLETED', 'FINISHED_GOODS', 'QC_APPROVED', 'QC_PASSED'];
-  const eligibleDispatch = ['READY_FOR_DISPATCH', 'DISPATCH_CREATED', 'PENDING', 'IN_TRANSIT'];
+  const eligibleDispatch = ['READY_FOR_DISPATCH', 'DISPATCH_READY', 'DISPATCH_CREATED', 'IN_TRANSIT'];
 
   return orders
     .filter((o) => {
@@ -349,16 +349,44 @@ const _selectDispatchOrders = (store: ERPStoreState) => {
         );
       }
 
+      // Manufacturing orders (D1): MUST be completed by Production & QC and sent to dispatch
+      // NEVER show orders that are still in production or awaiting plant approval
+      if (
+        orderSt === 'IN_PRODUCTION' ||
+        orderSt === 'READY_FOR_PRODUCTION' ||
+        orderSt === 'SENT_TO_PLANT' ||
+        orderSt === 'SENT_TO_PLANT_HEAD' ||
+        orderSt === 'PLANT_APPROVED' ||
+        orderSt === 'CONFIRMED' ||
+        orderSt === 'DRAFT' ||
+        prodSt === 'IN_PRODUCTION' ||
+        prodSt === 'PLANNED' ||
+        prodSt === 'STARTED' ||
+        prodSt === 'PARTIALLY_COMPLETED' ||
+        qcSt === 'PENDING' ||
+        qcSt === 'QC_PENDING' ||
+        qcSt === 'REWORK_REQUIRED' ||
+        qcSt === 'REJECTED'
+      ) {
+        if (orderSt !== 'READY_FOR_DISPATCH' && dispSt !== 'READY_FOR_DISPATCH' && !(o as any).sentToDispatchAt) {
+          return false;
+        }
+      }
+
       return (
         (eligibleQC.includes(qcSt) ||
          eligibleProduction.includes(prodSt) ||
          eligibleDispatch.includes(dispSt) ||
+         orderSt === 'READY_FOR_DISPATCH' ||
          (o as any).sentToDispatchAt ||
          (o as any).dispatchStatus === 'SENT_TO_DISPATCH') &&
         qcSt !== 'REWORK_REQUIRED' &&
         qcSt !== 'REJECTED' &&
         dispSt !== 'DELIVERED' &&
-        dispSt !== 'CONFIRMED'
+        dispSt !== 'CONFIRMED' &&
+        orderSt !== 'IN_PRODUCTION' &&
+        orderSt !== 'CONFIRMED' &&
+        orderSt !== 'DRAFT'
       );
     })
     .map(toDispatchSafeView);

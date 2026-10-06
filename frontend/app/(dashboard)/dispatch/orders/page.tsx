@@ -995,6 +995,33 @@ export default function DispatchOrdersPage() {
         ) {
           return false;
         }
+
+        // Strict Production Check: Must be completed and sent to dispatch
+        // If the work order is currently in production or pending, it MUST NOT appear in dispatch!
+        if (
+          prodStatus === "IN_PRODUCTION" ||
+          woStatus === "IN_PRODUCTION" ||
+          prodStatus === "QC_FAILED" ||
+          prodStatus === "REWORK_IN_PROGRESS" ||
+          woStatus === "STARTED" ||
+          woStatus === "PARTIALLY_COMPLETED" ||
+          woStatus === "PLANNED" ||
+          woStatus === "MATERIAL_PENDING"
+        ) {
+          return false;
+        }
+
+        const isReadyForDispatch =
+          prodStatus === "READY_FOR_DISPATCH" ||
+          woStatus === "READY_FOR_DISPATCH" ||
+          prodStatus === "QC_APPROVED" ||
+          woStatus === "QC_APPROVED" ||
+          Boolean(wo.sentToDispatchAt);
+
+        if (!isReadyForDispatch) {
+          return false;
+        }
+
         return true;
       });
 
@@ -1235,6 +1262,23 @@ export default function DispatchOrdersPage() {
       rawQueue.forEach((qOrder: any) => {
         const soKey = (qOrder.salesOrderId || qOrder.orderNo || qOrder.orderId || "").toLowerCase();
         const matchedSo = salesOrdersMap.get(soKey) || salesOrdersMap.get(normalizeKey(qOrder.orderNo || qOrder.orderId));
+        const soStatus = String(matchedSo?.status || qOrder.status || "").toUpperCase();
+        const prodStatus = String(matchedSo?.productionStatus || qOrder.productionStatus || "").toUpperCase();
+
+        const isTrading = (qOrder.items && Array.isArray(qOrder.items) && qOrder.items.length > 0)
+          ? qOrder.items.every((it: any) => isTradingProduct(it, productsMap))
+          : isTradingProduct(qOrder, productsMap);
+
+        // Strict Workflow Guard: If manufacturing order is in production or plant approval, NEVER show in dispatch
+        if (!isTrading) {
+          if ([
+            "SENT_TO_PLANT", "SENT_TO_PLANT_HEAD", "PLANT_PENDING",
+            "PLANT_APPROVED", "PLANT_HEAD_ACCEPTED", "PRODUCTION_PLANNED",
+            "READY_FOR_PRODUCTION", "IN_PRODUCTION", "CONFIRMED", "DRAFT"
+          ].includes(soStatus) || prodStatus === "IN_PRODUCTION") {
+            return;
+          }
+        }
         const customerName = resolveCustomerName(qOrder, matchedSo, qOrder.customer);
         const projectName = resolveProjectName(qOrder, matchedSo, qOrder.customer);
         const salesPersonName = resolveSalesPersonName(qOrder, matchedSo, qOrder.customer, usersMap);
@@ -1469,11 +1513,16 @@ export default function DispatchOrdersPage() {
             // If the sales order is still in Plant Head review or Production, DO NOT show directly in Dispatch 1.
             // It must only arrive in Dispatch 1 via QC_APPROVED Work Orders or Finished Goods!
             if (!isTrading) {
-              if ([
-                "SENT_TO_PLANT", "SENT_TO_PLANT_HEAD", "PLANT_PENDING",
-                "PLANT_APPROVED", "PLANT_HEAD_ACCEPTED", "PRODUCTION_PLANNED",
-                "READY_FOR_PRODUCTION", "IN_PRODUCTION", "CONFIRMED"
-              ].includes(soStatus)) {
+              const soProdStatus = String(so.productionStatus || "").toUpperCase();
+              if (
+                !["READY_FOR_DISPATCH", "COMPLETED", "DISPATCHED_PARTIAL"].includes(soStatus) ||
+                [
+                  "SENT_TO_PLANT", "SENT_TO_PLANT_HEAD", "PLANT_PENDING",
+                  "PLANT_APPROVED", "PLANT_HEAD_ACCEPTED", "PRODUCTION_PLANNED",
+                  "READY_FOR_PRODUCTION", "IN_PRODUCTION", "CONFIRMED", "DRAFT"
+                ].includes(soStatus) ||
+                soProdStatus === "IN_PRODUCTION"
+              ) {
                 return;
               }
             } else {
