@@ -77,6 +77,8 @@ export default function FinanceMonthlySalesWorkspace() {
     if (Math.abs(num) >= 100000) return `₹${(num / 100000).toFixed(2)}L`;
     if (Math.abs(num) >= 1000) return `₹${(num / 1000).toFixed(1)}K`;
     return `₹${Math.round(num).toLocaleString('en-IN')}`;
+  };
+
   const formatDate = (dateStr) => {
     if (!dateStr) return '—';
     try {
