@@ -10,7 +10,7 @@ import {
   ltLogoBase64,
   ashridharLogoBase64
 } from '../services/quotationAssetsBase64';
-import { Search, Plus, Eye, ArrowRight, Download, Share2, Edit, Trash2, Truck, ChevronLeft, ChevronRight, ArrowLeft, FileText, Bell, ShieldCheck, ChevronDown, MoreVertical, User, Calendar, CreditCard, MapPin, Star, Phone, Mail, Globe, Percent, CheckSquare, Image as ImageIcon, RotateCcw } from 'lucide-react';
+import { Search, Plus, Eye, ArrowRight, Download, Share2, Edit, Copy, Trash2, Truck, ChevronLeft, ChevronRight, ArrowLeft, FileText, Bell, ShieldCheck, ChevronDown, MoreVertical, User, Calendar, CreditCard, MapPin, Star, Phone, Mail, Globe, Percent, CheckSquare, Image as ImageIcon, RotateCcw } from 'lucide-react';
 import Swal from 'sweetalert2';
 import CreateQuotation from './CreateQuotation';
 import { useERPStore, useSalesBackend } from '../shared/context/ERPContext';
@@ -426,6 +426,37 @@ export default function QuotationsView({
 
   const startEditingQuotation = (qtn) => {
     setEditingQuotation(qtn);
+  };
+
+  const handleRepeatQuotation = (qtn) => {
+    if (!qtn) return;
+    const draft = {
+      ...qtn,
+      id: undefined,
+      quotationNumber: undefined,
+      quotationNo: undefined,
+      customerName: qtn.customerName || '',
+      groupName: qtn.groupName || '',
+      gstName: qtn.gstName || qtn.customerName || '',
+      gstNumber: qtn.gstNumber || '',
+      isGstRegistered: qtn.isGstRegistered || (qtn.gstNumber ? 'YES' : 'NO'),
+      siteInchargeName: qtn.siteInchargeName || qtn.contactPerson || '',
+      siteInchargeMobile: qtn.siteInchargeMobile || qtn.phone || '',
+      contactPerson: qtn.contactPerson || qtn.siteInchargeName || '',
+      phone: qtn.phone || qtn.siteInchargeMobile || '',
+      validTill: qtn.validTill || qtn.validUntil || '',
+      paymentTerms: qtn.paymentTerms || '15 Days',
+      items: qtn.detailedItems || qtn.items || [],
+      detailedItems: qtn.detailedItems || qtn.items || [],
+      transportCharge: Number(qtn.transportCharge ?? qtn.expectedTransportationCost ?? 0),
+      notes: qtn.notes || qtn.remarks || '',
+    };
+    useERPStore.getState().setQuotationDraft(draft);
+    if (typeof onCreateQuoteClick === 'function') {
+      onCreateQuoteClick();
+    } else {
+      setShowCreateForm(true);
+    }
   };
 
   const handleUpdateStatusClick = (qId, newStatus, textAction) => {
@@ -1425,6 +1456,22 @@ export default function QuotationsView({
                               <Edit size={14} />
                             </button>
                             <button
+                              title="Repeat Quotation"
+                              onClick={() => handleRepeatQuotation(q)}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: '32px', height: '32px',
+                                background: '#ffffff',
+                                border: '1px solid #D6E2F0',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                color: '#0369a1',
+                                flexShrink: 0
+                              }}
+                            >
+                              <Copy size={14} />
+                            </button>
+                            <button
                               title="Add Reminder"
                               onClick={() => setReminderModal({ quotation: q })}
                               style={{
@@ -1624,6 +1671,22 @@ export default function QuotationsView({
                             }}
                           >
                             <Edit size={15} />
+                          </button>
+                          <button
+                            title="Repeat Quotation"
+                            onClick={() => handleRepeatQuotation(q)}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              width: '32px', height: '32px',
+                              background: '#ffffff',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '8px',
+                              color: '#0369a1',
+                              cursor: 'pointer',
+                              flexShrink: 0
+                            }}
+                          >
+                            <Copy size={15} />
                           </button>
                           <button
                             title="Add Reminder"
@@ -2091,11 +2154,12 @@ export default function QuotationsView({
                     )}
                     {(clientSiteInchargeName || clientSiteInchargeMobile) && (
                       <p style={{ margin: 0, fontSize: '11.5px', color: '#475569', fontWeight: '600' }}>
-                        Site Incharge: {clientSiteInchargeName && (
+                        Site Incharge:{' '}
+                        {clientSiteInchargeName && (
                           <span style={{ fontWeight: '700', color: '#0f2c59' }}>{clientSiteInchargeName}</span>
                         )}
                         {clientSiteInchargeMobile && (
-                          <span style={{ color: '#0284c7', fontWeight: '700', marginLeft: clientSiteInchargeName ? '6px' : '0' }}>
+                          <span style={{ color: '#0284c7', fontWeight: '700', marginLeft: clientSiteInchargeName ? '4px' : '0' }}>
                             {clientSiteInchargeName ? `(${clientSiteInchargeMobile})` : clientSiteInchargeMobile}
                           </span>
                         )}
@@ -2383,6 +2447,20 @@ export default function QuotationsView({
                   style={{ padding: '9px 14px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0 }}
                 >
                   Close Preview
+                </button>
+                <button
+                  type="button"
+                  className="btn-small btn-outline-small"
+                  onClick={() => {
+                    const target = selectedQuotation;
+                    setSelectedQuotation(null);
+                    handleRepeatQuotation(target);
+                  }}
+                  style={{ padding: '9px 14px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, color: '#0369a1', borderColor: '#bae6fd' }}
+                  title="Repeat Quotation"
+                >
+                  <Copy size={13} style={{ marginRight: '4px', verticalAlign: 'text-bottom' }} />
+                  Repeat Quotation
                 </button>
                 {!isQuotationDeleted(selectedQuotation) && (
                   <button

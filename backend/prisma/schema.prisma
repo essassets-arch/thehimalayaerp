@@ -1165,6 +1165,8 @@ model Quotation {
   total    Decimal @default(0) @db.Decimal(18, 2)
   expectedTransportationCost Decimal @default(0) @db.Decimal(18, 2)
   remarks           String?
+  siteInchargeName   String?
+  siteInchargeMobile String?
   paymentTerms      String?
   paymentTermDays   Int?
   version           Int     @default(1)

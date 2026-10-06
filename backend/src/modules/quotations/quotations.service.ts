@@ -656,6 +656,8 @@ export class QuotationsService {
             : dto.notes !== undefined
               ? dto.notes
               : null,
+        siteInchargeName: (dto.siteInchargeName || dto.contactPerson || '').trim() || null,
+        siteInchargeMobile: (dto.siteInchargeMobile || dto.phone || '').trim() || null,
         paymentTerms: paymentTermInfo.paymentTerms,
         paymentTermDays: paymentTermInfo.paymentTermDays,
         workflowStateId: initialState.id,
@@ -698,14 +700,24 @@ export class QuotationsService {
     });
 
     if (dto.leadId) {
+      const leadUpdateData: any = {};
+      if (dto.siteInchargeName || dto.contactPerson) {
+        leadUpdateData.contactPerson = (dto.siteInchargeName || dto.contactPerson).trim();
+      }
+      if (dto.siteInchargeMobile || dto.phone) {
+        leadUpdateData.phone = (dto.siteInchargeMobile || dto.phone).trim();
+      }
       const quotationState = await this.prisma.workflowState.findFirst({
         where: { workflow: { code: 'LEAD' }, code: 'QUOTATION_SENT' },
       });
       if (quotationState) {
+        leadUpdateData.workflowStateId = quotationState.id;
+      }
+      if (Object.keys(leadUpdateData).length > 0) {
         await this.prisma.lead
           .update({
             where: { id: dto.leadId },
-            data: { workflowStateId: quotationState.id },
+            data: leadUpdateData,
           })
           .catch(() => {});
       }
@@ -859,6 +871,18 @@ export class QuotationsService {
               gstName: dto.gstName !== undefined ? dto.gstName : undefined,
               gstNumber:
                 dto.gstNumber !== undefined ? dto.gstNumber || null : undefined,
+              contactPerson:
+                dto.siteInchargeName !== undefined
+                  ? dto.siteInchargeName
+                  : dto.contactPerson !== undefined
+                    ? dto.contactPerson
+                    : undefined,
+              phone:
+                dto.siteInchargeMobile !== undefined
+                  ? dto.siteInchargeMobile
+                  : dto.phone !== undefined
+                    ? dto.phone
+                    : undefined,
             },
           })
           .catch(() => {});
@@ -929,6 +953,18 @@ export class QuotationsService {
           customerId: dto.customerId !== undefined ? dto.customerId : undefined,
           validUntil: validUntilDate,
           remarks: remarks,
+          siteInchargeName:
+            dto.siteInchargeName !== undefined
+              ? (dto.siteInchargeName || '').trim() || null
+              : dto.contactPerson !== undefined
+                ? (dto.contactPerson || '').trim() || null
+                : undefined,
+          siteInchargeMobile:
+            dto.siteInchargeMobile !== undefined
+              ? (dto.siteInchargeMobile || '').trim() || null
+              : dto.phone !== undefined
+                ? (dto.phone || '').trim() || null
+                : undefined,
           paymentTerms:
             paymentTermInfo.paymentTerms !== undefined
               ? paymentTermInfo.paymentTerms

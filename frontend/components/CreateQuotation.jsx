@@ -382,6 +382,10 @@ export default function CreateQuotation({
         isGstRegistered: quotationDraft.isGstRegistered || (quotationDraft.gstNumber ? 'YES' : 'NO'),
         gstNumber: quotationDraft.gstNumber || '',
         gstName: quotationDraft.gstName || quotationDraft.customerName || '',
+        siteInchargeName: quotationDraft.siteInchargeName || quotationDraft.contactPerson || '',
+        siteInchargeMobile: quotationDraft.siteInchargeMobile || quotationDraft.phone || '',
+        contactPerson: quotationDraft.contactPerson || quotationDraft.siteInchargeName || '',
+        phone: quotationDraft.phone || quotationDraft.siteInchargeMobile || '',
         validTill: formatInputDate(quotationDraft.validTill || quotationDraft.validUntil) || defaultValidTill(),
         paymentTerms: quotationDraft.paymentTerms || '15 Days',
         items: getInitialItems(),
@@ -498,7 +502,7 @@ export default function CreateQuotation({
   }, [matchedLeadFromProps, legacyQuotationDraft, editingQuotation, leads, prefilledCustomer, prefilledProduct, prefilledQuantity]);
 
   const {
-    customerName, groupName, isGstRegistered, gstNumber, gstName, validTill, paymentTerms,
+    customerName, groupName, isGstRegistered, gstNumber, gstName, siteInchargeName, siteInchargeMobile, validTill, paymentTerms,
     items: storedItems, transportCharge, notes, selectedTermIds: storedTermIds, customTerms: storedCustomTerms
   } = formData;
 
@@ -535,6 +539,14 @@ export default function CreateQuotation({
   const setIsGstRegistered = (val) => updateField('isGstRegistered', val);
   const setGstNumber = (val) => updateField('gstNumber', val);
   const setGstName = (val) => updateField('gstName', val);
+  const setSiteInchargeName = (val) => {
+    updateField('siteInchargeName', val);
+    updateField('contactPerson', val);
+  };
+  const setSiteInchargeMobile = (val) => {
+    updateField('siteInchargeMobile', val);
+    updateField('phone', val);
+  };
   const setValidTill = (val) => updateField('validTill', val);
   const setPaymentTerms = (val) => updateField('paymentTerms', val);
   const setSelectedTermIds = (val) => updateField('selectedTermIds', val);
@@ -833,6 +845,15 @@ export default function CreateQuotation({
       alert('Please select or specify a Customer/Lead for this proposal.');
       return;
     }
+    const mobileValue = (siteInchargeMobile || formData.siteInchargeMobile || '').trim();
+    if (!mobileValue) {
+      alert('Please provide Site Incharge Mobile number.');
+      return;
+    }
+    if (mobileValue.length < 10) {
+      alert('Site Incharge Mobile number must be a valid 10-digit number.');
+      return;
+    }
     if (items.length === 0) {
       alert('Please add at least one item to the quotation.');
       return;
@@ -858,10 +879,10 @@ export default function CreateQuotation({
       gstName: selectedCustomerRecord?.gstName || (gstName || '').trim() || selectedCustomerRecord?.name || (customerName || '').trim(),
       gstNumber: (isGstRegistered || 'YES') === 'YES' ? (selectedCustomerRecord?.gstNumber || (gstNumber || '').trim()) : '',
       salesperson: salespersonName,
-      contactPerson: (formData.contactPerson || formData.siteInchargeName || selectedCustomerRecord?.contactPerson || selectedCustomerRecord?.siteInchargeName || matchedLeadFromProps?.contactPerson || matchedLeadFromProps?.siteInchargeName || quotationDraft?.contactPerson || '').trim(),
-      siteInchargeName: (formData.siteInchargeName || formData.contactPerson || selectedCustomerRecord?.siteInchargeName || selectedCustomerRecord?.contactPerson || matchedLeadFromProps?.siteInchargeName || matchedLeadFromProps?.contactPerson || quotationDraft?.siteInchargeName || '').trim(),
-      siteInchargeMobile: (formData.siteInchargeMobile || formData.phone || selectedCustomerRecord?.siteInchargeMobile || selectedCustomerRecord?.phone || matchedLeadFromProps?.siteInchargeMobile || matchedLeadFromProps?.phone || quotationDraft?.siteInchargeMobile || '').trim(),
-      phone: (formData.phone || formData.siteInchargeMobile || selectedCustomerRecord?.phone || selectedCustomerRecord?.siteInchargeMobile || matchedLeadFromProps?.phone || matchedLeadFromProps?.siteInchargeMobile || quotationDraft?.phone || '').trim(),
+      contactPerson: (siteInchargeName || formData.siteInchargeName || formData.contactPerson || selectedCustomerRecord?.contactPerson || selectedCustomerRecord?.siteInchargeName || matchedLeadFromProps?.contactPerson || matchedLeadFromProps?.siteInchargeName || quotationDraft?.contactPerson || '').trim(),
+      siteInchargeName: (siteInchargeName || formData.siteInchargeName || formData.contactPerson || selectedCustomerRecord?.siteInchargeName || selectedCustomerRecord?.contactPerson || matchedLeadFromProps?.siteInchargeName || matchedLeadFromProps?.contactPerson || quotationDraft?.siteInchargeName || '').trim(),
+      siteInchargeMobile: (siteInchargeMobile || formData.siteInchargeMobile || formData.phone || selectedCustomerRecord?.siteInchargeMobile || selectedCustomerRecord?.phone || matchedLeadFromProps?.siteInchargeMobile || matchedLeadFromProps?.phone || quotationDraft?.siteInchargeMobile || '').trim(),
+      phone: (siteInchargeMobile || formData.siteInchargeMobile || formData.phone || selectedCustomerRecord?.phone || selectedCustomerRecord?.siteInchargeMobile || matchedLeadFromProps?.phone || matchedLeadFromProps?.siteInchargeMobile || quotationDraft?.phone || '').trim(),
       deliveryAddress: (matchedLeadFromProps?.deliveryAddress || (matchedLeadFromProps?.address ? (typeof matchedLeadFromProps.address === 'string' ? matchedLeadFromProps.address : (matchedLeadFromProps.address.deliveryAddress || matchedLeadFromProps.address.line1)) : '') || quotationDraft?.deliveryAddress || '').trim(),
       billingAddress: (matchedLeadFromProps?.deliveryAddress || quotationDraft?.billingAddress || '').trim(),
       address: matchedLeadFromProps?.address || quotationDraft?.address || undefined,
@@ -1184,6 +1205,36 @@ export default function CreateQuotation({
               />
             </div>
           )}
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Site Incharge Name</label>
+            <input 
+              data-testid="quotation-site-incharge-name"
+              type="text" 
+              className="form-input" 
+              placeholder="e.g. Kalpesh Patel" 
+              value={siteInchargeName || ''} 
+              onChange={e => setSiteInchargeName(e.target.value)} 
+              maxLength={255}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Site Incharge Mobile *</label>
+            <input 
+              data-testid="quotation-site-incharge-mobile"
+              type="tel" 
+              className="form-input" 
+              placeholder="e.g. 9426703637" 
+              value={siteInchargeMobile || ''} 
+              onChange={e => setSiteInchargeMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+              maxLength={10}
+              minLength={10}
+              pattern="[0-9]{10}"
+              required 
+            />
+          </div>
         </div>
 
         <div className="form-row">
