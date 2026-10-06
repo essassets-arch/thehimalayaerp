@@ -180,11 +180,11 @@ export default function FinanceMonthlySalesWorkspace() {
   // Reset pagination when search or filters change
   useEffect(() => {
     setOrderPage(1);
-  }, [orderSearchQuery, selectedMonth, selectedCompany, selectedSalesperson, selectedCustomer, selectedStatus]);
+  }, [orderSearchQuery, financialYear, selectedMonth, selectedCompany, selectedSalesperson, selectedCustomer, selectedStatus]);
 
   useEffect(() => {
     setCustomerPage(1);
-  }, [customerSearchQuery, selectedMonth, selectedCompany, selectedSalesperson]);
+  }, [customerSearchQuery, financialYear, selectedMonth, selectedCompany, selectedSalesperson]);
 
   // Safe resolved values
   const executive = workspaceData?.executiveSummary || {
@@ -260,12 +260,36 @@ export default function FinanceMonthlySalesWorkspace() {
     );
   }, [workspaceData?.orderInvoiceDetails, orderSearchQuery]);
 
-  // Paginated Orders
-  const totalOrderPages = Math.max(1, Math.ceil(orderInvoiceDetails.length / orderPageSize));
+  // Aggregate Totals for Currently Filtered Orders
+  const orderTotals = useMemo(() => {
+    return orderInvoiceDetails.reduce((acc, o) => {
+      acc.sales += (o.sales || 0);
+      acc.invoiced += (o.invoiced || 0);
+      acc.collected += (o.collected || 0);
+      acc.due += (o.due || 0);
+      acc.overdue += (o.overdue || 0);
+      return acc;
+    }, { sales: 0, invoiced: 0, collected: 0, due: 0, overdue: 0 });
+  }, [orderInvoiceDetails]);
+
+  // Paginated Orders with 'All' Support and Safe Bounds
+  const isAllOrders = orderPageSize === 'all' || orderPageSize >= 10000;
+  const totalOrderPages = isAllOrders ? 1 : Math.max(1, Math.ceil(orderInvoiceDetails.length / Number(orderPageSize)));
+  const safeOrderPage = Math.min(Math.max(1, orderPage), totalOrderPages);
+
   const paginatedOrders = useMemo(() => {
-    const start = (orderPage - 1) * orderPageSize;
-    return orderInvoiceDetails.slice(start, start + orderPageSize);
-  }, [orderInvoiceDetails, orderPage, orderPageSize]);
+    if (isAllOrders) return orderInvoiceDetails;
+    const size = Number(orderPageSize);
+    const start = (safeOrderPage - 1) * size;
+    return orderInvoiceDetails.slice(start, start + size);
+  }, [orderInvoiceDetails, safeOrderPage, orderPageSize, isAllOrders]);
+
+  // Auto-clamp order page if list shrinks
+  useEffect(() => {
+    if (orderPage > totalOrderPages && totalOrderPages > 0) {
+      setOrderPage(1);
+    }
+  }, [totalOrderPages, orderPage]);
 
   // Filtered Customers
   const customerOutstanding = useMemo(() => {
@@ -275,12 +299,23 @@ export default function FinanceMonthlySalesWorkspace() {
     return list.filter(c => c.customer?.toLowerCase().includes(q));
   }, [workspaceData?.customerOutstanding, customerSearchQuery]);
 
-  // Paginated Customers
-  const totalCustomerPages = Math.max(1, Math.ceil(customerOutstanding.length / customerPageSize));
+  // Paginated Customers with 'All' Support and Safe Bounds
+  const isAllCustomers = customerPageSize === 'all' || customerPageSize >= 10000;
+  const totalCustomerPages = isAllCustomers ? 1 : Math.max(1, Math.ceil(customerOutstanding.length / Number(customerPageSize)));
+  const safeCustomerPage = Math.min(Math.max(1, customerPage), totalCustomerPages);
+
   const paginatedCustomers = useMemo(() => {
-    const start = (customerPage - 1) * customerPageSize;
-    return customerOutstanding.slice(start, start + customerPageSize);
-  }, [customerOutstanding, customerPage, customerPageSize]);
+    if (isAllCustomers) return customerOutstanding;
+    const size = Number(customerPageSize);
+    const start = (safeCustomerPage - 1) * size;
+    return customerOutstanding.slice(start, start + size);
+  }, [customerOutstanding, safeCustomerPage, customerPageSize, isAllCustomers]);
+
+  useEffect(() => {
+    if (customerPage > totalCustomerPages && totalCustomerPages > 0) {
+      setCustomerPage(1);
+    }
+  }, [totalCustomerPages, customerPage]);
 
   const filters = workspaceData?.filters || {
     financialYears: ['2024–25', '2025–26', '2026–27', '2027–28'],
@@ -349,23 +384,23 @@ export default function FinanceMonthlySalesWorkspace() {
 
   // Reusable Pagination Component
   const renderPagination = ({ currentPage, totalPages, totalCount, pageSize, setPageSize, setPage, itemName = 'items' }) => {
-    const startItem = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-    const endItem = Math.min(totalCount, currentPage * pageSize);
+    const isAll = pageSize === 'all' || pageSize >= 10000;
+    const safeCurrent = Math.min(Math.max(1, currentPage), totalPages);
+    const numericPageSize = isAll ? (totalCount || 1) : Number(pageSize);
+    const startItem = totalCount === 0 ? 0 : (isAll ? 1 : (safeCurrent - 1) * numericPageSize + 1);
+    const endItem = isAll ? totalCount : Math.min(totalCount, safeCurrent * numericPageSize);
 
     const getPageNumbers = () => {
-      const pages = [];
       if (totalPages <= 7) {
-        for (let i = 1; i <= totalPages; i++) pages.push(i);
-      } else {
-        pages.push(1);
-        if (currentPage > 3) pages.push('...');
-        const start = Math.max(2, currentPage - 1);
-        const end = Math.min(totalPages - 1, currentPage + 1);
-        for (let i = start; i <= end; i++) pages.push(i);
-        if (currentPage < totalPages - 2) pages.push('...');
-        pages.push(totalPages);
+        return Array.from({ length: totalPages }, (_, i) => i + 1);
       }
-      return pages;
+      if (safeCurrent <= 4) {
+        return [1, 2, 3, 4, 5, '...', totalPages];
+      }
+      if (safeCurrent >= totalPages - 3) {
+        return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+      }
+      return [1, '...', safeCurrent - 1, safeCurrent, safeCurrent + 1, '...', totalPages];
     };
 
     return (
@@ -379,16 +414,22 @@ export default function FinanceMonthlySalesWorkspace() {
         flexWrap: 'wrap',
         gap: '12px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '13px', color: '#64748B' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '13px', color: '#64748B', flexWrap: 'wrap' }}>
           <span>
             Showing <strong style={{ color: '#0F172A' }}>{startItem}</strong> to <strong style={{ color: '#0F172A' }}>{endItem}</strong> of <strong style={{ color: '#0F172A' }}>{totalCount}</strong> {itemName}
+            {!isAll && totalPages > 1 && (
+              <span style={{ marginLeft: '6px', color: '#94A3B8' }}>
+                (Page <strong style={{ color: '#0F172A' }}>{safeCurrent}</strong> of <strong style={{ color: '#0F172A' }}>{totalPages}</strong>)
+              </span>
+            )}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '12px', color: '#64748B' }}>Rows per page:</span>
             <select
               value={pageSize}
               onChange={(e) => {
-                setPageSize(Number(e.target.value));
+                const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                setPageSize(val);
                 setPage(1);
               }}
               style={{
@@ -402,7 +443,8 @@ export default function FinanceMonthlySalesWorkspace() {
                 cursor: 'pointer'
               }}
             >
-              {[10, 25, 50, 100].map(s => <option key={s} value={s}>{s}</option>)}
+              {[10, 25, 50, 100, 200].map(s => <option key={s} value={s}>{s}</option>)}
+              <option value="all">All ({totalCount})</option>
             </select>
           </div>
         </div>
@@ -410,12 +452,12 @@ export default function FinanceMonthlySalesWorkspace() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <button
             type="button"
-            disabled={currentPage === 1}
+            disabled={isAll || safeCurrent === 1}
             onClick={() => setPage(1)}
             style={{
               padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1',
-              background: '#ffffff', color: currentPage === 1 ? '#CBD5E1' : '#334155',
-              cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+              background: '#ffffff', color: (isAll || safeCurrent === 1) ? '#CBD5E1' : '#334155',
+              cursor: (isAll || safeCurrent === 1) ? 'not-allowed' : 'pointer'
             }}
             title="First Page"
           >
@@ -423,12 +465,12 @@ export default function FinanceMonthlySalesWorkspace() {
           </button>
           <button
             type="button"
-            disabled={currentPage === 1}
+            disabled={isAll || safeCurrent === 1}
             onClick={() => setPage(prev => Math.max(1, prev - 1))}
             style={{
               padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1',
-              background: '#ffffff', color: currentPage === 1 ? '#CBD5E1' : '#334155',
-              fontSize: '12px', fontWeight: '750', cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+              background: '#ffffff', color: (isAll || safeCurrent === 1) ? '#CBD5E1' : '#334155',
+              fontSize: '12px', fontWeight: '750', cursor: (isAll || safeCurrent === 1) ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', gap: '3px'
             }}
           >
@@ -436,14 +478,14 @@ export default function FinanceMonthlySalesWorkspace() {
             <span>Prev</span>
           </button>
 
-          {getPageNumbers().map((p, idx) => {
+          {!isAll && getPageNumbers().map((p, idx) => {
             if (p === '...') {
               return <span key={`ellipsis-${idx}`} style={{ padding: '0 4px', color: '#94A3B8', fontSize: '12px' }}>...</span>;
             }
-            const isAct = p === currentPage;
+            const isAct = p === safeCurrent;
             return (
               <button
-                key={p}
+                key={`page-${p}-${idx}`}
                 type="button"
                 onClick={() => setPage(p)}
                 style={{
@@ -461,12 +503,12 @@ export default function FinanceMonthlySalesWorkspace() {
 
           <button
             type="button"
-            disabled={currentPage === totalPages}
+            disabled={isAll || safeCurrent === totalPages}
             onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
             style={{
               padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1',
-              background: '#ffffff', color: currentPage === totalPages ? '#CBD5E1' : '#334155',
-              fontSize: '12px', fontWeight: '750', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+              background: '#ffffff', color: (isAll || safeCurrent === totalPages) ? '#CBD5E1' : '#334155',
+              fontSize: '12px', fontWeight: '750', cursor: (isAll || safeCurrent === totalPages) ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', gap: '3px'
             }}
           >
@@ -475,12 +517,12 @@ export default function FinanceMonthlySalesWorkspace() {
           </button>
           <button
             type="button"
-            disabled={currentPage === totalPages}
+            disabled={isAll || safeCurrent === totalPages}
             onClick={() => setPage(totalPages)}
             style={{
               padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1',
-              background: '#ffffff', color: currentPage === totalPages ? '#CBD5E1' : '#334155',
-              cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+              background: '#ffffff', color: (isAll || safeCurrent === totalPages) ? '#CBD5E1' : '#334155',
+              cursor: (isAll || safeCurrent === totalPages) ? 'not-allowed' : 'pointer'
             }}
             title="Last Page"
           >
@@ -809,10 +851,103 @@ export default function FinanceMonthlySalesWorkspace() {
       {activeTab === 'orders' && (
         <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', overflow: 'hidden' }}>
           
+          {/* Quick Month Selector Bar */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '12px 18px',
+            background: '#F8FAFC',
+            borderBottom: '1px solid #E2E8F0',
+            overflowX: 'auto',
+            whiteSpace: 'nowrap'
+          }}>
+            <span style={{ fontSize: '12px', fontWeight: '850', color: '#475569', display: 'flex', alignItems: 'center', gap: '5px', marginRight: '4px' }}>
+              <Calendar size={14} color="#002E5D" />
+              <span>Select Month:</span>
+            </span>
+
+            {/* All Months Button */}
+            <button
+              type="button"
+              onClick={() => setSelectedMonth('all')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '7px',
+                border: selectedMonth === 'all' ? '1.5px solid #002E5D' : '1px solid #CBD5E1',
+                background: selectedMonth === 'all' ? '#002E5D' : '#ffffff',
+                color: selectedMonth === 'all' ? '#ffffff' : '#334155',
+                fontSize: '12px',
+                fontWeight: selectedMonth === 'all' ? '850' : '650',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <span>All Months</span>
+              <span style={{
+                fontSize: '11px',
+                padding: '1px 7px',
+                borderRadius: '10px',
+                background: selectedMonth === 'all' ? '#0284C7' : '#F1F5F9',
+                color: selectedMonth === 'all' ? '#ffffff' : '#64748B',
+                fontWeight: '800'
+              }}>
+                {executive.totalOrders}
+              </span>
+            </button>
+
+            {/* 12 Individual Month Buttons */}
+            {monthsList.map((m) => {
+              const isAct = selectedMonth === m.index.toString();
+              const mTrend = monthlyTrend.find(t => t.monthIndex === m.index);
+              const count = mTrend?.ordersCount || 0;
+
+              return (
+                <button
+                  key={m.index}
+                  type="button"
+                  onClick={() => setSelectedMonth(m.index.toString())}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '7px',
+                    border: isAct ? '1.5px solid #2563EB' : '1px solid #CBD5E1',
+                    background: isAct ? '#2563EB' : '#ffffff',
+                    color: isAct ? '#ffffff' : '#334155',
+                    fontSize: '12px',
+                    fontWeight: isAct ? '850' : '650',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title={m.name}
+                >
+                  <span>{m.short}</span>
+                  {count > 0 && (
+                    <span style={{
+                      fontSize: '10.5px',
+                      padding: '1px 6px',
+                      borderRadius: '8px',
+                      background: isAct ? '#1D4ED8' : '#F1F5F9',
+                      color: isAct ? '#ffffff' : '#64748B',
+                      fontWeight: '800'
+                    }}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Filters & Search Toolbar */}
           <div style={{
             padding: '14px 20px',
-            background: '#F8FAFC',
+            background: '#ffffff',
             borderBottom: '1px solid #E2E8F0',
             display: 'flex',
             justifyContent: 'space-between',
@@ -821,7 +956,7 @@ export default function FinanceMonthlySalesWorkspace() {
             gap: '12px'
           }}>
             {/* Search Box */}
-            <div style={{ position: 'relative', minWidth: '280px', flex: '1 1 280px', maxWidth: '400px' }}>
+            <div style={{ position: 'relative', minWidth: '260px', flex: '1 1 260px', maxWidth: '380px' }}>
               <Search size={14} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
               <input
                 type="text"
@@ -843,6 +978,28 @@ export default function FinanceMonthlySalesWorkspace() {
 
             {/* Filter Dropdowns */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {/* Month Filter Dropdown */}
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={{
+                  padding: '6px 10px', borderRadius: '6px', border: '1.5px solid #2563EB',
+                  fontSize: '12px', fontWeight: '750', color: '#1E40AF', background: '#EFF6FF', cursor: 'pointer',
+                  maxWidth: '170px'
+                }}
+              >
+                <option value="all">📅 All Months ({executive.totalOrders})</option>
+                {monthsList.map(m => {
+                  const mTrend = monthlyTrend.find(t => t.monthIndex === m.index);
+                  const count = mTrend?.ordersCount || 0;
+                  return (
+                    <option key={m.index} value={m.index.toString()}>
+                      {m.name} {count > 0 ? `(${count})` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+
               {/* Company Filter */}
               <select
                 value={selectedCompany}
@@ -850,7 +1007,7 @@ export default function FinanceMonthlySalesWorkspace() {
                 style={{
                   padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1',
                   fontSize: '12px', fontWeight: '600', color: '#334155', background: '#ffffff', cursor: 'pointer',
-                  maxWidth: '160px'
+                  maxWidth: '150px'
                 }}
               >
                 <option value="all">All Companies</option>
@@ -868,7 +1025,7 @@ export default function FinanceMonthlySalesWorkspace() {
                 style={{
                   padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1',
                   fontSize: '12px', fontWeight: '600', color: '#334155', background: '#ffffff', cursor: 'pointer',
-                  maxWidth: '160px'
+                  maxWidth: '150px'
                 }}
               >
                 <option value="all">All Salespersons</option>
@@ -892,11 +1049,12 @@ export default function FinanceMonthlySalesWorkspace() {
               </select>
 
               {/* Reset Filter Button */}
-              {(orderSearchQuery || selectedCompany !== 'all' || selectedSalesperson !== 'all' || selectedStatus !== 'All') && (
+              {(orderSearchQuery || selectedMonth !== 'all' || selectedCompany !== 'all' || selectedSalesperson !== 'all' || selectedStatus !== 'All') && (
                 <button
                   type="button"
                   onClick={() => {
                     setOrderSearchQuery('');
+                    setSelectedMonth('all');
                     setSelectedCompany('all');
                     setSelectedSalesperson('all');
                     setSelectedStatus('All');
@@ -906,7 +1064,7 @@ export default function FinanceMonthlySalesWorkspace() {
                     borderRadius: '6px', fontSize: '11.5px', fontWeight: '750', color: '#64748B', cursor: 'pointer'
                   }}
                 >
-                  Clear
+                  Clear Filters
                 </button>
               )}
             </div>
@@ -960,7 +1118,12 @@ export default function FinanceMonthlySalesWorkspace() {
                           {o.orderNo}
                         </td>
                         <td style={{ padding: '12px 14px', color: '#475569', whiteSpace: 'nowrap' }}>
-                          {formatDate(o.orderDate)}
+                          <div>{formatDate(o.orderDate)}</div>
+                          {o.orderDate && (
+                            <div style={{ fontSize: '10.5px', color: '#64748B', marginTop: '2px' }}>
+                              {new Date(o.orderDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: '12px 14px', fontWeight: '700', color: '#0F172A', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {o.customer}
@@ -1006,12 +1169,35 @@ export default function FinanceMonthlySalesWorkspace() {
                   })
                 )}
               </tbody>
+
+              {/* Table Summary Footer */}
+              {orderInvoiceDetails.length > 0 && (
+                <tfoot>
+                  <tr style={{ background: '#F8FAFC', borderTop: '2px solid #CBD5E1', fontWeight: '850' }}>
+                    <td colSpan={6} style={{ padding: '12px 14px', color: '#0F172A' }}>
+                      TOTAL ({orderInvoiceDetails.length} {orderInvoiceDetails.length === 1 ? 'Order' : 'Orders'} Filtered)
+                    </td>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', color: '#0F172A', fontWeight: '900' }}>
+                      {formatINR(orderTotals.sales)}
+                    </td>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', color: '#059669', fontWeight: '900' }}>
+                      {formatINR(orderTotals.collected)}
+                    </td>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', color: orderTotals.due > 0 ? '#D97706' : '#94A3B8', fontWeight: '900' }}>
+                      {formatINR(orderTotals.due)}
+                    </td>
+                    <td style={{ padding: '12px 14px', textAlign: 'center', color: '#DC2626', fontSize: '11px', fontWeight: '800' }}>
+                      {orderTotals.overdue > 0 ? `Overdue: ${formatINR(orderTotals.overdue)}` : 'No Overdue'}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
 
           {/* Proper Pagination Controls */}
           {renderPagination({
-            currentPage: orderPage,
+            currentPage: safeOrderPage,
             totalPages: totalOrderPages,
             totalCount: orderInvoiceDetails.length,
             pageSize: orderPageSize,
@@ -1388,7 +1574,7 @@ export default function FinanceMonthlySalesWorkspace() {
 
           {/* Proper Pagination Controls */}
           {renderPagination({
-            currentPage: customerPage,
+            currentPage: safeCustomerPage,
             totalPages: totalCustomerPages,
             totalCount: customerOutstanding.length,
             pageSize: customerPageSize,
