@@ -30,7 +30,8 @@ import {
   Table as TableIcon,
   SlidersHorizontal,
   ChevronDown,
-  Check
+  Check,
+  Download
 } from 'lucide-react';
 
 import { useQueryClient } from '@tanstack/react-query';
@@ -1436,6 +1437,77 @@ export default function DailyReportEntryView({
     router.replace(targetPath);
   };
 
+  const handleExportCSV = useCallback(() => {
+    if (!rows || rows.length === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'No Items to Export',
+        text: 'Please add product items to the report before exporting.',
+        confirmButtonColor: '#2F4375'
+      });
+      return;
+    }
+
+    const headers = [
+      'Sr',
+      'Product *',
+      'Size',
+      'Type',
+      'Capacity',
+      'Cover',
+      'Cover Wt (kg)',
+      'Frame',
+      'Frame Wt (kg)',
+      'Total Wt (kg)',
+      'Set',
+      'Extra Cover',
+      'Extra Frame'
+    ];
+
+    const csvRows = rows.map((row, index) => {
+      const selectedProd = products.find(p => p.id === row.productId);
+      const prodName = selectedProd?.name || row.customProductName || row.productName || '';
+      const sizeVal = row.size || selectedProd?.size || '';
+      const typeVal = row.type || selectedProd?.type || '';
+      const capVal = row.capacity || selectedProd?.capacity || '';
+
+      const coverQty = Number(row.coverQty || 0);
+      const coverWt = Number(row.actualCoverWeight || row.coverWeight || 0).toFixed(2);
+      const frameQty = Number(row.frameQty || 0);
+      const frameWt = Number(row.actualFrameWeight || row.frameWeight || 0).toFixed(2);
+      const totalWt = Number(row.totalWeight || 0).toFixed(2);
+      const setQty = Number(row.setQty || 0);
+      const extraCoverQty = Number(row.extraCoverQty || 0);
+      const extraFrameQty = Number(row.extraFrameQty || 0);
+
+      return [
+        index + 1,
+        `"${String(prodName).replace(/"/g, '""')}"`,
+        `"${String(sizeVal).replace(/"/g, '""')}"`,
+        `"${String(typeVal).replace(/"/g, '""')}"`,
+        `"${String(capVal).replace(/"/g, '""')}"`,
+        coverQty,
+        coverWt,
+        frameQty,
+        frameWt,
+        totalWt,
+        setQty,
+        extraCoverQty,
+        extraFrameQty
+      ].join(',');
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...csvRows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    const cleanReportNo = (reportNo || 'Draft').replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.setAttribute('download', `Daily_Report_${cleanReportNo}_${reportDate || todayStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [rows, products, reportNo, reportDate, todayStr]);
+
   const handleAddMultipleProducts = (selectedList) => {
     if (!selectedList || selectedList.length === 0) return;
 
@@ -1646,6 +1718,29 @@ export default function DailyReportEntryView({
                 <Printer size={16} /> Print / Export PDF
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              className="daily-report-header-btn-csv"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 16px',
+                borderRadius: '10px',
+                border: '1px solid #10b981',
+                background: 'rgba(16, 185, 129, 0.08)',
+                color: '#059669',
+                fontSize: '13px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              title="Export Current Items to CSV"
+            >
+              <Download size={16} /> Export CSV
+            </button>
           </div>
 
           <div className="daily-report-header-main-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2041,6 +2136,27 @@ export default function DailyReportEntryView({
           </div>
 
           <div className="daily-report-table-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 14px',
+                borderRadius: '8px',
+                border: '1.5px solid #10b981',
+                background: 'rgba(16, 185, 129, 0.08)',
+                color: '#059669',
+                fontSize: '12.5px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              title="Export Products Table as CSV"
+            >
+              <Download size={15} /> Export CSV
+            </button>
             {!isReadOnly && (
               <>
                 <button

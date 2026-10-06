@@ -337,6 +337,23 @@ export class DispatchDailyReportService {
         orderBy: { reportDate: 'desc' },
         include: {
           createdBy: { select: { id: true, name: true, email: true } },
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                  size: true,
+                  type: true,
+                  capacity: true,
+                  coverUnitWeight: true,
+                  frameUnitWeight: true,
+                },
+              },
+            },
+            orderBy: { srNo: 'asc' },
+          },
           _count: { select: { items: true } },
         },
       }),

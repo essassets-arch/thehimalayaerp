@@ -127,6 +127,76 @@ export default function DailyReportHistoryView({
     }
   };
 
+  const handleExportSingleReportCSV = (report) => {
+    if (!report || !report.items || report.items.length === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'No Items to Export',
+        text: 'This report does not contain any product items.',
+        confirmButtonColor: '#0284c7'
+      });
+      return;
+    }
+
+    const headers = [
+      'Sr',
+      'Product *',
+      'Size',
+      'Type',
+      'Capacity',
+      'Cover',
+      'Cover Wt (kg)',
+      'Frame',
+      'Frame Wt (kg)',
+      'Total Wt (kg)',
+      'Set',
+      'Extra Cover',
+      'Extra Frame'
+    ];
+
+    const csvRows = report.items.map((item, idx) => {
+      const srNo = item.srNo || idx + 1;
+      const prodName = item.product?.name || item.customProductName || '';
+      const size = item.size || item.product?.size || '';
+      const type = item.type || item.product?.type || '';
+      const capacity = item.capacity || item.product?.capacity || '';
+      const coverQty = Number(item.coverQty || 0);
+      const coverWt = Number(item.actualCoverWeight || item.coverWeight || 0).toFixed(2);
+      const frameQty = Number(item.frameQty || 0);
+      const frameWt = Number(item.actualFrameWeight || item.frameWeight || 0).toFixed(2);
+      const totalWt = Number(item.totalWeight || 0).toFixed(2);
+      const setQty = Number(item.setQty || 0);
+      const extraCover = Number(item.extraCoverQty || 0);
+      const extraFrame = Number(item.extraFrameQty || 0);
+
+      return [
+        srNo,
+        `"${String(prodName).replace(/"/g, '""')}"`,
+        `"${String(size).replace(/"/g, '""')}"`,
+        `"${String(type).replace(/"/g, '""')}"`,
+        `"${String(capacity).replace(/"/g, '""')}"`,
+        coverQty,
+        coverWt,
+        frameQty,
+        frameWt,
+        totalWt,
+        setQty,
+        extraCover,
+        extraFrame
+      ].join(',');
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...csvRows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    const cleanNo = (report.reportNo || report.id || 'Report').replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.setAttribute('download', `Daily_Report_${cleanNo}_Items.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleExportCSV = () => {
     if (!reports || reports.length === 0) {
       Swal.fire({
@@ -144,29 +214,93 @@ export default function DailyReportHistoryView({
       'Shift',
       'Supervisor',
       'Status',
-      'Covers Produced',
-      'Frames Produced',
-      'Total Sets',
-      'Total Weight (KG)',
-      'Total Weight (MT)',
+      'Sr',
+      'Product *',
+      'Size',
+      'Type',
+      'Capacity',
+      'Cover',
+      'Cover Wt (kg)',
+      'Frame',
+      'Frame Wt (kg)',
+      'Total Wt (kg)',
+      'Set',
+      'Extra Cover',
+      'Extra Frame',
       'Remarks'
     ];
 
-    const csvRows = reports.map(r => {
-      const w = Number(r.totalWeight || 0);
-      return [
-        `"${r.reportNo || r.id || ''}"`,
-        `"${r.reportDate ? new Date(r.reportDate).toLocaleDateString('en-GB') : ''}"`,
-        `"${r.shift || ''}"`,
-        `"${r.shiftSupervisorName || r.supervisorName || ''}"`,
-        `"${r.status || 'DRAFT'}"`,
-        r.totalCovers || 0,
-        r.totalFrames || 0,
-        r.totalSets || 0,
-        w.toFixed(2),
-        (w / 1000).toFixed(3),
-        `"${(r.remarks || '').replace(/"/g, '""')}"`
-      ].join(',');
+    const csvRows = [];
+    reports.forEach((r) => {
+      const repNo = r.reportNo || r.id || '';
+      const repDate = r.reportDate ? new Date(r.reportDate).toLocaleDateString('en-GB') : '';
+      const repShift = r.shift || '';
+      const repSup = r.shiftSupervisorName || r.supervisorName || '';
+      const repStatus = r.status || 'DRAFT';
+
+      if (r.items && r.items.length > 0) {
+        r.items.forEach((item, idx) => {
+          const srNo = item.srNo || idx + 1;
+          const prodName = item.product?.name || item.customProductName || '';
+          const size = item.size || item.product?.size || '';
+          const type = item.type || item.product?.type || '';
+          const capacity = item.capacity || item.product?.capacity || '';
+          const coverQty = Number(item.coverQty || 0);
+          const coverWt = Number(item.actualCoverWeight || item.coverWeight || 0).toFixed(2);
+          const frameQty = Number(item.frameQty || 0);
+          const frameWt = Number(item.actualFrameWeight || item.frameWeight || 0).toFixed(2);
+          const totalWt = Number(item.totalWeight || 0).toFixed(2);
+          const setQty = Number(item.setQty || 0);
+          const extraCover = Number(item.extraCoverQty || 0);
+          const extraFrame = Number(item.extraFrameQty || 0);
+          const remarks = item.remarks || r.remarks || '';
+
+          csvRows.push([
+            `"${String(repNo).replace(/"/g, '""')}"`,
+            `"${String(repDate).replace(/"/g, '""')}"`,
+            `"${String(repShift).replace(/"/g, '""')}"`,
+            `"${String(repSup).replace(/"/g, '""')}"`,
+            `"${String(repStatus).replace(/"/g, '""')}"`,
+            srNo,
+            `"${String(prodName).replace(/"/g, '""')}"`,
+            `"${String(size).replace(/"/g, '""')}"`,
+            `"${String(type).replace(/"/g, '""')}"`,
+            `"${String(capacity).replace(/"/g, '""')}"`,
+            coverQty,
+            coverWt,
+            frameQty,
+            frameWt,
+            totalWt,
+            setQty,
+            extraCover,
+            extraFrame,
+            `"${String(remarks).replace(/"/g, '""')}"`
+          ].join(','));
+        });
+      } else {
+        const w = Number(r.totalWeight || 0);
+        csvRows.push([
+          `"${String(repNo).replace(/"/g, '""')}"`,
+          `"${String(repDate).replace(/"/g, '""')}"`,
+          `"${String(repShift).replace(/"/g, '""')}"`,
+          `"${String(repSup).replace(/"/g, '""')}"`,
+          `"${String(repStatus).replace(/"/g, '""')}"`,
+          1,
+          'Summary',
+          '—',
+          '—',
+          '—',
+          r.totalCovers || 0,
+          Number(r.totalCoverWeight || 0).toFixed(2),
+          r.totalFrames || 0,
+          Number(r.totalFrameWeight || 0).toFixed(2),
+          w.toFixed(2),
+          r.totalSets || 0,
+          0,
+          0,
+          `"${String(r.remarks || '').replace(/"/g, '""')}"`
+        ].join(','));
+      }
     });
 
     const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...csvRows].join('\n');
@@ -1264,33 +1398,57 @@ export default function DailyReportHistoryView({
               background: '#f8fafc',
               gap: '12px'
             }}>
-              <button
-                type="button"
-                onClick={() => {
-                  if (onViewReport) {
-                    setSelectedReportModal(null);
-                    onViewReport(selectedReportModal.id);
-                  } else {
-                    const basePath = roleMode === 'DISPATCH' ? '/dispatch' : '/production';
-                    window.open(`${basePath}/daily-report/${selectedReportModal.id}`, '_blank');
-                  }
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '9px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
-                  background: '#ffffff',
-                  color: '#334155',
-                  fontSize: '13px',
-                  fontWeight: '700',
-                  cursor: 'pointer'
-                }}
-              >
-                <Printer size={15} /> Printable Page
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onViewReport) {
+                      setSelectedReportModal(null);
+                      onViewReport(selectedReportModal.id);
+                    } else {
+                      const basePath = roleMode === 'DISPATCH' ? '/dispatch' : '/production';
+                      window.open(`${basePath}/daily-report/${selectedReportModal.id}`, '_blank');
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '9px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#334155',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Printer size={15} /> Printable Page
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExportSingleReportCSV(selectedReportModal)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '9px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #10b981',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    color: '#059669',
+                    fontSize: '13px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Export this report's items as CSV"
+                >
+                  <Download size={15} /> Export CSV
+                </button>
+              </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {!isReadOnly && (selectedReportModal.status === 'DRAFT' || selectedReportModal.status === 'REOPENED') && onEditReport && (

@@ -55,6 +55,9 @@ interface Customer {
 interface SalesOrder {
   id?: string;
   orderNumber: string;
+  orderDate?: string | null;
+  confirmedAt?: string | null;
+  createdAt?: string | null;
   customer?: Customer;
   customerName?: string;
   salesExecutive?: any;
@@ -129,6 +132,26 @@ function normalizeDispatchCategory(cat?: string | null): 'D1' | 'D2' | null {
     return 'D2';
   }
   return null;
+}
+
+function formatOrderDate(dateStr?: string | null): string {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "—";
+  }
+}
+
+function getSalesOrderDate(so?: SalesOrder | null): string | null {
+  if (!so) return null;
+  return so.confirmedAt || so.orderDate || (so as any).createdAt || null;
 }
 
 function normalizeKey(str?: string | null): string {
@@ -572,10 +595,12 @@ export default function DeliveryRunPage() {
     return sorted.filter(
       (d) => {
         const meta = getResolvedMetadata(d);
+        const soDateStr = formatOrderDate(getSalesOrderDate(d.salesOrder));
         return (
           d.dispatchNo?.toLowerCase().includes(lower) ||
           d.invoiceNumber?.toLowerCase().includes(lower) ||
           d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
+          soDateStr.toLowerCase().includes(lower) ||
           d.salesOrder?.customer?.companyName?.toLowerCase().includes(lower) ||
           meta.customerName.toLowerCase().includes(lower) ||
           meta.salesPersonName.toLowerCase().includes(lower) ||
@@ -614,10 +639,12 @@ export default function DeliveryRunPage() {
     return sorted.filter(
       (d) => {
         const meta = getResolvedMetadata(d);
+        const soDateStr = formatOrderDate(getSalesOrderDate(d.salesOrder));
         return (
           d.dispatchNo?.toLowerCase().includes(lower) ||
           d.invoiceNumber?.toLowerCase().includes(lower) ||
           d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
+          soDateStr.toLowerCase().includes(lower) ||
           d.salesOrder?.customer?.companyName?.toLowerCase().includes(lower) ||
           meta.customerName.toLowerCase().includes(lower) ||
           meta.salesPersonName.toLowerCase().includes(lower) ||
@@ -766,6 +793,7 @@ export default function DeliveryRunPage() {
       return {
         "Dispatch #": formatCleanNo(d.dispatchNo),
         "Sales Order #": formatCleanNo(d.salesOrder?.orderNumber),
+        "Order Date": formatOrderDate(getSalesOrderDate(d.salesOrder)),
         "Invoice Number": d.invoiceNumber || "—",
         Customer: meta.customerName || "—",
         "Sales Person": meta.salesPersonName || "—",
@@ -1058,7 +1086,7 @@ export default function DeliveryRunPage() {
                     <thead>
                       <tr>
                         <th style={{ width: 170 }}>Dispatch Number</th>
-                        <th style={{ width: 150 }}>Sales Order</th>
+                        <th style={{ width: 160 }}>Sales Order &amp; Date</th>
                         <th style={{ width: 160 }}>Invoice Number</th>
                         <th>Customer &amp; Destination</th>
                         <th style={{ width: 220 }}>Driver &amp; Carrier</th>
@@ -1071,6 +1099,7 @@ export default function DeliveryRunPage() {
                         const cleanDispNo = formatCleanNo(item.dispatchNo);
                         const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
                         const cleanInvNo = formatCleanNo(item.invoiceNumber);
+                        const orderDateStr = formatOrderDate(getSalesOrderDate(item.salesOrder));
                         const meta = getResolvedMetadata(item);
 
                         return (
@@ -1092,11 +1121,34 @@ export default function DeliveryRunPage() {
                               </div>
                             </td>
 
-                            {/* Sales Order */}
+                            {/* Sales Order & Date */}
                             <td>
-                              <span className={styles.badgeOrderNo}>
-                                #{cleanSoNo}
-                              </span>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                <span className={styles.badgeOrderNo}>
+                                  #{cleanSoNo}
+                                </span>
+                                {orderDateStr !== "—" && (
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 3.5,
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      color: "#475569",
+                                      background: "#f1f5f9",
+                                      border: "1px solid #cbd5e1",
+                                      borderRadius: 4,
+                                      padding: "1px 6px",
+                                      width: "max-content",
+                                    }}
+                                    title={`Confirmed Order Date: ${orderDateStr}`}
+                                  >
+                                    <Calendar size={11} color="#64748b" />
+                                    {orderDateStr}
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
                             {/* Invoice Number */}
@@ -1220,6 +1272,7 @@ export default function DeliveryRunPage() {
                   {activeDeliveryQueue.map((item) => {
                     const cleanDispNo = formatCleanNo(item.dispatchNo);
                     const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
+                    const orderDateStr = formatOrderDate(getSalesOrderDate(item.salesOrder));
                     const meta = getResolvedMetadata(item);
 
                     return (
@@ -1244,6 +1297,26 @@ export default function DeliveryRunPage() {
                               <span style={{ fontSize: "11.5px", color: "#64748b" }}>
                                 Order #{cleanSoNo}
                               </span>
+                              {orderDateStr !== "—" && (
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 3,
+                                    fontSize: "10.5px",
+                                    fontWeight: 600,
+                                    color: "#475569",
+                                    background: "#f1f5f9",
+                                    border: "1px solid #cbd5e1",
+                                    borderRadius: 4,
+                                    padding: "1px 5px",
+                                  }}
+                                  title={`Confirmed Order Date: ${orderDateStr}`}
+                                >
+                                  <Calendar size={10} color="#64748b" />
+                                  {orderDateStr}
+                                </span>
+                              )}
                               {item.invoiceNumber && (
                                 <span
                                   style={{
@@ -1363,7 +1436,7 @@ export default function DeliveryRunPage() {
                       <thead>
                         <tr>
                           <th style={{ width: 140 }}>Dispatch No.</th>
-                          <th style={{ width: 130 }}>Sales Order</th>
+                          <th style={{ width: 150 }}>Sales Order &amp; Date</th>
                           <th style={{ width: 140 }}>Invoice No.</th>
                           <th style={{ minWidth: 160 }}>Customer & Site</th>
                           <th style={{ width: 150 }}>Products & Qty</th>
@@ -1379,6 +1452,7 @@ export default function DeliveryRunPage() {
                           const cleanDispNo = formatCleanNo(item.dispatchNo);
                           const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
                           const cleanInvNo = formatCleanNo(item.invoiceNumber);
+                          const orderDateStr = formatOrderDate(getSalesOrderDate(item.salesOrder));
                           const meta = getResolvedMetadata(item);
                           const totalQty = (item.items || []).reduce((sum, it) => sum + Number(it.quantity || 0), 0);
                           const primaryUnit = item.items?.[0]?.salesOrderItem?.unit || "PCS";
@@ -1397,15 +1471,39 @@ export default function DeliveryRunPage() {
                                 </div>
                               </td>
 
+                              {/* Sales Order & Date */}
                               <td>
-                                <span 
-                                  className={styles.badgeOrderNo}
-                                  onClick={() => window.open(`/orders/${cleanSoNo}`, '_blank')}
-                                  style={{ cursor: "pointer" }}
-                                  title="View Sales Order"
-                                >
-                                  #{cleanSoNo}
-                                </span>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                  <span 
+                                    className={styles.badgeOrderNo}
+                                    onClick={() => window.open(`/orders/${cleanSoNo}`, '_blank')}
+                                    style={{ cursor: "pointer" }}
+                                    title="View Sales Order"
+                                  >
+                                    #{cleanSoNo}
+                                  </span>
+                                  {orderDateStr !== "—" && (
+                                    <span
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 3.5,
+                                        fontSize: 11,
+                                        fontWeight: 600,
+                                        color: "#475569",
+                                        background: "#f1f5f9",
+                                        border: "1px solid #cbd5e1",
+                                        borderRadius: 4,
+                                        padding: "1px 6px",
+                                        width: "max-content",
+                                      }}
+                                      title={`Confirmed Order Date: ${orderDateStr}`}
+                                    >
+                                      <Calendar size={11} color="#64748b" />
+                                      {orderDateStr}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
 
                               {/* Invoice Number */}
@@ -1591,6 +1689,7 @@ export default function DeliveryRunPage() {
                     {filteredHistoryDispatches.map((item) => {
                       const cleanDispNo = formatCleanNo(item.dispatchNo);
                       const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
+                      const orderDateStr = formatOrderDate(getSalesOrderDate(item.salesOrder));
                       const meta = getResolvedMetadata(item);
                       const totalQty = (item.items || []).reduce((sum, it) => sum + Number(it.quantity || 0), 0);
                       const primaryUnit = item.items?.[0]?.salesOrderItem?.unit || "PCS";
@@ -1607,6 +1706,26 @@ export default function DeliveryRunPage() {
                               <span className={styles.badgeOrderNo}>
                                 #{cleanSoNo}
                               </span>
+                              {orderDateStr !== "—" && (
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 3,
+                                    fontSize: "10.5px",
+                                    fontWeight: 600,
+                                    color: "#475569",
+                                    background: "#f1f5f9",
+                                    border: "1px solid #cbd5e1",
+                                    borderRadius: 4,
+                                    padding: "1px 5px",
+                                  }}
+                                  title={`Confirmed Order Date: ${orderDateStr}`}
+                                >
+                                  <Calendar size={10} color="#64748b" />
+                                  {orderDateStr}
+                                </span>
+                              )}
                               {item.invoiceNumber && (
                                 <span
                                   style={{
@@ -1786,6 +1905,19 @@ export default function DeliveryRunPage() {
                           #{formatCleanNo(selectedDispatch.salesOrder?.orderNumber)}
                         </span>
                       </div>
+                      {(() => {
+                        const soDate = formatOrderDate(getSalesOrderDate(selectedDispatch.salesOrder));
+                        if (soDate === "—") return null;
+                        return (
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px" }}>
+                            <span style={{ color: "#64748b" }}>Order Date:</span>
+                            <span style={{ fontWeight: 600, color: "#475569", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              <Calendar size={12} color="#64748b" />
+                              {soDate}
+                            </span>
+                          </div>
+                        );
+                      })()}
                       {selectedDispatch.invoiceNumber && (
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px" }}>
                           <span style={{ color: "#64748b" }}>Invoice Number:</span>
@@ -1974,7 +2106,13 @@ export default function DeliveryRunPage() {
                       </span>
                     </div>
                     <p style={{ margin: "3px 0 0 0", fontSize: 12, color: "#94a3b8" }}>
-                      Sales Order: <strong style={{ color: "#60a5fa", cursor: "pointer" }} onClick={() => window.open(`/orders/${cleanSoNo}`, '_blank')}>#{cleanSoNo}</strong> • Delivered on {viewingHistoryItem.deliveredAt ? new Date(viewingHistoryItem.deliveredAt).toLocaleString("en-IN") : "—"}
+                      Sales Order: <strong style={{ color: "#60a5fa", cursor: "pointer" }} onClick={() => window.open(`/orders/${cleanSoNo}`, '_blank')}>#{cleanSoNo}</strong>
+                      {formatOrderDate(getSalesOrderDate(viewingHistoryItem.salesOrder)) !== "—" && (
+                        <span style={{ marginLeft: 6, color: "#cbd5e1" }}>
+                          (Confirmed: {formatOrderDate(getSalesOrderDate(viewingHistoryItem.salesOrder))})
+                        </span>
+                      )}
+                      {" "}• Delivered on {viewingHistoryItem.deliveredAt ? new Date(viewingHistoryItem.deliveredAt).toLocaleString("en-IN") : "—"}
                     </p>
                   </div>
                 </div>

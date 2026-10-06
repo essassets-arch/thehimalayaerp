@@ -83,6 +83,9 @@ interface Customer {
 interface SalesOrder {
   id?: string;
   orderNumber: string;
+  orderDate?: string | null;
+  confirmedAt?: string | null;
+  createdAt?: string | null;
   shippingAddress?: any;
   deliveryAddress?: any;
   requestedDeliveryDate?: string;
@@ -214,6 +217,26 @@ function resolveConsignmentAddress(dispatch: Dispatch): string {
   }
 
   return "Customer Designated Delivery Site";
+}
+
+function formatOrderDate(dateStr?: string | null): string {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "—";
+  }
+}
+
+function getSalesOrderDate(so?: SalesOrder | null): string | null {
+  if (!so) return null;
+  return (so as any).confirmedAt || (so as any).orderDate || (so as any).createdAt || null;
 }
 
 function formatDateDisplay(dateStr?: string | null): string {
@@ -442,6 +465,7 @@ export default function DeliveryHistoryPage() {
       (d) =>
         d.dispatchNo?.toLowerCase().includes(lower) ||
         d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
+        formatOrderDate(getSalesOrderDate(d.salesOrder)).toLowerCase().includes(lower) ||
         (d.salesOrder?.customer?.companyName || (d as any).customerName || (d as any).customer?.name || "").toLowerCase().includes(lower) ||
         d.invoiceNumber?.toLowerCase().includes(lower) ||
         d.gatePassNumber?.toLowerCase().includes(lower) ||
@@ -480,6 +504,7 @@ export default function DeliveryHistoryPage() {
       return {
         "Dispatch Number": formatCleanNo(d.dispatchNo),
         "Sales Order": formatCleanNo(d.salesOrder?.orderNumber),
+        "Sales Order Date": formatOrderDate(getSalesOrderDate(d.salesOrder)),
         Customer: d.salesOrder?.customer?.companyName || (d as any).customerName || (d as any).customer?.name || "—",
         "Invoice Number": invoice,
         "Challan Number": challan,
@@ -727,7 +752,7 @@ export default function DeliveryHistoryPage() {
                 <thead>
                   <tr>
                     <th style={{ width: 160 }}>Dispatch #</th>
-                    <th style={{ width: 150 }}>Sales Order</th>
+                    <th style={{ width: 160 }}>Sales Order &amp; Date</th>
                     <th>Customer &amp; Consignee</th>
                     <th style={{ width: 150 }}>Invoice #</th>
                     <th style={{ width: 140 }}>Challan #</th>
@@ -741,6 +766,7 @@ export default function DeliveryHistoryPage() {
                   {paginatedHistory.map((d) => {
                     const cleanDispNo = formatCleanNo(d.dispatchNo);
                     const cleanSoNo = formatCleanNo(d.salesOrder?.orderNumber);
+                    const orderDateStr = formatOrderDate(getSalesOrderDate(d.salesOrder));
                     const invoice = d.invoiceNumber || d.documentChecklist?.invoiceNumber;
                     const challan = d.gatePassNumber || d.documentChecklist?.challanNumber || d.challanNumber;
                     const isDelivered = String(d.status).toUpperCase() === "DELIVERED";
@@ -764,11 +790,34 @@ export default function DeliveryHistoryPage() {
                           </div>
                         </td>
 
-                        {/* Sales Order */}
+                        {/* Sales Order & Date */}
                         <td>
-                          <span className={styles.badgeOrderNo}>
-                            #{cleanSoNo}
-                          </span>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            <span className={styles.badgeOrderNo}>
+                              #{cleanSoNo}
+                            </span>
+                            {orderDateStr !== "—" && (
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 3.5,
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  color: "#475569",
+                                  background: "#f1f5f9",
+                                  border: "1px solid #cbd5e1",
+                                  borderRadius: 4,
+                                  padding: "1px 6px",
+                                  width: "max-content",
+                                }}
+                                title={`Confirmed Order Date: ${orderDateStr}`}
+                              >
+                                <Calendar size={11} color="#64748b" />
+                                {orderDateStr}
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Customer */}
@@ -898,6 +947,7 @@ export default function DeliveryHistoryPage() {
               {paginatedHistory.map((d) => {
                 const cleanDispNo = formatCleanNo(d.dispatchNo);
                 const cleanSoNo = formatCleanNo(d.salesOrder?.orderNumber);
+                const orderDateStr = formatOrderDate(getSalesOrderDate(d.salesOrder));
                 const isDelivered = String(d.status).toUpperCase() === "DELIVERED";
 
                 return (
@@ -926,8 +976,30 @@ export default function DeliveryHistoryPage() {
                         <div style={{ fontWeight: 800, color: "#0f172a" }}>
                           {d.salesOrder?.customer?.companyName || "Consignee Client"}
                         </div>
-                        <div style={{ fontSize: "11.5px", color: "#64748b" }}>
-                          Order #{cleanSoNo}
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
+                          <span style={{ fontSize: "11.5px", color: "#64748b" }}>
+                            Order #{cleanSoNo}
+                          </span>
+                          {orderDateStr !== "—" && (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 3.5,
+                                fontSize: "10.5px",
+                                fontWeight: 600,
+                                color: "#475569",
+                                background: "#f1f5f9",
+                                border: "1px solid #cbd5e1",
+                                borderRadius: 4,
+                                padding: "1px 5px",
+                              }}
+                              title={`Confirmed Order Date: ${orderDateStr}`}
+                            >
+                              <Calendar size={10} color="#64748b" />
+                              {orderDateStr}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1233,7 +1305,9 @@ export default function DeliveryHistoryPage() {
                     <span>Consignment #{cleanDispNo}</span>
                   </h2>
                   <p className={styles.detailsHeaderSubtitle}>
-                    Order #{cleanSoNo} · Created {formatDateDisplay(d.dispatchedAt || d.createdAt)}
+                    Order #{cleanSoNo}
+                    {formatOrderDate(getSalesOrderDate(d.salesOrder)) !== "—" && ` (Confirmed: ${formatOrderDate(getSalesOrderDate(d.salesOrder))})`}
+                    {" "}· Created {formatDateDisplay(d.dispatchedAt || d.createdAt)}
                   </p>
                 </div>
 
@@ -1330,9 +1404,30 @@ export default function DeliveryHistoryPage() {
 
                   <div className={styles.addressCard}>
                     <div className={styles.addressHeaderRow}>
-                      <span className={styles.addressOrderBadge}>
-                        Order #{cleanSoNo}
-                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <span className={styles.addressOrderBadge}>
+                          Order #{cleanSoNo}
+                        </span>
+                        {formatOrderDate(getSalesOrderDate(d.salesOrder)) !== "—" && (
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              color: "#475569",
+                              background: "#f1f5f9",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: 4,
+                              padding: "2px 6px",
+                            }}
+                          >
+                            <Calendar size={11} color="#64748b" />
+                            Confirmed: {formatOrderDate(getSalesOrderDate(d.salesOrder))}
+                          </span>
+                        )}
+                      </div>
                       <span className={styles.addressShippingLabel}>
                         Shipping To
                       </span>

@@ -41,6 +41,9 @@ interface Customer {
 interface SalesOrder {
   id?: string;
   orderNumber: string;
+  orderDate?: string | null;
+  confirmedAt?: string | null;
+  createdAt?: string | null;
   requestedDeliveryDate: string | null;
   customer: Customer;
 }
@@ -76,6 +79,26 @@ function normalizeDispatchCategory(cat?: string | null): 'D1' | 'D2' | null {
     return 'D2';
   }
   return null;
+}
+
+function formatOrderDate(dateStr?: string | null): string {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "—";
+  }
+}
+
+function getSalesOrderDate(so?: SalesOrder | null): string | null {
+  if (!so) return null;
+  return so.confirmedAt || so.orderDate || (so as any).createdAt || null;
 }
 
 function normalizeKey(str?: string | null): string {
@@ -509,10 +532,12 @@ export default function InTransitPage() {
     const lower = search.toLowerCase();
     return categoryFiltered.filter((d) => {
       const meta = getResolvedMetadata(d);
+      const soDateStr = formatOrderDate(getSalesOrderDate(d.salesOrder));
       return (
         d.dispatchNo?.toLowerCase().includes(lower) ||
         d.invoiceNumber?.toLowerCase().includes(lower) ||
         d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
+        soDateStr.toLowerCase().includes(lower) ||
         meta.customerName.toLowerCase().includes(lower) ||
         meta.salesPersonName.toLowerCase().includes(lower) ||
         d.driverName?.toLowerCase().includes(lower) ||
@@ -545,10 +570,12 @@ export default function InTransitPage() {
     const lower = search.toLowerCase();
     return sorted.filter((d) => {
       const meta = getResolvedMetadata(d);
+      const soDateStr = formatOrderDate(getSalesOrderDate(d.salesOrder));
       return (
         d.dispatchNo?.toLowerCase().includes(lower) ||
         d.invoiceNumber?.toLowerCase().includes(lower) ||
         d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
+        soDateStr.toLowerCase().includes(lower) ||
         meta.customerName.toLowerCase().includes(lower) ||
         meta.salesPersonName.toLowerCase().includes(lower) ||
         d.receivedBy?.toLowerCase().includes(lower) ||
@@ -585,9 +612,11 @@ export default function InTransitPage() {
       if (!filteredDispatches.length) return;
       const exportRows = filteredDispatches.map((d) => {
         const meta = getResolvedMetadata(d);
+        const soDateStr = formatOrderDate(getSalesOrderDate(d.salesOrder));
         return {
           "Dispatch No": (d.dispatchNo || "").replace(/\s+/g, ""),
           "Sales Order": d.salesOrder?.orderNumber || "—",
+          "Order Date": soDateStr !== "—" ? soDateStr : "—",
           "Invoice No": d.invoiceNumber || "—",
           Customer: meta.customerName,
           "Sales Person": meta.salesPersonName,
@@ -615,9 +644,11 @@ export default function InTransitPage() {
       if (!filteredHistoryDispatches.length) return;
       const exportRows = filteredHistoryDispatches.map((d) => {
         const meta = getResolvedMetadata(d);
+        const soDateStr = formatOrderDate(getSalesOrderDate(d.salesOrder));
         return {
           "Dispatch No": (d.dispatchNo || "").replace(/\s+/g, ""),
           "Sales Order": d.salesOrder?.orderNumber || "—",
+          "Order Date": soDateStr !== "—" ? soDateStr : "—",
           "Invoice No": d.invoiceNumber || "—",
           Customer: meta.customerName,
           "Sales Person": meta.salesPersonName,
@@ -841,7 +872,7 @@ export default function InTransitPage() {
                     <thead>
                       <tr>
                         <th>Dispatch No.</th>
-                        <th>Sales Order</th>
+                        <th>Sales Order &amp; Date</th>
                         <th>Invoice No.</th>
                         <th>Customer</th>
                         <th>Driver / Vehicle</th>
@@ -858,6 +889,7 @@ export default function InTransitPage() {
                         const cleanDispNo = formatCleanNo(dispatchItem.dispatchNo);
                         const cleanSoNo = formatCleanNo(dispatchItem.salesOrder?.orderNumber);
                         const cleanInvNo = formatCleanNo(dispatchItem.invoiceNumber);
+                        const orderDateStr = formatOrderDate(getSalesOrderDate(dispatchItem.salesOrder));
                         const meta = getResolvedMetadata(dispatchItem);
 
                         return (
@@ -884,24 +916,44 @@ export default function InTransitPage() {
                               </span>
                             </td>
 
-                            {/* Sales Order */}
+                            {/* Sales Order & Date */}
                             <td data-label="Sales Order">
-                              <span
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  padding: "3px 8px",
-                                  borderRadius: 6,
-                                  background: "#f1f5f9",
-                                  border: "1px solid #e2e8f0",
-                                  color: "#0f172a",
-                                  fontWeight: 700,
-                                  fontFamily: "monospace",
-                                  fontSize: 12,
-                                }}
-                              >
-                                #{cleanSoNo}
-                              </span>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    padding: "3px 8px",
+                                    borderRadius: 6,
+                                    background: "#f1f5f9",
+                                    border: "1px solid #e2e8f0",
+                                    color: "#0f172a",
+                                    fontWeight: 700,
+                                    fontFamily: "monospace",
+                                    fontSize: 12,
+                                    width: "fit-content",
+                                  }}
+                                >
+                                  #{cleanSoNo}
+                                </span>
+                                {orderDateStr !== "—" && (
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 3.5,
+                                      fontSize: 11,
+                                      color: "#64748b",
+                                      fontWeight: 600,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                    title={`Sales Confirmed Order Date: ${orderDateStr}`}
+                                  >
+                                    <Calendar style={{ width: 11, height: 11, color: "#94a3b8" }} />
+                                    {orderDateStr}
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
                             {/* Invoice Number */}
@@ -1118,7 +1170,7 @@ export default function InTransitPage() {
                     <thead>
                       <tr>
                         <th>Dispatch No.</th>
-                        <th>Sales Order</th>
+                        <th>Sales Order &amp; Date</th>
                         <th>Invoice No.</th>
                         <th>Customer</th>
                         <th>Receiver Details</th>
@@ -1133,6 +1185,7 @@ export default function InTransitPage() {
                         const cleanDispNo = formatCleanNo(dispatchItem.dispatchNo);
                         const cleanSoNo = formatCleanNo(dispatchItem.salesOrder?.orderNumber);
                         const cleanInvNo = formatCleanNo(dispatchItem.invoiceNumber);
+                        const orderDateStr = formatOrderDate(getSalesOrderDate(dispatchItem.salesOrder));
                         const meta = getResolvedMetadata(dispatchItem);
 
                         return (
@@ -1159,24 +1212,44 @@ export default function InTransitPage() {
                               </span>
                             </td>
 
-                            {/* Sales Order */}
+                            {/* Sales Order & Date */}
                             <td data-label="Sales Order">
-                              <span
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  padding: "3px 8px",
-                                  borderRadius: 6,
-                                  background: "#f1f5f9",
-                                  border: "1px solid #e2e8f0",
-                                  color: "#0f172a",
-                                  fontWeight: 700,
-                                  fontFamily: "monospace",
-                                  fontSize: 12,
-                                }}
-                              >
-                                #{cleanSoNo}
-                              </span>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    padding: "3px 8px",
+                                    borderRadius: 6,
+                                    background: "#f1f5f9",
+                                    border: "1px solid #e2e8f0",
+                                    color: "#0f172a",
+                                    fontWeight: 700,
+                                    fontFamily: "monospace",
+                                    fontSize: 12,
+                                    width: "fit-content",
+                                  }}
+                                >
+                                  #{cleanSoNo}
+                                </span>
+                                {orderDateStr !== "—" && (
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 3.5,
+                                      fontSize: 11,
+                                      color: "#64748b",
+                                      fontWeight: 600,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                    title={`Sales Confirmed Order Date: ${orderDateStr}`}
+                                  >
+                                    <Calendar style={{ width: 11, height: 11, color: "#94a3b8" }} />
+                                    {orderDateStr}
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
                             {/* Invoice Number */}

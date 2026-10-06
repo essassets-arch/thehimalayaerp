@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { backendFetch } from '../../../lib/backendFetch';
 import Swal from 'sweetalert2';
-import { ArrowLeft, Printer, FileDown, CheckCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Printer, FileDown, CheckCircle, Clock, Download } from 'lucide-react';
 
 export default function DailyReportPrintView({
   reportId,
@@ -49,6 +49,76 @@ export default function DailyReportPrintView({
 
   const handleDownloadPdf = () => {
     window.print();
+  };
+
+  const handleExportCSV = () => {
+    if (!report || !report.items || report.items.length === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'No Items to Export',
+        text: 'This report does not contain any product items.',
+        confirmButtonColor: '#2F4375'
+      });
+      return;
+    }
+
+    const headers = [
+      'Sr',
+      'Product *',
+      'Size',
+      'Type',
+      'Capacity',
+      'Cover',
+      'Cover Wt (kg)',
+      'Frame',
+      'Frame Wt (kg)',
+      'Total Wt (kg)',
+      'Set',
+      'Extra Cover',
+      'Extra Frame'
+    ];
+
+    const csvRows = report.items.map((item, idx) => {
+      const srNo = item.srNo || idx + 1;
+      const prodName = item.product?.name || item.customProductName || '';
+      const size = item.size || item.product?.size || '';
+      const type = item.type || item.product?.type || '';
+      const capacity = item.capacity || item.product?.capacity || '';
+      const coverQty = Number(item.coverQty || 0);
+      const coverWt = Number(item.actualCoverWeight || item.coverWeight || 0).toFixed(2);
+      const frameQty = Number(item.frameQty || 0);
+      const frameWt = Number(item.actualFrameWeight || item.frameWeight || 0).toFixed(2);
+      const totalWt = Number(item.totalWeight || 0).toFixed(2);
+      const setQty = Number(item.setQty || 0);
+      const extraCover = Number(item.extraCoverQty || 0);
+      const extraFrame = Number(item.extraFrameQty || 0);
+
+      return [
+        srNo,
+        `"${String(prodName).replace(/"/g, '""')}"`,
+        `"${String(size).replace(/"/g, '""')}"`,
+        `"${String(type).replace(/"/g, '""')}"`,
+        `"${String(capacity).replace(/"/g, '""')}"`,
+        coverQty,
+        coverWt,
+        frameQty,
+        frameWt,
+        totalWt,
+        setQty,
+        extraCover,
+        extraFrame
+      ].join(',');
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...csvRows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    const cleanNo = (report.reportNo || report.id || 'Report').replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.setAttribute('download', `Daily_Report_${cleanNo}_Items.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   if (loading) {
@@ -133,6 +203,28 @@ export default function DailyReportPrintView({
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '9px 18px',
+              borderRadius: '8px',
+              border: '1px solid #10b981',
+              background: 'rgba(16, 185, 129, 0.08)',
+              color: '#059669',
+              fontSize: '13px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            title="Export this report's product items as CSV"
+          >
+            <Download size={16} /> Export CSV
+          </button>
+
           <button
             type="button"
             onClick={handleDownloadPdf}
