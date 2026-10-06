@@ -1653,20 +1653,20 @@ export class FinanceSalesAnalyticsService {
         }
       }
 
-      // Strict 12 Indian Financial Months (Apr -> Mar)
+      // Strict 12 Indian Financial Months (Apr -> Mar) with proper full names
       const monthDefs = [
-        { index: 0, monthNum: 3, year: startYear, label: `Apr ${startYear}`, short: 'Apr' },
-        { index: 1, monthNum: 4, year: startYear, label: `May ${startYear}`, short: 'May' },
-        { index: 2, monthNum: 5, year: startYear, label: `Jun ${startYear}`, short: 'Jun' },
-        { index: 3, monthNum: 6, year: startYear, label: `Jul ${startYear}`, short: 'Jul' },
-        { index: 4, monthNum: 7, year: startYear, label: `Aug ${startYear}`, short: 'Aug' },
-        { index: 5, monthNum: 8, year: startYear, label: `Sep ${startYear}`, short: 'Sep' },
-        { index: 6, monthNum: 9, year: startYear, label: `Oct ${startYear}`, short: 'Oct' },
-        { index: 7, monthNum: 10, year: startYear, label: `Nov ${startYear}`, short: 'Nov' },
-        { index: 8, monthNum: 11, year: startYear, label: `Dec ${startYear}`, short: 'Dec' },
-        { index: 9, monthNum: 0, year: endYear, label: `Jan ${endYear}`, short: 'Jan' },
-        { index: 10, monthNum: 1, year: endYear, label: `Feb ${endYear}`, short: 'Feb' },
-        { index: 11, monthNum: 2, year: endYear, label: `Mar ${endYear}`, short: 'Mar' },
+        { index: 0, monthNum: 3, year: startYear, label: `April ${startYear}`, short: 'Apr', fullName: `April ${startYear}` },
+        { index: 1, monthNum: 4, year: startYear, label: `May ${startYear}`, short: 'May', fullName: `May ${startYear}` },
+        { index: 2, monthNum: 5, year: startYear, label: `June ${startYear}`, short: 'Jun', fullName: `June ${startYear}` },
+        { index: 3, monthNum: 6, year: startYear, label: `July ${startYear}`, short: 'Jul', fullName: `July ${startYear}` },
+        { index: 4, monthNum: 7, year: startYear, label: `August ${startYear}`, short: 'Aug', fullName: `August ${startYear}` },
+        { index: 5, monthNum: 8, year: startYear, label: `September ${startYear}`, short: 'Sep', fullName: `September ${startYear}` },
+        { index: 6, monthNum: 9, year: startYear, label: `October ${startYear}`, short: 'Oct', fullName: `October ${startYear}` },
+        { index: 7, monthNum: 10, year: startYear, label: `November ${startYear}`, short: 'Nov', fullName: `November ${startYear}` },
+        { index: 8, monthNum: 11, year: startYear, label: `December ${startYear}`, short: 'Dec', fullName: `December ${startYear}` },
+        { index: 9, monthNum: 0, year: endYear, label: `January ${endYear}`, short: 'Jan', fullName: `January ${endYear}` },
+        { index: 10, monthNum: 1, year: endYear, label: `February ${endYear}`, short: 'Feb', fullName: `February ${endYear}` },
+        { index: 11, monthNum: 2, year: endYear, label: `March ${endYear}`, short: 'Mar', fullName: `March ${endYear}` },
       ];
 
       const fyStart = new Date(Date.UTC(startYear, 3, 1, 0, 0, 0, 0));
@@ -1921,28 +1921,48 @@ export class FinanceSalesAnalyticsService {
         ? Math.round(((totalOrders - prevTotalOrders) / prevTotalOrders) * 1000) / 10
         : 8.2;
 
-      // 8. Determine Selected Month Index
-      let selectedIndex = 6; // Default to October
-      if (query.month !== undefined && query.month !== 'all') {
-        const parsedIdx = parseInt(query.month, 10);
+      // 8. Determine Selected Month or All Months
+      const isAllMonths = !query.month || query.month === 'all';
+      let selectedIndex: number | null = null;
+
+      if (!isAllMonths) {
+        const parsedIdx = parseInt(query.month!, 10);
         if (!isNaN(parsedIdx) && parsedIdx >= 0 && parsedIdx <= 11) {
           selectedIndex = parsedIdx;
         } else {
           const found = monthDefs.findIndex((m) =>
             m.label.toLowerCase().includes(query.month!.toLowerCase()) ||
-            m.short.toLowerCase() === query.month!.toLowerCase()
+            m.short.toLowerCase() === query.month!.toLowerCase() ||
+            m.fullName.toLowerCase() === query.month!.toLowerCase()
           );
           if (found !== -1) selectedIndex = found;
         }
-      } else {
-        const currentMNum = now.getMonth();
-        const currentYear = now.getFullYear();
-        const foundCurr = monthDefs.findIndex((m) => m.monthNum === currentMNum && m.year === currentYear);
-        if (foundCurr !== -1) selectedIndex = foundCurr;
       }
 
-      const selMonth = monthlyTrend[selectedIndex] || monthlyTrend[6] || monthlyTrend[0];
-      const selOrders = selMonth.orders || [];
+      // Selected Month metadata or Full FY Aggregation
+      const targetMonthTrend = selectedIndex !== null ? monthlyTrend[selectedIndex] : null;
+      const isSingleMonth = targetMonthTrend !== null && targetMonthTrend !== undefined;
+      const selMonth = isSingleMonth
+        ? targetMonthTrend
+        : {
+            monthIndex: 'all',
+            month: `All Months (FY ${startYear}–${String(endYear).slice(-2)})`,
+            monthShort: 'All',
+            fullName: `All Months (FY ${startYear}–${String(endYear).slice(-2)})`,
+            year: startYear,
+            salesValue: totalSales,
+            ordersCount: totalOrders,
+            invoicedValue: totalInvoiced,
+            collectedValue: totalCollected,
+            currentDueValue: Math.max(0, totalOutstanding - totalOverdue),
+            overdueValue: totalOverdue,
+            dueValue: totalOutstanding,
+            collectionRate,
+            averageOrder: totalOrders > 0 ? Math.round(totalSales / totalOrders) : 0,
+            orders: computedOrders,
+          };
+
+      const selOrders = isSingleMonth ? (targetMonthTrend.orders || []) : computedOrders;
 
       // 9. Status Filter (Applied by dynamic financial status!)
       let activeFilteredOrders = selOrders;
@@ -1951,7 +1971,7 @@ export class FinanceSalesAnalyticsService {
         activeFilteredOrders = selOrders.filter((d) => d.status === targetStatus);
       }
 
-      // 10. Build Customer Outstanding (Reconciled with selected month)
+      // 10. Build Customer Outstanding (Reconciled with selected view)
       const custMap = new Map<string, any>();
       for (const o of selOrders) {
         const cid = o.customerId || 'unknown';
@@ -2007,6 +2027,7 @@ export class FinanceSalesAnalyticsService {
           outstanding: selMonth.dueValue,
           collectionRate: selMonth.collectionRate,
           averageOrder: selMonth.averageOrder,
+          isAllMonths: !isSingleMonth,
         },
         orderInvoiceDetails: activeFilteredOrders,
         allFilteredOrders: query.status && query.status.toLowerCase() !== 'all'
@@ -2015,6 +2036,7 @@ export class FinanceSalesAnalyticsService {
         customerOutstanding,
         filters: {
           financialYears: ['2024–25', '2025–26', '2026–27', '2027–28'],
+          months: monthDefs.map((m) => ({ index: m.index, name: m.label, short: m.short })),
           companies: dbCompanies.map((c) => ({ id: c.id, name: c.name, publicId: c.publicId })),
           salespersons: distinctSalespersons.map((s) => ({ id: s.id, name: s.name })),
           customers: distinctCustomers.map((c) => ({ id: c.id, name: c.companyName || c.contactPerson || 'Customer' })),

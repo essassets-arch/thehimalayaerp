@@ -44,14 +44,64 @@ export default function FinanceMonthlySalesWorkspace() {
 
   // Filters State
   const [financialYear, setFinancialYear] = useState('2026–27');
-  const [selectedMonthFilter, setSelectedMonthFilter] = useState('all');
+  const [selectedMonth, setSelectedMonth] = useState('all'); // 'all' or '0'..'11'
   const [selectedCompany, setSelectedCompany] = useState('all');
   const [selectedSalesperson, setSelectedSalesperson] = useState('all');
   const [selectedCustomer, setSelectedCustomer] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('All');
 
-  // Active Selected Month for Drill-down (0 = Apr, 6 = Oct)
-  const [activeMonthIndex, setActiveMonthIndex] = useState(6); // Default: October
+  // Compute Indian Financial Year Start Year & 12 Months
+  const getStartYearFromFY = (fyStr) => {
+    const cleanFy = (fyStr || '2026–27').replace(/[–—]/g, '-');
+    const match = cleanFy.match(/(\d{4})/);
+    return match ? parseInt(match[1], 10) : 2026;
+  };
+
+  const startYear = useMemo(() => getStartYearFromFY(financialYear), [financialYear]);
+  const endYear = startYear + 1;
+
+  const MONTH_NAMES = [
+    'April', 'May', 'June', 'July', 'August', 'September',
+    'October', 'November', 'December', 'January', 'February', 'March'
+  ];
+
+  const monthsList = useMemo(() => {
+    if (workspaceData?.filters?.months?.length === 12) {
+      return workspaceData.filters.months.map(m => ({
+        index: m.index,
+        name: m.name,
+        short: m.short
+      }));
+    }
+    return MONTH_NAMES.map((mName, idx) => {
+      const yr = idx <= 8 ? startYear : endYear;
+      return {
+        index: idx,
+        name: `${mName} ${yr}`,
+        short: mName.slice(0, 3)
+      };
+    });
+  }, [workspaceData?.filters?.months, startYear, endYear]);
+
+  // Current month metadata for display
+  const currentMonthInfo = useMemo(() => {
+    if (selectedMonth === 'all') {
+      return {
+        isAll: true,
+        title: `ALL MONTHS OVERVIEW (FY ${financialYear})`,
+        badge: `Full Financial Year (12 Months)`,
+        name: `All Months (FY ${financialYear})`
+      };
+    }
+    const found = monthsList.find(m => m.index.toString() === selectedMonth);
+    const mName = found ? found.name : `Month ${parseInt(selectedMonth, 10) + 1}`;
+    return {
+      isAll: false,
+      title: `MONTH DRILL-DOWN: ${mName.toUpperCase()}`,
+      badge: `Month ${parseInt(selectedMonth, 10) + 1} of 12 (FY ${financialYear})`,
+      name: mName
+    };
+  }, [selectedMonth, monthsList, financialYear]);
 
   // Data Loading & State
   const [loading, setLoading] = useState(true);
@@ -98,7 +148,7 @@ export default function FinanceMonthlySalesWorkspace() {
     try {
       const params = {
         financialYear,
-        month: selectedMonthFilter !== 'all' ? selectedMonthFilter : activeMonthIndex.toString(),
+        month: selectedMonth,
         companyId: selectedCompany !== 'all' ? selectedCompany : undefined,
         salespersonId: selectedSalesperson !== 'all' ? selectedSalesperson : undefined,
         customerId: selectedCustomer !== 'all' ? selectedCustomer : undefined,
@@ -108,11 +158,6 @@ export default function FinanceMonthlySalesWorkspace() {
       const res = await financeSalesAnalyticsService.getMonthlyWorkspace(params);
       const data = res?.data || res;
       setWorkspaceData(data);
-
-      // If backend returns a selected month index, align it
-      if (data?.selectedMonth?.monthIndex !== undefined) {
-        setActiveMonthIndex(data.selectedMonth.monthIndex);
-      }
     } catch (err) {
       console.error('Failed to load monthly sales & collection workspace:', err);
       setError('Unable to load monthly sales & collection data. Please try again.');
@@ -124,37 +169,16 @@ export default function FinanceMonthlySalesWorkspace() {
 
   useEffect(() => {
     loadWorkspace();
-  }, [financialYear, selectedMonthFilter, selectedCompany, selectedSalesperson, selectedCustomer, selectedStatus]);
+  }, [financialYear, selectedMonth, selectedCompany, selectedSalesperson, selectedCustomer, selectedStatus]);
 
-  // Handle Month Click from Summary Table or Chart
-  const handleSelectMonth = (monthIdx) => {
-    setActiveMonthIndex(monthIdx);
-    // Refresh drill-down for this month
-    loadWorkspaceWithMonth(monthIdx);
-  };
-
-  const loadWorkspaceWithMonth = async (monthIdx) => {
-    try {
-      const params = {
-        financialYear,
-        month: monthIdx.toString(),
-        companyId: selectedCompany !== 'all' ? selectedCompany : undefined,
-        salespersonId: selectedSalesperson !== 'all' ? selectedSalesperson : undefined,
-        customerId: selectedCustomer !== 'all' ? selectedCustomer : undefined,
-        status: selectedStatus !== 'All' ? selectedStatus : undefined,
-      };
-      const res = await financeSalesAnalyticsService.getMonthlyWorkspace(params);
-      const data = res?.data || res;
-      setWorkspaceData(data);
-    } catch (err) {
-      console.error('Error switching month:', err);
-    }
+  // Handle Month Click from Summary Table or Chart or Controls
+  const handleSelectMonth = (monthIdxStr) => {
+    setSelectedMonth(monthIdxStr);
   };
 
   // Export CSV of currently filtered dataset
   const handleExportCSV = () => {
-    // If a month is selected, export that month's filtered orders; otherwise export all filtered orders
-    const ordersToExport = (selectedMonthFilter !== 'all' || activeMonthIndex !== null)
+    const ordersToExport = (selectedMonth !== 'all')
       ? (orderInvoiceDetails.length > 0 ? orderInvoiceDetails : (workspaceData?.orderInvoiceDetails || []))
       : (workspaceData?.allFilteredOrders || workspaceData?.orderInvoiceDetails || []);
 
@@ -201,7 +225,7 @@ export default function FinanceMonthlySalesWorkspace() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    const monthLabel = selectedMonthFilter !== 'all' ? `_${selectedMonth.month.replace(/\s+/g, '_')}` : '';
+    const monthLabel = selectedMonth !== 'all' ? `_${(currentMonthInfo.name || '').replace(/\s+/g, '_')}` : '_All_Months';
     const statusLabel = selectedStatus !== 'All' ? `_${selectedStatus}` : '';
     link.setAttribute('download', `Finance_Sales_Collection_${financialYear.replace(/[–—]/g, '-')}${monthLabel}${statusLabel}.csv`);
     document.body.appendChild(link);
@@ -224,8 +248,8 @@ export default function FinanceMonthlySalesWorkspace() {
   };
 
   const monthlyTrend = workspaceData?.monthlyTrend || [];
-  const selectedMonth = workspaceData?.selectedMonth || {
-    month: 'October 2026',
+  const selectedMonthData = workspaceData?.selectedMonth || {
+    month: selectedMonth === 'all' ? `All Months (FY ${financialYear})` : currentMonthInfo.name,
     sales: 0,
     orders: 0,
     invoiced: 0,
@@ -235,6 +259,7 @@ export default function FinanceMonthlySalesWorkspace() {
     outstanding: 0,
     collectionRate: 0,
     averageOrder: 0,
+    isAllMonths: selectedMonth === 'all',
   };
 
   const orderInvoiceDetails = useMemo(() => {
@@ -354,18 +379,23 @@ export default function FinanceMonthlySalesWorkspace() {
 
         {/* Month Selector */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Calendar size={14} color="#64748B" />
           <span style={{ fontSize: '12px', fontWeight: '750', color: '#475569' }}>Month:</span>
           <select
-            value={selectedMonthFilter}
-            onChange={(e) => setSelectedMonthFilter(e.target.value)}
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
             style={{
-              padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1',
-              fontSize: '12px', fontWeight: '600', color: '#334155', background: '#ffffff', cursor: 'pointer'
+              padding: '6px 12px', borderRadius: '6px',
+              border: selectedMonth !== 'all' ? '1.5px solid #0284C7' : '1px solid #CBD5E1',
+              fontSize: '12px', fontWeight: '700',
+              color: selectedMonth !== 'all' ? '#002E5D' : '#334155',
+              background: selectedMonth !== 'all' ? '#F0F9FF' : '#ffffff',
+              cursor: 'pointer', outline: 'none'
             }}
           >
-            <option value="all">All Months</option>
-            {monthlyTrend.map(m => (
-              <option key={m.monthIndex} value={m.monthIndex.toString()}>{m.month}</option>
+            <option value="all">📅 All Months (Full FY)</option>
+            {monthsList.map(m => (
+              <option key={m.index} value={m.index.toString()}>{m.name}</option>
             ))}
           </select>
         </div>
@@ -449,11 +479,11 @@ export default function FinanceMonthlySalesWorkspace() {
         </div>
 
         {/* Reset Filters */}
-        {(selectedMonthFilter !== 'all' || selectedCompany !== 'all' || selectedSalesperson !== 'all' || selectedCustomer !== 'all' || selectedStatus !== 'All') && (
+        {(selectedMonth !== 'all' || selectedCompany !== 'all' || selectedSalesperson !== 'all' || selectedCustomer !== 'all' || selectedStatus !== 'All') && (
           <button
             type="button"
             onClick={() => {
-              setSelectedMonthFilter('all');
+              setSelectedMonth('all');
               setSelectedCompany('all');
               setSelectedSalesperson('all');
               setSelectedCustomer('all');
@@ -596,7 +626,7 @@ export default function FinanceMonthlySalesWorkspace() {
               onClick={(e) => {
                 if (e && e.activePayload && e.activePayload[0]) {
                   const mIdx = e.activePayload[0].payload.monthIndex;
-                  if (mIdx !== undefined) handleSelectMonth(mIdx);
+                  if (mIdx !== undefined) handleSelectMonth(mIdx.toString());
                 }
               }}
             >
@@ -676,11 +706,11 @@ export default function FinanceMonthlySalesWorkspace() {
             </thead>
             <tbody>
               {monthlyTrend.map((m) => {
-                const isSelected = activeMonthIndex === m.monthIndex;
+                const isSelected = selectedMonth !== 'all' && parseInt(selectedMonth, 10) === m.monthIndex;
                 return (
                   <tr
                     key={m.monthIndex}
-                    onClick={() => handleSelectMonth(m.monthIndex)}
+                    onClick={() => handleSelectMonth(m.monthIndex.toString())}
                     style={{
                       borderBottom: '1px solid #F1F5F9',
                       background: isSelected ? '#EFF6FF' : 'transparent',
@@ -695,7 +725,7 @@ export default function FinanceMonthlySalesWorkspace() {
                     }}
                   >
                     <td style={{ padding: '12px 14px', fontWeight: '800', color: isSelected ? '#1D4ED8' : '#1E293B', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {isSelected && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#2563EB' }} />}
+                      {isSelected && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2563EB' }} />}
                       {m.month}
                     </td>
                     <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '700', color: '#475569' }}>
@@ -721,7 +751,7 @@ export default function FinanceMonthlySalesWorkspace() {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleSelectMonth(m.monthIndex);
+                          handleSelectMonth(m.monthIndex.toString());
                         }}
                         style={{
                           padding: '6px 12px',
@@ -735,73 +765,273 @@ export default function FinanceMonthlySalesWorkspace() {
                           transition: 'all 0.15s ease'
                         }}
                       >
-                        {isSelected ? 'SELECTED' : 'VIEW MONTH'}
+                        {isSelected ? '✓ SELECTED' : 'VIEW MONTH'}
                       </button>
                     </td>
                   </tr>
                 );
               })}
+
+              {/* Full Year Summary Row */}
+              <tr style={{ background: '#F8FAFC', borderTop: '2px solid #CBD5E1', fontWeight: '850' }}>
+                <td style={{ padding: '12px 14px', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {selectedMonth === 'all' && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2563EB' }} />}
+                  <span>FULL YEAR TOTAL (12 MONTHS)</span>
+                </td>
+                <td style={{ padding: '12px 14px', textAlign: 'center', color: '#0F172A' }}>
+                  {executive.totalOrders}
+                </td>
+                <td style={{ padding: '12px 14px', textAlign: 'right', color: '#0F172A' }}>
+                  {formatLakh(executive.totalSales)}
+                </td>
+                <td style={{ padding: '12px 14px', textAlign: 'right', color: '#334155' }}>
+                  {formatLakh(executive.totalInvoiced)}
+                </td>
+                <td style={{ padding: '12px 14px', textAlign: 'right', color: '#059669' }}>
+                  {formatLakh(executive.totalCollected)}
+                </td>
+                <td style={{ padding: '12px 14px', textAlign: 'right', color: '#D97706' }}>
+                  {formatLakh(executive.totalOutstanding)}
+                </td>
+                <td style={{ padding: '12px 14px', textAlign: 'right', color: '#DC2626' }}>
+                  {formatLakh(executive.totalOverdue)}
+                </td>
+                <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedMonth('all');
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      border: selectedMonth === 'all' ? '1px solid #2563EB' : '1px solid #CBD5E1',
+                      background: selectedMonth === 'all' ? '#2563EB' : '#ffffff',
+                      color: selectedMonth === 'all' ? '#ffffff' : '#334155',
+                      fontSize: '11.5px',
+                      fontWeight: '750',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {selectedMonth === 'all' ? '✓ VIEWING ALL' : 'VIEW ALL'}
+                  </button>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
       </div>
 
       {/* ────────────────────────────────────────────────────────── */}
-      {/* 4. SELECTED MONTH DRILL-DOWN: OCTOBER 2026                 */}
+      {/* 4. SELECTED MONTH / FULL YEAR DRILL-DOWN                   */}
       {/* ────────────────────────────────────────────────────────── */}
       <div style={{ background: '#ffffff', borderRadius: '16px', border: '1.5px solid #2563EB', padding: '24px 26px', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.06)' }}>
         
-        {/* Selected Month Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid #E2E8F0', paddingBottom: '16px' }}>
+        {/* Selected Month Header with Dropdown & Navigation */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '14px', borderBottom: '1px solid #E2E8F0', paddingBottom: '16px' }}>
           <div>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              MONTH DRILL-DOWN
-            </span>
-            <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#0F172A', margin: '2px 0 0 0', textTransform: 'uppercase', letterSpacing: '-0.01em' }}>
-              SELECTED MONTH: {selectedMonth.month}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span style={{ fontSize: '11px', fontWeight: '850', color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.08em', background: '#EFF6FF', padding: '2px 8px', borderRadius: '4px' }}>
+                {currentMonthInfo.isAll ? 'FULL YEAR BREAKDOWN' : 'MONTH DRILL-DOWN'}
+              </span>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B' }}>
+                {currentMonthInfo.badge}
+              </span>
+            </div>
+            <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>
+              {currentMonthInfo.title}
             </h2>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '12.5px', fontWeight: '700' }}>
-            <div style={{ background: '#F8FAFC', padding: '6px 12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-              <span style={{ color: '#64748B' }}>Average Order: </span>
-              <span style={{ color: '#0F172A', fontWeight: '800' }}>{formatINR(selectedMonth.averageOrder)}</span>
+          {/* Month Selector Dropdown & Navigation Controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#F8FAFC', padding: '6px 12px', borderRadius: '8px', border: '1.5px solid #CBD5E1' }}>
+              <Calendar size={15} color="#2563EB" />
+              <span style={{ fontSize: '12.5px', fontWeight: '800', color: '#1E293B' }}>Select Month:</span>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  border: '1.5px solid #2563EB',
+                  fontSize: '13px',
+                  fontWeight: '800',
+                  color: '#002E5D',
+                  background: '#ffffff',
+                  cursor: 'pointer',
+                  outline: 'none'
+                }}
+              >
+                <option value="all">📅 All Months (Full FY {financialYear})</option>
+                {monthsList.map(m => (
+                  <option key={m.index} value={m.index.toString()}>{m.name}</option>
+                ))}
+              </select>
             </div>
-            <div style={{ background: '#F8FAFC', padding: '6px 12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-              <span style={{ color: '#64748B' }}>Invoiced: </span>
-              <span style={{ color: '#0F172A', fontWeight: '800' }}>{formatLakh(selectedMonth.invoiced)}</span>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                type="button"
+                title="Previous Month"
+                disabled={selectedMonth === '0'}
+                onClick={() => {
+                  if (selectedMonth === 'all') setSelectedMonth('0');
+                  else setSelectedMonth(Math.max(0, parseInt(selectedMonth, 10) - 1).toString());
+                }}
+                style={{
+                  padding: '7px 11px',
+                  borderRadius: '7px',
+                  border: '1px solid #CBD5E1',
+                  background: '#ffffff',
+                  color: selectedMonth === '0' ? '#CBD5E1' : '#334155',
+                  fontSize: '12px',
+                  fontWeight: '750',
+                  cursor: selectedMonth === '0' ? 'not-allowed' : 'pointer'
+                }}
+              >
+                ◀ Prev
+              </button>
+
+              <button
+                type="button"
+                title="Next Month"
+                disabled={selectedMonth === '11'}
+                onClick={() => {
+                  if (selectedMonth === 'all') setSelectedMonth('0');
+                  else setSelectedMonth(Math.min(11, parseInt(selectedMonth, 10) + 1).toString());
+                }}
+                style={{
+                  padding: '7px 11px',
+                  borderRadius: '7px',
+                  border: '1px solid #CBD5E1',
+                  background: '#ffffff',
+                  color: selectedMonth === '11' ? '#CBD5E1' : '#334155',
+                  fontSize: '12px',
+                  fontWeight: '750',
+                  cursor: selectedMonth === '11' ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Next ▶
+              </button>
+
+              {selectedMonth !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedMonth('all')}
+                  style={{
+                    padding: '7px 12px',
+                    borderRadius: '7px',
+                    border: '1px solid #2563EB',
+                    background: '#EFF6FF',
+                    color: '#2563EB',
+                    fontSize: '12px',
+                    fontWeight: '750',
+                    cursor: 'pointer'
+                  }}
+                >
+                  View All Months
+                </button>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Selected Month Sub-KPIs */}
+        {/* 1-Click Month Pills Switcher Bar */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          overflowX: 'auto',
+          paddingBottom: '12px',
+          marginBottom: '18px',
+          borderBottom: '1px solid #F1F5F9'
+        }}>
+          <button
+            type="button"
+            onClick={() => setSelectedMonth('all')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '20px',
+              border: selectedMonth === 'all' ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
+              background: selectedMonth === 'all' ? '#2563EB' : '#F8FAFC',
+              color: selectedMonth === 'all' ? '#ffffff' : '#475569',
+              fontSize: '12px',
+              fontWeight: '750',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            All Months
+          </button>
+          {monthsList.map(m => {
+            const isAct = selectedMonth === m.index.toString();
+            return (
+              <button
+                key={m.index}
+                type="button"
+                onClick={() => setSelectedMonth(m.index.toString())}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '20px',
+                  border: isAct ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
+                  background: isAct ? '#2563EB' : '#ffffff',
+                  color: isAct ? '#ffffff' : '#475569',
+                  fontSize: '12px',
+                  fontWeight: isAct ? '800' : '600',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {m.short}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Selected Month / View Sub-KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
           {/* Sales */}
           <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px 16px' }}>
             <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>SALES</span>
             <div style={{ fontSize: '20px', fontWeight: '900', color: '#0F172A', marginTop: '2px' }}>
-              {formatLakh(selectedMonth.sales)}
+              {formatLakh(selectedMonthData.sales)}
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px', fontWeight: '600' }}>
+              Avg Order: {formatINR(selectedMonthData.averageOrder)}
             </div>
           </div>
           {/* Orders */}
           <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px 16px' }}>
             <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>ORDERS</span>
             <div style={{ fontSize: '20px', fontWeight: '900', color: '#0F172A', marginTop: '2px' }}>
-              {selectedMonth.orders}
+              {selectedMonthData.orders}
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px', fontWeight: '600' }}>
+              Invoiced: {formatLakh(selectedMonthData.invoiced)}
             </div>
           </div>
           {/* Collected */}
           <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px 16px' }}>
             <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>COLLECTED</span>
             <div style={{ fontSize: '20px', fontWeight: '900', color: '#059669', marginTop: '2px' }}>
-              {formatLakh(selectedMonth.collected)}
+              {formatLakh(selectedMonthData.collected)}
+            </div>
+            <div style={{ fontSize: '11px', color: '#059669', marginTop: '2px', fontWeight: '700' }}>
+              {selectedMonthData.collectionRate}% realized
             </div>
           </div>
           {/* Outstanding */}
           <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px 16px' }}>
             <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>OUTSTANDING</span>
             <div style={{ fontSize: '20px', fontWeight: '900', color: '#D97706', marginTop: '2px' }}>
-              {formatLakh(selectedMonth.outstanding)}
+              {formatLakh(selectedMonthData.outstanding)}
+            </div>
+            <div style={{ fontSize: '11px', color: '#DC2626', marginTop: '2px', fontWeight: '700' }}>
+              Overdue: {formatLakh(selectedMonthData.overdue)}
             </div>
           </div>
         </div>
@@ -810,16 +1040,16 @@ export default function FinanceMonthlySalesWorkspace() {
         <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '10px', padding: '12px 18px', marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
             <span style={{ fontSize: '12.5px', fontWeight: '800', color: '#0369A1' }}>
-              Collection Rate
+              Collection Rate ({currentMonthInfo.name})
             </span>
             <span style={{ fontSize: '14px', fontWeight: '900', color: '#0284C7' }}>
-              {selectedMonth.collectionRate}%
+              {selectedMonthData.collectionRate}%
             </span>
           </div>
           {/* Progress track */}
           <div style={{ width: '100%', height: '10px', background: '#E0F2FE', borderRadius: '999px', overflow: 'hidden' }}>
             <div style={{
-              width: `${Math.min(100, Math.max(0, selectedMonth.collectionRate))}%`,
+              width: `${Math.min(100, Math.max(0, selectedMonthData.collectionRate))}%`,
               height: '100%',
               background: 'linear-gradient(90deg, #0284C7 0%, #059669 100%)',
               borderRadius: '999px',
@@ -827,8 +1057,8 @@ export default function FinanceMonthlySalesWorkspace() {
             }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748B', marginTop: '4px', fontWeight: '600' }}>
-            <span>Current Due: {formatLakh(selectedMonth.currentDue)}</span>
-            <span>Overdue: {formatLakh(selectedMonth.overdue)}</span>
+            <span>Current Due: {formatLakh(selectedMonthData.currentDue)}</span>
+            <span>Overdue: {formatLakh(selectedMonthData.overdue)}</span>
           </div>
         </div>
 
