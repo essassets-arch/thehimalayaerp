@@ -40,6 +40,7 @@ import {
 import ResponsiveChart from '../shared/components/ResponsiveChart';
 import DailyAgendaCalendar from './DailyAgendaCalendar';
 import { formatReminderTime, getTodayPendingReminders } from '../shared/utils/reminderUtils.js';
+import { resolveQuotationNumber } from '../shared/utils/quotationUtils.js';
 
 const formatINR = (value) => {
   const num = Number(value || 0);
@@ -172,7 +173,7 @@ export default function DashboardView({
     }
     if (reminder.moduleType === 'Quotation') {
       const q = quotations.find((item) => String(item.id) === String(reminder.moduleId));
-      return q?.customerName || `Quotation #${reminder.moduleId}`;
+      return q?.customerName || (q ? `Quotation #${resolveQuotationNumber(q).replace(/^#/, '')}` : `Quotation #${reminder.moduleId}`);
     }
     return reminder.title || 'Reminder';
   };

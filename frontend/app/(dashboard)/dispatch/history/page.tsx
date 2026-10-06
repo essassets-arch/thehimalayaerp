@@ -729,7 +729,8 @@ export default function DeliveryHistoryPage() {
                     <th style={{ width: 160 }}>Dispatch #</th>
                     <th style={{ width: 150 }}>Sales Order</th>
                     <th>Customer &amp; Consignee</th>
-                    <th style={{ width: 170 }}>Invoice / Challan</th>
+                    <th style={{ width: 150 }}>Invoice #</th>
+                    <th style={{ width: 140 }}>Challan #</th>
                     <th style={{ width: 180 }}>Driver &amp; Vehicle</th>
                     <th style={{ width: 140 }}>Dispatched Date</th>
                     <th style={{ width: 110, textAlign: "center" }}>Status</th>
@@ -782,22 +783,54 @@ export default function DeliveryHistoryPage() {
                           </div>
                         </td>
 
-                        {/* Invoice / Challan */}
+                        {/* Invoice Number */}
                         <td>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                            {invoice ? (
-                              <span style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b", fontFamily: "monospace" }}>
-                                Inv: {invoice}
-                              </span>
-                            ) : (
-                              <span style={{ fontSize: "11px", color: "#94a3b8" }}>Inv: —</span>
-                            )}
-                            {challan ? (
-                              <span style={{ fontSize: "11.5px", color: "#64748b", fontFamily: "monospace" }}>
-                                Chn: {challan}
-                              </span>
-                            ) : null}
-                          </div>
+                          {invoice ? (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 5,
+                                padding: "3px 8px",
+                                borderRadius: 6,
+                                background: "#f0fdf4",
+                                border: "1px solid #bbf7d0",
+                                color: "#15803d",
+                                fontWeight: 700,
+                                fontFamily: "monospace",
+                                fontSize: 12,
+                              }}
+                            >
+                              <FileText size={12} color="#16a34a" />
+                              #{formatCleanNo(invoice).replace(/^#/, "")}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: "11.5px", color: "#94a3b8" }}>—</span>
+                          )}
+                        </td>
+
+                        {/* Challan Number */}
+                        <td>
+                          {challan ? (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                padding: "2px 7px",
+                                borderRadius: 5,
+                                background: "#f8fafc",
+                                border: "1px solid #e2e8f0",
+                                color: "#475569",
+                                fontWeight: 700,
+                                fontFamily: "monospace",
+                                fontSize: 11.5,
+                              }}
+                            >
+                              {challan}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: "11.5px", color: "#94a3b8" }}>—</span>
+                          )}
                         </td>
 
                         {/* Driver / Vehicle */}

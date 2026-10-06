@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { remindersService } from '../modules/sales/services/reminders.service.js';
+import { resolveQuotationNumber, resolveQuotationCustomerName } from '../shared/utils/quotationUtils.js';
 
 export default function DailyTaskView({ 
   state, 
@@ -275,16 +276,19 @@ export default function DailyTaskView({
           const id = `QT-${q.id}`;
           const isCompleted = Boolean(completedTaskMap[id]) || Boolean(completedTaskMap[sourceKey]);
           const isOverdue = !isCompleted && taskDateKey < todayKey;
+          const qNum = resolveQuotationNumber(q).replace(/^#/, '');
+          const expiryDate = toDateKey(q.validTill) || taskDateKey;
           tasks.push({
             id,
             sourceId: q.id,
-            clientName: q.customerName || 'Quotation Prospect',
+            clientName: resolveQuotationCustomerName(q) !== '—' ? resolveQuotationCustomerName(q) : (q.customerName || 'Quotation Prospect'),
             type: 'Quotation',
             status: isCompleted ? 'Completed' : (isOverdue ? 'Overdue' : 'Pending'),
             followUpDate: taskDateKey,
-            notes: `Quotation #${q.id || q.quotationNumber}: Follow-up on proposal valid till ${q.validTill || taskDateKey}`,
+            notes: `Quotation #${qNum}: Follow-up on proposal valid till ${expiryDate}`,
             amount: Number(q.totalAmount || q.grandTotal || 0),
             phone: q.phone || '',
+            referenceNo: qNum,
             rawEntity: q
           });
         }
@@ -408,6 +412,7 @@ export default function DailyTaskView({
           (task.clientName && task.clientName.toLowerCase().includes(sq)) ||
           (task.notes && task.notes.toLowerCase().includes(sq)) ||
           (task.type && task.type.toLowerCase().includes(sq)) ||
+          (task.referenceNo && task.referenceNo.toLowerCase().includes(sq)) ||
           (task.phone && task.phone.includes(sq));
         if (!matches) return false;
       }
@@ -1465,10 +1470,10 @@ export default function DailyTaskView({
                   }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <span style={{ fontSize: '13px', fontWeight: '800', color: '#991b1b', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {q.customerName || `Quotation #${q.id}`}
+                        {resolveQuotationCustomerName(q) !== '—' ? resolveQuotationCustomerName(q) : (q.customerName || `Quotation #${resolveQuotationNumber(q).replace(/^#/, '')}`)}
                       </span>
                       <span style={{ fontSize: '11px', color: '#dc2626', display: 'block', marginTop: '2px' }}>
-                        Proposal expiry: {q.validTill}
+                        Proposal expiry: {toDateKey(q.validTill) || q.validTill}
                       </span>
                     </div>
                     <button 

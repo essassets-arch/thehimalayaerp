@@ -574,6 +574,7 @@ export default function DeliveryRunPage() {
         const meta = getResolvedMetadata(d);
         return (
           d.dispatchNo?.toLowerCase().includes(lower) ||
+          d.invoiceNumber?.toLowerCase().includes(lower) ||
           d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
           d.salesOrder?.customer?.companyName?.toLowerCase().includes(lower) ||
           meta.customerName.toLowerCase().includes(lower) ||
@@ -615,6 +616,7 @@ export default function DeliveryRunPage() {
         const meta = getResolvedMetadata(d);
         return (
           d.dispatchNo?.toLowerCase().includes(lower) ||
+          d.invoiceNumber?.toLowerCase().includes(lower) ||
           d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
           d.salesOrder?.customer?.companyName?.toLowerCase().includes(lower) ||
           meta.customerName.toLowerCase().includes(lower) ||
@@ -764,6 +766,7 @@ export default function DeliveryRunPage() {
       return {
         "Dispatch #": formatCleanNo(d.dispatchNo),
         "Sales Order #": formatCleanNo(d.salesOrder?.orderNumber),
+        "Invoice Number": d.invoiceNumber || "—",
         Customer: meta.customerName || "—",
         "Sales Person": meta.salesPersonName || "—",
         "Delivery Address": d.deliveryAddress || "—",
@@ -1055,7 +1058,8 @@ export default function DeliveryRunPage() {
                     <thead>
                       <tr>
                         <th style={{ width: 170 }}>Dispatch Number</th>
-                        <th style={{ width: 160 }}>Sales Order</th>
+                        <th style={{ width: 150 }}>Sales Order</th>
+                        <th style={{ width: 160 }}>Invoice Number</th>
                         <th>Customer &amp; Destination</th>
                         <th style={{ width: 220 }}>Driver &amp; Carrier</th>
                         <th style={{ width: 150, textAlign: "center" }}>Status</th>
@@ -1066,6 +1070,7 @@ export default function DeliveryRunPage() {
                       {activeDeliveryQueue.map((item) => {
                         const cleanDispNo = formatCleanNo(item.dispatchNo);
                         const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
+                        const cleanInvNo = formatCleanNo(item.invoiceNumber);
                         const meta = getResolvedMetadata(item);
 
                         return (
@@ -1092,6 +1097,32 @@ export default function DeliveryRunPage() {
                               <span className={styles.badgeOrderNo}>
                                 #{cleanSoNo}
                               </span>
+                            </td>
+
+                            {/* Invoice Number */}
+                            <td>
+                              {cleanInvNo !== "—" ? (
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    padding: "3px 8px",
+                                    borderRadius: 6,
+                                    background: "#f0fdf4",
+                                    border: "1px solid #bbf7d0",
+                                    color: "#15803d",
+                                    fontWeight: 700,
+                                    fontFamily: "monospace",
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  <FileText size={12} color="#16a34a" />
+                                  #{cleanInvNo.replace(/^#/, "")}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: 12, color: "#94a3b8" }}>—</span>
+                              )}
                             </td>
 
                             {/* Customer & Destination */}
@@ -1209,10 +1240,30 @@ export default function DeliveryRunPage() {
                             <div style={{ fontWeight: 800, color: "#0f172a" }}>
                               {meta.customerName}
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2, flexWrap: "wrap" }}>
                               <span style={{ fontSize: "11.5px", color: "#64748b" }}>
                                 Order #{cleanSoNo}
                               </span>
+                              {item.invoiceNumber && (
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 3,
+                                    fontSize: "10.5px",
+                                    fontWeight: 700,
+                                    color: "#15803d",
+                                    background: "#f0fdf4",
+                                    border: "1px solid #bbf7d0",
+                                    borderRadius: 4,
+                                    padding: "1px 5px",
+                                    fontFamily: "monospace",
+                                  }}
+                                >
+                                  <FileText size={10} color="#16a34a" />
+                                  #{formatCleanNo(item.invoiceNumber).replace(/^#/, "")}
+                                </span>
+                              )}
                               <span
                                 style={{
                                   display: "inline-flex",
@@ -1313,6 +1364,7 @@ export default function DeliveryRunPage() {
                         <tr>
                           <th style={{ width: 140 }}>Dispatch No.</th>
                           <th style={{ width: 130 }}>Sales Order</th>
+                          <th style={{ width: 140 }}>Invoice No.</th>
                           <th style={{ minWidth: 160 }}>Customer & Site</th>
                           <th style={{ width: 150 }}>Products & Qty</th>
                           <th style={{ width: 160 }}>Transporter & LR</th>
@@ -1326,10 +1378,11 @@ export default function DeliveryRunPage() {
                         {filteredHistoryDispatches.map((item) => {
                           const cleanDispNo = formatCleanNo(item.dispatchNo);
                           const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
+                          const cleanInvNo = formatCleanNo(item.invoiceNumber);
                           const meta = getResolvedMetadata(item);
                           const totalQty = (item.items || []).reduce((sum, it) => sum + Number(it.quantity || 0), 0);
                           const primaryUnit = item.items?.[0]?.salesOrderItem?.unit || "PCS";
-                          const lrDisplay = item.lrNumber || item.ewayBillNumber || item.invoiceNumber || null;
+                          const lrDisplay = item.lrNumber || item.ewayBillNumber || null;
 
                           return (
                             <tr key={item.id}>
@@ -1353,6 +1406,32 @@ export default function DeliveryRunPage() {
                                 >
                                   #{cleanSoNo}
                                 </span>
+                              </td>
+
+                              {/* Invoice Number */}
+                              <td>
+                                {cleanInvNo !== "—" ? (
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 5,
+                                      padding: "3px 8px",
+                                      borderRadius: 6,
+                                      background: "#f0fdf4",
+                                      border: "1px solid #bbf7d0",
+                                      color: "#15803d",
+                                      fontWeight: 700,
+                                      fontFamily: "monospace",
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    <FileText size={12} color="#16a34a" />
+                                    #{cleanInvNo.replace(/^#/, "")}
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: 12, color: "#94a3b8" }}>—</span>
+                                )}
                               </td>
 
                               <td>
@@ -1528,6 +1607,26 @@ export default function DeliveryRunPage() {
                               <span className={styles.badgeOrderNo}>
                                 #{cleanSoNo}
                               </span>
+                              {item.invoiceNumber && (
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 3,
+                                    fontSize: "10.5px",
+                                    fontWeight: 700,
+                                    color: "#15803d",
+                                    background: "#f0fdf4",
+                                    border: "1px solid #bbf7d0",
+                                    borderRadius: 4,
+                                    padding: "1px 5px",
+                                    fontFamily: "monospace",
+                                  }}
+                                >
+                                  <FileText size={10} color="#16a34a" />
+                                  #{formatCleanNo(item.invoiceNumber).replace(/^#/, "")}
+                                </span>
+                              )}
                             </div>
                             <span className={styles.badgeStatusDelivered}>
                               <CheckCircle2 size={12} /> Delivered
@@ -1687,6 +1786,14 @@ export default function DeliveryRunPage() {
                           #{formatCleanNo(selectedDispatch.salesOrder?.orderNumber)}
                         </span>
                       </div>
+                      {selectedDispatch.invoiceNumber && (
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px" }}>
+                          <span style={{ color: "#64748b" }}>Invoice Number:</span>
+                          <span style={{ fontWeight: 700, fontFamily: "monospace", color: "#16a34a" }}>
+                            #{formatCleanNo(selectedDispatch.invoiceNumber)}
+                          </span>
+                        </div>
+                      )}
                       {selectedDispatch.deliveryAddress && (
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", borderTop: "1px dashed #e2e8f0", paddingTop: 6 }}>
                           <span style={{ color: "#64748b" }}>Destination:</span>

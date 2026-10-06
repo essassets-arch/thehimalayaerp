@@ -2,6 +2,8 @@
  * Daily Task Engine - Utility to derive daily actionable items from application collections
  */
 
+import { resolveQuotationNumber } from '../shared/utils/quotationUtils.js';
+
 // Timezone-safe local ISO date getter
 export const getTodayDateString = () => {
   const d = new Date();
@@ -93,6 +95,7 @@ export const generateTasks = (state, targetDate) => {
     if (q.followUpDate || q.status === 'Draft' || q.status === 'Sent') {
       const date = q.followUpDate || q.validTill || today;
       const isOverdue = date < today;
+      const qNum = resolveQuotationNumber(q).replace(/^#/, '');
       tasks.push({
         id: `QT-${q.id}`,
         sourceId: q.id,
@@ -100,9 +103,10 @@ export const generateTasks = (state, targetDate) => {
         type: 'Quotation',
         status: isOverdue ? 'Overdue' : 'Pending',
         followUpDate: date,
-        notes: `Quotation #${q.id}: ${q.items} (Valid Till: ${q.validTill || 'N/A'})`,
+        notes: `Quotation #${qNum}: ${q.items} (Valid Till: ${q.validTill || 'N/A'})`,
         amount: q.totalAmount || 0,
         phone: getClientPhone(state, q.customerName),
+        referenceNo: qNum,
         rawEntity: q
       });
     }

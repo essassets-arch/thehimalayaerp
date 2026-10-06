@@ -23,6 +23,7 @@ import {
   getNextPendingReminder,
   filterRemindersByBucket
 } from '../shared/utils/reminderUtils.js';
+import { resolveQuotationNumber, resolveQuotationCustomerName } from '../shared/utils/quotationUtils.js';
 
 export default function QuotationsView({
   quotations = [],
@@ -335,38 +336,6 @@ export default function QuotationsView({
     return quotation.paymentMilestones
       .map((milestone) => `${milestone.label} ${milestone.percentage}%`)
       .join(', ');
-  };
-  const resolveQuotationNumber = (q) => {
-    if (!q) return '—';
-    const num = q.quotationNumber || q.quotation_number || q.quotationNo;
-    if (num && typeof num === 'string' && num.trim()) {
-      return num.trim();
-    }
-    if (q.id) {
-      const idStr = String(q.id).trim();
-      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idStr)) {
-        return `QTN-${idStr.slice(0, 8).toUpperCase()}`;
-      }
-      if (idStr.startsWith('QT-') || idStr.startsWith('QTN-') || idStr.startsWith('QU/') || idStr.startsWith('HCCL/')) {
-        return idStr;
-      }
-      return `QTN-${idStr}`;
-    }
-    return 'QTN-DRAFT';
-  };
-  const resolveQuotationCustomerName = (q) => {
-    if (!q) return '—';
-    const leadName = q.lead?.companyName || q.lead?.projectName || q.lead?.customerName;
-    const directCustName = q.customer?.companyName || q.customer?.name;
-    return (
-      q.customerName ||
-      q.customer_name ||
-      (q.leadId || q.lead ? leadName || directCustName : directCustName || leadName) ||
-      q.leadName ||
-      q.clientName ||
-      q.partyName ||
-      '—'
-    );
   };
   const editCustomerOptions = useMemo(() => {
     const options = [

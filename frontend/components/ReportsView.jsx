@@ -61,39 +61,7 @@ export const resolveLeadNumber = (lead) => {
   return '—';
 };
 
-export const resolveQuotationNumber = (q) => {
-  if (!q) return '—';
-  if (typeof q === 'string') {
-    const trimmed = q.trim();
-    if (!trimmed) return '—';
-    if (trimmed.startsWith('QT/') || trimmed.startsWith('QU/') || trimmed.startsWith('QTN/') || trimmed.startsWith('QT-') || trimmed.startsWith('QTN-')) return trimmed;
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
-      return `QTN-${trimmed.slice(0, 8).toUpperCase()}`;
-    }
-    if (/^\d+$/.test(trimmed)) {
-      return `QT/2627/${trimmed.padStart(4, '0')}`;
-    }
-    return trimmed;
-  }
-  const num = q.quotationNumber || q.quotation_number || q.quotationNo || q.quotation_no || q.quoteNo;
-  if (num && typeof num === 'string' && num.trim()) {
-    return num.trim();
-  }
-  if (q.id !== undefined && q.id !== null) {
-    const idStr = String(q.id).trim();
-    if (idStr.startsWith('QT/') || idStr.startsWith('QU/') || idStr.startsWith('QTN/') || idStr.startsWith('QT-') || idStr.startsWith('QTN-') || idStr.startsWith('HCCL/')) {
-      return idStr;
-    }
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idStr)) {
-      return `QTN-${idStr.slice(0, 8).toUpperCase()}`;
-    }
-    if (/^\d+$/.test(idStr)) {
-      return `QT/2627/${idStr.padStart(4, '0')}`;
-    }
-    return `QT-${idStr}`;
-  }
-  return '—';
-};
+export { resolveQuotationNumber } from '../shared/utils/quotationUtils.js';
 
 export const resolveOrderNumber = (order) => {
   if (!order) return '—';

@@ -17,6 +17,7 @@ import {
   Phone,
   Calendar,
   User,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -52,6 +53,7 @@ interface Dispatch {
   vehicleNumber: string | null;
   driverName: string | null;
   driverPhone: string | null;
+  invoiceNumber?: string | null;
   dispatchedAt: string | null;
   deliveredAt?: string | null;
   receivedBy?: string | null;
@@ -509,6 +511,7 @@ export default function InTransitPage() {
       const meta = getResolvedMetadata(d);
       return (
         d.dispatchNo?.toLowerCase().includes(lower) ||
+        d.invoiceNumber?.toLowerCase().includes(lower) ||
         d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
         meta.customerName.toLowerCase().includes(lower) ||
         meta.salesPersonName.toLowerCase().includes(lower) ||
@@ -544,6 +547,7 @@ export default function InTransitPage() {
       const meta = getResolvedMetadata(d);
       return (
         d.dispatchNo?.toLowerCase().includes(lower) ||
+        d.invoiceNumber?.toLowerCase().includes(lower) ||
         d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
         meta.customerName.toLowerCase().includes(lower) ||
         meta.salesPersonName.toLowerCase().includes(lower) ||
@@ -584,6 +588,7 @@ export default function InTransitPage() {
         return {
           "Dispatch No": (d.dispatchNo || "").replace(/\s+/g, ""),
           "Sales Order": d.salesOrder?.orderNumber || "—",
+          "Invoice No": d.invoiceNumber || "—",
           Customer: meta.customerName,
           "Sales Person": meta.salesPersonName,
           "Driver Name": d.driverName || "—",
@@ -613,6 +618,7 @@ export default function InTransitPage() {
         return {
           "Dispatch No": (d.dispatchNo || "").replace(/\s+/g, ""),
           "Sales Order": d.salesOrder?.orderNumber || "—",
+          "Invoice No": d.invoiceNumber || "—",
           Customer: meta.customerName,
           "Sales Person": meta.salesPersonName,
           "Received By": d.receivedBy || "—",
@@ -836,6 +842,7 @@ export default function InTransitPage() {
                       <tr>
                         <th>Dispatch No.</th>
                         <th>Sales Order</th>
+                        <th>Invoice No.</th>
                         <th>Customer</th>
                         <th>Driver / Vehicle</th>
                         <th>Dispatched At</th>
@@ -850,6 +857,7 @@ export default function InTransitPage() {
                         const isOverdue = expectedDate && new Date(expectedDate) < new Date();
                         const cleanDispNo = formatCleanNo(dispatchItem.dispatchNo);
                         const cleanSoNo = formatCleanNo(dispatchItem.salesOrder?.orderNumber);
+                        const cleanInvNo = formatCleanNo(dispatchItem.invoiceNumber);
                         const meta = getResolvedMetadata(dispatchItem);
 
                         return (
@@ -894,6 +902,32 @@ export default function InTransitPage() {
                               >
                                 #{cleanSoNo}
                               </span>
+                            </td>
+
+                            {/* Invoice Number */}
+                            <td data-label="Invoice No.">
+                              {cleanInvNo !== "—" ? (
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    padding: "3px 8px",
+                                    borderRadius: 6,
+                                    background: "#f0fdf4",
+                                    border: "1px solid #bbf7d0",
+                                    color: "#15803d",
+                                    fontWeight: 700,
+                                    fontFamily: "monospace",
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  <FileText style={{ width: 12, height: 12, color: "#16a34a" }} />
+                                  #{cleanInvNo.replace(/^#/, "")}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: 12, color: "#94a3b8" }}>—</span>
+                              )}
                             </td>
 
                             {/* Customer & Sales Person */}
@@ -1085,6 +1119,7 @@ export default function InTransitPage() {
                       <tr>
                         <th>Dispatch No.</th>
                         <th>Sales Order</th>
+                        <th>Invoice No.</th>
                         <th>Customer</th>
                         <th>Receiver Details</th>
                         <th>Driver / Vehicle</th>
@@ -1097,6 +1132,7 @@ export default function InTransitPage() {
                       {filteredHistoryDispatches.map((dispatchItem) => {
                         const cleanDispNo = formatCleanNo(dispatchItem.dispatchNo);
                         const cleanSoNo = formatCleanNo(dispatchItem.salesOrder?.orderNumber);
+                        const cleanInvNo = formatCleanNo(dispatchItem.invoiceNumber);
                         const meta = getResolvedMetadata(dispatchItem);
 
                         return (
@@ -1141,6 +1177,32 @@ export default function InTransitPage() {
                               >
                                 #{cleanSoNo}
                               </span>
+                            </td>
+
+                            {/* Invoice Number */}
+                            <td data-label="Invoice No.">
+                              {cleanInvNo !== "—" ? (
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    padding: "3px 8px",
+                                    borderRadius: 6,
+                                    background: "#f0fdf4",
+                                    border: "1px solid #bbf7d0",
+                                    color: "#15803d",
+                                    fontWeight: 700,
+                                    fontFamily: "monospace",
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  <FileText style={{ width: 12, height: 12, color: "#16a34a" }} />
+                                  #{cleanInvNo.replace(/^#/, "")}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: 12, color: "#94a3b8" }}>—</span>
+                              )}
                             </td>
 
                             {/* Customer & Sales Person */}
