@@ -781,8 +781,10 @@ export class SalesService {
     let discountAmountTotal = new Decimal(0);
 
     const processedItems = items.map((item) => {
-      const qty = new Decimal(item.orderedQuantity);
-      const price = new Decimal(item.unitPrice);
+      const rawQty = item.orderedQuantity !== undefined && item.orderedQuantity !== null ? item.orderedQuantity : (item.quantity ?? 1);
+      const rawPrice = item.unitPrice !== undefined && item.unitPrice !== null ? item.unitPrice : (item.price ?? 0);
+      const qty = new Decimal(rawQty);
+      const price = new Decimal(rawPrice);
       const discount = new Decimal(item.discountAmount || 0);
       const taxRate = new Decimal(item.taxRate || 0);
 
@@ -833,7 +835,7 @@ export class SalesService {
 
       const products = await tx.product.findMany({
         where: { id: { in: processedItems.map((item) => item.productId) } },
-        select: { id: true, name: true, sku: true },
+        select: { id: true, name: true, sku: true, unit: true },
       });
       const productById = new Map(
         products.map((product) => [product.id, product]),
@@ -930,7 +932,7 @@ export class SalesService {
               return {
                 productId: item.productId,
                 orderedQuantity: item.orderedQuantity,
-                unit: item.unit,
+                unit: item.unit || productById.get(item.productId)?.unit || 'PCS',
                 unitPrice: item.unitPrice,
                 taxableAmount: item.taxableAmount,
                 lineTotal: item.lineTotal,
@@ -1154,7 +1156,7 @@ export class SalesService {
         const productIds = order.items.map((i) => i.productId).filter(Boolean);
         const orderProducts = await tx.product.findMany({
           where: { id: { in: productIds } },
-          select: { id: true, category: true, productType: true, dispatchCategory: true, sku: true, name: true },
+          select: { id: true, category: true, productType: true, dispatchCategory: true, isTrading: true, sku: true, name: true },
         });
         const productMap = new Map(orderProducts.map((p) => [p.id, p]));
 
@@ -1276,7 +1278,7 @@ export class SalesService {
         const productIds = order.items.map((i: any) => i.productId).filter(Boolean);
         const orderProducts = await this.prisma.product.findMany({
           where: { id: { in: productIds } },
-          select: { id: true, category: true, productType: true, dispatchCategory: true, sku: true, name: true },
+          select: { id: true, category: true, productType: true, dispatchCategory: true, isTrading: true, sku: true, name: true },
         });
         const productMap = new Map(orderProducts.map((p) => [p.id, p]));
 

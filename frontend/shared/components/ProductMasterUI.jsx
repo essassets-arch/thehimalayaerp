@@ -12,7 +12,7 @@ import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { useERP } from '../context/ERPContext';
 import { safeSaveFile } from '../../services/export.service';
-import { isTradingProduct } from '../../shared/utils/dispatchCategory';
+import { isTradingProduct, normalizeDispatchCategory } from '../../shared/utils/dispatchCategory';
 
 const UNITS = ['PCS', 'SET', 'KG', 'LTR', 'BAG', 'ROLL', 'CAN', 'BARREL', 'PKT', 'MTR'];
 
@@ -111,12 +111,11 @@ export default function ProductMasterUI({ role, scope }) {
       
       // Normalize fields for backend compatibility
       const normalizedList = list.map(p => {
-        const isTrading = isTradingProduct(p);
-        let cat = p.dispatchCategory || p.dispatch_category;
-        if (isTrading) cat = 'D2';
-        else if (cat === 'D1' || cat === 'DISPATCH 1') cat = 'D1';
-        else if (cat === 'D2' || cat === 'DISPATCH 2') cat = 'D2';
-        else cat = 'Unassigned';
+        const rawDC = p.dispatchCategory || p.dispatch_category;
+        const normDC = normalizeDispatchCategory(rawDC);
+        const pType = normalizeProductType(p.product_type || p.productType);
+        const isTrading = p.isTrading === true || normDC === 'D2' || pType === 'TRADING';
+        let cat = normDC || (isTrading ? 'D2' : 'D1');
 
         return {
           ...p,
@@ -124,7 +123,8 @@ export default function ProductMasterUI({ role, scope }) {
           product_code: p.product_code || p.sku || '',
           product_family: p.product_family || p.category || '',
           unit_of_measure: p.unit_of_measure || p.unit || 'PCS',
-          product_type: isTrading ? 'TRADING' : normalizeProductType(p.product_type || p.productType),
+          product_type: isTrading ? 'TRADING' : pType,
+          isTrading: isTrading,
           covers_per_set: p.coversPerSet !== undefined && p.coversPerSet !== null ? p.coversPerSet : (p.covers_per_set ?? 1),
           coversPerSet: p.coversPerSet !== undefined && p.coversPerSet !== null ? p.coversPerSet : (p.covers_per_set ?? 1),
           frames_per_set: p.framesPerSet !== undefined && p.framesPerSet !== null ? p.framesPerSet : (p.frames_per_set ?? 1),
@@ -353,6 +353,7 @@ export default function ProductMasterUI({ role, scope }) {
       ((formData.dispatch_category && formData.dispatch_category !== 'Unassigned')
         ? formData.dispatch_category
         : (resolvedType === 'TRADING' ? 'D2' : 'D1'));
+    const isTrading = resolvedDispatch === 'D2' || resolvedType === 'TRADING';
 
     const payload = {
       name: formData.product_name,
@@ -361,6 +362,7 @@ export default function ProductMasterUI({ role, scope }) {
       unit: formData.unit_of_measure,
       unitPrice: Number(formData.unitPrice || 0),
       productType: resolvedType,
+      isTrading: isTrading,
       coversPerSet,
       covers_per_set: coversPerSet,
       framesPerSet,
@@ -950,23 +952,34 @@ export default function ProductMasterUI({ role, scope }) {
                 {/* Dispatch category Selector */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
                   <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Dispatch Route:</span>
-                  <select
-                    value={p.dispatch_category || 'Unassigned'}
-                    onChange={async (e) => {
-                      const newCat = e.target.value;
-                      const updatedCat = newCat === 'Unassigned' ? null : newCat;
-                      try {
-                        await backendFetch(`/api/backend/products/${p.id}`, {
-                          method: 'PATCH',
-                          body: { dispatchCategory: updatedCat },
-                        });
-                        setRawProducts(prev => prev.map(prod => prod.id === p.id ? { ...prod, dispatch_category: newCat } : prod));
-                        showToast(`Product ${p.product_code} category updated to ${newCat}!`);
-                      } catch (err) {
-                        console.error('Failed to update dispatch category:', err);
-                        showToast(`Failed to update category: ${err.message || 'Server error'}`);
-                      }
-                    }}
+                    <select
+                      value={p.dispatch_category || 'Unassigned'}
+                      onChange={async (e) => {
+                        const newCat = e.target.value;
+                        const updatedCat = newCat === 'Unassigned' ? null : newCat;
+                        const newType = updatedCat === 'D2' ? 'TRADING' : updatedCat === 'D1' ? 'MANUFACTURING' : p.product_type;
+                        const isTrading = updatedCat === 'D2' || newType === 'TRADING';
+                        try {
+                          await backendFetch(`/api/backend/products/${p.id}`, {
+                            method: 'PATCH',
+                            body: { 
+                              dispatchCategory: updatedCat,
+                              productType: newType,
+                              isTrading: isTrading
+                            },
+                          });
+                          setRawProducts(prev => prev.map(prod => prod.id === p.id ? { 
+                            ...prod, 
+                            dispatch_category: newCat,
+                            product_type: newType,
+                            isTrading: isTrading
+                          } : prod));
+                          showToast(`Product ${p.product_code} category updated to ${newCat}!`);
+                        } catch (err) {
+                          console.error('Failed to update dispatch category:', err);
+                          showToast(`Failed to update category: ${err.message || 'Server error'}`);
+                        }
+                      }}
                     style={{
                       padding: '5px 10px',
                       borderRadius: '6px',
@@ -1160,12 +1173,23 @@ export default function ProductMasterUI({ role, scope }) {
                           onChange={async (e) => {
                             const newCat = e.target.value;
                             const updatedCat = newCat === 'Unassigned' ? null : newCat;
+                            const newType = updatedCat === 'D2' ? 'TRADING' : updatedCat === 'D1' ? 'MANUFACTURING' : p.product_type;
+                            const isTrading = updatedCat === 'D2' || newType === 'TRADING';
                             try {
                               await backendFetch(`/api/backend/products/${p.id}`, {
                                 method: 'PATCH',
-                                body: { dispatchCategory: updatedCat },
+                                body: { 
+                                  dispatchCategory: updatedCat,
+                                  productType: newType,
+                                  isTrading: isTrading
+                                },
                               });
-                              setRawProducts(prev => prev.map(prod => prod.id === p.id ? { ...prod, dispatch_category: newCat } : prod));
+                              setRawProducts(prev => prev.map(prod => prod.id === p.id ? { 
+                                ...prod, 
+                                dispatch_category: newCat,
+                                product_type: newType,
+                                isTrading: isTrading
+                              } : prod));
                               showToast(`Product ${p.product_code} category updated to ${newCat}!`);
                             } catch (err) {
                               console.error('Failed to update dispatch category:', err);
@@ -1430,7 +1454,11 @@ export default function ProductMasterUI({ role, scope }) {
                   <select 
                     value={formData.dispatch_category || (formData.product_type === 'TRADING' ? 'D2' : 'D1')} 
                     disabled={effectiveScope !== 'ALL'}
-                    onChange={e => setFormData({ ...formData, dispatch_category: e.target.value })} 
+                    onChange={e => {
+                      const newCat = e.target.value;
+                      const newType = newCat === 'D2' ? 'TRADING' : newCat === 'D1' ? 'MANUFACTURING' : formData.product_type;
+                      setFormData({ ...formData, dispatch_category: newCat, product_type: newType });
+                    }} 
                     style={{ width: '100%', padding: '10px 14px', background: effectiveScope !== 'ALL' ? '#F1F5F9' : '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', fontWeight: 'bold', cursor: effectiveScope !== 'ALL' ? 'not-allowed' : 'pointer' }}
                   >
                     {effectiveScope === 'MANUFACTURING' ? (

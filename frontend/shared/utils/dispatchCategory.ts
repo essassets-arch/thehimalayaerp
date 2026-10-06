@@ -17,24 +17,134 @@ export function normalizeDispatchCategory(cat?: string | null): 'D1' | 'D2' | nu
   return null;
 }
 
+export interface ProductRoutingClassification {
+  dispatchCategory: 'D1' | 'D2' | null;
+  productType: string;
+  isTrading: boolean;
+}
+
+export function resolveProductRouting(
+  input?: {
+    dispatchCategory?: string | null;
+    dispatch_category?: string | null;
+    productType?: string | null;
+    product_type?: string | null;
+    isTrading?: boolean | null;
+    is_trading?: boolean | null;
+    category?: string | null;
+    product_family?: string | null;
+    name?: string | null;
+    productName?: string | null;
+    sku?: string | null;
+    productCode?: string | null;
+  } | null,
+  existing?: {
+    dispatchCategory?: string | null;
+    productType?: string | null;
+    isTrading?: boolean | null;
+    category?: string | null;
+  } | null
+): ProductRoutingClassification {
+  if (!input && !existing) {
+    return { dispatchCategory: 'D1', productType: 'MANUFACTURING', isTrading: false };
+  }
+
+  // 1. Raw inputs
+  const rawDC = input?.dispatchCategory ?? input?.dispatch_category;
+  const rawPT = (input?.productType ?? input?.product_type ?? '').trim().toUpperCase();
+  const rawTrading = input?.isTrading ?? input?.is_trading;
+  const category = (input?.category ?? input?.product_family ?? existing?.category ?? '').trim().toUpperCase();
+
+  // Explicit Raw Material handling
+  if (
+    category === 'RAW MATERIAL' ||
+    rawPT === 'RAW_MATERIAL' ||
+    String(existing?.productType || '').toUpperCase() === 'RAW_MATERIAL'
+  ) {
+    return { dispatchCategory: null, productType: 'RAW_MATERIAL', isTrading: false };
+  }
+
+  // 2. Authoritative Dispatch Category (highest priority routing selector)
+  if (rawDC !== undefined && rawDC !== null && rawDC !== '' && rawDC !== 'Unassigned' && rawDC !== 'UNASSIGNED') {
+    const normDC = normalizeDispatchCategory(rawDC);
+    if (normDC === 'D2') {
+      return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };
+    }
+    if (normDC === 'D1') {
+      return { dispatchCategory: 'D1', productType: 'MANUFACTURING', isTrading: false };
+    }
+  }
+
+  // 3. Explicit isTrading boolean flag
+  if (typeof rawTrading === 'boolean') {
+    if (rawTrading) {
+      return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };
+    } else {
+      return { dispatchCategory: 'D1', productType: 'MANUFACTURING', isTrading: false };
+    }
+  }
+
+  // 4. Explicit productType
+  if (rawPT === 'TRADING') {
+    return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };
+  }
+  if (rawPT === 'MANUFACTURING' || rawPT === 'HARDWARE') {
+    return { dispatchCategory: 'D1', productType: rawPT, isTrading: false };
+  }
+
+  // 5. Existing record fallback (for updates where routing fields were not changed)
+  if (existing) {
+    const existingNormDC = normalizeDispatchCategory(existing.dispatchCategory);
+    if (existing.isTrading === true || existingNormDC === 'D2' || String(existing.productType).toUpperCase() === 'TRADING') {
+      return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };
+    }
+    if (existing.isTrading === false || existingNormDC === 'D1' || String(existing.productType).toUpperCase() === 'MANUFACTURING') {
+      return { dispatchCategory: 'D1', productType: 'MANUFACTURING', isTrading: false };
+    }
+  }
+
+  // 6. Legacy fallback ONLY for genuinely unclassified legacy items
+  if (
+    category.includes('COVERBLOCK') ||
+    category.includes('COVER BLOCK') ||
+    category.includes('FRC COVER') ||
+    category.includes('RCC PIPE') ||
+    category.includes('OTHERS') ||
+    category.includes('TRADING') ||
+    category.includes('GRATING') ||
+    category.includes('FRP GRATING')
+  ) {
+    return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };
+  }
+
+  const name = String(input?.name || input?.productName || '').toUpperCase();
+  const sku = String(input?.sku || input?.productCode || '').toUpperCase();
+  const combined = `${name} ${sku}`;
+
+  if (
+    combined.includes('MOULDED') ||
+    combined.includes('GRATING') ||
+    combined.includes('COVERBLOCK') ||
+    combined.includes('COVER BLOCK') ||
+    combined.includes('RCC PIPE')
+  ) {
+    return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };
+  }
+
+  return { dispatchCategory: 'D1', productType: 'MANUFACTURING', isTrading: false };
+}
+
 export function isTradingProduct(entity?: any, productsMap?: Map<string, any>): boolean {
   if (!entity) return false;
 
-  // 1. Direct flags
-  if (entity.isTrading === true) return true;
-  if (entity.isTrading === false) return false;
-
-  const pType = String(entity.productType || entity.product_type || entity.product?.productType || entity.product?.product_type || '').toUpperCase();
-  if (pType === 'TRADING') return true;
-
-  const dCat = String(
-    entity.dispatchCategory ||
-    entity.dispatch_category ||
-    entity.product?.dispatchCategory ||
-    entity.product?.dispatch_category ||
-    ''
-  ).toUpperCase();
-  if (dCat === 'D2' || dCat === 'DISPATCH 2' || dCat === 'DISPATCH_2' || dCat.includes('CAT 2') || dCat.includes('CATEGORY 2')) return true;
+  // 1. Authoritative Product Master Flag: isTrading
+  if (entity.isTrading === true || entity.product?.isTrading === true) return true;
+  if (entity.isTrading === false && entity.product?.isTrading === false) {
+    const rawDC = entity.dispatchCategory || entity.dispatch_category || entity.product?.dispatchCategory || entity.product?.dispatch_category;
+    const normalizedDC = normalizeDispatchCategory(rawDC);
+    if (normalizedDC === 'D2') return true;
+    return false;
+  }
 
   // 1b. Check items array if entity is an order / sample / replacement / return container
   const items = entity.items || entity.products || entity.sampleItems || entity.orderItems || entity.detailedItems || [];
@@ -49,71 +159,8 @@ export function isTradingProduct(entity?: any, productsMap?: Map<string, any>): 
     if (isTradingProduct(matched)) return true;
   }
 
-  const cat = String(
-    entity.category ||
-    entity.product_family ||
-    entity.product?.category ||
-    entity.product?.product_family ||
-    ''
-  ).toUpperCase();
-  const name = String(
-    entity.name ||
-    entity.productName ||
-    entity.productNameSnapshot ||
-    entity.product ||
-    entity.product?.name ||
-    entity.specifications ||
-    ''
-  ).toUpperCase();
-
-  const sku = String(
-    entity.sku ||
-    entity.productCode ||
-    entity.productCodeSnapshot ||
-    entity.productSku ||
-    entity.product?.sku ||
-    ''
-  ).toUpperCase();
-
-  const nameOrSku = `${name} ${sku}`;
-  const cleanNameOrSku = nameOrSku.replace(/\bHIMALAYA\b/g, '').replace(/\bHCPPL\b/g, '').trim();
-
-  if (
-    nameOrSku.includes('MOULDED') ||
-    nameOrSku.includes('GRATING') ||
-    cleanNameOrSku.startsWith('FRPMOULDED') ||
-    cleanNameOrSku.startsWith('FRPGRT') ||
-    cleanNameOrSku.startsWith('WCB') ||
-    cleanNameOrSku.startsWith('PCB') ||
-    cleanNameOrSku.startsWith('HTCB') ||
-    cleanNameOrSku.startsWith('DTCB') ||
-    cleanNameOrSku.startsWith('MCB') ||
-    cleanNameOrSku.startsWith('BTCB') ||
-    cleanNameOrSku.startsWith('FRCCP') ||
-    cleanNameOrSku.startsWith('FRCT') ||
-    cleanNameOrSku.startsWith('FRCSQRC') ||
-    cleanNameOrSku.startsWith('FRCRFRC') ||
-    cleanNameOrSku.startsWith('FRCSFSC') ||
-    cleanNameOrSku.startsWith('FRCROFROC') ||
-    cleanNameOrSku.startsWith('FRCGT') ||
-    cleanNameOrSku.startsWith('FRCTSOC') ||
-    cleanNameOrSku.startsWith('FRCTPEC') ||
-    cleanNameOrSku.startsWith('FRC') ||
-    cleanNameOrSku.startsWith('RCC') ||
-    nameOrSku.includes('COVERBLOCK') ||
-    nameOrSku.includes('COVER BLOCK') ||
-    nameOrSku.includes('FRC COVER') ||
-    nameOrSku.includes('RCC PIPE')
-  ) {
-    return true;
-  }
-
-  if (['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING', 'FRP GRATINGS'].includes(cat) || cat.includes('GRATING')) return true;
-  if (['FRP COVERS', 'MANUFACTURING', 'FINISHED GOODS'].includes(cat)) return false;
-
-  if (pType === 'MANUFACTURING' || dCat === 'D1' || dCat.includes('1')) return false;
-
-  return false;
+  const target = entity.product || entity;
+  return resolveProductRouting(target).isTrading;
 }
 
 export function isPureTradingOrder(order?: any, productsMap?: Map<string, any>): boolean {

@@ -72,6 +72,14 @@ export class CreateProductDto {
   @IsOptional()
   dispatch_category?: string;
 
+  @IsBoolean()
+  @IsOptional()
+  isTrading?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  is_trading?: boolean;
+
   @IsNumber()
   @IsOptional()
   @Type(() => Number)

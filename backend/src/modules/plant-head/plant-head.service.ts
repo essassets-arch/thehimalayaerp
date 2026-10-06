@@ -2545,6 +2545,13 @@ export class PlantHeadService {
           );
         }
 
+        // Hard Invariant: Dispatch 2 / Trading products MUST NOT enter Plant Head production planning
+        if (isPureTradingOrder(salesOrder)) {
+          throw new BadRequestException(
+            'This is a Trading / Dispatch 2 order. It is routed directly to Dispatch 2 and cannot enter Plant Head production planning.',
+          );
+        }
+
         // 2. Duplicate submission check (idempotency)
         console.log(
           `[FULFILLMENT_PLAN:${orderId}] Step 2: Checking planDto items`,
@@ -2590,6 +2597,13 @@ export class PlantHeadService {
 
           if (productionQty <= 0) {
             continue;
+          }
+
+          // Hard Invariant: Work order / production cannot be created for Trading / Dispatch 2 items
+          if (isTradingProduct(orderItem.product || orderItem)) {
+            throw new BadRequestException(
+              `Item ${orderItem.productNameSnapshot || orderItem.id} is a Trading / Dispatch 2 product. It cannot be planned for production or have work orders created.`,
+            );
           }
 
           // Fetch remaining unallocated quantity

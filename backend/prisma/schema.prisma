@@ -362,6 +362,7 @@ model Product {
   productType                 String?                      @default("MANUFACTURING")
   brand                       String?
   dispatchCategory            String?
+  isTrading                   Boolean                      @default(false)
   gstRate                     Decimal?                     @db.Decimal(5, 2)
   hsnCode                     String?
   variantDetails              String?

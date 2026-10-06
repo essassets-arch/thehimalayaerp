@@ -580,18 +580,7 @@ export class WorkOrdersService {
         const isAllTrading =
           so.items &&
           so.items.length > 0 &&
-          so.items.every(
-            (i: any) =>
-              i.product?.dispatchCategory === 'D2' ||
-              i.product?.dispatchCategory === 'DISPATCH_2' ||
-              i.product?.productType === 'TRADING' ||
-              i.product?.category === 'COVERBLOCK' ||
-              i.product?.category === 'FRC COVER' ||
-              i.product?.category === 'RCC PIPE' ||
-              (i.product?.category === 'FRP GRATINGS' &&
-                (i.product?.name?.toUpperCase()?.includes('MOULDED') ||
-                 i.product?.sku?.toUpperCase()?.includes('MOULDED'))),
-          );
+          so.items.every((i: any) => isTradingProduct(i.product, i));
         const targetRoles = isAllTrading
           ? ['DISPATCH_2']
           : ['DISPATCH_EXECUTIVE', 'DISPATCH_1', 'DISPATCH'];
@@ -670,10 +659,7 @@ export class WorkOrdersService {
       if (this.notificationsService) {
         const companyId =
           fg.product?.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
-        const isTradingFg =
-          fg.product?.dispatchCategory === 'D2' ||
-          fg.product?.dispatchCategory === 'DISPATCH_2' ||
-          fg.product?.productType === 'TRADING';
+        const isTradingFg = isTradingProduct(fg.product);
         const fgRoles = isTradingFg
           ? ['DISPATCH_2']
           : ['DISPATCH_EXECUTIVE', 'DISPATCH_1', 'DISPATCH'];

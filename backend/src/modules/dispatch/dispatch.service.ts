@@ -33,17 +33,9 @@ function normalizeDispatchCategory(cat?: string | null): 'D1' | 'D2' | null {
 
 const tradingProductFilter = {
   OR: [
+    { isTrading: true },
     { dispatchCategory: { in: ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2', 'CAT 2', 'CAT_2', '2'] } },
     { productType: 'TRADING' },
-    { category: { in: ['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING', 'FRP GRATINGS'] } },
-    { sku: { contains: 'GRATING', mode: 'insensitive' as const } },
-    { sku: { startsWith: 'FRPMOULDED', mode: 'insensitive' as const } },
-    { sku: { startsWith: 'FRPGRT', mode: 'insensitive' as const } },
-    { name: { contains: 'MOULDED GRATING', mode: 'insensitive' as const } },
-    { name: { contains: 'COVER BLOCK', mode: 'insensitive' as const } },
-    { name: { contains: 'COVERBLOCK', mode: 'insensitive' as const } },
-    { name: { contains: 'FRC COVER', mode: 'insensitive' as const } },
-    { name: { contains: 'RCC PIPE', mode: 'insensitive' as const } },
   ],
 };
 
@@ -776,24 +768,51 @@ export class DispatchService {
           );
         }
 
-        // Auto-detect D1 vs D2 dispatchCategory from dto or ordered items
-        let detectedCategory = dto.dispatchCategory;
-        if (!detectedCategory || detectedCategory === 'D1') {
-          for (const item of dto.items) {
-            const soItem = soItemsMap.get(item.salesOrderItemId);
-            if (soItem?.productId) {
-              const prod = await tx.product.findUnique({
-                where: { id: soItem.productId },
-                select: { id: true, dispatchCategory: true, productType: true, category: true, sku: true, name: true },
-              });
-              if (prod && isTradingProduct(prod, soItem)) {
-                detectedCategory = 'D2';
-                break;
-              }
+        // Determine the actual product routing classification for the items being dispatched
+        let hasAnyTrading = false;
+        let hasAnyManufacturing = false;
+        for (const item of dto.items) {
+          const soItem = soItemsMap.get(item.salesOrderItemId);
+          if (soItem?.productId) {
+            const prod = await tx.product.findUnique({
+              where: { id: soItem.productId },
+              select: { id: true, dispatchCategory: true, productType: true, isTrading: true, category: true, sku: true, name: true },
+            });
+            if (prod && isTradingProduct(prod, soItem)) {
+              hasAnyTrading = true;
+            } else {
+              hasAnyManufacturing = true;
             }
           }
         }
-        if (!detectedCategory) detectedCategory = 'D1';
+
+        const detectedCategory: 'D1' | 'D2' = hasAnyTrading && !hasAnyManufacturing ? 'D2' : 'D1';
+        const requestedCat = normalizeDispatchCategory(dto.dispatchCategory);
+
+        // Hard Invariant: Dispatch 1 cannot dispatch Category 2, Dispatch 2 cannot dispatch Category 1
+        if (requestedCat === 'D1' && hasAnyTrading) {
+          throw new BadRequestException('Dispatch 1 (Cat 1) cannot dispatch Trading / Category 2 products.');
+        }
+        if (requestedCat === 'D2' && hasAnyManufacturing) {
+          throw new BadRequestException('Dispatch 2 (Cat 2) cannot dispatch Manufacturing / Category 1 products.');
+        }
+
+        if (userId) {
+          const userRecord = await tx.user.findUnique({
+            where: { id: userId },
+            include: { role: true },
+          });
+          const normalizedRole = String(userRecord?.role?.code || '').toUpperCase().replace(/[\s-]+/g, '_');
+          const userCat = normalizeDispatchCategory(userRecord?.dispatchCategory);
+          if ((normalizedRole === 'DISPATCH_1' || userCat === 'D1') && hasAnyTrading) {
+            throw new BadRequestException('Dispatch 1 (Cat 1) cannot dispatch Trading / Category 2 products.');
+          }
+          if ((normalizedRole === 'DISPATCH_2' || userCat === 'D2') && hasAnyManufacturing) {
+            throw new BadRequestException('Dispatch 2 (Cat 2) cannot dispatch Manufacturing / Category 1 products.');
+          }
+        }
+
+        const finalDispatchCategory = requestedCat || detectedCategory;
 
         // Validate Invoice Number Uniqueness across both dispatches and invoices
         if (dto.invoiceNumber?.trim()) {
@@ -825,7 +844,7 @@ export class DispatchService {
           data: {
             dispatchNo,
             salesOrderId: so.id,
-            dispatchCategory: detectedCategory,
+            dispatchCategory: finalDispatchCategory,
             status: 'IN_TRANSIT',
             isSubmitted: false,
             createdById: userId,

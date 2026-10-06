@@ -9,7 +9,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { isCatalogProduct, getCatalogProductsPrismaWhere } from './catalog-product.filter';
 import * as crypto from 'crypto';
-import { isTradingProduct } from '../../common/utils/trading-product.util';
+import { isTradingProduct, normalizeDispatchCategory, resolveProductRouting } from '../../common/utils/trading-product.util';
 
 @Injectable()
 export class ProductsService {
@@ -25,18 +25,18 @@ export class ProductsService {
     const unit = dto.unit || dto.unit_of_measure || 'PCS';
     const sku = dto.sku || dto.product_code;
     const category = dto.category || dto.product_family || 'General';
-    let productType = dto.productType || dto.product_type || 'MANUFACTURING';
-    let dispatchCategory: string | null = null;
-    const rawDC = dto.dispatchCategory || dto.dispatch_category;
-    if (rawDC === 'D1' || rawDC === 'DISPATCH 1') dispatchCategory = 'D1';
-    else if (rawDC === 'D2' || rawDC === 'DISPATCH 2') dispatchCategory = 'D2';
-    else if (rawDC && rawDC !== 'Unassigned' && rawDC !== 'UNASSIGNED')
-      dispatchCategory = String(rawDC);
-
-    if (isTradingProduct({ name, sku, category, productType, dispatchCategory: rawDC })) {
-      productType = 'TRADING';
-      dispatchCategory = 'D2';
-    }
+    // Authoritative Routing Classification from Product Master
+    const routing = resolveProductRouting({
+      dispatchCategory: dto.dispatchCategory || dto.dispatch_category,
+      productType: isRawMaterial ? 'RAW_MATERIAL' : (dto.productType || dto.product_type),
+      isTrading: dto.isTrading !== undefined ? dto.isTrading : dto.is_trading,
+      category,
+      name,
+      sku,
+    });
+    const productType = routing.productType;
+    const dispatchCategory = routing.dispatchCategory;
+    const isTrading = routing.isTrading;
     const gstRate = dto.gstRate !== undefined ? dto.gstRate : dto.gst_rate;
     const hsnCode = dto.hsnCode || dto.hsn_sac_code;
     const variantDetails = dto.variantDetails || dto.variant_details;
@@ -150,6 +150,7 @@ export class ProductsService {
         productType,
         brand: dto.brand || 'HIMALAYA',
         dispatchCategory,
+        isTrading,
         gstRate,
         hsnCode,
         variantDetails,
@@ -521,25 +522,22 @@ export class ProductsService {
     if (dto.unit || dto.unit_of_measure)
       updateData.unit = dto.unit || dto.unit_of_measure;
     if (dto.unitPrice !== undefined) updateData.unitPrice = dto.unitPrice;
-    if (dto.productType || dto.product_type)
-      updateData.productType = dto.productType || dto.product_type;
-    if (dto.brand !== undefined) updateData.brand = dto.brand;
-    if (
-      dto.dispatchCategory !== undefined ||
-      dto.dispatch_category !== undefined
-    ) {
-      const rawDC =
-        dto.dispatchCategory !== undefined
-          ? dto.dispatchCategory
-          : dto.dispatch_category;
-      if (rawDC === 'D1' || rawDC === 'DISPATCH 1')
-        updateData.dispatchCategory = 'D1';
-      else if (rawDC === 'D2' || rawDC === 'DISPATCH 2')
-        updateData.dispatchCategory = 'D2';
-      else if (rawDC && rawDC !== 'Unassigned' && rawDC !== 'UNASSIGNED')
-        updateData.dispatchCategory = String(rawDC);
-      else updateData.dispatchCategory = null;
-    }
+    // Authoritative Canonical Routing Classification from Product Master
+    const routing = resolveProductRouting(
+      {
+        dispatchCategory: dto.dispatchCategory !== undefined ? dto.dispatchCategory : dto.dispatch_category,
+        productType: dto.productType !== undefined ? dto.productType : dto.product_type,
+        isTrading: dto.isTrading !== undefined ? dto.isTrading : dto.is_trading,
+        category: dto.category !== undefined ? dto.category : dto.product_family,
+        name: dto.name || dto.product_name,
+        sku: dto.sku || dto.product_code,
+      },
+      existing as any
+    );
+
+    updateData.productType = routing.productType;
+    updateData.dispatchCategory = routing.dispatchCategory;
+    updateData.isTrading = routing.isTrading;
     if (dto.gstRate !== undefined || dto.gst_rate !== undefined)
       updateData.gstRate =
         dto.gstRate !== undefined ? dto.gstRate : dto.gst_rate;
@@ -588,16 +586,7 @@ export class ProductsService {
       updateData.setRatio = s !== null && s !== undefined ? Math.max(0, Math.floor(Number(s))) : 1;
     }
 
-    const finalName = updateData.name ?? existing.name;
-    const finalSku = updateData.sku ?? existing.sku;
-    const finalCategory = updateData.category ?? existing.category;
-    const finalProductType = updateData.productType ?? existing.productType;
-    const finalDispatchCat = updateData.dispatchCategory ?? (existing as any).dispatchCategory;
 
-    if (isTradingProduct({ name: finalName, sku: finalSku, category: finalCategory, productType: finalProductType, dispatchCategory: finalDispatchCat })) {
-      updateData.productType = 'TRADING';
-      updateData.dispatchCategory = 'D2';
-    }
 
     return this.prisma.product.update({
       where: { id: existing.id },
