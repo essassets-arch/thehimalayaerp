@@ -1675,42 +1675,62 @@ export class FinanceSalesAnalyticsService {
       const prevFyEnd = new Date(Date.UTC(startYear, 2, 31, 23, 59, 59, 999));
 
       // 4. Base Query Conditions
-      const orderWhere: any = {
-        orderDate: { gte: fyStart, lte: fyEnd },
-        status: { in: this.metricService.ELIGIBLE_ORDER_STATUSES as any },
-        deletedAt: null,
-      };
+      const fyOrderNumPattern = `/${String(startYear).slice(-2)}${String(endYear).slice(-2)}/`;
+      const prevFyOrderNumPattern = `/${String(startYear - 1).slice(-2)}${String(endYear - 1).slice(-2)}/`;
+
+      const orderAndConditions: any[] = [
+        {
+          OR: [
+            { orderDate: { gte: fyStart, lte: fyEnd } },
+            { orderNumber: { contains: fyOrderNumPattern } },
+          ],
+        },
+        { status: { in: this.metricService.ELIGIBLE_ORDER_STATUSES as any } },
+        { deletedAt: null },
+      ];
 
       if (effectiveCompanyId) {
-        orderWhere.customer = { companyId: effectiveCompanyId };
+        orderAndConditions.push({ customer: { companyId: effectiveCompanyId } });
       }
       if (query.customerId && query.customerId !== 'all') {
-        orderWhere.customerId = query.customerId;
+        orderAndConditions.push({ customerId: query.customerId });
       }
       if (query.salespersonId && query.salespersonId !== 'all') {
-        orderWhere.OR = [
-          { salesExecutiveId: query.salespersonId },
-          { createdById: query.salespersonId },
-        ];
+        orderAndConditions.push({
+          OR: [
+            { salesExecutiveId: query.salespersonId },
+            { createdById: query.salespersonId },
+          ],
+        });
       }
+      const orderWhere: any = { AND: orderAndConditions };
 
-      const prevOrderWhere: any = {
-        orderDate: { gte: prevFyStart, lte: prevFyEnd },
-        status: { in: this.metricService.ELIGIBLE_ORDER_STATUSES as any },
-        deletedAt: null,
-      };
+      const prevOrderAndConditions: any[] = [
+        {
+          OR: [
+            { orderDate: { gte: prevFyStart, lte: prevFyEnd } },
+            { orderNumber: { contains: prevFyOrderNumPattern } },
+          ],
+        },
+        { status: { in: this.metricService.ELIGIBLE_ORDER_STATUSES as any } },
+        { deletedAt: null },
+      ];
+
       if (effectiveCompanyId) {
-        prevOrderWhere.customer = { companyId: effectiveCompanyId };
+        prevOrderAndConditions.push({ customer: { companyId: effectiveCompanyId } });
       }
       if (query.customerId && query.customerId !== 'all') {
-        prevOrderWhere.customerId = query.customerId;
+        prevOrderAndConditions.push({ customerId: query.customerId });
       }
       if (query.salespersonId && query.salespersonId !== 'all') {
-        prevOrderWhere.OR = [
-          { salesExecutiveId: query.salespersonId },
-          { createdById: query.salespersonId },
-        ];
+        prevOrderAndConditions.push({
+          OR: [
+            { salesExecutiveId: query.salespersonId },
+            { createdById: query.salespersonId },
+          ],
+        });
       }
+      const prevOrderWhere: any = { AND: prevOrderAndConditions };
 
       const [allFyOrders, prevOrdersAgg, distinctSalespersons, distinctCustomers] = await Promise.all([
         this.prisma.salesOrder.findMany({
@@ -1870,7 +1890,11 @@ export class FinanceSalesAnalyticsService {
 
         const monthOrders = computedOrders.filter((o) => {
           const od = new Date(o.orderDate);
-          return od >= mStart && od <= mEnd;
+          if (od >= mStart && od <= mEnd) return true;
+          if (o.orderNo && o.orderNo.includes(fyOrderNumPattern) && od.getMonth() === m.monthNum) {
+            return true;
+          }
+          return false;
         });
 
         const ordersCount = monthOrders.length;

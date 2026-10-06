@@ -272,24 +272,10 @@ export default function FinanceMonthlySalesWorkspace() {
     }, { sales: 0, invoiced: 0, collected: 0, due: 0, overdue: 0 });
   }, [orderInvoiceDetails]);
 
-  // Paginated Orders with 'All' Support and Safe Bounds
-  const isAllOrders = orderPageSize === 'all' || orderPageSize >= 10000;
-  const totalOrderPages = isAllOrders ? 1 : Math.max(1, Math.ceil(orderInvoiceDetails.length / Number(orderPageSize)));
-  const safeOrderPage = Math.min(Math.max(1, orderPage), totalOrderPages);
-
+  // All Orders (Continuous List without Pagination)
   const paginatedOrders = useMemo(() => {
-    if (isAllOrders) return orderInvoiceDetails;
-    const size = Number(orderPageSize);
-    const start = (safeOrderPage - 1) * size;
-    return orderInvoiceDetails.slice(start, start + size);
-  }, [orderInvoiceDetails, safeOrderPage, orderPageSize, isAllOrders]);
-
-  // Auto-clamp order page if list shrinks
-  useEffect(() => {
-    if (orderPage > totalOrderPages && totalOrderPages > 0) {
-      setOrderPage(1);
-    }
-  }, [totalOrderPages, orderPage]);
+    return orderInvoiceDetails;
+  }, [orderInvoiceDetails]);
 
   // Filtered Customers
   const customerOutstanding = useMemo(() => {
@@ -1195,16 +1181,44 @@ export default function FinanceMonthlySalesWorkspace() {
             </table>
           </div>
 
-          {/* Proper Pagination Controls */}
-          {renderPagination({
-            currentPage: safeOrderPage,
-            totalPages: totalOrderPages,
-            totalCount: orderInvoiceDetails.length,
-            pageSize: orderPageSize,
-            setPageSize: setOrderPageSize,
-            setPage: setOrderPage,
-            itemName: 'orders'
-          })}
+          {/* Continuous Orders List Summary Bar */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '12px 18px',
+            background: '#ffffff',
+            borderTop: '1px solid #E2E8F0',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}>
+            <div style={{ fontSize: '13px', color: '#64748B' }}>
+              Showing all <strong style={{ color: '#0F172A' }}>{orderInvoiceDetails.length}</strong> {orderInvoiceDetails.length === 1 ? 'order' : 'orders'} (All Orders)
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={handleExportCSV}
+                className="btn-small"
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #CBD5E1',
+                  background: '#ffffff',
+                  color: '#002E5D',
+                  fontSize: '12px',
+                  fontWeight: '750',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Download size={13} />
+                <span>Export ({orderInvoiceDetails.length}) Orders</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
