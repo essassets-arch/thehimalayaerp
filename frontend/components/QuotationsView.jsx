@@ -2448,20 +2448,6 @@ export default function QuotationsView({
                 >
                   Close Preview
                 </button>
-                <button
-                  type="button"
-                  className="btn-small btn-outline-small"
-                  onClick={() => {
-                    const target = selectedQuotation;
-                    setSelectedQuotation(null);
-                    handleRepeatQuotation(target);
-                  }}
-                  style={{ padding: '9px 14px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, color: '#0369a1', borderColor: '#bae6fd' }}
-                  title="Repeat Quotation"
-                >
-                  <Copy size={13} style={{ marginRight: '4px', verticalAlign: 'text-bottom' }} />
-                  Repeat Quotation
-                </button>
                 {!isQuotationDeleted(selectedQuotation) && (
                   <button
                     type="button"
