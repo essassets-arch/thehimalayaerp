@@ -4,28 +4,26 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   TrendingUp,
-  TrendingDown,
-  DollarSign,
   Calendar,
   Filter,
   Download,
   RefreshCw,
-  ChevronRight,
-  Eye,
   FileText,
-  CheckCircle2,
-  Clock,
   AlertTriangle,
   Building,
   User,
   Wallet,
-  Layers,
   Box,
-  Check,
-  X,
-  ArrowRight,
   Search,
-  Sparkles
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  BarChart3,
+  Users,
+  CheckCircle2,
+  Clock,
+  ArrowRight
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -34,8 +32,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  CartesianGrid,
-  Legend
+  CartesianGrid
 } from 'recharts';
 import { financeSalesAnalyticsService } from '../../../services/financeSalesAnalytics.service';
 
@@ -80,7 +77,7 @@ const formatDate = (dateStr) => {
 export default function FinanceMonthlySalesWorkspace() {
   const router = useRouter();
 
-  // 1. All Component State Hooks (Declared first to avoid TDZ ReferenceErrors)
+  // 1. Period & Filter State
   const [financialYear, setFinancialYear] = useState('2026–27');
   const [selectedMonth, setSelectedMonth] = useState('all'); // 'all' or '0'..'11'
   const [selectedCompany, setSelectedCompany] = useState('all');
@@ -88,15 +85,25 @@ export default function FinanceMonthlySalesWorkspace() {
   const [selectedCustomer, setSelectedCustomer] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('All');
 
+  // 2. View Tab State ('orders' | 'trends' | 'customers')
+  const [activeTab, setActiveTab] = useState('orders');
+
+  // 3. Search & Pagination State
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [orderPage, setOrderPage] = useState(1);
+  const [orderPageSize, setOrderPageSize] = useState(25);
+
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [customerPage, setCustomerPage] = useState(1);
+  const [customerPageSize, setCustomerPageSize] = useState(25);
+
+  // 4. Data Loading State
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [workspaceData, setWorkspaceData] = useState(null);
   const [error, setError] = useState(null);
 
-  const [orderSearchQuery, setOrderSearchQuery] = useState('');
-  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
-
-  // 2. Computed Financial Year & Months
+  // Computed Financial Year & Months
   const startYear = useMemo(() => getStartYearFromFY(financialYear), [financialYear]);
   const endYear = startYear + 1;
 
@@ -123,7 +130,7 @@ export default function FinanceMonthlySalesWorkspace() {
     if (selectedMonth === 'all') {
       return {
         isAll: true,
-        title: `ALL MONTHS OVERVIEW (FY ${financialYear})`,
+        title: `All Months Overview (FY ${financialYear})`,
         badge: `Full Financial Year (12 Months)`,
         name: `All Months (FY ${financialYear})`
       };
@@ -132,7 +139,7 @@ export default function FinanceMonthlySalesWorkspace() {
     const mName = found ? found.name : `Month ${parseInt(selectedMonth, 10) + 1}`;
     return {
       isAll: false,
-      title: `MONTH DRILL-DOWN: ${mName.toUpperCase()}`,
+      title: `${mName} Breakdown`,
       badge: `Month ${parseInt(selectedMonth, 10) + 1} of 12 (FY ${financialYear})`,
       name: mName
     };
@@ -170,12 +177,120 @@ export default function FinanceMonthlySalesWorkspace() {
     loadWorkspace();
   }, [financialYear, selectedMonth, selectedCompany, selectedSalesperson, selectedCustomer, selectedStatus]);
 
-  // Handle Month Click from Summary Table or Chart or Controls
-  const handleSelectMonth = (monthIdxStr) => {
-    setSelectedMonth(monthIdxStr);
+  // Reset pagination when search or filters change
+  useEffect(() => {
+    setOrderPage(1);
+  }, [orderSearchQuery, selectedMonth, selectedCompany, selectedSalesperson, selectedCustomer, selectedStatus]);
+
+  useEffect(() => {
+    setCustomerPage(1);
+  }, [customerSearchQuery, selectedMonth, selectedCompany, selectedSalesperson]);
+
+  // Safe resolved values
+  const executive = workspaceData?.executiveSummary || {
+    totalSales: 0,
+    totalOrders: 0,
+    totalInvoiced: 0,
+    totalCollected: 0,
+    totalOutstanding: 0,
+    totalOverdue: 0,
+    collectionRate: 0,
+    pendingRate: 0,
+    salesGrowth: 12.5,
+    ordersGrowth: 8.2,
   };
 
-  // Export CSV of currently filtered dataset
+  const monthlyTrend = workspaceData?.monthlyTrend || [];
+  const selectedMonthData = workspaceData?.selectedMonth || {
+    month: selectedMonth === 'all' ? `All Months (FY ${financialYear})` : currentMonthInfo.name,
+    sales: 0,
+    orders: 0,
+    invoiced: 0,
+    collected: 0,
+    currentDue: 0,
+    overdue: 0,
+    outstanding: 0,
+    collectionRate: 0,
+    averageOrder: 0,
+    isAllMonths: selectedMonth === 'all',
+  };
+
+  // Active High-Level KPIs (Shows either Full FY or the Selected Month)
+  const activeKpis = useMemo(() => {
+    if (selectedMonth === 'all') {
+      return {
+        sales: executive.totalSales,
+        orders: executive.totalOrders,
+        invoiced: executive.totalInvoiced,
+        collected: executive.totalCollected,
+        outstanding: executive.totalOutstanding,
+        currentDue: Math.max(0, executive.totalOutstanding - executive.totalOverdue),
+        overdue: executive.totalOverdue,
+        collectionRate: executive.collectionRate,
+        averageOrder: executive.totalOrders > 0 ? Math.round(executive.totalSales / executive.totalOrders) : 0,
+        label: `FY ${financialYear} (Full Year)`
+      };
+    }
+    return {
+      sales: selectedMonthData.sales,
+      orders: selectedMonthData.orders,
+      invoiced: selectedMonthData.invoiced,
+      collected: selectedMonthData.collected,
+      outstanding: selectedMonthData.outstanding,
+      currentDue: selectedMonthData.currentDue,
+      overdue: selectedMonthData.overdue,
+      collectionRate: selectedMonthData.collectionRate,
+      averageOrder: selectedMonthData.averageOrder,
+      label: currentMonthInfo.name
+    };
+  }, [selectedMonth, executive, selectedMonthData, financialYear, currentMonthInfo]);
+
+  // Filtered Orders
+  const orderInvoiceDetails = useMemo(() => {
+    const list = workspaceData?.orderInvoiceDetails || [];
+    if (!orderSearchQuery) return list;
+    const q = orderSearchQuery.toLowerCase();
+    return list.filter(o =>
+      o.orderNo?.toLowerCase().includes(q) ||
+      o.customer?.toLowerCase().includes(q) ||
+      o.salesperson?.toLowerCase().includes(q) ||
+      o.invoice?.toLowerCase().includes(q) ||
+      o.paymentTerms?.toLowerCase().includes(q) ||
+      o.status?.toLowerCase().includes(q)
+    );
+  }, [workspaceData?.orderInvoiceDetails, orderSearchQuery]);
+
+  // Paginated Orders
+  const totalOrderPages = Math.max(1, Math.ceil(orderInvoiceDetails.length / orderPageSize));
+  const paginatedOrders = useMemo(() => {
+    const start = (orderPage - 1) * orderPageSize;
+    return orderInvoiceDetails.slice(start, start + orderPageSize);
+  }, [orderInvoiceDetails, orderPage, orderPageSize]);
+
+  // Filtered Customers
+  const customerOutstanding = useMemo(() => {
+    const list = workspaceData?.customerOutstanding || [];
+    if (!customerSearchQuery) return list;
+    const q = customerSearchQuery.toLowerCase();
+    return list.filter(c => c.customer?.toLowerCase().includes(q));
+  }, [workspaceData?.customerOutstanding, customerSearchQuery]);
+
+  // Paginated Customers
+  const totalCustomerPages = Math.max(1, Math.ceil(customerOutstanding.length / customerPageSize));
+  const paginatedCustomers = useMemo(() => {
+    const start = (customerPage - 1) * customerPageSize;
+    return customerOutstanding.slice(start, start + customerPageSize);
+  }, [customerOutstanding, customerPage, customerPageSize]);
+
+  const filters = workspaceData?.filters || {
+    financialYears: ['2024–25', '2025–26', '2026–27', '2027–28'],
+    companies: [],
+    salespersons: [],
+    customers: [],
+    statuses: ['All', 'Paid', 'Partial', 'Due', 'Overdue'],
+  };
+
+  // Export CSV
   const handleExportCSV = () => {
     const ordersToExport = (selectedMonth !== 'all')
       ? (orderInvoiceDetails.length > 0 ? orderInvoiceDetails : (workspaceData?.orderInvoiceDetails || []))
@@ -232,86 +347,234 @@ export default function FinanceMonthlySalesWorkspace() {
     document.body.removeChild(link);
   };
 
-  // Safe resolved values
-  const executive = workspaceData?.executiveSummary || {
-    totalSales: 0,
-    totalOrders: 0,
-    totalInvoiced: 0,
-    totalCollected: 0,
-    totalOutstanding: 0,
-    totalOverdue: 0,
-    collectionRate: 0,
-    pendingRate: 0,
-    salesGrowth: 12.5,
-    ordersGrowth: 8.2,
-  };
+  // Reusable Pagination Component
+  const renderPagination = ({ currentPage, totalPages, totalCount, pageSize, setPageSize, setPage, itemName = 'items' }) => {
+    const startItem = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const endItem = Math.min(totalCount, currentPage * pageSize);
 
-  const monthlyTrend = workspaceData?.monthlyTrend || [];
-  const selectedMonthData = workspaceData?.selectedMonth || {
-    month: selectedMonth === 'all' ? `All Months (FY ${financialYear})` : currentMonthInfo.name,
-    sales: 0,
-    orders: 0,
-    invoiced: 0,
-    collected: 0,
-    currentDue: 0,
-    overdue: 0,
-    outstanding: 0,
-    collectionRate: 0,
-    averageOrder: 0,
-    isAllMonths: selectedMonth === 'all',
-  };
+    const getPageNumbers = () => {
+      const pages = [];
+      if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        if (currentPage > 3) pages.push('...');
+        const start = Math.max(2, currentPage - 1);
+        const end = Math.min(totalPages - 1, currentPage + 1);
+        for (let i = start; i <= end; i++) pages.push(i);
+        if (currentPage < totalPages - 2) pages.push('...');
+        pages.push(totalPages);
+      }
+      return pages;
+    };
 
-  const orderInvoiceDetails = useMemo(() => {
-    const list = workspaceData?.orderInvoiceDetails || [];
-    if (!orderSearchQuery) return list;
-    const q = orderSearchQuery.toLowerCase();
-    return list.filter(o =>
-      o.orderNo?.toLowerCase().includes(q) ||
-      o.customer?.toLowerCase().includes(q) ||
-      o.salesperson?.toLowerCase().includes(q) ||
-      o.invoice?.toLowerCase().includes(q) ||
-      o.paymentTerms?.toLowerCase().includes(q) ||
-      o.status?.toLowerCase().includes(q)
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '12px 18px',
+        background: '#ffffff',
+        borderTop: '1px solid #E2E8F0',
+        flexWrap: 'wrap',
+        gap: '12px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '13px', color: '#64748B' }}>
+          <span>
+            Showing <strong style={{ color: '#0F172A' }}>{startItem}</strong> to <strong style={{ color: '#0F172A' }}>{endItem}</strong> of <strong style={{ color: '#0F172A' }}>{totalCount}</strong> {itemName}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '12px', color: '#64748B' }}>Rows per page:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+              style={{
+                padding: '4px 8px',
+                borderRadius: '6px',
+                border: '1px solid #CBD5E1',
+                fontSize: '12px',
+                fontWeight: '700',
+                color: '#334155',
+                background: '#ffffff',
+                cursor: 'pointer'
+              }}
+            >
+              {[10, 25, 50, 100].map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <button
+            type="button"
+            disabled={currentPage === 1}
+            onClick={() => setPage(1)}
+            style={{
+              padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1',
+              background: '#ffffff', color: currentPage === 1 ? '#CBD5E1' : '#334155',
+              cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+            }}
+            title="First Page"
+          >
+            <ChevronsLeft size={14} />
+          </button>
+          <button
+            type="button"
+            disabled={currentPage === 1}
+            onClick={() => setPage(prev => Math.max(1, prev - 1))}
+            style={{
+              padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1',
+              background: '#ffffff', color: currentPage === 1 ? '#CBD5E1' : '#334155',
+              fontSize: '12px', fontWeight: '750', cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: '3px'
+            }}
+          >
+            <ChevronLeft size={14} />
+            <span>Prev</span>
+          </button>
+
+          {getPageNumbers().map((p, idx) => {
+            if (p === '...') {
+              return <span key={`ellipsis-${idx}`} style={{ padding: '0 4px', color: '#94A3B8', fontSize: '12px' }}>...</span>;
+            }
+            const isAct = p === currentPage;
+            return (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPage(p)}
+                style={{
+                  minWidth: '32px', height: '30px', padding: '0 6px', borderRadius: '6px',
+                  border: isAct ? '1.5px solid #002E5D' : '1px solid #CBD5E1',
+                  background: isAct ? '#002E5D' : '#ffffff',
+                  color: isAct ? '#ffffff' : '#334155',
+                  fontSize: '12px', fontWeight: isAct ? '800' : '600', cursor: 'pointer'
+                }}
+              >
+                {p}
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            disabled={currentPage === totalPages}
+            onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+            style={{
+              padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1',
+              background: '#ffffff', color: currentPage === totalPages ? '#CBD5E1' : '#334155',
+              fontSize: '12px', fontWeight: '750', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: '3px'
+            }}
+          >
+            <span>Next</span>
+            <ChevronRight size={14} />
+          </button>
+          <button
+            type="button"
+            disabled={currentPage === totalPages}
+            onClick={() => setPage(totalPages)}
+            style={{
+              padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1',
+              background: '#ffffff', color: currentPage === totalPages ? '#CBD5E1' : '#334155',
+              cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+            }}
+            title="Last Page"
+          >
+            <ChevronsRight size={14} />
+          </button>
+        </div>
+      </div>
     );
-  }, [workspaceData?.orderInvoiceDetails, orderSearchQuery]);
-
-  const customerOutstanding = useMemo(() => {
-    const list = workspaceData?.customerOutstanding || [];
-    if (!customerSearchQuery) return list;
-    const q = customerSearchQuery.toLowerCase();
-    return list.filter(c => c.customer?.toLowerCase().includes(q));
-  }, [workspaceData?.customerOutstanding, customerSearchQuery]);
-
-  const filters = workspaceData?.filters || {
-    financialYears: ['2024–25', '2025–26', '2026–27', '2027–28'],
-    companies: [],
-    salespersons: [],
-    customers: [],
-    statuses: ['All', 'Paid', 'Partial', 'Due', 'Overdue'],
   };
 
   return (
-    <div style={{ padding: '24px 28px', maxWidth: '1480px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '28px', background: '#F8FAFC', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{
+      width: '100%',
+      minHeight: '100vh',
+      padding: '24px 32px',
+      background: '#F8FAFC',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '20px',
+      boxSizing: 'border-box',
+      fontFamily: 'system-ui, -apple-system, sans-serif'
+    }}>
 
       {/* ────────────────────────────────────────────────────────── */}
-      {/* HEADER SECTION                                             */}
+      {/* 1. TOP HEADER WITH PERIOD CONTROLS                          */}
       {/* ────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '16px',
+        background: '#ffffff',
+        padding: '18px 24px',
+        borderRadius: '12px',
+        border: '1px solid #E2E8F0',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+      }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#0284C7', textTransform: 'uppercase', letterSpacing: '0.08em', background: '#E0F2FE', padding: '3px 8px', borderRadius: '4px' }}>
-              FINANCE WORKSPACE
+            <span style={{ fontSize: '11px', fontWeight: '850', color: '#0284C7', textTransform: 'uppercase', letterSpacing: '0.08em', background: '#E0F2FE', padding: '3px 8px', borderRadius: '4px' }}>
+              FINANCE
+            </span>
+            <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B' }}>
+              {currentMonthInfo.badge}
             </span>
           </div>
-          <h1 style={{ fontSize: '26px', fontWeight: '850', color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>
+          <h1 style={{ fontSize: '22px', fontWeight: '850', color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>
             Month-wise Sales &amp; Collection
           </h1>
-          <p style={{ fontSize: '13.5px', color: '#64748B', margin: '4px 0 0 0', fontWeight: '500' }}>
-            Track monthly sales, orders, invoicing, collections and outstanding
+          <p style={{ fontSize: '13px', color: '#64748B', margin: '3px 0 0 0', fontWeight: '500' }}>
+            Track monthly orders, invoicing, collections and outstanding receivables
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Period Selectors & Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* FY Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '6px 12px' }}>
+            <Calendar size={14} color="#64748B" />
+            <span style={{ fontSize: '12px', fontWeight: '750', color: '#475569' }}>FY:</span>
+            <select
+              value={financialYear}
+              onChange={(e) => setFinancialYear(e.target.value)}
+              style={{
+                border: 'none', background: 'transparent', fontSize: '12.5px',
+                fontWeight: '800', color: '#002E5D', outline: 'none', cursor: 'pointer'
+              }}
+            >
+              {filters.financialYears.map(fy => (
+                <option key={fy} value={fy}>{fy}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Month Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#EFF6FF', border: '1.5px solid #2563EB', borderRadius: '8px', padding: '6px 12px' }}>
+            <span style={{ fontSize: '12px', fontWeight: '800', color: '#1E40AF' }}>Month:</span>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              style={{
+                border: 'none', background: 'transparent', fontSize: '12.5px',
+                fontWeight: '800', color: '#002E5D', outline: 'none', cursor: 'pointer'
+              }}
+            >
+              <option value="all">📅 All Months (Full FY {financialYear})</option>
+              {monthsList.map(m => (
+                <option key={m.index} value={m.index.toString()}>{m.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Refresh Button */}
           <button
             type="button"
             onClick={() => loadWorkspace(true)}
@@ -320,13 +583,14 @@ export default function FinanceMonthlySalesWorkspace() {
               display: 'inline-flex', alignItems: 'center', gap: '6px',
               padding: '8px 14px', background: '#ffffff', border: '1px solid #CBD5E1',
               borderRadius: '8px', fontSize: '12.5px', fontWeight: '700', color: '#334155',
-              cursor: refreshing ? 'not-allowed' : 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+              cursor: refreshing ? 'not-allowed' : 'pointer'
             }}
           >
             <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
             <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
           </button>
 
+          {/* Export CSV Button */}
           <button
             type="button"
             onClick={handleExportCSV}
@@ -344,1001 +608,796 @@ export default function FinanceMonthlySalesWorkspace() {
       </div>
 
       {/* ────────────────────────────────────────────────────────── */}
-      {/* FILTERS BAR                                                */}
+      {/* 2. 4 EXECUTIVE KPI CARDS (Full-Width Responsive Grid)       */}
       {/* ────────────────────────────────────────────────────────── */}
-      <div style={{
-        background: '#ffffff',
-        padding: '14px 18px',
-        borderRadius: '12px',
-        border: '1px solid #E2E8F0',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-        display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: '12px'
-      }}>
-        {/* FY Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Calendar size={14} color="#64748B" />
-          <span style={{ fontSize: '12px', fontWeight: '750', color: '#475569' }}>FY:</span>
-          <select
-            value={financialYear}
-            onChange={(e) => setFinancialYear(e.target.value)}
-            style={{
-              padding: '6px 12px', borderRadius: '6px', border: '1.5px solid #0284C7',
-              fontSize: '12.5px', fontWeight: '800', color: '#002E5D', background: '#F0F9FF',
-              cursor: 'pointer', outline: 'none'
-            }}
-          >
-            {filters.financialYears.map(fy => (
-              <option key={fy} value={fy}>{fy}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Month Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Calendar size={14} color="#64748B" />
-          <span style={{ fontSize: '12px', fontWeight: '750', color: '#475569' }}>Month:</span>
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            style={{
-              padding: '6px 12px', borderRadius: '6px',
-              border: selectedMonth !== 'all' ? '1.5px solid #0284C7' : '1px solid #CBD5E1',
-              fontSize: '12px', fontWeight: '700',
-              color: selectedMonth !== 'all' ? '#002E5D' : '#334155',
-              background: selectedMonth !== 'all' ? '#F0F9FF' : '#ffffff',
-              cursor: 'pointer', outline: 'none'
-            }}
-          >
-            <option value="all">📅 All Months (Full FY)</option>
-            {monthsList.map(m => (
-              <option key={m.index} value={m.index.toString()}>{m.name}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Company Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Building size={14} color="#64748B" />
-          <select
-            value={selectedCompany}
-            onChange={(e) => setSelectedCompany(e.target.value)}
-            style={{
-              padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1',
-              fontSize: '12px', fontWeight: '600', color: '#334155', background: '#ffffff', cursor: 'pointer',
-              maxWidth: '180px'
-            }}
-          >
-            <option value="all">All Companies</option>
-            {filters.companies.map(c => {
-              const cId = typeof c === 'object' ? c.id : c;
-              const cName = typeof c === 'object' ? c.name : c;
-              return (
-                <option key={cId} value={cId}>{cName}</option>
-              );
-            })}
-          </select>
-        </div>
-
-        {/* Salesperson Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <User size={14} color="#64748B" />
-          <select
-            value={selectedSalesperson}
-            onChange={(e) => setSelectedSalesperson(e.target.value)}
-            style={{
-              padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1',
-              fontSize: '12px', fontWeight: '600', color: '#334155', background: '#ffffff', cursor: 'pointer',
-              maxWidth: '160px'
-            }}
-          >
-            <option value="all">All Salespersons</option>
-            {filters.salespersons.map(s => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Customer Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Building size={14} color="#64748B" />
-          <select
-            value={selectedCustomer}
-            onChange={(e) => setSelectedCustomer(e.target.value)}
-            style={{
-              padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1',
-              fontSize: '12px', fontWeight: '600', color: '#334155', background: '#ffffff', cursor: 'pointer',
-              maxWidth: '180px'
-            }}
-          >
-            <option value="all">All Customers</option>
-            {filters.customers.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Status Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Filter size={14} color="#64748B" />
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            style={{
-              padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1',
-              fontSize: '12px', fontWeight: '600', color: '#334155', background: '#ffffff', cursor: 'pointer'
-            }}
-          >
-            {filters.statuses.map(st => (
-              <option key={st} value={st}>{st === 'All' ? 'All Status' : st}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Reset Filters */}
-        {(selectedMonth !== 'all' || selectedCompany !== 'all' || selectedSalesperson !== 'all' || selectedCustomer !== 'all' || selectedStatus !== 'All') && (
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedMonth('all');
-              setSelectedCompany('all');
-              setSelectedSalesperson('all');
-              setSelectedCustomer('all');
-              setSelectedStatus('All');
-            }}
-            style={{
-              padding: '5px 10px', background: '#F1F5F9', border: 'none',
-              borderRadius: '6px', fontSize: '11.5px', fontWeight: '750', color: '#64748B', cursor: 'pointer'
-            }}
-          >
-            Reset Filters
-          </button>
-        )}
-      </div>
-
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* 1. EXECUTIVE SUMMARY CARDS                                 */}
-      {/* ────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
         {/* TOTAL SALES */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               TOTAL SALES
             </span>
             <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <TrendingUp size={16} color="#2563EB" />
             </div>
           </div>
-          <div style={{ fontSize: '24px', fontWeight: '900', color: '#0F172A', letterSpacing: '-0.02em' }}>
-            {formatLakh(executive.totalSales)}
+          <div style={{ fontSize: '26px', fontWeight: '900', color: '#0F172A', letterSpacing: '-0.02em' }}>
+            {formatLakh(activeKpis.sales)}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '700' }}>
-            <span style={{ color: executive.salesGrowth >= 0 ? '#15803D' : '#DC2626', background: executive.salesGrowth >= 0 ? '#DCFCE7' : '#FEE2E2', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>
-              {executive.salesGrowth >= 0 ? `+${executive.salesGrowth}%` : `${executive.salesGrowth}%`}
-            </span>
-            <span style={{ color: '#64748B', fontWeight: '500' }}>vs prev FY</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+            <span>Orders: <strong style={{ color: '#0F172A' }}>{activeKpis.orders}</strong></span>
+            <span>Avg Order: <strong style={{ color: '#0F172A' }}>{formatINR(activeKpis.averageOrder)}</strong></span>
           </div>
         </div>
 
-        {/* TOTAL ORDERS */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {/* INVOICED */}
+        <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              TOTAL ORDERS
+            <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              TOTAL INVOICED
             </span>
             <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Box size={16} color="#16A34A" />
+              <FileText size={16} color="#16A34A" />
             </div>
           </div>
-          <div style={{ fontSize: '24px', fontWeight: '900', color: '#0F172A', letterSpacing: '-0.02em' }}>
-            {executive.totalOrders}
+          <div style={{ fontSize: '26px', fontWeight: '900', color: '#0F172A', letterSpacing: '-0.02em' }}>
+            {formatLakh(activeKpis.invoiced)}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '700' }}>
-            <span style={{ color: executive.ordersGrowth >= 0 ? '#15803D' : '#DC2626', background: executive.ordersGrowth >= 0 ? '#DCFCE7' : '#FEE2E2', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>
-              {executive.ordersGrowth >= 0 ? `+${executive.ordersGrowth}%` : `${executive.ordersGrowth}%`}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+            <span>Billed vs Sales</span>
+            <span style={{ color: '#16A34A', fontWeight: '750' }}>
+              {activeKpis.sales > 0 ? Math.round((activeKpis.invoiced / activeKpis.sales) * 100) : 0}%
             </span>
-            <span style={{ color: '#64748B', fontWeight: '500' }}>vs prev FY</span>
           </div>
         </div>
 
         {/* COLLECTED */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              COLLECTED
+            <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              TOTAL COLLECTED
             </span>
             <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Wallet size={16} color="#059669" />
             </div>
           </div>
-          <div style={{ fontSize: '24px', fontWeight: '900', color: '#059669', letterSpacing: '-0.02em' }}>
-            {formatLakh(executive.totalCollected)}
+          <div style={{ fontSize: '26px', fontWeight: '900', color: '#059669', letterSpacing: '-0.02em' }}>
+            {formatLakh(activeKpis.collected)}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '700' }}>
-            <span style={{ color: '#047857', background: '#D1FAE5', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>
-              {executive.collectionRate}% collected
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+            <span>Realization Rate</span>
+            <span style={{ color: '#059669', background: '#D1FAE5', padding: '1px 6px', borderRadius: '4px', fontWeight: '800', fontSize: '11.5px' }}>
+              {activeKpis.collectionRate}%
             </span>
-            <span style={{ color: '#64748B', fontWeight: '500' }}>realized</span>
           </div>
         </div>
 
-        {/* OUTSTANDING */}
-        <div style={{ background: '#ffffff', borderRadius: '14px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {/* OUTSTANDING DUE */}
+        <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              OUTSTANDING
+            <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              OUTSTANDING DUE
             </span>
             <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#FFFBEB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <AlertTriangle size={16} color="#D97706" />
             </div>
           </div>
-          <div style={{ fontSize: '24px', fontWeight: '900', color: '#D97706', letterSpacing: '-0.02em' }}>
-            {formatLakh(executive.totalOutstanding)}
+          <div style={{ fontSize: '26px', fontWeight: '900', color: '#D97706', letterSpacing: '-0.02em' }}>
+            {formatLakh(activeKpis.outstanding)}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '700' }}>
-            <span style={{ color: '#B45309', background: '#FEF3C7', padding: '2px 6px', borderRadius: '4px', fontSize: '11px' }}>
-              {executive.pendingRate}% pending
-            </span>
-            <span style={{ color: '#64748B', fontWeight: '500' }}>receivables</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginTop: '2px' }}>
+            <span style={{ color: '#64748B' }}>Current: <strong style={{ color: '#D97706' }}>{formatLakh(activeKpis.currentDue)}</strong></span>
+            <span style={{ color: '#DC2626', fontWeight: '750' }}>Overdue: {formatLakh(activeKpis.overdue)}</span>
           </div>
         </div>
       </div>
 
       {/* ────────────────────────────────────────────────────────── */}
-      {/* 2. TREND: MONTHLY SALES & COLLECTION CHART                  */}
+      {/* 3. WORKSPACE NAVIGATION TABS                               */}
       {/* ────────────────────────────────────────────────────────── */}
-      <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '22px 24px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-          <div>
-            <h2 style={{ fontSize: '16px', fontWeight: '850', color: '#0F172A', margin: 0, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-              MONTHLY SALES &amp; COLLECTION
-            </h2>
-            <p style={{ fontSize: '12px', color: '#64748B', margin: '2px 0 0 0', fontWeight: '500' }}>
-              Comparison of Sales Booked, Payments Collected, and Balance Due across FY {financialYear}
-            </p>
-          </div>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        borderBottom: '2px solid #E2E8F0',
+        paddingBottom: '0',
+        marginTop: '4px'
+      }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab('orders')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 18px',
+            background: 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'orders' ? '3px solid #002E5D' : '3px solid transparent',
+            color: activeTab === 'orders' ? '#002E5D' : '#64748B',
+            fontSize: '14px',
+            fontWeight: activeTab === 'orders' ? '850' : '650',
+            cursor: 'pointer',
+            marginBottom: '-2px',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <FileText size={16} color={activeTab === 'orders' ? '#002E5D' : '#64748B'} />
+          <span>Orders &amp; Collections Ledger</span>
+          <span style={{
+            background: activeTab === 'orders' ? '#EFF6FF' : '#F1F5F9',
+            color: activeTab === 'orders' ? '#1D4ED8' : '#64748B',
+            padding: '2px 8px',
+            borderRadius: '12px',
+            fontSize: '11px',
+            fontWeight: '800'
+          }}>
+            {orderInvoiceDetails.length}
+          </span>
+        </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '12.5px', fontWeight: '700' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#2563EB' }} />
-              <span style={{ color: '#334155' }}>Sales</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#059669' }} />
-              <span style={{ color: '#334155' }}>Collected</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#D97706' }} />
-              <span style={{ color: '#334155' }}>Due</span>
-            </div>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setActiveTab('trends')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 18px',
+            background: 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'trends' ? '3px solid #002E5D' : '3px solid transparent',
+            color: activeTab === 'trends' ? '#002E5D' : '#64748B',
+            fontSize: '14px',
+            fontWeight: activeTab === 'trends' ? '850' : '650',
+            cursor: 'pointer',
+            marginBottom: '-2px',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <BarChart3 size={16} color={activeTab === 'trends' ? '#002E5D' : '#64748B'} />
+          <span>Monthly Trends &amp; Summary</span>
+          <span style={{
+            background: activeTab === 'trends' ? '#EFF6FF' : '#F1F5F9',
+            color: activeTab === 'trends' ? '#1D4ED8' : '#64748B',
+            padding: '2px 8px',
+            borderRadius: '12px',
+            fontSize: '11px',
+            fontWeight: '800'
+          }}>
+            12 Months
+          </span>
+        </button>
 
-        <div style={{ width: '100%', height: '300px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={monthlyTrend}
-              margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
-              onClick={(e) => {
-                if (e && e.activePayload && e.activePayload[0]) {
-                  const mIdx = e.activePayload[0].payload.monthIndex;
-                  if (mIdx !== undefined) handleSelectMonth(mIdx.toString());
-                }
-              }}
-            >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-              <XAxis
-                dataKey="monthShort"
-                stroke="#64748B"
-                fontSize={12}
-                tickLine={false}
-                axisLine={{ stroke: '#E2E8F0' }}
-              />
-              <YAxis
-                stroke="#64748B"
-                fontSize={11}
-                tickLine={false}
-                axisLine={{ stroke: '#E2E8F0' }}
-                tickFormatter={(v) => formatLakh(v)}
-              />
-              <Tooltip
-                content={({ active, payload, label }) => {
-                  if (active && payload && payload.length) {
-                    const data = payload[0].payload;
-                    return (
-                      <div style={{ background: '#0F172A', color: '#ffffff', padding: '12px 14px', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-                        <p style={{ margin: 0, fontWeight: '800', fontSize: '13px', borderBottom: '1px solid #334155', paddingBottom: '4px', marginBottom: '6px' }}>
-                          {data.month}
-                        </p>
-                        <p style={{ margin: '3px 0', color: '#93C5FD' }}>Orders: <strong>{data.ordersCount}</strong></p>
-                        <p style={{ margin: '3px 0', color: '#60A5FA' }}>Sales: <strong>{formatINR(data.salesValue)}</strong></p>
-                        <p style={{ margin: '3px 0', color: '#34D399' }}>Collected: <strong>{formatINR(data.collectedValue)}</strong></p>
-                        <p style={{ margin: '3px 0', color: '#FBBF24' }}>Due: <strong>{formatINR(data.dueValue)}</strong></p>
-                        <p style={{ margin: '4px 0 0 0', paddingTop: '4px', borderTop: '1px solid #334155', color: '#E2E8F0' }}>
-                          Collection Rate: <strong>{data.collectionRate}%</strong>
-                        </p>
-                      </div>
-                    );
-                  }
-                  return null;
+        <button
+          type="button"
+          onClick={() => setActiveTab('customers')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 18px',
+            background: 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'customers' ? '3px solid #002E5D' : '3px solid transparent',
+            color: activeTab === 'customers' ? '#002E5D' : '#64748B',
+            fontSize: '14px',
+            fontWeight: activeTab === 'customers' ? '850' : '650',
+            cursor: 'pointer',
+            marginBottom: '-2px',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Users size={16} color={activeTab === 'customers' ? '#002E5D' : '#64748B'} />
+          <span>Customer Receivables</span>
+          <span style={{
+            background: activeTab === 'customers' ? '#EFF6FF' : '#F1F5F9',
+            color: activeTab === 'customers' ? '#1D4ED8' : '#64748B',
+            padding: '2px 8px',
+            borderRadius: '12px',
+            fontSize: '11px',
+            fontWeight: '800'
+          }}>
+            {customerOutstanding.length}
+          </span>
+        </button>
+      </div>
+
+      {/* ────────────────────────────────────────────────────────── */}
+      {/* TAB 1: ORDERS & COLLECTIONS LEDGER (WITH PAGINATION)        */}
+      {/* ────────────────────────────────────────────────────────── */}
+      {activeTab === 'orders' && (
+        <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', overflow: 'hidden' }}>
+          
+          {/* Filters & Search Toolbar */}
+          <div style={{
+            padding: '14px 20px',
+            background: '#F8FAFC',
+            borderBottom: '1px solid #E2E8F0',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}>
+            {/* Search Box */}
+            <div style={{ position: 'relative', minWidth: '280px', flex: '1 1 280px', maxWidth: '400px' }}>
+              <Search size={14} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+              <input
+                type="text"
+                value={orderSearchQuery}
+                onChange={(e) => setOrderSearchQuery(e.target.value)}
+                placeholder="Search by order #, customer, invoice, salesperson..."
+                style={{
+                  width: '100%',
+                  padding: '7px 12px 7px 32px',
+                  borderRadius: '6px',
+                  border: '1px solid #CBD5E1',
+                  fontSize: '12.5px',
+                  outline: 'none',
+                  background: '#ffffff',
+                  boxSizing: 'border-box'
                 }}
               />
-              <Bar dataKey="salesValue" fill="#2563EB" radius={[4, 4, 0, 0]} maxBarSize={28} />
-              <Bar dataKey="collectedValue" fill="#059669" radius={[4, 4, 0, 0]} maxBarSize={28} />
-              <Bar dataKey="dueValue" fill="#D97706" radius={[4, 4, 0, 0]} maxBarSize={28} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* 3. MONTHLY FINANCE SUMMARY TABLE                           */}
-      {/* ────────────────────────────────────────────────────────── */}
-      <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '22px 24px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-          <div>
-            <h2 style={{ fontSize: '16px', fontWeight: '850', color: '#0F172A', margin: 0, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-              MONTHLY FINANCE SUMMARY
-            </h2>
-            <p style={{ fontSize: '12px', color: '#64748B', margin: '2px 0 0 0', fontWeight: '500' }}>
-              Click any month row to drill into detailed order and collection breakdown below
-            </p>
-          </div>
-        </div>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
-            <thead>
-              <tr style={{ background: '#002E5D', color: '#ffffff', fontWeight: '800', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                <th style={{ padding: '12px 14px', borderRadius: '6px 0 0 6px' }}>Month</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center' }}>Orders</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Sales</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Invoiced</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Collected</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Due</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Overdue</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', borderRadius: '0 6px 6px 0' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {monthlyTrend.map((m) => {
-                const isSelected = selectedMonth !== 'all' && parseInt(selectedMonth, 10) === m.monthIndex;
-                return (
-                  <tr
-                    key={m.monthIndex}
-                    onClick={() => handleSelectMonth(m.monthIndex.toString())}
-                    style={{
-                      borderBottom: '1px solid #F1F5F9',
-                      background: isSelected ? '#EFF6FF' : 'transparent',
-                      cursor: 'pointer',
-                      transition: 'background 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isSelected) e.currentTarget.style.background = '#F8FAFC';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isSelected) e.currentTarget.style.background = 'transparent';
-                    }}
-                  >
-                    <td style={{ padding: '12px 14px', fontWeight: '800', color: isSelected ? '#1D4ED8' : '#1E293B', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {isSelected && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2563EB' }} />}
-                      {m.month}
-                    </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '700', color: '#475569' }}>
-                      {m.ordersCount > 0 ? m.ordersCount : '—'}
-                    </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: '#0F172A' }}>
-                      {m.salesValue > 0 ? formatLakh(m.salesValue) : '—'}
-                    </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '700', color: '#334155' }}>
-                      {m.invoicedValue > 0 ? formatLakh(m.invoicedValue) : '—'}
-                    </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: '#059669' }}>
-                      {m.collectedValue > 0 ? formatLakh(m.collectedValue) : '—'}
-                    </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '700', color: m.dueValue > 0 ? '#D97706' : '#94A3B8' }}>
-                      {m.dueValue > 0 ? formatLakh(m.dueValue) : '—'}
-                    </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '700', color: m.overdueValue > 0 ? '#DC2626' : '#94A3B8' }}>
-                      {m.overdueValue > 0 ? formatLakh(m.overdueValue) : '—'}
-                    </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSelectMonth(m.monthIndex.toString());
-                        }}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          border: isSelected ? '1px solid #2563EB' : '1px solid #CBD5E1',
-                          background: isSelected ? '#2563EB' : '#ffffff',
-                          color: isSelected ? '#ffffff' : '#334155',
-                          fontSize: '11.5px',
-                          fontWeight: '750',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        {isSelected ? '✓ SELECTED' : 'VIEW MONTH'}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {/* Full Year Summary Row */}
-              <tr style={{ background: '#F8FAFC', borderTop: '2px solid #CBD5E1', fontWeight: '850' }}>
-                <td style={{ padding: '12px 14px', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {selectedMonth === 'all' && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2563EB' }} />}
-                  <span>FULL YEAR TOTAL (12 MONTHS)</span>
-                </td>
-                <td style={{ padding: '12px 14px', textAlign: 'center', color: '#0F172A' }}>
-                  {executive.totalOrders}
-                </td>
-                <td style={{ padding: '12px 14px', textAlign: 'right', color: '#0F172A' }}>
-                  {formatLakh(executive.totalSales)}
-                </td>
-                <td style={{ padding: '12px 14px', textAlign: 'right', color: '#334155' }}>
-                  {formatLakh(executive.totalInvoiced)}
-                </td>
-                <td style={{ padding: '12px 14px', textAlign: 'right', color: '#059669' }}>
-                  {formatLakh(executive.totalCollected)}
-                </td>
-                <td style={{ padding: '12px 14px', textAlign: 'right', color: '#D97706' }}>
-                  {formatLakh(executive.totalOutstanding)}
-                </td>
-                <td style={{ padding: '12px 14px', textAlign: 'right', color: '#DC2626' }}>
-                  {formatLakh(executive.totalOverdue)}
-                </td>
-                <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedMonth('all');
-                    }}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      border: selectedMonth === 'all' ? '1px solid #2563EB' : '1px solid #CBD5E1',
-                      background: selectedMonth === 'all' ? '#2563EB' : '#ffffff',
-                      color: selectedMonth === 'all' ? '#ffffff' : '#334155',
-                      fontSize: '11.5px',
-                      fontWeight: '750',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {selectedMonth === 'all' ? '✓ VIEWING ALL' : 'VIEW ALL'}
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* 4. SELECTED MONTH / FULL YEAR DRILL-DOWN                   */}
-      {/* ────────────────────────────────────────────────────────── */}
-      <div style={{ background: '#ffffff', borderRadius: '16px', border: '1.5px solid #2563EB', padding: '24px 26px', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.06)' }}>
-        
-        {/* Selected Month Header with Dropdown & Navigation */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '14px', borderBottom: '1px solid #E2E8F0', paddingBottom: '16px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <span style={{ fontSize: '11px', fontWeight: '850', color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.08em', background: '#EFF6FF', padding: '2px 8px', borderRadius: '4px' }}>
-                {currentMonthInfo.isAll ? 'FULL YEAR BREAKDOWN' : 'MONTH DRILL-DOWN'}
-              </span>
-              <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B' }}>
-                {currentMonthInfo.badge}
-              </span>
             </div>
-            <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>
-              {currentMonthInfo.title}
-            </h2>
-          </div>
 
-          {/* Month Selector Dropdown & Navigation Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#F8FAFC', padding: '6px 12px', borderRadius: '8px', border: '1.5px solid #CBD5E1' }}>
-              <Calendar size={15} color="#2563EB" />
-              <span style={{ fontSize: '12.5px', fontWeight: '800', color: '#1E293B' }}>Select Month:</span>
+            {/* Filter Dropdowns */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {/* Company Filter */}
               <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
+                value={selectedCompany}
+                onChange={(e) => setSelectedCompany(e.target.value)}
                 style={{
-                  padding: '5px 12px',
-                  borderRadius: '6px',
-                  border: '1.5px solid #2563EB',
-                  fontSize: '13px',
-                  fontWeight: '800',
-                  color: '#002E5D',
-                  background: '#ffffff',
-                  cursor: 'pointer',
-                  outline: 'none'
+                  padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1',
+                  fontSize: '12px', fontWeight: '600', color: '#334155', background: '#ffffff', cursor: 'pointer',
+                  maxWidth: '160px'
                 }}
               >
-                <option value="all">📅 All Months (Full FY {financialYear})</option>
-                {monthsList.map(m => (
-                  <option key={m.index} value={m.index.toString()}>{m.name}</option>
+                <option value="all">All Companies</option>
+                {filters.companies.map(c => {
+                  const cId = typeof c === 'object' ? c.id : c;
+                  const cName = typeof c === 'object' ? c.name : c;
+                  return <option key={cId} value={cId}>{cName}</option>;
+                })}
+              </select>
+
+              {/* Salesperson Filter */}
+              <select
+                value={selectedSalesperson}
+                onChange={(e) => setSelectedSalesperson(e.target.value)}
+                style={{
+                  padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1',
+                  fontSize: '12px', fontWeight: '600', color: '#334155', background: '#ffffff', cursor: 'pointer',
+                  maxWidth: '160px'
+                }}
+              >
+                <option value="all">All Salespersons</option>
+                {filters.salespersons.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
+
+              {/* Status Filter */}
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                style={{
+                  padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1',
+                  fontSize: '12px', fontWeight: '600', color: '#334155', background: '#ffffff', cursor: 'pointer'
+                }}
+              >
+                {filters.statuses.map(st => (
+                  <option key={st} value={st}>{st === 'All' ? 'All Statuses' : st}</option>
+                ))}
+              </select>
+
+              {/* Reset Filter Button */}
+              {(orderSearchQuery || selectedCompany !== 'all' || selectedSalesperson !== 'all' || selectedStatus !== 'All') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOrderSearchQuery('');
+                    setSelectedCompany('all');
+                    setSelectedSalesperson('all');
+                    setSelectedStatus('All');
+                  }}
+                  style={{
+                    padding: '6px 10px', background: '#ffffff', border: '1px solid #CBD5E1',
+                    borderRadius: '6px', fontSize: '11.5px', fontWeight: '750', color: '#64748B', cursor: 'pointer'
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Orders Table */}
+          <div style={{ overflowX: 'auto', width: '100%' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ background: '#002E5D', color: '#ffffff', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <th style={{ padding: '12px 14px' }}>Order No</th>
+                  <th style={{ padding: '12px 14px' }}>Order Date</th>
+                  <th style={{ padding: '12px 14px' }}>Customer</th>
+                  <th style={{ padding: '12px 14px' }}>Salesperson</th>
+                  <th style={{ padding: '12px 14px' }}>Invoice</th>
+                  <th style={{ padding: '12px 14px' }}>Terms &amp; Due</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Sales Amt</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Collected</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Balance Due</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'center' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: '#64748B' }}>
+                      <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 8px auto', display: 'block', color: '#002E5D' }} />
+                      <span>Loading orders and collection records...</span>
+                    </td>
+                  </tr>
+                ) : paginatedOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: '#64748B' }}>
+                      No orders match the current filter and search criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedOrders.map((o) => {
+                    const isPaid = o.status === 'PAID';
+                    const isOverdue = o.status === 'OVERDUE';
+                    const isPartial = o.status === 'PARTIAL';
+
+                    return (
+                      <tr
+                        key={o.id}
+                        style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s ease' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <td style={{ padding: '12px 14px', fontWeight: '800', color: '#002E5D' }}>
+                          {o.orderNo}
+                        </td>
+                        <td style={{ padding: '12px 14px', color: '#475569', whiteSpace: 'nowrap' }}>
+                          {formatDate(o.orderDate)}
+                        </td>
+                        <td style={{ padding: '12px 14px', fontWeight: '700', color: '#0F172A', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {o.customer}
+                        </td>
+                        <td style={{ padding: '12px 14px', color: '#475569' }}>
+                          {o.salesperson}
+                        </td>
+                        <td style={{ padding: '12px 14px', color: '#334155', fontWeight: '600' }}>
+                          {o.invoice || '—'}
+                        </td>
+                        <td style={{ padding: '12px 14px', color: '#475569', fontSize: '11.5px', whiteSpace: 'nowrap' }}>
+                          <div>{o.paymentTerms}</div>
+                          {o.paymentDueDate && (
+                            <div style={{ color: o.dueDays !== null && o.dueDays < 0 ? '#DC2626' : '#64748B', fontWeight: '600', marginTop: '2px' }}>
+                              Due: {formatDate(o.paymentDueDate)} {o.dueDays !== null && (o.dueDays < 0 ? `(${Math.abs(o.dueDays)}d overdue)` : `(${o.dueDays}d left)`)}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '850', color: '#0F172A' }}>
+                          {formatINR(o.sales)}
+                        </td>
+                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: '#059669' }}>
+                          {formatINR(o.collected)}
+                        </td>
+                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: isOverdue ? '#DC2626' : (o.due > 0 ? '#D97706' : '#94A3B8') }}>
+                          {formatINR(o.due)}
+                        </td>
+                        <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: '850',
+                            textTransform: 'uppercase',
+                            background: isPaid ? '#DCFCE7' : (isOverdue ? '#FEE2E2' : (isPartial ? '#FEF3C7' : '#F1F5F9')),
+                            color: isPaid ? '#15803D' : (isOverdue ? '#DC2626' : (isPartial ? '#B45309' : '#475569'))
+                          }}>
+                            {o.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Proper Pagination Controls */}
+          {renderPagination({
+            currentPage: orderPage,
+            totalPages: totalOrderPages,
+            totalCount: orderInvoiceDetails.length,
+            pageSize: orderPageSize,
+            setPageSize: setOrderPageSize,
+            setPage: setOrderPage,
+            itemName: 'orders'
+          })}
+        </div>
+      )}
+
+      {/* ────────────────────────────────────────────────────────── */}
+      {/* TAB 2: MONTHLY TRENDS & SUMMARY TABLE                       */}
+      {/* ────────────────────────────────────────────────────────── */}
+      {activeTab === 'trends' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Recharts Bar Chart Card */}
+          <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '22px 24px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: '850', color: '#0F172A', margin: 0 }}>
+                  MONTHLY SALES &amp; COLLECTION COMPARISON (FY {financialYear})
+                </h3>
+                <p style={{ fontSize: '12px', color: '#64748B', margin: '2px 0 0 0' }}>
+                  Click on any month bar or row below to filter the workspace to that month
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '12.5px', fontWeight: '700' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#2563EB' }} />
+                  <span style={{ color: '#334155' }}>Sales</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#059669' }} />
+                  <span style={{ color: '#334155' }}>Collected</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#D97706' }} />
+                  <span style={{ color: '#334155' }}>Due</span>
+                </div>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <button
-                type="button"
-                title="Previous Month"
-                disabled={selectedMonth === '0'}
-                onClick={() => {
-                  if (selectedMonth === 'all') setSelectedMonth('0');
-                  else setSelectedMonth(Math.max(0, parseInt(selectedMonth, 10) - 1).toString());
-                }}
-                style={{
-                  padding: '7px 11px',
-                  borderRadius: '7px',
-                  border: '1px solid #CBD5E1',
-                  background: '#ffffff',
-                  color: selectedMonth === '0' ? '#CBD5E1' : '#334155',
-                  fontSize: '12px',
-                  fontWeight: '750',
-                  cursor: selectedMonth === '0' ? 'not-allowed' : 'pointer'
-                }}
-              >
-                ◀ Prev
-              </button>
+            <div style={{ width: '100%', height: '300px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={monthlyTrend}
+                  margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
+                  onClick={(e) => {
+                    if (e && e.activePayload && e.activePayload[0]) {
+                      const mIdx = e.activePayload[0].payload.monthIndex;
+                      if (mIdx !== undefined) {
+                        setSelectedMonth(mIdx.toString());
+                        setActiveTab('orders');
+                      }
+                    }
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis dataKey="monthShort" stroke="#64748B" fontSize={12} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} />
+                  <YAxis stroke="#64748B" fontSize={11} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} tickFormatter={(v) => formatLakh(v)} />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div style={{ background: '#0F172A', color: '#ffffff', padding: '10px 14px', borderRadius: '8px', fontSize: '12px' }}>
+                            <p style={{ margin: 0, fontWeight: '800', borderBottom: '1px solid #334155', paddingBottom: '4px', marginBottom: '6px' }}>
+                              {data.month}
+                            </p>
+                            <p style={{ margin: '2px 0', color: '#93C5FD' }}>Orders: <strong>{data.ordersCount}</strong></p>
+                            <p style={{ margin: '2px 0', color: '#60A5FA' }}>Sales: <strong>{formatINR(data.salesValue)}</strong></p>
+                            <p style={{ margin: '2px 0', color: '#34D399' }}>Collected: <strong>{formatINR(data.collectedValue)}</strong></p>
+                            <p style={{ margin: '2px 0', color: '#FBBF24' }}>Due: <strong>{formatINR(data.dueValue)}</strong></p>
+                            <p style={{ margin: '4px 0 0 0', paddingTop: '4px', borderTop: '1px solid #334155', color: '#E2E8F0' }}>
+                              Realized: <strong>{data.collectionRate}%</strong>
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="salesValue" fill="#2563EB" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey="collectedValue" fill="#059669" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey="dueValue" fill="#D97706" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
 
-              <button
-                type="button"
-                title="Next Month"
-                disabled={selectedMonth === '11'}
-                onClick={() => {
-                  if (selectedMonth === 'all') setSelectedMonth('0');
-                  else setSelectedMonth(Math.min(11, parseInt(selectedMonth, 10) + 1).toString());
-                }}
-                style={{
-                  padding: '7px 11px',
-                  borderRadius: '7px',
-                  border: '1px solid #CBD5E1',
-                  background: '#ffffff',
-                  color: selectedMonth === '11' ? '#CBD5E1' : '#334155',
-                  fontSize: '12px',
-                  fontWeight: '750',
-                  cursor: selectedMonth === '11' ? 'not-allowed' : 'pointer'
-                }}
-              >
-                Next ▶
-              </button>
+          {/* Month-Wise Summary Table */}
+          <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ fontSize: '15px', fontWeight: '850', color: '#0F172A', margin: 0 }}>
+                  12-MONTH FINANCIAL PERFORMANCE TABLE
+                </h3>
+                <p style={{ fontSize: '12px', color: '#64748B', margin: '2px 0 0 0' }}>
+                  Aggregated sales, invoicing, collections, and overdue receivables per financial month
+                </p>
+              </div>
 
               {selectedMonth !== 'all' && (
                 <button
                   type="button"
                   onClick={() => setSelectedMonth('all')}
                   style={{
-                    padding: '7px 12px',
-                    borderRadius: '7px',
-                    border: '1px solid #2563EB',
-                    background: '#EFF6FF',
-                    color: '#2563EB',
-                    fontSize: '12px',
-                    fontWeight: '750',
-                    cursor: 'pointer'
+                    padding: '6px 12px', borderRadius: '6px', border: '1px solid #2563EB',
+                    background: '#EFF6FF', color: '#2563EB', fontSize: '12px', fontWeight: '750', cursor: 'pointer'
                   }}
                 >
-                  View All Months
+                  Clear Month Filter (View All)
                 </button>
               )}
             </div>
-          </div>
-        </div>
 
-        {/* 1-Click Month Pills Switcher Bar */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          overflowX: 'auto',
-          paddingBottom: '12px',
-          marginBottom: '18px',
-          borderBottom: '1px solid #F1F5F9'
-        }}>
-          <button
-            type="button"
-            onClick={() => setSelectedMonth('all')}
-            style={{
-              padding: '6px 14px',
-              borderRadius: '20px',
-              border: selectedMonth === 'all' ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
-              background: selectedMonth === 'all' ? '#2563EB' : '#F8FAFC',
-              color: selectedMonth === 'all' ? '#ffffff' : '#475569',
-              fontSize: '12px',
-              fontWeight: '750',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            All Months
-          </button>
-          {monthsList.map(m => {
-            const isAct = selectedMonth === m.index.toString();
-            return (
-              <button
-                key={m.index}
-                type="button"
-                onClick={() => setSelectedMonth(m.index.toString())}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '20px',
-                  border: isAct ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
-                  background: isAct ? '#2563EB' : '#ffffff',
-                  color: isAct ? '#ffffff' : '#475569',
-                  fontSize: '12px',
-                  fontWeight: isAct ? '800' : '600',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                {m.short}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Selected Month / View Sub-KPIs */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
-          {/* Sales */}
-          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px 16px' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>SALES</span>
-            <div style={{ fontSize: '20px', fontWeight: '900', color: '#0F172A', marginTop: '2px' }}>
-              {formatLakh(selectedMonthData.sales)}
-            </div>
-            <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px', fontWeight: '600' }}>
-              Avg Order: {formatINR(selectedMonthData.averageOrder)}
-            </div>
-          </div>
-          {/* Orders */}
-          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px 16px' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>ORDERS</span>
-            <div style={{ fontSize: '20px', fontWeight: '900', color: '#0F172A', marginTop: '2px' }}>
-              {selectedMonthData.orders}
-            </div>
-            <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px', fontWeight: '600' }}>
-              Invoiced: {formatLakh(selectedMonthData.invoiced)}
-            </div>
-          </div>
-          {/* Collected */}
-          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px 16px' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>COLLECTED</span>
-            <div style={{ fontSize: '20px', fontWeight: '900', color: '#059669', marginTop: '2px' }}>
-              {formatLakh(selectedMonthData.collected)}
-            </div>
-            <div style={{ fontSize: '11px', color: '#059669', marginTop: '2px', fontWeight: '700' }}>
-              {selectedMonthData.collectionRate}% realized
-            </div>
-          </div>
-          {/* Outstanding */}
-          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px 16px' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>OUTSTANDING</span>
-            <div style={{ fontSize: '20px', fontWeight: '900', color: '#D97706', marginTop: '2px' }}>
-              {formatLakh(selectedMonthData.outstanding)}
-            </div>
-            <div style={{ fontSize: '11px', color: '#DC2626', marginTop: '2px', fontWeight: '700' }}>
-              Overdue: {formatLakh(selectedMonthData.overdue)}
-            </div>
-          </div>
-        </div>
-
-        {/* Collection Rate Visual Bar */}
-        <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '10px', padding: '12px 18px', marginBottom: '24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-            <span style={{ fontSize: '12.5px', fontWeight: '800', color: '#0369A1' }}>
-              Collection Rate ({currentMonthInfo.name})
-            </span>
-            <span style={{ fontSize: '14px', fontWeight: '900', color: '#0284C7' }}>
-              {selectedMonthData.collectionRate}%
-            </span>
-          </div>
-          {/* Progress track */}
-          <div style={{ width: '100%', height: '10px', background: '#E0F2FE', borderRadius: '999px', overflow: 'hidden' }}>
-            <div style={{
-              width: `${Math.min(100, Math.max(0, selectedMonthData.collectionRate))}%`,
-              height: '100%',
-              background: 'linear-gradient(90deg, #0284C7 0%, #059669 100%)',
-              borderRadius: '999px',
-              transition: 'width 0.4s ease'
-            }} />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748B', marginTop: '4px', fontWeight: '600' }}>
-            <span>Current Due: {formatLakh(selectedMonthData.currentDue)}</span>
-            <span>Overdue: {formatLakh(selectedMonthData.overdue)}</span>
-          </div>
-        </div>
-
-        {/* ORDER / INVOICE DETAILS TABLE */}
-        <div style={{ marginBottom: '28px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-            <div>
-              <h3 style={{ fontSize: '15px', fontWeight: '850', color: '#0F172A', margin: 0, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                ORDER / INVOICE DETAILS
-              </h3>
-              <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
-                Individual sales orders, connected invoices, verified collections and balance due
-              </p>
-            </div>
-
-            {/* Table Search */}
-            <div style={{ position: 'relative' }}>
-              <Search size={13} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
-              <input
-                type="text"
-                value={orderSearchQuery}
-                onChange={(e) => setOrderSearchQuery(e.target.value)}
-                placeholder="Search orders, invoices, customers..."
-                style={{
-                  padding: '6px 12px 6px 30px', fontSize: '12px', borderRadius: '6px',
-                  border: '1px solid #CBD5E1', outline: 'none', width: '220px'
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ overflowX: 'auto', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ background: '#F8FAFC', color: '#475569', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>
-                  <th style={{ padding: '10px 12px' }}>Order No</th>
-                  <th style={{ padding: '10px 12px' }}>Order Date</th>
-                  <th style={{ padding: '10px 12px' }}>Customer</th>
-                  <th style={{ padding: '10px 12px' }}>Salesperson</th>
-                  <th style={{ padding: '10px 12px' }}>Invoice</th>
-                  <th style={{ padding: '10px 12px' }}>Payment Terms / Due</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Sales</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Collected</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Due</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>Status</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orderInvoiceDetails.length === 0 ? (
-                  <tr>
-                    <td colSpan={11} style={{ padding: '24px', textAlign: 'center', color: '#94A3B8', fontWeight: '600' }}>
-                      No order / invoice records cataloged for this month matching the filter criteria.
-                    </td>
+            <div style={{ overflowX: 'auto', width: '100%' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: '#002E5D', color: '#ffffff', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <th style={{ padding: '12px 14px' }}>Financial Month</th>
+                    <th style={{ padding: '12px 14px', textAlign: 'center' }}>Orders</th>
+                    <th style={{ padding: '12px 14px', textAlign: 'right' }}>Sales</th>
+                    <th style={{ padding: '12px 14px', textAlign: 'right' }}>Invoiced</th>
+                    <th style={{ padding: '12px 14px', textAlign: 'right' }}>Collected</th>
+                    <th style={{ padding: '12px 14px', textAlign: 'right' }}>Due</th>
+                    <th style={{ padding: '12px 14px', textAlign: 'right' }}>Overdue</th>
+                    <th style={{ padding: '12px 14px', textAlign: 'center' }}>Realized</th>
+                    <th style={{ padding: '12px 14px', textAlign: 'center' }}>Action</th>
                   </tr>
-                ) : (
-                  orderInvoiceDetails.map((order) => {
-                    // Status Badge Styling
-                    let badgeBg = '#E0F2FE';
-                    let badgeColor = '#0369A1';
-                    if (order.status === 'PAID') {
-                      badgeBg = '#DCFCE7';
-                      badgeColor = '#15803D';
-                    } else if (order.status === 'PARTIAL') {
-                      badgeBg = '#FEF3C7';
-                      badgeColor = '#B45309';
-                    } else if (order.status === 'OVERDUE') {
-                      badgeBg = '#FEE2E2';
-                      badgeColor = '#B91C1C';
-                    }
-
+                </thead>
+                <tbody>
+                  {monthlyTrend.map((m) => {
+                    const isSelected = selectedMonth !== 'all' && parseInt(selectedMonth, 10) === m.monthIndex;
                     return (
-                      <tr key={order.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                        <td style={{ padding: '10px 12px', fontWeight: '800', color: '#1E293B', fontFamily: 'monospace' }}>
-                          {order.orderNo}
+                      <tr
+                        key={m.monthIndex}
+                        style={{
+                          borderBottom: '1px solid #F1F5F9',
+                          background: isSelected ? '#EFF6FF' : 'transparent',
+                          transition: 'background 0.15s ease'
+                        }}
+                      >
+                        <td style={{ padding: '12px 14px', fontWeight: '800', color: isSelected ? '#1D4ED8' : '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {isSelected && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2563EB' }} />}
+                          <span>{m.month}</span>
                         </td>
-                        <td style={{ padding: '10px 12px', fontWeight: '600', color: '#475569', whiteSpace: 'nowrap' }}>
-                          {formatDate(order.orderDate)}
+                        <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '700', color: '#475569' }}>
+                          {m.ordersCount > 0 ? m.ordersCount : '—'}
                         </td>
-                        <td style={{ padding: '10px 12px', fontWeight: '700', color: '#0F172A', maxWidth: '180px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {order.customer}
+                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: '#0F172A' }}>
+                          {m.salesValue > 0 ? formatLakh(m.salesValue) : '—'}
                         </td>
-                        <td style={{ padding: '10px 12px', fontWeight: '600', color: '#334155', maxWidth: '140px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {order.salesperson || 'Unassigned'}
+                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '700', color: '#334155' }}>
+                          {m.invoicedValue > 0 ? formatLakh(m.invoicedValue) : '—'}
                         </td>
-                        <td style={{ padding: '10px 12px', fontWeight: '600', color: '#475569', fontFamily: 'monospace' }}>
-                          {order.invoice}
+                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: '#059669' }}>
+                          {m.collectedValue > 0 ? formatLakh(m.collectedValue) : '—'}
                         </td>
-                        <td style={{ padding: '10px 12px', fontSize: '11.5px', color: '#475569' }}>
-                          <div style={{ fontWeight: '700', color: '#1E293B' }}>{order.paymentTerms || 'Standard'}</div>
-                          {order.paymentDueDate && (
-                            <div style={{
-                              fontSize: '11px',
-                              fontWeight: '600',
-                              color: order.status === 'OVERDUE' ? '#DC2626' : (order.status === 'PAID' ? '#16A34A' : '#64748B'),
-                              marginTop: '2px'
-                            }}>
-                              {order.status === 'OVERDUE'
-                                ? `${Math.abs(order.dueDays || 0)}d overdue`
-                                : (order.status === 'PAID' ? 'Fully Settled' : (order.dueDays !== null ? `Due in ${order.dueDays}d` : formatDate(order.paymentDueDate)))}
-                            </div>
-                          )}
+                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '700', color: m.dueValue > 0 ? '#D97706' : '#94A3B8' }}>
+                          {m.dueValue > 0 ? formatLakh(m.dueValue) : '—'}
                         </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0F172A' }}>
-                          {formatINR(order.sales)}
+                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '700', color: m.overdueValue > 0 ? '#DC2626' : '#94A3B8' }}>
+                          {m.overdueValue > 0 ? formatLakh(m.overdueValue) : '—'}
                         </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#059669' }}>
-                          {formatINR(order.collected)}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700', color: order.due > 0 ? '#D97706' : '#94A3B8' }}>
-                          {formatINR(order.due)}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                        <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                           <span style={{
-                            display: 'inline-block',
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            fontSize: '10.5px',
-                            fontWeight: '850',
-                            letterSpacing: '0.04em',
-                            background: badgeBg,
-                            color: badgeColor
+                            padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: '800',
+                            background: m.collectionRate >= 70 ? '#DCFCE7' : (m.collectionRate >= 40 ? '#FEF3C7' : '#F1F5F9'),
+                            color: m.collectionRate >= 70 ? '#15803D' : (m.collectionRate >= 40 ? '#B45309' : '#64748B')
                           }}>
-                            {order.status}
+                            {m.collectionRate}%
                           </span>
                         </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                            <button
-                              type="button"
-                              onClick={() => router.push(`/sales/orders?search=${order.orderNo}`)}
-                              style={{
-                                padding: '4px 8px', fontSize: '11px', fontWeight: '700',
-                                background: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: '4px',
-                                color: '#334155', cursor: 'pointer'
-                              }}
-                            >
-                              View Order
-                            </button>
-                            {order.invoice !== '—' && (
-                              <button
-                                type="button"
-                                onClick={() => router.push(`/finance/invoices?search=${order.invoice}`)}
-                                style={{
-                                  padding: '4px 8px', fontSize: '11px', fontWeight: '700',
-                                  background: '#EFF6FF', border: '1px solid #93C5FD', borderRadius: '4px',
-                                  color: '#1D4ED8', cursor: 'pointer'
-                                }}
-                              >
-                                View Invoice
-                              </button>
-                            )}
-                          </div>
+                        <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedMonth(m.monthIndex.toString());
+                              setActiveTab('orders');
+                            }}
+                            style={{
+                              padding: '5px 11px',
+                              borderRadius: '6px',
+                              border: isSelected ? '1px solid #2563EB' : '1px solid #CBD5E1',
+                              background: isSelected ? '#2563EB' : '#ffffff',
+                              color: isSelected ? '#ffffff' : '#334155',
+                              fontSize: '11.5px',
+                              fontWeight: '750',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {isSelected ? 'Viewing Orders' : 'View Orders →'}
+                          </button>
                         </td>
                       </tr>
                     );
-                  })
-                )}
-              </tbody>
-            </table>
+                  })}
+
+                  {/* Full Year Total Row */}
+                  <tr style={{ background: '#F8FAFC', borderTop: '2px solid #CBD5E1', fontWeight: '850' }}>
+                    <td style={{ padding: '12px 14px', color: '#0F172A' }}>
+                      FULL YEAR TOTAL (12 MONTHS)
+                    </td>
+                    <td style={{ padding: '12px 14px', textAlign: 'center', color: '#0F172A' }}>
+                      {executive.totalOrders}
+                    </td>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', color: '#0F172A' }}>
+                      {formatLakh(executive.totalSales)}
+                    </td>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', color: '#334155' }}>
+                      {formatLakh(executive.totalInvoiced)}
+                    </td>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', color: '#059669' }}>
+                      {formatLakh(executive.totalCollected)}
+                    </td>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', color: '#D97706' }}>
+                      {formatLakh(executive.totalOutstanding)}
+                    </td>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', color: '#DC2626' }}>
+                      {formatLakh(executive.totalOverdue)}
+                    </td>
+                    <td style={{ padding: '12px 14px', textAlign: 'center', color: '#059669' }}>
+                      {executive.collectionRate}%
+                    </td>
+                    <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMonth('all');
+                          setActiveTab('orders');
+                        }}
+                        style={{
+                          padding: '5px 11px',
+                          borderRadius: '6px',
+                          border: selectedMonth === 'all' ? '1px solid #002E5D' : '1px solid #CBD5E1',
+                          background: selectedMonth === 'all' ? '#002E5D' : '#ffffff',
+                          color: selectedMonth === 'all' ? '#ffffff' : '#334155',
+                          fontSize: '11.5px',
+                          fontWeight: '750',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        View All Orders →
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* ────────────────────────────────────────────────────────── */}
-        {/* 5. CUSTOMER OUTSTANDING TABLE                              */}
-        {/* ────────────────────────────────────────────────────────── */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-            <div>
-              <h3 style={{ fontSize: '15px', fontWeight: '850', color: '#0F172A', margin: 0, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                CUSTOMER OUTSTANDING
-              </h3>
-              <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
-                Aggregated sales, collection realization, and pending overdue amounts by client
-              </p>
-            </div>
-
-            {/* Table Search */}
-            <div style={{ position: 'relative' }}>
-              <Search size={13} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+      {/* ────────────────────────────────────────────────────────── */}
+      {/* TAB 3: CUSTOMER RECEIVABLES (WITH PAGINATION)               */}
+      {/* ────────────────────────────────────────────────────────── */}
+      {activeTab === 'customers' && (
+        <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', overflow: 'hidden' }}>
+          
+          {/* Header & Search */}
+          <div style={{
+            padding: '14px 20px',
+            background: '#F8FAFC',
+            borderBottom: '1px solid #E2E8F0',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}>
+            <div style={{ position: 'relative', minWidth: '280px', flex: '1 1 280px', maxWidth: '400px' }}>
+              <Search size={14} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
               <input
                 type="text"
                 value={customerSearchQuery}
                 onChange={(e) => setCustomerSearchQuery(e.target.value)}
-                placeholder="Search customers..."
+                placeholder="Search by customer name..."
                 style={{
-                  padding: '6px 12px 6px 30px', fontSize: '12px', borderRadius: '6px',
-                  border: '1px solid #CBD5E1', outline: 'none', width: '200px'
+                  width: '100%',
+                  padding: '7px 12px 7px 32px',
+                  borderRadius: '6px',
+                  border: '1px solid #CBD5E1',
+                  fontSize: '12.5px',
+                  outline: 'none',
+                  background: '#ffffff',
+                  boxSizing: 'border-box'
                 }}
               />
             </div>
+
+            <div style={{ fontSize: '12.5px', color: '#64748B' }}>
+              Showing receivables for: <strong style={{ color: '#0F172A' }}>{currentMonthInfo.name}</strong>
+            </div>
           </div>
 
-          <div style={{ overflowX: 'auto', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+          {/* Table */}
+          <div style={{ overflowX: 'auto', width: '100%' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
               <thead>
-                <tr style={{ background: '#F8FAFC', color: '#475569', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>
-                  <th style={{ padding: '10px 12px' }}>Customer</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Sales</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>Orders</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Collected</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Due</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Overdue</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>Status</th>
+                <tr style={{ background: '#002E5D', color: '#ffffff', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <th style={{ padding: '12px 14px' }}>Customer Name</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'center' }}>Orders</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Sales Total</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Collected</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Total Due</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right' }}>Overdue</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'center' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {customerOutstanding.length === 0 ? (
+                {loading ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#94A3B8', fontWeight: '600' }}>
-                      No customer outstanding records found for this period.
+                    <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#64748B' }}>
+                      <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 8px auto', display: 'block', color: '#002E5D' }} />
+                      <span>Loading customer receivables...</span>
+                    </td>
+                  </tr>
+                ) : paginatedCustomers.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#64748B' }}>
+                      No customer records match your search criteria.
                     </td>
                   </tr>
                 ) : (
-                  customerOutstanding.map((c) => {
-                    const isFullyPaid = c.due === 0 && c.sales > 0;
-                    const isPartiallyPaid = c.collected > 0 && c.due > 0;
-                    const hasOverdue = c.overdue > 0;
-
-                    let statusText = 'DUE';
-                    let statusBg = '#E0F2FE';
-                    let statusColor = '#0369A1';
-
-                    if (isFullyPaid) {
-                      statusText = 'PAID';
-                      statusBg = '#DCFCE7';
-                      statusColor = '#15803D';
-                    } else if (hasOverdue) {
-                      statusText = 'OVERDUE';
-                      statusBg = '#FEE2E2';
-                      statusColor = '#B91C1C';
-                    } else if (isPartiallyPaid) {
-                      statusText = 'PARTIAL';
-                      statusBg = '#FEF3C7';
-                      statusColor = '#B45309';
-                    }
-
-                    return (
-                      <tr key={c.customerId} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                        <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0F172A' }}>
-                          {c.customer}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0F172A' }}>
-                          {formatLakh(c.sales)}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '700', color: '#475569' }}>
-                          {c.orders}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#059669' }}>
-                          {formatLakh(c.collected)}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700', color: c.due > 0 ? '#D97706' : '#94A3B8' }}>
-                          {formatLakh(c.due)}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700', color: c.overdue > 0 ? '#DC2626' : '#94A3B8' }}>
-                          {formatLakh(c.overdue)}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                          <span style={{
-                            display: 'inline-block',
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            fontSize: '10.5px',
-                            fontWeight: '850',
-                            letterSpacing: '0.04em',
-                            background: statusBg,
-                            color: statusColor
-                          }}>
-                            {statusText}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
+                  paginatedCustomers.map((c, idx) => (
+                    <tr
+                      key={c.customerId || idx}
+                      style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s ease' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <td style={{ padding: '12px 14px', fontWeight: '750', color: '#0F172A' }}>
+                        {c.customer}
+                      </td>
+                      <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '700', color: '#475569' }}>
+                        {c.orders}
+                      </td>
+                      <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: '#0F172A' }}>
+                        {formatINR(c.sales)}
+                      </td>
+                      <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: '#059669' }}>
+                        {formatINR(c.collected)}
+                      </td>
+                      <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '850', color: c.due > 0 ? '#D97706' : '#94A3B8' }}>
+                        {formatINR(c.due)}
+                      </td>
+                      <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '850', color: c.overdue > 0 ? '#DC2626' : '#94A3B8' }}>
+                        {formatINR(c.overdue)}
+                      </td>
+                      <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOrderSearchQuery(c.customer);
+                            setActiveTab('orders');
+                          }}
+                          style={{
+                            padding: '4px 10px', borderRadius: '6px', border: '1px solid #CBD5E1',
+                            background: '#ffffff', color: '#002E5D', fontSize: '11.5px', fontWeight: '750', cursor: 'pointer'
+                          }}
+                        >
+                          Filter Orders
+                        </button>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
           </div>
-        </div>
 
-      </div>
+          {/* Proper Pagination Controls */}
+          {renderPagination({
+            currentPage: customerPage,
+            totalPages: totalCustomerPages,
+            totalCount: customerOutstanding.length,
+            pageSize: customerPageSize,
+            setPageSize: setCustomerPageSize,
+            setPage: setCustomerPage,
+            itemName: 'customers'
+          })}
+        </div>
+      )}
 
     </div>
   );
