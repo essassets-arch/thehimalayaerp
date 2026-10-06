@@ -138,6 +138,10 @@ export class PrismaService
         ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "coversPerSet" INTEGER DEFAULT 1;
         ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "framesPerSet" INTEGER DEFAULT 1;
         ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "setRatio" INTEGER DEFAULT 1;
+
+        -- Auto-heal Quotation schema
+        ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "siteInchargeName" TEXT;
+        ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "siteInchargeMobile" TEXT;
       `);
     } catch (e) {
       // Ignore if table does not exist yet

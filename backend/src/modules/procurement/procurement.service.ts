@@ -3573,6 +3573,10 @@ export class ProcurementService {
 
         CREATE INDEX IF NOT EXISTS "PurchaseOrder_purchaseIndentId_idx" ON "PurchaseOrder"("purchaseIndentId");
         CREATE INDEX IF NOT EXISTS "PurchaseOrderItem_purchaseIndentId_idx" ON "PurchaseOrderItem"("purchaseIndentId");
+
+        -- Auto-heal Quotation schema
+        ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "siteInchargeName" TEXT;
+        ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "siteInchargeMobile" TEXT;
       `);
       return { success: true, message: 'Procurement schema synchronized successfully' };
     } catch (err: any) {
