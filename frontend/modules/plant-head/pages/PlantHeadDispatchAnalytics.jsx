@@ -143,8 +143,13 @@ export const PlantHeadDispatchAnalytics = () => {
         params.set('customStart', customStartDate);
         params.set('customEnd', customStartDate);
       } else if (filterMode === 'Monthly') {
-        params.set('filter', selectedMonth);
-        params.set('month', selectedMonth);
+        if (selectedMonth === 'all') {
+          params.set('filter', 'All Time');
+          params.set('month', 'all');
+        } else {
+          params.set('filter', selectedMonth);
+          params.set('month', selectedMonth);
+        }
       } else if (filterMode === 'Weekly') {
         params.set('filter', 'Custom');
         params.set('customStart', customStartDate);
@@ -164,6 +169,15 @@ export const PlantHeadDispatchAnalytics = () => {
 
       if (reqId === requestSeq.current) {
         setAnalyticsData(payload);
+        // Smart fallback: if requested period has zero records (e.g. August on cloud),
+        // and other months with real data exist, auto-navigate to the latest active month
+        if (!payload.hasData && filterMode === 'Audit' && payload.filterOptions?.months?.length > 0) {
+          const latestActive = payload.filterOptions.months[0];
+          if (latestActive && latestActive !== '2026-08') {
+            setFilterMode('Monthly');
+            setSelectedMonth(latestActive);
+          }
+        }
       }
     } catch (err) {
       if (reqId === requestSeq.current) {
@@ -589,13 +603,50 @@ export const PlantHeadDispatchAnalytics = () => {
             </span>
 
             {[
-              { id: 'Audit', label: '01–29 Aug 2026 (Audit Default)', action: handleSelectAuditPreset, title: 'Official Audited Period: 01 Aug to 29 Aug 2026' },
-              { id: 'Daily', label: 'Daily (24 Aug Peak)', action: handleSelectDailyPreset, title: 'Peak Single Day View' },
-              { id: 'Weekly', label: 'Weekly (Aug 10–16)', action: handleSelectWeeklyPreset, title: 'Weekly Aggregation' },
-              { id: 'Monthly', label: 'Full Month (Aug 2026)', action: () => handleSelectMonthlyPreset('2026-08'), title: 'Full Month Aggregation' },
-              { id: 'Custom', label: 'Custom Range', action: handleSelectCustomMode, title: 'Custom Date Range' }
+              {
+                id: 'oct-live',
+                label: 'Oct 2026 (Live)',
+                isActive: filterMode === 'Monthly' && selectedMonth === '2026-10',
+                action: () => handleSelectMonthlyPreset('2026-10'),
+                title: 'Live Operational Month: October 2026 (86.9 MT)'
+              },
+              {
+                id: 'sep-peak',
+                label: 'Sep 2026 (Peak)',
+                isActive: filterMode === 'Monthly' && selectedMonth === '2026-09',
+                action: () => handleSelectMonthlyPreset('2026-09'),
+                title: 'Peak Production Month: September 2026 (452.6 MT)'
+              },
+              {
+                id: 'all-time',
+                label: 'All-Time (539.6 MT)',
+                isActive: filterMode === 'Monthly' && selectedMonth === 'all',
+                action: () => handleSelectMonthlyPreset('all'),
+                title: 'Cumulative Total ERP Dispatch History'
+              },
+              {
+                id: 'audit-aug',
+                label: 'Aug 2026 (Audit)',
+                isActive: filterMode === 'Audit' || (filterMode === 'Monthly' && selectedMonth === '2026-08'),
+                action: handleSelectAuditPreset,
+                title: 'Official Audited Dataset: 01 Aug to 29 Aug 2026 (129.7 MT)'
+              },
+              {
+                id: 'daily-peak',
+                label: 'Daily (24 Aug Peak)',
+                isActive: filterMode === 'Daily',
+                action: handleSelectDailyPreset,
+                title: 'Peak Single Day Outbound Aggregate (17,101 KG)'
+              },
+              {
+                id: 'custom-range',
+                label: 'Custom Range',
+                isActive: filterMode === 'Custom',
+                action: handleSelectCustomMode,
+                title: 'Custom Date Range'
+              }
             ].map(p => {
-              const isActive = filterMode === p.id;
+              const isActive = p.isActive;
               return (
                 <button
                   key={p.id}
@@ -618,6 +669,34 @@ export const PlantHeadDispatchAnalytics = () => {
                 </button>
               );
             })}
+
+            {/* Dynamic Month Selector from ERP Available Months */}
+            {analyticsData?.filterOptions?.months?.length > 0 && (
+              <select
+                value={filterMode === 'Monthly' ? selectedMonth : ''}
+                onChange={(e) => {
+                  if (e.target.value) handleSelectMonthlyPreset(e.target.value);
+                }}
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  padding: '3px 8px',
+                  borderRadius: '7px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#0f2e5a',
+                  cursor: 'pointer',
+                  outline: 'none'
+                }}
+                title="Select any active month from ERP"
+              >
+                <option value="" disabled>All Months...</option>
+                {analyticsData.filterOptions.months.map(m => (
+                  <option key={m} value={m}>{m} Outbound</option>
+                ))}
+                <option value="all">All-Time Cumulative</option>
+              </select>
+            )}
 
             {/* Custom Date Pickers */}
             {filterMode === 'Custom' && (
@@ -765,21 +844,52 @@ export const PlantHeadDispatchAnalytics = () => {
 
         {/* Empty State */}
         {!loading && !error && (!analyticsData || summary?.totalWeight === 0) && (
-          <div className="prem-card" style={{ padding: '40px 20px', margin: '16px 0', textAlign: 'center' }}>
-            <Truck size={36} color="#94a3b8" style={{ margin: '0 auto 8px auto' }} />
-            <div style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
-              No dispatch records found for selected period.
+          <div className="prem-card" style={{ padding: '36px 24px', margin: '16px 0', textAlign: 'center', border: '1px solid #cbd5e1' }}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px auto' }}>
+              <Truck size={28} color="#0f2e5a" />
             </div>
-            <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-              Zero dispatches were recorded between {customStartDate} and {customEndDate}.
+            <div style={{ fontSize: '17px', fontWeight: '800', color: '#0f2e5a' }}>
+              No Outbound Dispatches Found for {filterMode === 'Audit' ? 'August 2026 Audit Period' : selectedMonth === 'all' ? 'All-Time' : selectedMonth || `${customStartDate} to ${customEndDate}`}
+            </div>
+            <p style={{ fontSize: '13px', color: '#64748b', marginTop: '6px', maxWidth: '640px', margin: '6px auto 0 auto', lineHeight: 1.5 }}>
+              This ERP database has no dispatch records in the selected date range ({customStartDate} to {customEndDate}).
+              {analyticsData?.filterOptions?.months?.length > 0 ? (
+                <> Authentic production dispatches are available for <strong>{analyticsData.filterOptions.months.join(', ')}</strong>.</>
+              ) : (
+                <> Click below to view live October 2026, peak September 2026, or All-Time aggregates.</>
+              )}
             </p>
-            <button
-              onClick={handleSelectAuditPreset}
-              className="prem-btn prem-btn-navy"
-              style={{ marginTop: '12px' }}
-            >
-              Reset to Audited August 2026 Period
-            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
+              <button
+                onClick={() => handleSelectMonthlyPreset('2026-10')}
+                className="prem-btn prem-btn-emerald"
+                style={{ padding: '8px 16px', fontSize: '12px' }}
+              >
+                <TrendingUp size={14} /> View October 2026 (Live Month)
+              </button>
+              <button
+                onClick={() => handleSelectMonthlyPreset('2026-09')}
+                className="prem-btn prem-btn-primary"
+                style={{ padding: '8px 16px', fontSize: '12px' }}
+              >
+                <BarChart2 size={14} /> View September 2026 (Peak — 452.6 MT)
+              </button>
+              <button
+                onClick={() => handleSelectMonthlyPreset('all')}
+                className="prem-btn prem-btn-navy"
+                style={{ padding: '8px 16px', fontSize: '12px' }}
+              >
+                <Layers size={14} /> View All-Time Dispatches (539.6 MT)
+              </button>
+              <button
+                onClick={handleSelectAuditPreset}
+                className="prem-btn"
+                style={{ padding: '8px 16px', fontSize: '12px', color: '#475569' }}
+              >
+                <Scale size={14} /> Retry Audited Aug 2026
+              </button>
+            </div>
           </div>
         )}
 
