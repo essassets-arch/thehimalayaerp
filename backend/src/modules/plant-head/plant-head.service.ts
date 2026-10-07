@@ -2223,16 +2223,20 @@ export class PlantHeadService {
 
       // 3a. Authoritative Product Family (Type)
       let productType = product?.type;
-      if (!productType || productType === 'SINGLE' || productType === 'DOUBLE' || productType === 'STANDARD') {
-        const typeMatch = productName.match(/\b(DHMC|MHC|WGC|WHC|ONGC|RCS|PS|FRC|GRATING)\b/i);
+      if (!productType || productType === 'SINGLE' || productType === 'DOUBLE' || productType === 'STANDARD' || productType === 'FRP COVERS' || productType === 'FRP COVER' || productType === 'General') {
+        const typeMatch = productName.match(/\b(DMHC|DHMC|MHC|WGC|WHC|ONGC|RCS|PS|FRC|GRATING)\b/i);
         if (typeMatch) {
           let t = typeMatch[1].toUpperCase();
-          if (t === 'WGC') t = 'WHC';
+          if (t === 'DMHC') t = 'DHMC';
           productType = t;
-        } else if (productName.includes('FRPMHC')) {
+        } else if (/DOUBLESEAL\s*MHC/i.test(productName)) {
+          productType = 'DHMC';
+        } else if (/FRPMHC/i.test(productName)) {
           productType = 'MHC';
-        } else if (productName.includes('FRPRCS')) {
+        } else if (/FRPRCS/i.test(productName)) {
           productType = 'RCS';
+        } else if (/FRPO\s*NGC|ONGC/i.test(productName)) {
+          productType = 'ONGC';
         } else {
           productType = product?.category || 'MHC';
         }
@@ -2243,17 +2247,21 @@ export class PlantHeadService {
       if (!sz || sz.trim() === '') {
         const sizeMatch = productName.match(/(\d+\s*(?:X|x|\*)\s*\d+(?:\s*(?:X|x|\*)\s*\d+)?)/);
         if (sizeMatch) {
-          sz = sizeMatch[1].replace(/\s*/g, '').replace(/x|\*/g, 'X');
+          sz = sizeMatch[1].replace(/\s*[xX*×]\s*/g, ' × ').trim();
         } else if (productName.match(/(\d+\s*MM(?:\s*DIA)?)/i)) {
-          sz = productName.match(/(\d+\s*MM(?:\s*DIA)?)/i)![1];
+          sz = productName.match(/(\d+\s*MM(?:\s*DIA)?)/i)![1].trim();
         }
       }
-      const formattedSize = sz ? sz.replace(/X/g, ' × ') : 'UNASSIGNED';
+      const formattedSize = sz ? sz.trim().replace(/\s*[xX*×]\s*/g, ' × ') : 'UNASSIGNED';
 
       // 3c. Authoritative Capacity
       let cap = product?.capacity;
-      if (!cap || cap.trim() === '') {
-        const capMatch = productName.match(/\b(ELD|LD|B125|C250|D400|E600|F900|\d+(?:\.\d+)?T)\b/i);
+      if (!cap || cap.trim() === '' || cap === 'NOT CONFIGURED') {
+        let capMatch = productName.match(/\b(ELD|LD|MD|HD|B125|C250|D400|E600|F900|\d+(?:\.\d+)?T)\b/i);
+        if (!capMatch) {
+          capMatch = productName.match(/(?:MHC|RCS|WGC|WHC|DHMC|DMHC)(ELD|LD|MD|HD)/i) ||
+                     productName.match(/\b(HD\d+|MD\d+|LD\d+)\b/i);
+        }
         if (capMatch) {
           cap = capMatch[1].toUpperCase();
         } else {
@@ -2380,10 +2388,10 @@ export class PlantHeadService {
       if (!hasConfiguredWeight) {
         unmappedWeightsCount++;
       }
-      if (!product?.capacity || cap === 'NOT CONFIGURED') {
+      if (cap === 'NOT CONFIGURED') {
         unmappedCapacitiesCount++;
       }
-      if (!product?.size || formattedSize === 'UNASSIGNED') {
+      if (formattedSize === 'UNASSIGNED') {
         unmappedSizesCount++;
       }
       if (!plannedComp.configured) {
@@ -2604,10 +2612,50 @@ export class PlantHeadService {
         continue;
       }
       const pName = sItem.product?.name || sItem.customProductName || 'Composite Component';
-      const pType = sItem.type || sItem.product?.type || 'MHC';
-      const pSize = sItem.size || sItem.product?.size || 'UNASSIGNED';
-      const formattedPSize = pSize.replace(/X/g, ' × ');
-      const pCap = sItem.capacity || sItem.product?.capacity || 'NOT CONFIGURED';
+      let pType = sItem.type || sItem.product?.type;
+      if (!pType || pType === 'SINGLE' || pType === 'DOUBLE' || pType === 'STANDARD' || pType === 'FRP COVERS' || pType === 'FRP COVER' || pType === 'General') {
+        const typeMatch = pName.match(/\b(DMHC|DHMC|MHC|WGC|WHC|ONGC|RCS|PS|FRC|GRATING)\b/i);
+        if (typeMatch) {
+          let t = typeMatch[1].toUpperCase();
+          if (t === 'DMHC') t = 'DHMC';
+          pType = t;
+        } else if (/DOUBLESEAL\s*MHC/i.test(pName)) {
+          pType = 'DHMC';
+        } else if (/FRPMHC/i.test(pName)) {
+          pType = 'MHC';
+        } else if (/FRPRCS/i.test(pName)) {
+          pType = 'RCS';
+        } else if (/FRPO\s*NGC|ONGC/i.test(pName)) {
+          pType = 'ONGC';
+        } else {
+          pType = sItem.product?.category || 'MHC';
+        }
+      }
+
+      let pSz = sItem.size || sItem.product?.size;
+      if (!pSz || pSz.trim() === '') {
+        const sizeMatch = pName.match(/(\d+\s*(?:X|x|\*)\s*\d+(?:\s*(?:X|x|\*)\s*\d+)?)/);
+        if (sizeMatch) {
+          pSz = sizeMatch[1].replace(/\s*[xX*×]\s*/g, ' × ').trim();
+        } else if (pName.match(/(\d+\s*MM(?:\s*DIA)?)/i)) {
+          pSz = pName.match(/(\d+\s*MM(?:\s*DIA)?)/i)![1].trim();
+        }
+      }
+      const formattedPSize = pSz ? pSz.trim().replace(/\s*[xX*×]\s*/g, ' × ') : 'UNASSIGNED';
+
+      let pCap = sItem.capacity || sItem.product?.capacity;
+      if (!pCap || pCap.trim() === '' || pCap === 'NOT CONFIGURED') {
+        let capMatch = pName.match(/\b(ELD|LD|MD|HD|B125|C250|D400|E600|F900|\d+(?:\.\d+)?T)\b/i);
+        if (!capMatch) {
+          capMatch = pName.match(/(?:MHC|RCS|WGC|WHC|DHMC|DMHC)(ELD|LD|MD|HD)/i) ||
+                     pName.match(/\b(HD\d+|MD\d+|LD\d+)\b/i);
+        }
+        if (capMatch) {
+          pCap = capMatch[1].toUpperCase();
+        } else {
+          pCap = 'NOT CONFIGURED';
+        }
+      }
       const pCat = (sItem.product?.category || pType || 'FRP Covers').trim();
 
       // Check category filter
@@ -2623,7 +2671,7 @@ export class PlantHeadService {
         }
       }
       if (size && size !== 'All') {
-        if (formattedPSize !== size && pSize !== size) continue;
+        if (formattedPSize !== size && pSz !== size) continue;
       }
       if (capacity && capacity !== 'All') {
         if (pCap !== capacity) continue;
@@ -2822,7 +2870,7 @@ export class PlantHeadService {
             ? Math.round((val.weight / totalWeight) * 1000) / 10
             : (totalScaleWeight > 0 ? Math.round(((val.scaleWeight || 0) / totalScaleWeight) * 1000) / 10 : 0),
         };
-      }).sort((a, b) => (b.weight - a.weight) || ((b.scaleWeight || 0) - (a.scaleWeight || 0)) || (b.pieces - a.pieces));
+      }).sort((a, b) => (b.effectiveWeight - a.effectiveWeight) || (b.pieces - a.pieces));
 
     const productTypesList = [...productTypeMap.values()].map(pt => {
       const rowWeight = Math.round(pt.weight * 100) / 100;
@@ -2843,7 +2891,7 @@ export class PlantHeadService {
         share: totalPieces > 0 ? Math.round((pt.pieces / totalPieces) * 1000) / 10 : 0,
         pieceShare: totalPieces > 0 ? Math.round((pt.pieces / totalPieces) * 1000) / 10 : 0,
       };
-    }).sort((a, b) => (b.weight - a.weight) || ((b.scaleWeight || 0) - (a.scaleWeight || 0)) || (b.pieces - a.pieces));
+    }).sort((a, b) => (b.effectiveWeight - a.effectiveWeight) || (b.pieces - a.pieces));
 
     const coverFrameList = [...coverFrameMap.values()].map(cf => {
       const rowWeight = Math.round(cf.weight * 100) / 100;
@@ -2865,7 +2913,7 @@ export class PlantHeadService {
           : (totalScaleWeight > 0 ? Math.round(((cf.scaleWeight || 0) / totalScaleWeight) * 1000) / 10 : 0),
         workOrders: cf.workOrders,
       };
-    }).sort((a, b) => (b.weight - a.weight) || ((b.scaleWeight || 0) - (a.scaleWeight || 0)) || (b.pieces - a.pieces));
+    }).sort((a, b) => (b.effectiveWeight - a.effectiveWeight) || (b.pieces - a.pieces));
 
     const sizesList = serialiseBuckets(sizeMap);
     const capacitiesList = serialiseBuckets(capacityMap);
@@ -3104,7 +3152,7 @@ export class PlantHeadService {
             ? Math.round((p.weight / totalWeight) * 1000) / 10
             : (totalScaleWeight > 0 ? Math.round(((p.scaleWeight || 0) / totalScaleWeight) * 1000) / 10 : 0),
         };
-      }).sort((a, b) => (b.weight - a.weight) || (b.scaleWeight - a.scaleWeight) || (b.pieces - a.pieces)),
+      }).sort((a, b) => (b.effectiveWeight - a.effectiveWeight) || (b.pieces - a.pieces)),
       productImages: [...productDetailMap.values()].map(p => {
         const rowWeight = Math.round(p.weight * 10) / 10;
         const rowScaleWeight = Math.round((p.scaleWeight || 0) * 10) / 10;
@@ -3124,7 +3172,7 @@ export class PlantHeadService {
           covers: p.covers,
           frames: p.frames,
         };
-      }).sort((a, b) => (b.weight - a.weight) || (b.scaleWeight - a.scaleWeight) || (b.pieces - a.pieces)),
+      }).sort((a, b) => (b.effectiveWeight - a.effectiveWeight) || (b.pieces - a.pieces)),
       coverFrameBreakdown: coverFrameList,
       coverFrameWise: coverFrameList,
       sizes: sizesList,
@@ -3461,7 +3509,21 @@ export class PlantHeadService {
   }
 
   private isTradingProduct(product: any, item?: any): boolean {
-    return isTradingProduct(product, item);
+    if (isTradingProduct(product, item)) return true;
+    const name = String(product?.name || item?.productNameSnapshot || item?.customProductName || item?.productName || '').toUpperCase();
+    const sku = String(product?.sku || item?.productCodeSnapshot || item?.productCode || '').toUpperCase();
+    const cat = String(product?.category || '').toUpperCase();
+    if (
+      name.includes('MOULDED') ||
+      name.includes('COVERBLOCK') ||
+      name.includes('COVER BLOCK') ||
+      cat.includes('MOULDED') ||
+      cat.includes('COVERBLOCK') ||
+      /\b(WCB|PCB|HTCB|FRCCP)\b/.test(`${name} ${sku}`)
+    ) {
+      return true;
+    }
+    return false;
   }
 
   private isManufacturingOrder(order: any): boolean {

@@ -705,4 +705,125 @@ describe('Production Analytics - Rules 23–28 Comprehensive Verification Suite'
     // Math is reconciled on scale weights
     expect(report.reconciliation.isReconciled).toBe(true);
   });
+
+  // ── TEST 19: DMHC Normalization, Compound SKU Capacity, and WGC Preservation ──
+  it('Test 19: Authoritative family normalization (DMHC -> DHMC, WGC preserved) and compound SKU capacity resolution', async () => {
+    const woDMHC = {
+      id: 'wo-dmhc-1',
+      workOrderNumber: 'WO-DMHC-001',
+      quantity: 10,
+      status: 'COMPLETED',
+      createdAt: new Date('2026-10-05T08:00:00Z'),
+      completedAt: new Date('2026-10-05T18:00:00Z'),
+      salesOrderItem: {
+        product: {
+          id: 'p-dmhc-1',
+          name: 'HIMALAYA FRP DMHC 900MM DIA C250',
+          category: 'FRP COVERS',
+          coversPerSet: 2,
+          framesPerSet: 1,
+        },
+      },
+    };
+
+    const woMhcEld = {
+      id: 'wo-mhc-eld',
+      workOrderNumber: 'WO-MHC-ELD-001',
+      quantity: 8,
+      status: 'COMPLETED',
+      createdAt: new Date('2026-10-05T08:00:00Z'),
+      completedAt: new Date('2026-10-05T18:00:00Z'),
+      salesOrderItem: {
+        product: {
+          id: 'p-mhc-eld',
+          name: 'FRPMHCELD 36X36',
+          category: 'FRP COVERS',
+          coversPerSet: 1,
+          framesPerSet: 1,
+        },
+      },
+    };
+
+    const woMhcLd = {
+      id: 'wo-mhc-ld',
+      workOrderNumber: 'WO-MHC-LD-001',
+      quantity: 12,
+      status: 'COMPLETED',
+      createdAt: new Date('2026-10-05T08:00:00Z'),
+      completedAt: new Date('2026-10-05T18:00:00Z'),
+      salesOrderItem: {
+        product: {
+          id: 'p-mhc-ld',
+          name: 'FRPMHCLD 24X24',
+          category: 'FRP COVERS',
+          coversPerSet: 1,
+          framesPerSet: 1,
+        },
+      },
+    };
+
+    const woWgc = {
+      id: 'wo-wgc-1',
+      workOrderNumber: 'WO-WGC-001',
+      quantity: 6,
+      status: 'COMPLETED',
+      createdAt: new Date('2026-10-05T08:00:00Z'),
+      completedAt: new Date('2026-10-05T18:00:00Z'),
+      salesOrderItem: {
+        product: {
+          id: 'p-wgc-1',
+          name: 'HIMALAYA FRP WGC 600X600 LD GREEN',
+          category: 'FRP COVERS',
+          coversPerSet: 1,
+          framesPerSet: 1,
+        },
+      },
+    };
+
+    const mockPrisma = {
+      workOrder: { findMany: jest.fn().mockResolvedValue([woDMHC, woMhcEld, woMhcLd, woWgc]) },
+      qCInspection: { findMany: jest.fn().mockResolvedValue([]) },
+      productionDailyReport: { findMany: jest.fn().mockResolvedValue([]) },
+      machine: { findMany: jest.fn().mockResolvedValue([]) },
+      salesOrder: { groupBy: jest.fn().mockResolvedValue([]) },
+    };
+
+    const service = new PlantHeadService(mockPrisma as any, {} as any);
+    const report = await service.getMonthlyProductionReport('tenant-1', undefined, undefined, undefined, undefined, undefined, undefined, '2026-10');
+
+    // 1. DMHC normalized to DHMC, not 'FRP COVERS'
+    const dhmc = report.productWise.find((p: any) => p.name === 'DHMC');
+    expect(dhmc).toBeDefined();
+    expect(dhmc.pieces).toBe(30); // 10 sets * (2C + 1F) = 20C + 10F = 30
+    expect(report.productWise.some((p: any) => p.name === 'FRP COVERS')).toBe(false);
+
+    // 2. WGC is preserved as WGC (not morphed into WHC)
+    const wgc = report.productWise.find((p: any) => p.name === 'WGC');
+    expect(wgc).toBeDefined();
+    expect(wgc.pieces).toBe(12); // 6 sets * 2 components
+
+    // 3. Capacities extracted accurately from compound SKUs
+    const c250 = report.capacityWise.find((c: any) => c.name === 'C250');
+    expect(c250).toBeDefined();
+    expect(c250.pieces).toBe(30);
+
+    const eld = report.capacityWise.find((c: any) => c.name === 'ELD');
+    expect(eld).toBeDefined();
+    expect(eld.pieces).toBe(16); // 8 sets * 2 = 16 pieces
+
+    const ld = report.capacityWise.find((c: any) => c.name === 'LD');
+    expect(ld).toBeDefined();
+    expect(ld.pieces).toBe(36); // (12 MHC + 6 WGC) * 2 = 36 pieces
+
+    // 4. Zero unmapped capacities
+    expect(report.reconciliation.unmappedCapacitiesCount).toBe(0);
+    expect(report.capacityWise.some((c: any) => c.name === 'NOT CONFIGURED')).toBe(false);
+
+    // 5. Sizes properly formatted
+    expect(report.sizeWise.some((s: any) => s.name === '36 × 36')).toBe(true);
+    expect(report.sizeWise.some((s: any) => s.name === '24 × 24')).toBe(true);
+    expect(report.sizeWise.some((s: any) => s.name === '600 × 600')).toBe(true);
+    expect(report.sizeWise.some((s: any) => s.name === '900MM DIA')).toBe(true);
+    expect(report.reconciliation.unmappedSizesCount).toBe(0);
+  });
 });

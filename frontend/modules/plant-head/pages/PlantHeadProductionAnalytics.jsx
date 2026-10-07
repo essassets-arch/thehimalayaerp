@@ -273,7 +273,7 @@ export const PlantHeadProductionAnalytics = () => {
       frames: Number(p.frames || 0),
       pieces: Number(p.pieces || 0),
       workOrders: Number(p.workOrders || 0),
-    })).sort((a, b) => (b.weight - a.weight) || (b.scaleWeight - a.scaleWeight) || (b.pieces - a.pieces));
+    })).sort((a, b) => (b.effectiveWeight - a.effectiveWeight) || (b.pieces - a.pieces));
   }, [report?.productWise, report?.productTypes]);
 
   // 1b. Specific Product Models List (Individual SKUs)
@@ -294,7 +294,7 @@ export const PlantHeadProductionAnalytics = () => {
       covers: Number(p.covers || 0),
       frames: Number(p.frames || 0),
       pieces: Number(p.pieces || 0),
-    })).sort((a, b) => (b.weight - a.weight) || (b.scaleWeight - a.scaleWeight) || (b.pieces - a.pieces));
+    })).sort((a, b) => (b.effectiveWeight - a.effectiveWeight) || (b.pieces - a.pieces));
   }, [report?.products]);
 
   // 2. Size-wise Production List
@@ -310,7 +310,7 @@ export const PlantHeadProductionAnalytics = () => {
       pieces: Number(s.pieces || 0),
       covers: Number(s.covers || 0),
       frames: Number(s.frames || 0),
-    })).sort((a, b) => (b.weight - a.weight) || (b.scaleWeight - a.scaleWeight) || (b.pieces - a.pieces));
+    })).sort((a, b) => (b.effectiveWeight - a.effectiveWeight) || (b.pieces - a.pieces));
   }, [report?.sizeWise, report?.sizes]);
 
   // 3. Load-capacity-wise Production List
@@ -326,7 +326,7 @@ export const PlantHeadProductionAnalytics = () => {
       pieces: Number(c.pieces || 0),
       covers: Number(c.covers || 0),
       frames: Number(c.frames || 0),
-    })).sort((a, b) => (b.weight - a.weight) || (b.scaleWeight - a.scaleWeight) || (b.pieces - a.pieces));
+    })).sort((a, b) => (b.effectiveWeight - a.effectiveWeight) || (b.pieces - a.pieces));
   }, [report?.capacityWise, report?.capacities]);
 
   // 4. Cover & Frame Production List
@@ -343,7 +343,7 @@ export const PlantHeadProductionAnalytics = () => {
       weight: Number(cf.weight || 0),
       scaleWeight: Number(cf.scaleWeight || 0),
       effectiveWeight: Number(cf.effectiveWeight || cf.weight || cf.scaleWeight || 0),
-    })).sort((a, b) => (b.weight - a.weight) || (b.scaleWeight - a.scaleWeight) || (b.pieces - a.pieces));
+    })).sort((a, b) => (b.effectiveWeight - a.effectiveWeight) || (b.pieces - a.pieces));
   }, [report?.coverFrameWise, report?.coverFrameBreakdown]);
 
   // 5. Top 10 Sizes for Bar Chart
