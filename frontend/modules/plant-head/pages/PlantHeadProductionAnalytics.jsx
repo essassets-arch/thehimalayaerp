@@ -111,7 +111,10 @@ const ProductImageCard = ({ product }) => {
 
 export const PlantHeadProductionAnalytics = () => {
   // ── Filters & Timeframe State ──
-  const [selectedMonth, setSelectedMonth] = useState('2026-09');
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [capacityFilter, setCapacityFilter] = useState('All');
   const [sizeFilter, setSizeFilter] = useState('All');
@@ -178,7 +181,8 @@ export const PlantHeadProductionAnalytics = () => {
     setCapacityFilter('All');
     setSizeFilter('All');
     setStatusFilter('All');
-    setSelectedMonth('2026-09');
+    const d = new Date();
+    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     setCustomStartDate('');
     setCustomEndDate('');
   }, []);
@@ -243,7 +247,7 @@ export const PlantHeadProductionAnalytics = () => {
       pendingWorkOrders: Number(raw.pendingWorkOrders ?? raw.activeWorkOrders ?? 0),
       activeWorkOrders: Number(raw.activeWorkOrders || 0),
       completionRate: Number(raw.completionRate || 0),
-      fpyRate: Number(raw.fpyRate || 98.5),
+      fpyRate: raw.fpyRate !== undefined && raw.fpyRate !== null ? Number(raw.fpyRate) : (raw.completedWorkOrders > 0 ? 100 : 0),
       activeMachines: Number(raw.activeMachines || 0),
     };
   }, [report?.kpis]);
@@ -256,7 +260,7 @@ export const PlantHeadProductionAnalytics = () => {
   const productWiseList = useMemo(() => {
     const raw = report?.productWise || report?.productTypes || [];
     return raw.map(p => ({
-      name: p.type || p.name || 'FRP Covers',
+      name: p.type || p.name || 'Unspecified',
       weight: Number(p.weight || 0),
       weightShare: Number(p.weightShare || 0),
       share: Number(p.share || p.pieceShare || 0),
@@ -272,11 +276,11 @@ export const PlantHeadProductionAnalytics = () => {
     const raw = report?.products || [];
     return raw.map(p => ({
       id: p.id,
-      name: p.name || 'Product Specification',
-      category: p.category || p.type || 'FRP Covers',
-      type: p.type || 'FRP',
-      size: p.size || 'STANDARD',
-      capacity: p.capacity || 'EN 124',
+      name: p.name || 'Unspecified Product',
+      category: p.category || p.type || '-',
+      type: p.type || '-',
+      size: p.size || '-',
+      capacity: p.capacity || '-',
       weight: Number(p.weight || 0),
       scaleWeight: Number(p.scaleWeight || 0),
       effectiveWeight: Number(p.effectiveWeight || p.weight || p.scaleWeight || 0),
@@ -320,8 +324,8 @@ export const PlantHeadProductionAnalytics = () => {
   const coverFrameList = useMemo(() => {
     const raw = report?.coverFrameWise || report?.coverFrameBreakdown || [];
     return raw.map(cf => ({
-      product: cf.product || 'Standard Cover',
-      type: cf.type || 'FRP',
+      product: cf.product || '-',
+      type: cf.type || '-',
       size: cf.size || '-',
       capacity: cf.capacity || '-',
       covers: Number(cf.covers || 0),
@@ -877,9 +881,9 @@ export const PlantHeadProductionAnalytics = () => {
               <Calendar size={13} color="#0284c7" /> Month:
             </span>
             {[
-              { id: '2026-09', label: 'Sep 2026 (Live 744 WOs)' },
-              { id: '2026-08', label: 'Aug 2026 (Live 29 WOs)' },
               { id: '2026-10', label: 'Oct 2026' },
+              { id: '2026-09', label: 'Sep 2026' },
+              { id: '2026-08', label: 'Aug 2026' },
               { id: 'all', label: 'All-Time' },
             ].map((btn) => (
               <button
@@ -1003,16 +1007,21 @@ export const PlantHeadProductionAnalytics = () => {
                 cursor: 'pointer'
               }}
             >
-              <option value="2026-09">September 2026 (Live 744 WOs)</option>
-              <option value="2026-08">August 2026 (Live 29 WOs)</option>
-              <option value="2026-10">October 2026</option>
-              <option value="2026-11">November 2026</option>
-              <option value="2026-12">December 2026</option>
-              <option value="2026-07">July 2026</option>
-              <option value="2026-06">June 2026</option>
-              <option value="2026-05">May 2026</option>
-              <option value="all">All-Time Aggregate</option>
-              <option value="custom">Custom Date Range</option>
+              {report?.filterOptions?.months && report.filterOptions.months.length > 0 ? (
+                report.filterOptions.months.map(m => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))
+              ) : (
+                <>
+                  <option value="2026-10">October 2026</option>
+                  <option value="2026-09">September 2026</option>
+                  <option value="2026-08">August 2026</option>
+                  <option value="2026-11">November 2026</option>
+                  <option value="2026-12">December 2026</option>
+                  <option value="all">All-Time Aggregate</option>
+                  <option value="custom">Custom Date Range</option>
+                </>
+              )}
             </select>
           </div>
 
@@ -1159,7 +1168,7 @@ export const PlantHeadProductionAnalytics = () => {
       {/* ══════════════════════════════════════════════════════════════════════
           EMPTY MONTH / NO PRODUCTION DATA STATE
       ══════════════════════════════════════════════════════════════════════ */}
-      {(!report?.hasData || kpis.totalWorkOrders === 0) && !loading && (
+      {(!report?.hasData) && !loading && (
         <div style={{
           background: '#ffffff',
           borderRadius: '14px',
@@ -1202,7 +1211,7 @@ export const PlantHeadProductionAnalytics = () => {
                 cursor: 'pointer'
               }}
             >
-              Switch to August 2026 (Live 29 WOs)
+              Switch to August 2026
             </button>
             <button
               onClick={() => setSelectedMonth('2026-09')}
@@ -1217,7 +1226,7 @@ export const PlantHeadProductionAnalytics = () => {
                 cursor: 'pointer'
               }}
             >
-              Switch to September 2026 (Live 754 WOs)
+              Switch to September 2026
             </button>
           </div>
         </div>
@@ -2028,7 +2037,7 @@ export const PlantHeadProductionAnalytics = () => {
                           letterSpacing: '0.04em',
                           display: 'inline-block'
                         }}>
-                          Category: {prod.category || prod.type || 'FRP COVERS'}
+                          Category: {prod.category || prod.type || '-'}
                         </span>
                       </div>
 
@@ -2049,10 +2058,10 @@ export const PlantHeadProductionAnalytics = () => {
 
                       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '6px' }}>
                         <span style={{ background: '#f1f5f9', color: '#475569', fontSize: '9.5px', fontWeight: '800', padding: '1px 5px', borderRadius: '4px' }}>
-                          {prod.size || 'STANDARD'}
+                          {prod.size || '-'}
                         </span>
                         <span style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '9.5px', fontWeight: '800', padding: '1px 5px', borderRadius: '4px' }}>
-                          {prod.capacity || 'EN 124'}
+                          {prod.capacity || '-'}
                         </span>
                         {prod.sku && (
                           <span style={{ background: '#f8fafc', color: '#64748b', fontSize: '9px', fontWeight: '700', padding: '1px 4px', borderRadius: '3px', border: '1px solid #e2e8f0' }}>
@@ -2073,7 +2082,7 @@ export const PlantHeadProductionAnalytics = () => {
                       color: '#0284c7'
                     }}>
                       <span>{fmt(prod.pieces)} pcs</span>
-                      <span>{fmt(prod.weight, 1)} kg</span>
+                      <span>{prod.weight > 0 ? `${fmt(prod.weight, 1)} kg` : (prod.scaleWeight > 0 ? `${fmt(prod.scaleWeight, 1)} kg` : '')}</span>
                     </div>
                   </div>
                 </div>

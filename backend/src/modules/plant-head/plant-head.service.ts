@@ -1450,7 +1450,7 @@ export class PlantHeadService {
       },
       dispatch: {
         readyForDispatch,
-        vehicleStatus: '4/5 Active',
+        vehicleStatus: readyForDispatch > 0 ? `${readyForDispatch} Orders Staged` : 'Ready',
       },
       store: {
         lowStockItems,
@@ -1460,11 +1460,11 @@ export class PlantHeadService {
         inspectedToday: totalProcessed,
         passed: completedToday,
         failed: qcPending > 0 ? 1 : 0,
-        passRate: totalProcessed > 0 ? 92 : 100,
+        passRate: totalProcessed > 0 ? Math.round((completedToday / totalProcessed) * 100) : 100,
       },
       financial: {
-        receivables: 1450000,
-        payables: 45000,
+        receivables: 0,
+        payables: 0,
       },
       approvalStats: {
         totalOrders: totalCount,
@@ -1652,67 +1652,38 @@ export class PlantHeadService {
         w.status === 'READY',
     ).length;
 
-    const machines = [
-      {
-        id: 'MC-01',
-        name: 'High-Speed Paper Coater',
-        line: 'Line A (Coating)',
-        efficiency: 95,
-        runtime: '20.5',
-        downtime: '0.8',
-        operator: 'Rajesh Patel',
-      },
-      {
-        id: 'MC-04',
-        name: 'Chemical Planetary Mixer',
-        line: 'Line B (Mixing)',
-        efficiency: 88,
-        runtime: '18.2',
-        downtime: '1.2',
-        operator: 'Suresh Kumar',
-      },
-      {
-        id: 'MC-07',
-        name: 'Hydraulic Flap Disc Press',
-        line: 'Line C (Assembly)',
-        efficiency: 76 + (activeWorkOrderCount % 15),
-        runtime: '15.4',
-        downtime: '3.5',
-        operator: 'Vikram Singh',
-      },
-      {
-        id: 'MC-09',
-        name: 'Automated Tunnel Oven',
-        line: 'Line D (Curing)',
-        efficiency: 91,
-        runtime: '19.0',
-        downtime: '1.0',
-        operator: 'Amit Shah',
-      },
-    ];
+    // 5. Authentic Machine Fleet from PostgreSQL
+    const dbMachines = await this.prisma.machine.findMany({
+      orderBy: { machineId: 'asc' },
+    }).catch(() => []);
 
-    const avgMachineEfficiency = Number(
-      (
-        machines.reduce((acc, m) => acc + m.efficiency, 0) / machines.length
-      ).toFixed(1),
-    );
+    const machines = dbMachines.map((m) => ({
+      id: m.machineId || String(m.id),
+      name: m.machineName || 'Hydraulic Press',
+      line: m.location || 'Floor Main',
+      efficiency: 95,
+      runtime: '8.0',
+      downtime: '0.0',
+      operator: 'Floor Operator',
+    }));
+
+    const avgMachineEfficiency = machines.length > 0
+      ? Number((machines.reduce((acc, m) => acc + m.efficiency, 0) / machines.length).toFixed(1))
+      : 0;
 
     return {
       kpis: {
-        totalVolume: totalVolume || 52700,
-        totalWeight: Number((totalWeightTons || 74.1).toFixed(1)),
+        totalVolume: totalVolume || 0,
+        totalWeight: Number((totalWeightTons || 0).toFixed(1)),
         fpyRate,
         machineEfficiency: avgMachineEfficiency,
-        volumeGrowth: '+8.4%',
-        activeLinesCount: 4,
+        volumeGrowth: '0.0%',
+        activeLinesCount: machines.length,
       },
       categories,
       trend,
       machines,
-      employeeProductivity: [
-        { name: 'John Doe', units: 1200 },
-        { name: 'Jane Smith', units: 1050 },
-      ],
+      employeeProductivity: [],
     };
   }
 
@@ -1779,8 +1750,9 @@ export class PlantHeadService {
       shortLabel = 'FY 2025';
       monthKey = '2025';
     } else {
-      let resolvedYear = 2026;
-      let resolvedMonthIdx = 8; // 0-indexed (8 = September)
+      const now = new Date();
+      let resolvedYear = now.getFullYear();
+      let resolvedMonthIdx = now.getMonth();
 
       const ymMatch = (normMonth || normFilter).match(/^(\d{4})-(\d{2})$/);
       if (ymMatch) {
@@ -1794,12 +1766,13 @@ export class PlantHeadService {
         ];
 
         if (targetStr === 'this month') {
-          resolvedYear = 2026;
-          resolvedMonthIdx = 9; // October 2026
+          resolvedYear = now.getFullYear();
+          resolvedMonthIdx = now.getMonth();
         } else if (targetStr === 'last month') {
-          resolvedYear = 2026;
-          resolvedMonthIdx = 8; // September 2026
-        } else {
+          const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          resolvedYear = lastMonthDate.getFullYear();
+          resolvedMonthIdx = lastMonthDate.getMonth();
+        } else if (targetStr) {
           for (let i = 0; i < monthNames.length; i++) {
             if (targetStr.includes(monthNames[i]) || targetStr.includes(monthNames[i].slice(0, 3))) {
               resolvedMonthIdx = i;
@@ -1935,9 +1908,9 @@ export class PlantHeadService {
         workOrdersList: [],
         filterOptions: {
           months: [
-            { value: '2026-09', label: 'September 2026 (Live 754 WOs)' },
-            { value: '2026-08', label: 'August 2026 (Live 29 WOs)' },
             { value: '2026-10', label: 'October 2026' },
+            { value: '2026-09', label: 'September 2026' },
+            { value: '2026-08', label: 'August 2026' },
             { value: '2026-11', label: 'November 2026' },
             { value: '2026-12', label: 'December 2026' },
             { value: 'all', label: 'All-Time Aggregate' },
@@ -2210,9 +2183,9 @@ export class PlantHeadService {
       machineId: m.machineId || `HM00${idx + 1}`,
       name: m.machineName || `Hydraulic Press ${idx + 1}`,
       type: m.machineType || 'Hydraulic Press',
-      location: m.location || `Section ${['A', 'B', 'C'][idx % 3]}`,
-      section: m.location ? m.location.replace('Section ', '') : ['A', 'B', 'C'][idx % 3],
-      line: idx < 2 ? 'Line 1 (Molding)' : idx < 4 ? 'Line 2 (Pressing)' : 'Line 3 (Assembly)',
+      location: m.location || 'Floor Main',
+      section: m.location ? m.location.replace('Section ', '') : 'Main',
+      line: (m as any).line || (m.location ? `Section ${m.location}` : 'Production Floor'),
       workOrders: 0,
       weight: 0,
       pieces: 0,
@@ -2760,10 +2733,12 @@ export class PlantHeadService {
     }
 
     // 4. Quality & QC Inspection Stats
-    const totalQcInspections = qcInspections.length || completedCount;
-    const passedQcCount = (qcInspections as any[]).filter((q: any) => q?.status === 'APPROVED' || q?.status === 'PASSED').length || completedCount;
+    const totalQcInspections = qcInspections.length;
+    const passedQcCount = (qcInspections as any[]).filter((q: any) => q?.status === 'APPROVED' || q?.status === 'PASSED').length;
     const rejectedQcCount = (qcInspections as any[]).filter((q: any) => q?.status === 'FAILED' || q?.status === 'REJECTED').length;
-    const fpyRate = totalQcInspections > 0 ? Math.round((passedQcCount / totalQcInspections) * 1000) / 10 : 98.5;
+    const fpyRate = totalQcInspections > 0
+      ? Math.round((passedQcCount / totalQcInspections) * 1000) / 10
+      : (completedCount > 0 ? 100 : 0);
 
     // 5. Customer & Retention Calculations
     const customerIds = [...customerMap.keys()];
@@ -2903,16 +2878,21 @@ export class PlantHeadService {
         ...row,
         orders: row.orders.size,
         weight: Math.round(row.weight * 100) / 100,
-        share: totalWeight > 0 ? Math.round((row.weight / totalWeight) * 1000) / 10 : 0,
+        share: totalWeight > 0
+          ? Math.round((row.weight / totalWeight) * 1000) / 10
+          : (totalPieces > 0 ? Math.round((row.pieces / totalPieces) * 1000) / 10 : 0),
       }))
-      .sort((a, b) => b.weight - a.weight);
+      .sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
 
     const concentration = [5, 10, 20].map(limit => {
       const weightSum = rankedCustomers.slice(0, limit).reduce((sum, row) => sum + row.weight, 0);
+      const pieceSum = rankedCustomers.slice(0, limit).reduce((sum, row) => sum + row.pieces, 0);
       return {
         limit,
         weight: Math.round(weightSum * 100) / 100,
-        share: totalWeight > 0 ? Math.round((weightSum / totalWeight) * 1000) / 10 : 0,
+        share: totalWeight > 0
+          ? Math.round((weightSum / totalWeight) * 1000) / 10
+          : (totalPieces > 0 ? Math.round((pieceSum / totalPieces) * 1000) / 10 : 0),
       };
     });
 
@@ -2939,7 +2919,9 @@ export class PlantHeadService {
       count: val.count,
       weight: Math.round(val.weight * 10) / 10,
       pieces: val.pieces,
-      share: totalWeight > 0 ? Math.round((val.weight / totalWeight) * 1000) / 10 : 0,
+      share: totalWeight > 0
+        ? Math.round((val.weight / totalWeight) * 1000) / 10
+        : (totalPieces > 0 ? Math.round((val.pieces / totalPieces) * 1000) / 10 : 0),
     }));
 
     // 10. Authentic Live Floor Telemetry (from actual database records)
@@ -3009,7 +2991,7 @@ export class PlantHeadService {
         activeMachines: machineFleet.length,
         uniqueCustomers: customerMap.size,
         narrative: workOrders.length > 0
-          ? `During ${periodLabel}, Himalaya manufactured ${Math.round((effectiveTotalWeight / 1000) * 10) / 10} tonnes (${Math.round(effectiveTotalWeight).toLocaleString()} kg${roundedTotalWeight === 0 && roundedScaleWeight > 0 ? ' floor scale measured' : ''}) of composite components comprising ${totalCovers.toLocaleString()} covers and ${totalFrames.toLocaleString()} frames across ${workOrders.length} work orders.`
+          ? `During ${periodLabel}, Himalaya manufactured ${Math.round((effectiveTotalWeight / 1000) * 10) / 10} tonnes (${Math.round(effectiveTotalWeight).toLocaleString()} kg${roundedTotalWeight === 0 && (roundedScaleWeight || 0) > 0 ? ' floor scale measured' : ''}) of composite components comprising ${totalCovers.toLocaleString()} covers and ${totalFrames.toLocaleString()} frames across ${workOrders.length} work orders.`
           : `No production records found for ${periodLabel}.`,
       },
       productTypes: productTypesList,
@@ -3049,8 +3031,10 @@ export class PlantHeadService {
         customers: row.customers.size,
         orders: row.orders.size,
         weight: Math.round(row.weight * 10) / 10,
-        share: totalWeight > 0 ? Math.round((row.weight / totalWeight) * 1000) / 10 : 0,
-      })).sort((a, b) => b.weight - a.weight),
+        share: totalWeight > 0
+          ? Math.round((row.weight / totalWeight) * 1000) / 10
+          : (totalPieces > 0 ? Math.round((row.pieces / totalPieces) * 1000) / 10 : 0),
+      })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces)),
       customers: rankedCustomers,
       concentration,
       newCustomers: rankedCustomers.filter(row => row.isNew),
@@ -3061,9 +3045,9 @@ export class PlantHeadService {
       workOrdersList: workOrdersList.slice(0, 500),
       filterOptions: {
         months: [
-          { value: '2026-09', label: 'September 2026 (Live 754 WOs)' },
-          { value: '2026-08', label: 'August 2026 (Live 29 WOs)' },
           { value: '2026-10', label: 'October 2026' },
+          { value: '2026-09', label: 'September 2026' },
+          { value: '2026-08', label: 'August 2026' },
           { value: '2026-11', label: 'November 2026' },
           { value: '2026-12', label: 'December 2026' },
           { value: 'all', label: 'All-Time Aggregate' },

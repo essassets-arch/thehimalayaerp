@@ -159,23 +159,24 @@ async function handleGet(path, options = {}) {
     const planned = orders.filter(o => [S.WORK_ORDER_CREATED, S.PRODUCTION_ACCEPTED].includes(o.workflowStatus)).length;
     const qcPending = orders.filter(o => o.workflowStatus === S.PRODUCTION_COMPLETED).length;
     const pending = orders.filter(o => [S.PLANT_PENDING, S.PLANT_ACCEPTED].includes(o.workflowStatus)).length;
+    const readyForDispatch = orders.filter(o => o.workflowStatus === S.QC_APPROVED).length;
     return ok({
-      production: { planned, inProduction: active, qcPending, pendingApproval: pending, completedToday: 3, delayed: 0, efficiency: 94 },
-      dispatch: { readyForDispatch: orders.filter(o => o.workflowStatus === S.QC_APPROVED).length, vehicleStatus: '4/5 Active' },
-      store: { lowStockItems: 3, outOfStock: 0 },
-      qc: { inspectedToday: 12, passed: 11, failed: 1, passRate: 92 },
-      financial: { receivables: 1450000, payables: 45000 }
+      production: { planned, inProduction: active, qcPending, pendingApproval: pending, completedToday: 0, delayed: 0, efficiency: 100 },
+      dispatch: { readyForDispatch, vehicleStatus: `${readyForDispatch} Staged` },
+      store: { lowStockItems: 0, outOfStock: 0 },
+      qc: { inspectedToday: 0, passed: 0, failed: 0, passRate: 100 },
+      financial: { receivables: 0, payables: 0 }
     });
   }
   if (path.includes('/plant-head/overview/departments')) {
     return ok({
-      alerts: [], store: { materialPending: 1, lowStock: 3, deadStock: 8 },
+      alerts: [], store: { materialPending: 0, lowStock: 0, deadStock: 0 },
       production: { runningOrders: orders.filter(o => o.workflowStatus === S.IN_PRODUCTION).length, pendingOrders: orders.filter(o => [S.PLANT_PENDING, S.PLANT_ACCEPTED].includes(o.workflowStatus)).length },
       pipeline: { salesOrders: orders.filter(o => o.workflowStatus === S.PLANT_PENDING).length }
     });
   }
   if (path.includes('/plant-head/analytics/production')) {
-    return ok({ categories: [{ category: 'RCC Pipes', volume: 120 }], trend: [], machines: [], employeeProductivity: [] });
+    return ok({ categories: [], trend: [], machines: [], employeeProductivity: [] });
   }
   if (path.includes('/plant-head/analytics/material')) {
     return ok({ materials: [], monthlyTrends: [], wastage: [] });
