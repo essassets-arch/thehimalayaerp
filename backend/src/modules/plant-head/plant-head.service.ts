@@ -2063,8 +2063,10 @@ export class PlantHeadService {
 
         const actualCoverW = item.actualCoverWeight ? Number(item.actualCoverWeight) : null;
         const actualFrameW = item.actualFrameWeight ? Number(item.actualFrameWeight) : null;
-        const hasScale = actualCoverW !== null || actualFrameW !== null;
-        const itemScaleWeight = (actualCoverW || 0) + (actualFrameW || 0);
+        const itemTotalW = item.totalWeight && Number(item.totalWeight) > 0 ? Number(item.totalWeight) : null;
+        const sumComponentsWeight = (actualCoverW || 0) + (actualFrameW || 0);
+        const hasScale = actualCoverW !== null || actualFrameW !== null || itemTotalW !== null;
+        const itemScaleWeight = sumComponentsWeight > 0 ? sumComponentsWeight : (itemTotalW || 0);
 
         if (item.workOrderId) {
           const woId = item.workOrderId;
