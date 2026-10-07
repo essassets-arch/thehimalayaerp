@@ -377,11 +377,10 @@ export const PlantHeadProductionAnalytics = () => {
   }, [workOrdersList, searchQuery]);
 
   // ── CSV Export Handler ──
+  // ── High-Precision Executive CSV Export Engine ──
   const handleExportCSV = () => {
-    if (!workOrdersList.length) {
-      alert('No production work orders available to export for this period.');
-      return;
-    }
+    const cleanPeriod = (dynamicPeriodShort || selectedMonth || 'REPORT').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileName = `Himalaya_Monthly_Production_Report_${cleanPeriod}_${new Date().toISOString().slice(0, 10)}.csv`;
 
     const escapeCSV = (val) => {
       if (val === null || val === undefined) return '""';
@@ -389,81 +388,176 @@ export const PlantHeadProductionAnalytics = () => {
       return `"${str}"`;
     };
 
-    const headers = [
-      'Work Order No',
-      'Production Plan',
-      'Sales Order No',
-      'Customer Account',
-      'Product Specification',
-      'Product Type',
-      'Capacity / Rating',
-      'Size / Dimension',
-      'Quantity (pcs)',
-      'Covers (pcs)',
-      'Frames (pcs)',
-      'Total Weight (kg)',
-      'Total Weight (MT)',
-      'Press / Machine',
-      'QC Result',
-      'QC Remarks',
-      'Production Status',
-      'Created Date',
-      'Completed Date'
+    // 1. Executive Metadata & KPI Block
+    const summaryLines = [
+      `"HIMALAYA COMPOSITES PVT. LTD. - MONTHLY PRODUCTION REPORT"`,
+      `"Reporting Period:","${report?.period?.label || selectedMonth}"`,
+      `"Item Scope:","${includeTrading ? 'Includes Trading Products' : 'Factory Manufacturing Only'}"`,
+      `"Generated On:","${new Date().toLocaleString('en-IN')}"`,
+      `"Source:","PostgreSQL Live Production Telemetry (100% Reconciled)"`,
+      '',
+      `"1. EXECUTIVE PRODUCTION KPIS"`,
+      `"Metric","Value","Unit","Details"`,
+      `"Total Effective Production Weight",${kpis.effectiveWeight.toFixed(2)},"KG","${(kpis.effectiveWeight / 1000).toFixed(2)} MT (Measured on floor scales / formula)"`,
+      `"Floor Scale Measured Weight",${(kpis.totalScaleWeight || 0).toFixed(2)},"KG","Measured on calibrated factory floor scales"`,
+      `"Theoretical Calculated Weight",${kpis.totalWeight.toFixed(2)},"KG","Calculated from Product Master unit weights"`,
+      `"Weight Variance",${(kpis.weightVariance || 0).toFixed(2)},"KG","Difference between measured scale weight and calculated weight"`,
+      `"Total Finished Sets",${kpis.totalFinishedSets},"Sets","Complete matched cover and frame sets"`,
+      `"Total Components (Pieces)",${kpis.totalPieces},"Pieces","All covers and frames manufactured"`,
+      `"Total Covers",${kpis.totalCovers},"Nos.","${kpis.totalPieces > 0 ? ((kpis.totalCovers / kpis.totalPieces) * 100).toFixed(1) : 0}% of pieces"`,
+      `"Total Frames",${kpis.totalFrames},"Nos.","${kpis.totalPieces > 0 ? ((kpis.totalFrames / kpis.totalPieces) * 100).toFixed(1) : 0}% of pieces"`,
+      `"Total Loose Covers",${kpis.totalLooseCovers},"Nos.","Extra or standalone loose covers"`,
+      `"Total Loose Frames",${kpis.totalLooseFrames},"Nos.","Extra or standalone loose frames"`,
+      `"Total Work Orders",${kpis.totalWorkOrders},"Orders","${kpis.completedWorkOrders} Completed, ${kpis.pendingWorkOrders} Pending (${kpis.completionRate}% Completion Rate)"`,
+      `"First Pass Yield (FPY)",${kpis.fpyRate},"%","${kpis.passedQcCount} Passed / ${kpis.totalQcInspections} QC Inspections"`,
+      `"Active Presses / Machines",${kpis.activeMachines},"Machines","Hydraulic presses operational"`,
+      ''
     ];
 
-    const rows = workOrdersList.map(w => {
+    // 2. Product Family Summary Table
+    const familyHeaders = [
+      `"2. PRODUCT FAMILY SUMMARY BREAKDOWN"`,
+      `"Product Family","Effective Weight (kg)","Floor Scale Weight (kg)","Theoretical Weight (kg)","Covers (nos)","Frames (nos)","Total Pieces","Work Orders","Weight Share (%)","Piece Share (%)"`
+    ];
+    const familyRows = (productWiseList || []).map(p => [
+      escapeCSV(p.name),
+      p.effectiveWeight.toFixed(2),
+      p.scaleWeight.toFixed(2),
+      p.weight.toFixed(2),
+      p.covers,
+      p.frames,
+      p.pieces,
+      p.workOrders,
+      `${p.weightShare}%`,
+      `${p.share}%`
+    ].join(','));
+
+    // 3. Load Capacity Summary Table
+    const capacityHeaders = [
+      '',
+      `"3. LOAD CAPACITY SUMMARY BREAKDOWN"`,
+      `"Capacity / Rating","Effective Weight (kg)","Floor Scale Weight (kg)","Total Pieces","Covers (nos)","Frames (nos)","Piece Share (%)","Weight Share (%)"`
+    ];
+    const capacityRows = (capacityWiseList || []).map(c => [
+      escapeCSV(c.name),
+      c.effectiveWeight.toFixed(2),
+      c.scaleWeight.toFixed(2),
+      c.pieces,
+      c.covers,
+      c.frames,
+      `${c.share}%`,
+      `${c.weightShare}%`
+    ].join(','));
+
+    // 4. Size / Dimension Summary Table
+    const sizeHeaders = [
+      '',
+      `"4. SIZE & DIMENSION SUMMARY BREAKDOWN"`,
+      `"Size / Dimension (mm)","Effective Weight (kg)","Floor Scale Weight (kg)","Total Pieces","Covers (nos)","Frames (nos)","Piece Share (%)","Weight Share (%)"`
+    ];
+    const sizeRows = (sizeWiseList || []).map(s => [
+      escapeCSV(s.name),
+      s.effectiveWeight.toFixed(2),
+      s.scaleWeight.toFixed(2),
+      s.pieces,
+      s.covers,
+      s.frames,
+      `${s.share}%`,
+      `${s.weightShare}%`
+    ].join(','));
+
+    // 5. Cover & Frame Master Breakdown Table
+    const coverFrameHeaders = [
+      '',
+      `"5. COVER & FRAME COMPONENT MASTER BREAKDOWN"`,
+      `"Product Description","Family","Size (mm)","Capacity","Covers (nos)","Frames (nos)","Total Pieces","Effective Weight (kg)","Floor Scale Weight (kg)","Work Orders"`
+    ];
+    const coverFrameRows = (coverFrameList || []).map(cf => [
+      escapeCSV(cf.product),
+      escapeCSV(cf.type),
+      escapeCSV(cf.size),
+      escapeCSV(cf.capacity),
+      cf.covers,
+      cf.frames,
+      cf.pieces,
+      cf.effectiveWeight.toFixed(2),
+      cf.scaleWeight.toFixed(2),
+      cf.workOrders
+    ].join(','));
+
+    // 6. Detailed Work Orders Register
+    const targetWos = (filteredWorkOrders && filteredWorkOrders.length > 0) ? filteredWorkOrders : workOrdersList;
+    const woHeaders = [
+      '',
+      `"6. DETAILED WORK ORDERS REGISTER (${targetWos.length} Records)"`,
+      `"Work Order No","Order No","Plan No","Customer Account","Product Description","Family","Capacity / Rating","Size / Dimension (mm)","Composition","Planned Sets","Finished Sets","Remaining Sets","Total Components (pcs)","Covers (pcs)","Frames (pcs)","Loose Covers","Loose Frames","Effective Weight (kg)","Floor Scale Weight (kg)","Calculated Weight (kg)","Effective Weight (MT)","Weight Source","Press / Machine","QC Result","QC Remarks","Production Status","Created Date","Completed Date"`
+    ];
+    const woRows = targetWos.map(w => {
       const qty = Number(w.quantity) || 0;
-      const wt = Number(w.weight) || 0;
+      const calcWt = Number(w.calculatedWeight || w.weight) || 0;
+      const scaleWt = Number(w.actualScaleWeight || w.scaleWeight) || 0;
+      const effWt = Number(w.effectiveWeight || scaleWt || calcWt) || 0;
       return [
         escapeCSV(w.workOrderNumber),
-        escapeCSV(w.planNumber),
         escapeCSV(w.orderNumber),
+        escapeCSV(w.planNumber),
         escapeCSV(w.customer),
         escapeCSV(w.product),
         escapeCSV(w.type),
         escapeCSV(w.capacity),
         escapeCSV(w.size),
-        qty,
+        escapeCSV(w.composition),
+        Number(w.plannedSets ?? qty) || 0,
+        Number(w.actualFinishedSets ?? (w.isCompleted ? qty : 0)) || 0,
+        Number(w.remainingScheduledSets ?? 0) || 0,
+        Number(w.pieces || w.totalComponents) || 0,
         Number(w.covers) || 0,
         Number(w.frames) || 0,
-        wt,
-        (wt / 1000).toFixed(3),
-        escapeCSV(w.machine),
-        escapeCSV(w.qcResult),
-        escapeCSV(w.qcRemarks),
-        escapeCSV(w.status || w.productionStatus),
+        Number(w.looseCovers) || 0,
+        Number(w.looseFrames) || 0,
+        effWt.toFixed(2),
+        scaleWt > 0 ? scaleWt.toFixed(2) : '0.00',
+        calcWt.toFixed(2),
+        (effWt / 1000).toFixed(3),
+        escapeCSV(w.source || (scaleWt > 0 ? 'FLOOR_SCALE' : 'WORK_ORDER')),
+        escapeCSV(w.machine || 'UNASSIGNED'),
+        escapeCSV(w.qcResult || 'PASS'),
+        escapeCSV(w.qcRemarks || ''),
+        escapeCSV(w.status || w.productionStatus || 'COMPLETED'),
         escapeCSV(w.createdAt ? new Date(w.createdAt).toISOString().slice(0, 10) : ''),
         escapeCSV(w.completedAt ? new Date(w.completedAt).toISOString().slice(0, 10) : '')
       ].join(',');
     });
 
-    const summaryBlock = [
-      `"HIMALAYA COMPOSITES PVT. LTD. - MONTHLY PRODUCTION REPORT"`,
-      `"Reporting Period:","${report?.period?.label || selectedMonth}"`,
-      `"Source:","PostgreSQL Live Database (100% Reconciled)"`,
-      `"Generated On:","${new Date().toLocaleString('en-IN')}"`,
-      `"Total Production Weight (KG):","${kpis.totalWeight}"`,
-      `"Total Covers:","${kpis.totalCovers}"`,
-      `"Total Frames:","${kpis.totalFrames}"`,
-      `"Total Pieces:","${kpis.totalPieces}"`,
-      `"Total Work Orders:","${kpis.totalWorkOrders}"`,
-      ''
-    ].join('\n');
+    const fullCSV = [
+      ...summaryLines,
+      ...familyHeaders,
+      ...familyRows,
+      ...capacityHeaders,
+      ...capacityRows,
+      ...sizeHeaders,
+      ...sizeRows,
+      ...coverFrameHeaders,
+      ...coverFrameRows,
+      ...woHeaders,
+      ...woRows
+    ].join('\r\n');
 
-    const csvContent = summaryBlock + headers.join(',') + '\n' + rows.join('\n');
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + fullCSV], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    const cleanPeriod = (dynamicPeriodShort).replace(/[^a-zA-Z0-9_-]/g, '_');
-    link.setAttribute('download', `Himalaya_Monthly_Production_Report_${cleanPeriod}_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', fileName);
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 150);
   };
 
   const handlePrint = () => {
+    setSelectedWorkOrderModal(null);
     window.print();
   };
 
@@ -758,56 +852,6 @@ export const PlantHeadProductionAnalytics = () => {
           >
             <RefreshCw size={13} className={loading ? 'spin' : ''} /> {loading ? 'Syncing...' : 'Sync Live'}
           </button>
-
-          {/* View Mode Toggle: One-Page Report vs Master Work Orders Schedule */}
-          <div className="no-print" style={{
-            display: 'flex',
-            background: '#f1f5f9',
-            padding: '2px',
-            borderRadius: '8px',
-            border: '1px solid #cbd5e1'
-          }}>
-            <button
-              onClick={() => setViewMode('one-page')}
-              style={{
-                background: viewMode === 'one-page' ? '#ffffff' : 'transparent',
-                color: viewMode === 'one-page' ? '#0f172a' : '#64748b',
-                border: 'none',
-                padding: '5px 11px',
-                borderRadius: '6px',
-                fontSize: '11px',
-                fontWeight: viewMode === 'one-page' ? '800' : '600',
-                cursor: 'pointer',
-                boxShadow: viewMode === 'one-page' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-            >
-              <FileText size={13} color={viewMode === 'one-page' ? '#0284c7' : '#64748b'} />
-              Monthly Report
-            </button>
-            <button
-              onClick={() => setViewMode('audit-master')}
-              style={{
-                background: viewMode === 'audit-master' ? '#ffffff' : 'transparent',
-                color: viewMode === 'audit-master' ? '#0f172a' : '#64748b',
-                border: 'none',
-                padding: '5px 11px',
-                borderRadius: '6px',
-                fontSize: '11px',
-                fontWeight: viewMode === 'audit-master' ? '800' : '600',
-                cursor: 'pointer',
-                boxShadow: viewMode === 'audit-master' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-            >
-              <Layers size={13} color={viewMode === 'audit-master' ? '#f59e0b' : '#64748b'} />
-              Work Orders List ({kpis.totalWorkOrders})
-            </button>
-          </div>
 
           <button
             onClick={handleExportCSV}
@@ -2604,68 +2648,131 @@ export const PlantHeadProductionAnalytics = () => {
         @media print {
           @page {
             size: A4 landscape;
-            margin: 6mm;
+            margin: 8mm 6mm 8mm 6mm;
+          }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            box-sizing: border-box !important;
           }
           html, body {
             background: #ffffff !important;
             color: #0f172a !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
             font-size: 8.5px !important;
             margin: 0 !important;
             padding: 0 !important;
             width: 100% !important;
-            height: 100% !important;
-            overflow: hidden !important;
+            height: auto !important;
+            min-height: auto !important;
+            overflow: visible !important;
           }
-          .no-print, nav, aside, .app-header, .sidebar, .no-capture {
+          /* Hide non-printable application navigation, header, and buttons */
+          .no-print,
+          .no-capture,
+          nav,
+          aside,
+          header.hero-banner,
+          .hero-banner,
+          .sidebar,
+          .toast-container,
+          div[class*="ToastContainer"],
+          div[class*="HeroBanner"],
+          div[class*="Sidebar"],
+          .report-filter-bar,
+          .modal-overlay:not(.active) {
             display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            width: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            border: none !important;
+          }
+          /* Reset parent containers so multi-page printing is never clipped */
+          .app-container,
+          .main-viewport,
+          main {
+            display: block !important;
+            position: static !important;
+            width: 100% !important;
+            height: auto !important;
+            min-height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            background: #ffffff !important;
           }
           .report-root-container {
+            display: block !important;
+            position: static !important;
             padding: 0 !important;
+            margin: 0 !important;
             max-width: 100% !important;
             width: 100% !important;
-            height: 100% !important;
+            height: auto !important;
             background: #ffffff !important;
-            page-break-after: avoid !important;
-            break-after: avoid !important;
+            overflow: visible !important;
           }
           .report-main-header {
             display: flex !important;
-            margin-bottom: 4px !important;
-            padding: 4px 8px !important;
+            margin-bottom: 6px !important;
+            padding: 6px 12px !important;
             border: 1px solid #cbd5e1 !important;
+            border-radius: 8px !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
           .report-kpi-grid {
             grid-template-columns: repeat(5, 1fr) !important;
             gap: 4px !important;
-            margin-bottom: 4px !important;
+            margin-bottom: 6px !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
           .report-tables-grid {
             grid-template-columns: repeat(4, 1fr) !important;
-            gap: 4px !important;
-            margin-bottom: 4px !important;
+            gap: 5px !important;
+            margin-bottom: 6px !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
           .report-charts-grid {
             grid-template-columns: repeat(3, 1fr) !important;
-            gap: 4px !important;
-            margin-bottom: 4px !important;
+            gap: 5px !important;
+            margin-bottom: 6px !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
           .report-products-grid {
             grid-template-columns: repeat(5, 1fr) !important;
-            gap: 4px !important;
+            gap: 5px !important;
+            margin-bottom: 6px !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
-          table, tr, td, th, footer {
+          div[style*="maxHeight"],
+          div[style*="max-height"] {
+            max-height: none !important;
+            overflow: visible !important;
+          }
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+          }
+          thead {
+            display: table-header-group !important;
+          }
+          tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          td, th {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          footer,
+          .report-signoff-block {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }

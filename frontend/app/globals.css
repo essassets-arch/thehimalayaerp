@@ -5073,7 +5073,15 @@ tr:has(.product-picker:focus-within),
   .salary-slip-page-container,
   .salary-slip-page-container *,
   .salary-slip-paper,
-  .salary-slip-paper * {
+  .salary-slip-paper *,
+  .report-root-container,
+  .report-root-container *,
+  .production-report-print-area,
+  .production-report-print-area *,
+  #production-report-print-area,
+  #production-report-print-area *,
+  .quotation-page,
+  .quotation-page * {
     visibility: visible !important;
   }
 
