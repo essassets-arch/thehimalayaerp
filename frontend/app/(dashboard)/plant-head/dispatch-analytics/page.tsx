@@ -1,7 +1,7 @@
 'use client';
 
-import PlantHeadPortal from '../../../../modules/plant-head/pages/PlantHeadPortal';
+import { PlantHeadDispatchAnalytics } from '@/modules/plant-head/pages/PlantHeadDispatchAnalytics';
 
 export default function DispatchAnalyticsPage() {
-  return <PlantHeadPortal />;
+  return <PlantHeadDispatchAnalytics />;
 }

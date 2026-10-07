@@ -345,8 +345,7 @@ export class PlantHeadController {
     @Query('salesPerson') salesPerson?: string,
     @Query('product') product?: string,
   ) {
-    const companyId =
-      (req as any).user?.['companyId'];
+    const companyId = this.resolveCompanyId(req);
     return this.plantHeadService.getDispatchAnalytics(
       companyId,
       filter,
@@ -357,6 +356,32 @@ export class PlantHeadController {
       area,
       salesPerson,
       product,
+    );
+  }
+
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.dashboard.read',
+  )
+  @Get('analytics/dispatch/audit')
+  async getDispatchAudit(
+    @Req() req: Request,
+    @Query('filter') filter?: string,
+    @Query('customStart') customStart?: string,
+    @Query('customEnd') customEnd?: string,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
+    const companyId = this.resolveCompanyId(req);
+    return this.plantHeadService.getDispatchAudit(
+      companyId,
+      filter,
+      customStart,
+      customEnd,
+      month,
+      year,
     );
   }
 

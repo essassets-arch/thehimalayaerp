@@ -43,7 +43,7 @@ describe('Dispatch analytics aggregation', () => {
       const range = where.dispatchedAt;
       return (!range.gte || row.dispatchedAt >= range.gte) && (!range.lt || row.dispatchedAt < range.lt);
     }));
-    const prisma = { dispatch: { findMany }, salesOrder: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) } };
+    const prisma = { dispatch: { findMany, count: jest.fn().mockResolvedValue(2) }, salesOrder: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) } };
     return { service: new PlantHeadService(prisma as any, {} as any), findMany };
   }
   it('combines D1 and D2, scopes tenant, excludes drafts and counts actual quantities', async () => {
@@ -74,5 +74,14 @@ describe('Dispatch analytics aggregation', () => {
     findMany.mockRejectedValueOnce(new Error('Database unavailable'));
     await expect(service.getDispatchAnalytics('tenant')).rejects.toThrow('Database unavailable');
     await expect(service.getDispatchAnalytics('')).rejects.toThrow('Company is required');
+  });
+  it('runs dispatch audit reporting reconciliation and 17 classifications', async () => {
+    const { service } = setup();
+    const audit = await service.getDispatchAudit('tenant', undefined, undefined, undefined, '2026-09');
+    expect(audit.success).toBe(true);
+    expect(audit.records.dispatchRecordsInPeriod).toBe(2);
+    expect(audit.classifications).toHaveLength(17);
+    expect(audit.reconciliation).toHaveLength(9);
+    expect(audit.chartFeasibility.product.feasible).toBe(true);
   });
 });
