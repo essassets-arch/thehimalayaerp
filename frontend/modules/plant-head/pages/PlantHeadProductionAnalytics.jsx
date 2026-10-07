@@ -229,6 +229,7 @@ export const PlantHeadProductionAnalytics = () => {
       averageWeightPerPiece: Number(raw.averageWeightPerPiece || 0),
       totalWorkOrders: Number(raw.totalWorkOrders || 0),
       completedWorkOrders: Number(raw.completedWorkOrders || 0),
+      pendingWorkOrders: Number(raw.pendingWorkOrders ?? raw.activeWorkOrders ?? 0),
       activeWorkOrders: Number(raw.activeWorkOrders || 0),
       completionRate: Number(raw.completionRate || 0),
       fpyRate: Number(raw.fpyRate || 98.5),
@@ -726,6 +727,56 @@ export const PlantHeadProductionAnalytics = () => {
             <RefreshCw size={13} className={loading ? 'spin' : ''} /> {loading ? 'Syncing...' : 'Sync Live'}
           </button>
 
+          {/* View Mode Toggle: One-Page Report vs Master Work Orders Schedule */}
+          <div className="no-print" style={{
+            display: 'flex',
+            background: '#f1f5f9',
+            padding: '2px',
+            borderRadius: '8px',
+            border: '1px solid #cbd5e1'
+          }}>
+            <button
+              onClick={() => setViewMode('one-page')}
+              style={{
+                background: viewMode === 'one-page' ? '#ffffff' : 'transparent',
+                color: viewMode === 'one-page' ? '#0f172a' : '#64748b',
+                border: 'none',
+                padding: '5px 11px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: viewMode === 'one-page' ? '800' : '600',
+                cursor: 'pointer',
+                boxShadow: viewMode === 'one-page' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <FileText size={13} color={viewMode === 'one-page' ? '#0284c7' : '#64748b'} />
+              Monthly Report
+            </button>
+            <button
+              onClick={() => setViewMode('audit-master')}
+              style={{
+                background: viewMode === 'audit-master' ? '#ffffff' : 'transparent',
+                color: viewMode === 'audit-master' ? '#0f172a' : '#64748b',
+                border: 'none',
+                padding: '5px 11px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: viewMode === 'audit-master' ? '800' : '600',
+                cursor: 'pointer',
+                boxShadow: viewMode === 'audit-master' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <Layers size={13} color={viewMode === 'audit-master' ? '#f59e0b' : '#64748b'} />
+              Work Orders List ({kpis.totalWorkOrders})
+            </button>
+          </div>
+
           <button
             onClick={handleExportCSV}
             style={{
@@ -832,6 +883,56 @@ export const PlantHeadProductionAnalytics = () => {
                 {btn.label}
               </button>
             ))}
+
+            {/* Quick Status Chips: Completed vs Pending */}
+            <span style={{ fontSize: '11px', fontWeight: '900', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', marginLeft: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Gauge size={13} color="#f59e0b" /> Status:
+            </span>
+            <button
+              onClick={() => setStatusFilter('All')}
+              style={{
+                background: statusFilter === 'All' ? '#0f172a' : '#f1f5f9',
+                color: statusFilter === 'All' ? '#ffffff' : '#334155',
+                border: statusFilter === 'All' ? '1px solid #0f172a' : '1px solid #cbd5e1',
+                borderRadius: '6px',
+                padding: '4px 8px',
+                fontSize: '11px',
+                fontWeight: statusFilter === 'All' ? '800' : '700',
+                cursor: 'pointer'
+              }}
+            >
+              All ({kpis.totalWorkOrders})
+            </button>
+            <button
+              onClick={() => setStatusFilter('COMPLETED')}
+              style={{
+                background: statusFilter === 'COMPLETED' ? '#15803d' : '#dcfce7',
+                color: statusFilter === 'COMPLETED' ? '#ffffff' : '#166534',
+                border: statusFilter === 'COMPLETED' ? '1px solid #15803d' : '1px solid #bbf7d0',
+                borderRadius: '6px',
+                padding: '4px 8px',
+                fontSize: '11px',
+                fontWeight: '800',
+                cursor: 'pointer'
+              }}
+            >
+              ✅ Completed ({kpis.completedWorkOrders})
+            </button>
+            <button
+              onClick={() => setStatusFilter('PENDING')}
+              style={{
+                background: statusFilter === 'PENDING' ? '#b45309' : '#fef3c7',
+                color: statusFilter === 'PENDING' ? '#ffffff' : '#92400e',
+                border: statusFilter === 'PENDING' ? '1px solid #b45309' : '1px solid #fde68a',
+                borderRadius: '6px',
+                padding: '4px 8px',
+                fontSize: '11px',
+                fontWeight: '800',
+                cursor: 'pointer'
+              }}
+            >
+              ⏳ Pending ({kpis.pendingWorkOrders})
+            </button>
           </div>
 
           {/* Reset Filters Button if any filter active */}
@@ -1224,25 +1325,43 @@ export const PlantHeadProductionAnalytics = () => {
             </div>
 
             {/* Card 5: WORK ORDERS & RUNS */}
-            <div style={{
-              background: '#ffffff',
-              borderRadius: '12px',
-              padding: '14px 16px',
-              border: '1.5px solid #e2e8f0',
-              borderLeft: '5px solid #f59e0b',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-            }}>
+            <div
+              onClick={() => setViewMode(viewMode === 'one-page' ? 'audit-master' : 'one-page')}
+              title="Click to view detailed Work Orders Schedule"
+              style={{
+                background: '#ffffff',
+                borderRadius: '12px',
+                padding: '14px 16px',
+                border: '1.5px solid #e2e8f0',
+                borderLeft: '5px solid #f59e0b',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '10.5px', fontWeight: '900', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  WORK ORDERS &amp; RUNS
+                  WORK ORDERS STATUS
                 </span>
-                <Gauge size={16} color="#f59e0b" />
+                <span style={{ fontSize: '9.5px', color: '#b45309', fontWeight: '800', background: '#fef3c7', padding: '1px 5px', borderRadius: '4px' }}>
+                  {viewMode === 'one-page' ? 'View Schedule ↗' : 'Back to Report ↗'}
+                </span>
               </div>
               <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '4px 0 2px 0', letterSpacing: '-0.02em' }}>
                 {fmt(kpis.totalWorkOrders)} <span style={{ fontSize: '13px', fontWeight: '800', color: '#f59e0b' }}>WOs</span>
               </div>
-              <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>
-                {kpis.completionRate}% Completed &bull; {productWiseList.length} Active Categories
+              <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                <span style={{ color: '#15803d', fontWeight: '800', background: '#dcfce7', padding: '1px 5px', borderRadius: '4px' }}>
+                  {fmt(kpis.completedWorkOrders)} Completed
+                </span>
+                <span>&bull;</span>
+                <span style={{ color: '#b45309', fontWeight: '800', background: '#fef3c7', padding: '1px 5px', borderRadius: '4px' }}>
+                  {fmt(kpis.pendingWorkOrders)} Pending
+                </span>
+                <span>&bull;</span>
+                <span style={{ fontWeight: '800', color: '#0f172a' }}>
+                  {kpis.completionRate}%
+                </span>
               </div>
             </div>
           </div>
@@ -2137,14 +2256,15 @@ export const PlantHeadProductionAnalytics = () => {
                       </td>
                       <td style={{ padding: '8px 10px' }}>
                         <span style={{
-                          background: wo.status === 'COMPLETED' ? '#dcfce7' : wo.status === 'READY_FOR_DISPATCH' ? '#e0f2fe' : '#f1f5f9',
-                          color: wo.status === 'COMPLETED' ? '#15803d' : wo.status === 'READY_FOR_DISPATCH' ? '#0369a1' : '#475569',
-                          padding: '2px 6px',
+                          background: (wo.isCompleted || wo.status === 'COMPLETED' || wo.status === 'READY_FOR_DISPATCH' || wo.status === 'DISPATCHED') ? '#dcfce7' : '#fef3c7',
+                          color: (wo.isCompleted || wo.status === 'COMPLETED' || wo.status === 'READY_FOR_DISPATCH' || wo.status === 'DISPATCHED') ? '#15803d' : '#b45309',
+                          border: (wo.isCompleted || wo.status === 'COMPLETED' || wo.status === 'READY_FOR_DISPATCH' || wo.status === 'DISPATCHED') ? '1px solid #bbf7d0' : '1px solid #fde68a',
+                          padding: '2px 7px',
                           borderRadius: '4px',
                           fontSize: '10px',
                           fontWeight: '800'
                         }}>
-                          {wo.status}
+                          {wo.status === 'READY_FOR_DISPATCH' ? 'READY FOR DISPATCH' : wo.status}
                         </span>
                       </td>
                       <td style={{ padding: '8px 10px' }}>
