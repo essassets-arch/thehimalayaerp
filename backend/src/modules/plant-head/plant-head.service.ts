@@ -1937,7 +1937,12 @@ export class PlantHeadService {
       whereConditions.push({
         OR: [
           { completedAt: { gte: startDate, lte: endDate } },
-          { createdAt: { gte: startDate, lte: endDate } },
+          {
+            AND: [
+              { completedAt: null },
+              { createdAt: { gte: startDate, lte: endDate } },
+            ],
+          },
         ],
       });
     }
@@ -1984,10 +1989,7 @@ export class PlantHeadService {
       status: { notIn: ['CANCELLED', 'REJECTED'] },
     };
     if (!isAllTime) {
-      dailyReportWhere.OR = [
-        { reportDate: { gte: startDate, lte: endDate } },
-        { createdAt: { gte: startDate, lte: endDate } },
-      ];
+      dailyReportWhere.reportDate = { gte: startDate, lte: endDate };
     }
     if (tenantFilter) {
       dailyReportWhere.companyId = tenantFilter;
