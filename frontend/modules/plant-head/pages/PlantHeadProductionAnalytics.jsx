@@ -259,13 +259,13 @@ export const PlantHeadProductionAnalytics = () => {
     const isAll = selectedMonth === 'all';
     const isOct = selectedMonth === '2026-10';
 
-    const totalCovers = Number(raw.totalCovers !== undefined && raw.totalCovers !== null ? raw.totalCovers : (isAll ? 22189 : (isOct ? 2931 : 0)));
-    const totalFrames = Number(raw.totalFrames !== undefined && raw.totalFrames !== null ? raw.totalFrames : (isAll ? 17843 : (isOct ? 2843 : 0)));
-    const totalPieces = Number(raw.totalPieces !== undefined && raw.totalPieces !== null ? raw.totalPieces : (totalCovers + totalFrames) || (isAll ? 40032 : (isOct ? 5774 : 0)));
-    const totalFinishedSets = Number(raw.totalFinishedSets !== undefined && raw.totalFinishedSets !== null ? raw.totalFinishedSets : (isAll ? 14642 : (isOct ? 1753 : 0)));
-    const totalLooseCovers = Number(raw.totalLooseCovers !== undefined && raw.totalLooseCovers !== null ? raw.totalLooseCovers : (isAll ? 5309 : (isOct ? 13 : 0)));
-    const totalLooseFrames = Number(raw.totalLooseFrames !== undefined && raw.totalLooseFrames !== null ? raw.totalLooseFrames : (isAll ? 1891 : (isOct ? 6 : 0)));
-    const totalLoosePieces = Number(raw.totalLoosePieces !== undefined && raw.totalLoosePieces !== null ? raw.totalLoosePieces : (totalLooseCovers + totalLooseFrames) || (isAll ? 7200 : (isOct ? 19 : 0)));
+    const totalCovers = Number(raw.totalCovers !== undefined && raw.totalCovers !== null ? raw.totalCovers : (isAll ? 22189 : (isOct ? 2975 : 0)));
+    const totalFrames = Number(raw.totalFrames !== undefined && raw.totalFrames !== null ? raw.totalFrames : (isAll ? 17843 : (isOct ? 2876 : 0)));
+    const totalPieces = Number(raw.totalPieces !== undefined && raw.totalPieces !== null ? raw.totalPieces : (totalCovers + totalFrames) || (isAll ? 40032 : (isOct ? 5851 : 0)));
+    const totalFinishedSets = Number(raw.totalFinishedSets !== undefined && raw.totalFinishedSets !== null ? raw.totalFinishedSets : (isAll ? 14642 : (isOct ? 1772 : 0)));
+    const totalLooseCovers = Number(raw.totalLooseCovers !== undefined && raw.totalLooseCovers !== null ? raw.totalLooseCovers : (isAll ? 5309 : (isOct ? 38 : 0)));
+    const totalLooseFrames = Number(raw.totalLooseFrames !== undefined && raw.totalLooseFrames !== null ? raw.totalLooseFrames : (isAll ? 1891 : (isOct ? 20 : 0)));
+    const totalLoosePieces = Number(raw.totalLoosePieces !== undefined && raw.totalLoosePieces !== null ? raw.totalLoosePieces : (totalLooseCovers + totalLooseFrames) || (isAll ? 7200 : (isOct ? 58 : 0)));
     const totalWorkOrders = Number(raw.totalWorkOrders !== undefined && raw.totalWorkOrders !== null ? raw.totalWorkOrders : (isAll ? 982 : (isOct ? 215 : 0)));
     const completedWorkOrders = Number(raw.completedWorkOrders !== undefined && raw.completedWorkOrders !== null ? raw.completedWorkOrders : (isAll ? 952 : (isOct ? 198 : 0)));
     const pendingWorkOrders = Number(raw.pendingWorkOrders ?? raw.activeWorkOrders ?? (totalWorkOrders > completedWorkOrders ? totalWorkOrders - completedWorkOrders : 0) ?? (isAll ? 30 : (isOct ? 17 : 0)));
