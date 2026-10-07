@@ -75,63 +75,36 @@ const fmt = (val, decimals = 0) => {
 };
 
 /**
- * Neutral Product Master Card Component
+ * Product Master Image Component
  * - If Product Master has an actual photograph (imageUrl), display the image.
- * - If missing, display a clean, neutral, honest placeholder with "NO PRODUCT IMAGE".
- * - Strictest ERP rule: Zero fabricated geometry, zero artificial technical SVGs, zero 3D mockups.
+ * - If missing or fails to load, return null so no awkward empty/placeholder box appears.
  */
 const ProductImageCard = ({ product }) => {
   const [imageError, setImageError] = useState(false);
-  const typeCode = (product?.type || 'FRP').toUpperCase();
-  const sizeText = product?.size || 'Standard';
-  const capText = product?.capacity || 'EN 124';
 
-  if (product?.imageUrl && !imageError) {
-    return (
-      <div style={{
-        width: '100%',
-        height: '75px',
-        background: '#f8fafc',
-        borderRadius: '6px 6px 0 0',
-        overflow: 'hidden',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderBottom: '1px solid #e2e8f0'
-      }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={product.imageUrl}
-          alt={product.name}
-          onError={() => setImageError(true)}
-          style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
-        />
-      </div>
-    );
+  if (!product?.imageUrl || imageError) {
+    return null;
   }
 
-  // Clean, neutral, honest placeholder - zero artificial geometry
   return (
     <div style={{
       width: '100%',
-      height: '75px',
-      background: '#f1f5f9',
+      height: '80px',
+      background: '#f8fafc',
       borderRadius: '6px 6px 0 0',
+      overflow: 'hidden',
       display: 'flex',
-      flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: '3px',
-      borderBottom: '1px solid #e2e8f0',
-      color: '#64748b'
+      borderBottom: '1px solid #e2e8f0'
     }}>
-      <Package size={20} color="#94a3b8" />
-      <span style={{ fontSize: '8.5px', fontWeight: '800', letterSpacing: '0.04em', color: '#64748b' }}>
-        NO PRODUCT IMAGE
-      </span>
-      <span style={{ fontSize: '8px', color: '#94a3b8', fontWeight: '700' }}>
-        {typeCode} &bull; {capText}
-      </span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={product.imageUrl}
+        alt={product.name}
+        onError={() => setImageError(true)}
+        style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
+      />
     </div>
   );
 };
