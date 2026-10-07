@@ -102,11 +102,12 @@ const SPEC_COLOUR_MAP = {
 
 export const PlantHeadDispatchAnalytics = () => {
   // ── Filter States ──
-  // Master Requirement: Default to 01 Aug 2026 -> 29 Aug 2026
-  const [filterMode, setFilterMode] = useState('Audit'); // 'Audit', 'Daily', 'Weekly', 'Monthly', 'Custom'
-  const [customStartDate, setCustomStartDate] = useState('2026-08-01');
-  const [customEndDate, setCustomEndDate] = useState('2026-08-29');
-  const [selectedMonth, setSelectedMonth] = useState('2026-08');
+  // Default to October 2026 (Live Operational Period)
+  const [filterMode, setFilterMode] = useState('Monthly'); // 'Monthly', 'Audit', 'Daily', 'Weekly', 'Custom'
+  const [selectedMonth, setSelectedMonth] = useState('2026-10');
+  const [customStartDate, setCustomStartDate] = useState('2026-10-01');
+  const [customEndDate, setCustomEndDate] = useState('2026-10-31');
+  const [customDateError, setCustomDateError] = useState(null);
 
   // Multi-dimensional Filter States
   const [productFilter, setProductFilter] = useState('All');
@@ -135,49 +136,63 @@ export const PlantHeadDispatchAnalytics = () => {
     setMounted(true);
   }, []);
 
-  // ── Fetch Analytics Data from Authoritative API ──
-  const fetchDispatchData = useCallback(async (isRefresh = false) => {
+  // ── Fetch Analytics Data from Authoritative API with Dynamic Overrides ──
+  const fetchDispatchData = useCallback(async (isRefresh = false, overrides = {}) => {
     const reqId = ++requestSeq.current;
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
 
+    const effFilterMode = overrides.filterModeOverride !== undefined ? overrides.filterModeOverride : filterMode;
+    const effMonth = overrides.monthOverride !== undefined ? overrides.monthOverride : selectedMonth;
+    const effCustomStart = overrides.customStartOverride !== undefined ? overrides.customStartOverride : customStartDate;
+    const effCustomEnd = overrides.customEndOverride !== undefined ? overrides.customEndOverride : customEndDate;
+    const effProduct = overrides.productOverride !== undefined ? overrides.productOverride : productFilter;
+    const effCapacity = overrides.capacityOverride !== undefined ? overrides.capacityOverride : capacityFilter;
+    const effCustomer = overrides.customerOverride !== undefined ? overrides.customerOverride : customerFilter;
+    const effSalesPerson = overrides.salesPersonOverride !== undefined ? overrides.salesPersonOverride : salesPersonFilter;
+    const effStatus = overrides.statusOverride !== undefined ? overrides.statusOverride : statusFilter;
+
     try {
       const params = new URLSearchParams();
 
-      if (filterMode === 'Audit') {
+      if (effFilterMode === 'Audit') {
         params.set('filter', 'Custom');
         params.set('customStart', '2026-08-01');
         params.set('customEnd', '2026-08-29');
-      } else if (filterMode === 'Daily') {
+      } else if (effFilterMode === 'Daily') {
         params.set('filter', 'Custom');
-        params.set('customStart', customStartDate);
-        params.set('customEnd', customStartDate);
-      } else if (filterMode === 'Monthly') {
-        if (selectedMonth === 'all') {
+        const day = effCustomStart || '2026-08-24';
+        params.set('customStart', day);
+        params.set('customEnd', day);
+      } else if (effFilterMode === 'Monthly') {
+        if (effMonth === 'all') {
           params.set('filter', 'All Time');
           params.set('month', 'all');
         } else {
-          params.set('filter', selectedMonth);
-          params.set('month', selectedMonth);
+          params.set('filter', effMonth);
+          params.set('month', effMonth);
         }
-      } else if (filterMode === 'Weekly') {
+      } else if (effFilterMode === 'Weekly') {
         params.set('filter', 'Custom');
-        params.set('customStart', customStartDate);
-        params.set('customEnd', customEndDate);
+        params.set('customStart', effCustomStart || '2026-10-01');
+        params.set('customEnd', effCustomEnd || '2026-10-07');
       } else {
-        // Custom
+        // Custom Range mode: strictly ensure valid YYYY-MM-DD
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        const s = dateRegex.test(effCustomStart) ? effCustomStart : '2026-10-01';
+        const e = dateRegex.test(effCustomEnd) ? effCustomEnd : '2026-10-31';
         params.set('filter', 'Custom');
-        params.set('customStart', customStartDate);
-        params.set('customEnd', customEndDate);
+        params.set('customStart', s);
+        params.set('customEnd', e >= s ? e : s);
       }
 
       // Append multi-dimensional filters
-      if (productFilter && productFilter !== 'All') params.set('product', productFilter);
-      if (capacityFilter && capacityFilter !== 'All') params.set('capacity', capacityFilter);
-      if (customerFilter && customerFilter !== 'All') params.set('customer', customerFilter);
-      if (salesPersonFilter && salesPersonFilter !== 'All') params.set('salesPerson', salesPersonFilter);
-      if (statusFilter && statusFilter !== 'All') params.set('status', statusFilter);
+      if (effProduct && effProduct !== 'All') params.set('product', effProduct);
+      if (effCapacity && effCapacity !== 'All') params.set('capacity', effCapacity);
+      if (effCustomer && effCustomer !== 'All') params.set('customer', effCustomer);
+      if (effSalesPerson && effSalesPerson !== 'All') params.set('salesPerson', effSalesPerson);
+      if (effStatus && effStatus !== 'All') params.set('status', effStatus);
 
       const res = await backendFetch(`/api/backend/plant-head/analytics/dispatch?${params.toString()}`);
       const payload = res?.data || res;
@@ -187,13 +202,12 @@ export const PlantHeadDispatchAnalytics = () => {
 
       if (reqId === requestSeq.current) {
         setAnalyticsData(payload);
-        // Smart fallback on initial load only: if requested period has zero records (e.g. August on cloud),
-        // and other months with real data exist, auto-navigate once to the latest active month
+        // Smart fallback on initial load only: if requested month has zero records and other months exist
         if (!initialFallbackCheckedRef.current) {
           initialFallbackCheckedRef.current = true;
-          if (!payload.hasData && filterMode === 'Audit' && payload.filterOptions?.months?.length > 0) {
+          if (!payload.hasData && effFilterMode === 'Monthly' && payload.filterOptions?.months?.length > 0) {
             const latestActive = payload.filterOptions.months[0];
-            if (latestActive && latestActive !== '2026-08') {
+            if (latestActive && latestActive !== effMonth) {
               setFilterMode('Monthly');
               setSelectedMonth(latestActive);
             }
@@ -284,34 +298,98 @@ export const PlantHeadDispatchAnalytics = () => {
     }
   };
 
-  // ── Filter Preset Handlers ──
-  const handleSelectAuditPreset = () => {
+  // ── Filter Preset Handlers with Instant Overrides & Zero-Lag Execution ──
+  const handleSelectAuditPreset = useCallback(() => {
     setFilterMode('Audit');
     setCustomStartDate('2026-08-01');
     setCustomEndDate('2026-08-29');
-  };
+    setSelectedMonth('2026-08');
+    setCustomDateError(null);
+    fetchDispatchData(false, {
+      filterModeOverride: 'Audit',
+      customStartOverride: '2026-08-01',
+      customEndOverride: '2026-08-29',
+      monthOverride: '2026-08',
+    });
+  }, [fetchDispatchData]);
 
-  const handleSelectDailyPreset = () => {
+  const handleSelectDailyPreset = useCallback(() => {
     setFilterMode('Daily');
-    const todayStr = '2026-08-24'; // Peak dispatch day within verified month
-    setCustomStartDate(todayStr);
-    setCustomEndDate(todayStr);
-  };
+    const peakDay = '2026-08-24';
+    setCustomStartDate(peakDay);
+    setCustomEndDate(peakDay);
+    setCustomDateError(null);
+    fetchDispatchData(false, {
+      filterModeOverride: 'Daily',
+      customStartOverride: peakDay,
+      customEndOverride: peakDay,
+    });
+  }, [fetchDispatchData]);
 
-  const handleSelectWeeklyPreset = () => {
+  const handleSelectWeeklyPreset = useCallback(() => {
     setFilterMode('Weekly');
-    setCustomStartDate('2026-08-10');
-    setCustomEndDate('2026-08-16');
-  };
+    const s = '2026-10-01';
+    const e = '2026-10-07';
+    setCustomStartDate(s);
+    setCustomEndDate(e);
+    setCustomDateError(null);
+    fetchDispatchData(false, {
+      filterModeOverride: 'Weekly',
+      customStartOverride: s,
+      customEndOverride: e,
+    });
+  }, [fetchDispatchData]);
 
-  const handleSelectMonthlyPreset = (monthVal) => {
+  const handleSelectMonthlyPreset = useCallback((monthVal) => {
     setFilterMode('Monthly');
-    setSelectedMonth(monthVal || '2026-08');
-  };
+    const m = monthVal || '2026-10';
+    setSelectedMonth(m);
+    setCustomDateError(null);
+    fetchDispatchData(false, {
+      filterModeOverride: 'Monthly',
+      monthOverride: m,
+    });
+  }, [fetchDispatchData]);
 
-  const handleSelectCustomMode = () => {
+  const handleSelectCustomMode = useCallback(() => {
     setFilterMode('Custom');
-  };
+    setCustomDateError(null);
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    const s = dateRegex.test(customStartDate) ? customStartDate : '2026-10-01';
+    const e = dateRegex.test(customEndDate) ? customEndDate : '2026-10-31';
+    fetchDispatchData(false, {
+      filterModeOverride: 'Custom',
+      customStartOverride: s,
+      customEndOverride: e,
+    });
+  }, [customStartDate, customEndDate, fetchDispatchData]);
+
+  const handleApplyCustomRange = useCallback((overrideStart, overrideEnd) => {
+    const s = overrideStart || customStartDate;
+    const e = overrideEnd || customEndDate;
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    if (!s || !dateRegex.test(s)) {
+      setCustomDateError('Please enter a valid Start Date (YYYY-MM-DD)');
+      return;
+    }
+    if (!e || !dateRegex.test(e)) {
+      setCustomDateError('Please enter a valid End Date (YYYY-MM-DD)');
+      return;
+    }
+    if (s > e) {
+      setCustomDateError('Start Date must be before or equal to End Date');
+      return;
+    }
+
+    setCustomDateError(null);
+    setFilterMode('Custom');
+    fetchDispatchData(false, {
+      filterModeOverride: 'Custom',
+      customStartOverride: s,
+      customEndOverride: e,
+    });
+  }, [customStartDate, customEndDate, fetchDispatchData]);
 
   // ── Print & Export Handlers ──
   const handlePrint = () => {
@@ -474,11 +552,21 @@ export const PlantHeadDispatchAnalytics = () => {
   const fmtNum = (v) => (v != null && !isNaN(v) ? Number(v).toLocaleString('en-IN') : '0');
   const fmtKg = (v) => (v != null && !isNaN(v) ? Number(v).toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) : '0.00');
 
-  // Report Date Header Subtitle
+  // Report Date Header Subtitle & Dynamic Document ID
   const reportDateTitle = useMemo(() => {
-    if (!summary?.period) return '01 AUG 2026 – 29 AUG 2026';
+    if (!summary?.period) return 'OCTOBER 2026';
     return summary.period.toUpperCase();
   }, [summary?.period]);
+
+  const dynamicReportId = useMemo(() => {
+    if (selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth)) {
+      const [y, m] = selectedMonth.split('-');
+      const mStr = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'][parseInt(m, 10) - 1] || 'GEN';
+      return `HCL-MIS-DISP-${y}-${mStr}`;
+    }
+    if (filterMode === 'Audit') return 'HCL-MIS-DISP-2026-AUG';
+    return 'HCL-MIS-DISP-2026-OCT';
+  }, [selectedMonth, filterMode]);
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#f8fafc', color: '#1e293b', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
@@ -674,26 +762,209 @@ export const PlantHeadDispatchAnalytics = () => {
         background: '#ffffff',
         borderBottom: '1px solid #e2e8f0',
         boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
-        padding: '9px 18px',
+        padding: '8px 16px',
         marginBottom: '12px'
       }}>
-        <div style={{ maxWidth: '1600px', margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-          {/* Left: Branding & Active Scope Indicator */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '13px', fontWeight: '900', color: '#0f2e5a', letterSpacing: '0.03em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Truck size={17} color="#0284c7" /> DISPATCH ANALYTICS
+        <div style={{ maxWidth: '1600px', margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '8px 12px' }}>
+          {/* Left / Middle: Period Controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '11.5px', fontWeight: '900', color: '#0f2e5a', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '5px', marginRight: '4px' }}>
+              <Calendar size={14} color="#0284c7" /> Period:
             </span>
-            <span style={{ fontSize: '11px', fontWeight: '700', background: '#f1f5f9', color: '#475569', padding: '3px 8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-              {summary?.period || (selectedMonth === 'all' ? 'All-Time' : selectedMonth) || 'ERP Source of Truth'}
-            </span>
-            {hasActiveFilters && (
-              <span style={{ fontSize: '10px', fontWeight: '800', background: '#fef3c7', color: '#92400e', padding: '2px 7px', borderRadius: '4px', border: '1px solid #fde68a' }}>
-                Filtered View
-              </span>
+
+            {/* Oct 2026 (Live) */}
+            <button
+              onClick={() => handleSelectMonthlyPreset('2026-10')}
+              title="Live October 2026 Outbound Dispatches"
+              style={{
+                background: (filterMode === 'Monthly' && selectedMonth === '2026-10') ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#f8fafc',
+                color: (filterMode === 'Monthly' && selectedMonth === '2026-10') ? '#ffffff' : '#334155',
+                border: (filterMode === 'Monthly' && selectedMonth === '2026-10') ? 'none' : '1px solid #cbd5e1',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: (filterMode === 'Monthly' && selectedMonth === '2026-10') ? '800' : '600',
+                cursor: 'pointer',
+                boxShadow: (filterMode === 'Monthly' && selectedMonth === '2026-10') ? '0 2px 6px rgba(2, 132, 199, 0.3)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Oct 2026 (Live)
+            </button>
+
+            {/* Sep 2026 (Peak) */}
+            <button
+              onClick={() => handleSelectMonthlyPreset('2026-09')}
+              title="Peak September 2026 Outbound Dispatches (452.6 MT)"
+              style={{
+                background: (filterMode === 'Monthly' && selectedMonth === '2026-09') ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#f8fafc',
+                color: (filterMode === 'Monthly' && selectedMonth === '2026-09') ? '#ffffff' : '#334155',
+                border: (filterMode === 'Monthly' && selectedMonth === '2026-09') ? 'none' : '1px solid #cbd5e1',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: (filterMode === 'Monthly' && selectedMonth === '2026-09') ? '800' : '600',
+                cursor: 'pointer',
+                boxShadow: (filterMode === 'Monthly' && selectedMonth === '2026-09') ? '0 2px 6px rgba(2, 132, 199, 0.3)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Sep 2026 (Peak)
+            </button>
+
+            {/* All-Time (539.6 MT) */}
+            <button
+              onClick={() => handleSelectMonthlyPreset('all')}
+              title="Cumulative All-Time ERP Dispatches (539.6 MT)"
+              style={{
+                background: (filterMode === 'Monthly' && selectedMonth === 'all') ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#f8fafc',
+                color: (filterMode === 'Monthly' && selectedMonth === 'all') ? '#ffffff' : '#334155',
+                border: (filterMode === 'Monthly' && selectedMonth === 'all') ? 'none' : '1px solid #cbd5e1',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: (filterMode === 'Monthly' && selectedMonth === 'all') ? '800' : '600',
+                cursor: 'pointer',
+                boxShadow: (filterMode === 'Monthly' && selectedMonth === 'all') ? '0 2px 6px rgba(2, 132, 199, 0.3)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              All-Time (539.6 MT)
+            </button>
+
+            {/* Aug 2026 (Audit) */}
+            <button
+              onClick={handleSelectAuditPreset}
+              title="Audited August 2026 Dataset (129.7 MT / 2,688 PCS)"
+              style={{
+                background: (filterMode === 'Audit' || (filterMode === 'Monthly' && selectedMonth === '2026-08')) ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#f8fafc',
+                color: (filterMode === 'Audit' || (filterMode === 'Monthly' && selectedMonth === '2026-08')) ? '#ffffff' : '#334155',
+                border: (filterMode === 'Audit' || (filterMode === 'Monthly' && selectedMonth === '2026-08')) ? 'none' : '1px solid #cbd5e1',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: (filterMode === 'Audit' || (filterMode === 'Monthly' && selectedMonth === '2026-08')) ? '800' : '600',
+                cursor: 'pointer',
+                boxShadow: (filterMode === 'Audit' || (filterMode === 'Monthly' && selectedMonth === '2026-08')) ? '0 2px 6px rgba(2, 132, 199, 0.3)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Aug 2026 (Audit)
+            </button>
+
+            {/* Daily (24 Aug Peak) */}
+            <button
+              onClick={handleSelectDailyPreset}
+              title="Daily Dispatch Peak (24 August 2026: 17,101 KG)"
+              style={{
+                background: filterMode === 'Daily' ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#f8fafc',
+                color: filterMode === 'Daily' ? '#ffffff' : '#334155',
+                border: filterMode === 'Daily' ? 'none' : '1px solid #cbd5e1',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: filterMode === 'Daily' ? '800' : '600',
+                cursor: 'pointer',
+                boxShadow: filterMode === 'Daily' ? '0 2px 6px rgba(2, 132, 199, 0.3)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Daily (24 Aug Peak)
+            </button>
+
+            {/* Custom Range Button */}
+            <button
+              onClick={handleSelectCustomMode}
+              title="Filter by Custom Date Range"
+              style={{
+                background: filterMode === 'Custom' ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#f8fafc',
+                color: filterMode === 'Custom' ? '#ffffff' : '#334155',
+                border: filterMode === 'Custom' ? 'none' : '1px solid #cbd5e1',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: filterMode === 'Custom' ? '800' : '600',
+                cursor: 'pointer',
+                boxShadow: filterMode === 'Custom' ? '0 2px 6px rgba(2, 132, 199, 0.3)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Custom Range
+            </button>
+
+            {/* Inline Custom Date Pickers when Custom Mode is Active */}
+            {filterMode === 'Custom' && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#f1f5f9', padding: '2px 6px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => {
+                    setCustomStartDate(e.target.value);
+                    setCustomDateError(null);
+                  }}
+                  style={{ fontSize: '11px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '2px 5px', fontWeight: '600', color: '#1e293b' }}
+                />
+                <span style={{ fontSize: '10px', color: '#64748b' }}>to</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => {
+                    setCustomEndDate(e.target.value);
+                    setCustomDateError(null);
+                  }}
+                  style={{ fontSize: '11px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '2px 5px', fontWeight: '600', color: '#1e293b' }}
+                />
+                <button
+                  onClick={() => handleApplyCustomRange()}
+                  className="prem-btn prem-btn-primary"
+                  style={{ padding: '2px 8px', fontSize: '10.5px' }}
+                >
+                  Apply
+                </button>
+              </div>
             )}
+
+            {/* Month Dropdown Select */}
+            <select
+              value={filterMode === 'Custom' ? 'custom' : filterMode === 'Audit' ? '2026-08' : selectedMonth}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'custom') handleSelectCustomMode();
+                else if (val === '2026-08') handleSelectAuditPreset();
+                else handleSelectMonthlyPreset(val);
+              }}
+              style={{
+                fontSize: '11px',
+                fontWeight: '700',
+                background: '#ffffff',
+                border: '1.5px solid #cbd5e1',
+                borderRadius: '6px',
+                padding: '4px 8px',
+                color: '#0f2e5a',
+                cursor: 'pointer'
+              }}
+            >
+              {analyticsData?.filterOptions?.months && analyticsData.filterOptions.months.length > 0 ? (
+                <>
+                  {analyticsData.filterOptions.months.map(m => (
+                    <option key={m} value={m}>{m} Outbound</option>
+                  ))}
+                  <option value="all">All-Time Cumulative</option>
+                  <option value="custom">Custom Range</option>
+                </>
+              ) : (
+                <>
+                  <option value="2026-10">2026-10 Outbound</option>
+                  <option value="2026-09">2026-09 Outbound</option>
+                  <option value="2026-08">2026-08 Outbound</option>
+                  <option value="all">All-Time Cumulative</option>
+                  <option value="custom">Custom Range</option>
+                </>
+              )}
+            </select>
           </div>
 
-          {/* Right: Actions, Integrity Badge & Buttons */}
+          {/* Right: Integrity Badge & Action Buttons */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             {/* 7-Dimension Reconciliation Badge */}
             {reconciliation && (
@@ -701,12 +972,12 @@ export const PlantHeadDispatchAnalytics = () => {
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px',
+                  gap: '5px',
                   background: reconciliation.isValid ? '#f0fdf4' : '#fef3c7',
                   color: reconciliation.isValid ? '#15803d' : '#92400e',
                   border: `1px solid ${reconciliation.isValid ? '#86efac' : '#fde68a'}`,
                   borderRadius: '20px',
-                  padding: '3px 10px',
+                  padding: '3px 9px',
                   fontSize: '11px',
                   fontWeight: '800'
                 }}
@@ -725,7 +996,7 @@ export const PlantHeadDispatchAnalytics = () => {
               </div>
             )}
 
-            {/* Audit Modal Button */}
+            {/* Data Audit Modal Button */}
             <button
               onClick={fetchAuditData}
               disabled={loadingAudit}
@@ -770,6 +1041,13 @@ export const PlantHeadDispatchAnalytics = () => {
             </button>
           </div>
         </div>
+
+        {/* Date Validation Warning if user inputs invalid custom range */}
+        {customDateError && filterMode === 'Custom' && (
+          <div style={{ maxWidth: '1600px', margin: '4px auto 0 auto', fontSize: '11px', color: '#b91c1c', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <AlertTriangle size={12} /> {customDateError}
+          </div>
+        )}
       </div>
 
       {/* ═════════════════════════════════════════════════════════════════
@@ -797,11 +1075,14 @@ export const PlantHeadDispatchAnalytics = () => {
                 { id: 'oct-live', label: 'Oct 2026 (Live)', mode: 'Monthly', month: '2026-10', title: 'Live October 2026 Outbound Dispatches' },
                 { id: 'sep-peak', label: 'Sep 2026 (Peak)', mode: 'Monthly', month: '2026-09', title: 'Peak September 2026 Outbound Dispatches (452.6 MT)' },
                 { id: 'aug-audit', label: 'Aug 2026 (Audit)', mode: 'Audit', month: '2026-08', title: 'Audited August 2026 Dataset (129.7 MT)' },
+                { id: 'daily-peak', label: 'Daily (24 Aug Peak)', mode: 'Daily', month: '2026-08-24', title: 'Daily Dispatch Peak (24 August 2026: 17,101 KG)' },
                 { id: 'all-time', label: 'All-Time', mode: 'Monthly', month: 'all', title: 'Cumulative All-Time ERP Dispatches' },
                 { id: 'custom-range', label: 'Custom Range', mode: 'Custom', month: 'custom', title: 'Custom Date Range Picker' },
               ].map(p => {
                 const isActive = p.mode === 'Audit'
                   ? filterMode === 'Audit' || (filterMode === 'Monthly' && selectedMonth === '2026-08')
+                  : p.mode === 'Daily'
+                  ? filterMode === 'Daily'
                   : p.mode === 'Custom'
                   ? filterMode === 'Custom'
                   : filterMode === 'Monthly' && selectedMonth === p.month;
@@ -810,6 +1091,7 @@ export const PlantHeadDispatchAnalytics = () => {
                     key={p.id}
                     onClick={() => {
                       if (p.mode === 'Audit') handleSelectAuditPreset();
+                      else if (p.mode === 'Daily') handleSelectDailyPreset();
                       else if (p.mode === 'Custom') handleSelectCustomMode();
                       else handleSelectMonthlyPreset(p.month);
                     }}
@@ -1037,7 +1319,7 @@ export const PlantHeadDispatchAnalytics = () => {
                 />
               </div>
               <button
-                onClick={() => fetchDispatchData()}
+                onClick={() => handleApplyCustomRange()}
                 className="prem-btn prem-btn-primary"
                 style={{ padding: '4px 12px', fontSize: '11px' }}
               >
@@ -1290,7 +1572,7 @@ export const PlantHeadDispatchAnalytics = () => {
                   />
                 </div>
                 <div style={{ fontSize: '9.5px', color: '#64748b', fontWeight: '500', marginTop: '2px' }}>
-                  Report ID: <span style={{ fontFamily: 'monospace', color: '#1e293b', fontWeight: '700' }}>HCL-MIS-DISP-2026-AUG</span>
+                  Report ID: <span style={{ fontFamily: 'monospace', color: '#1e293b', fontWeight: '700' }}>{dynamicReportId}</span>
                 </div>
                 <div style={{ fontSize: '8.5px', color: '#94a3b8' }}>
                   Confidential MIS Report &bull; ISO Document
