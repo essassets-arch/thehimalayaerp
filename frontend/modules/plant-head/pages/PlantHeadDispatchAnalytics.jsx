@@ -403,9 +403,140 @@ export const PlantHeadDispatchAnalytics = () => {
   }, [summary?.period]);
 
   return (
-    <div className="w-full bg-[#f8fafc] text-slate-800 font-sans print:bg-white print:p-0">
-      {/* ── PRINT STYLES ── */}
-      <style jsx global>{`
+    <div style={{ width: '100%', minHeight: '100vh', background: '#f8fafc', color: '#1e293b', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+      {/* ── SCOPED EXECUTIVE INDUSTRIAL DESIGN SYSTEM & PRINT RULES ── */}
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spin { animation: spin 1s linear infinite; }
+
+        .prem-card {
+          background: #ffffff;
+          border-radius: 12px;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 4px 18px -2px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+          transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+        }
+        .prem-card:hover {
+          box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.08), 0 4px 10px -2px rgba(15, 23, 42, 0.04);
+          border-color: #cbd5e1;
+        }
+
+        .prem-kpi {
+          border-radius: 12px;
+          padding: 13px 15px;
+          background: #ffffff;
+          border: 1px solid rgba(226, 232, 240, 0.9);
+          position: relative;
+          overflow: hidden;
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.04);
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
+        .prem-kpi:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 12px 28px -4px rgba(15, 23, 42, 0.09);
+        }
+
+        .prem-btn {
+          border: 1px solid #cbd5e1;
+          background: #ffffff;
+          color: #0f172a;
+          padding: 6px 12px;
+          border-radius: 8px;
+          font-size: 11.5px;
+          font-weight: 700;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        .prem-btn:hover {
+          background: #f8fafc;
+          border-color: #94a3b8;
+          transform: translateY(-1px);
+          box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .prem-btn-primary {
+          background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+          color: #ffffff !important;
+          border: none !important;
+          box-shadow: 0 2px 8px rgba(2, 132, 199, 0.3) !important;
+        }
+        .prem-btn-primary:hover {
+          background: linear-gradient(135deg, #0369a1 0%, #075985 100%) !important;
+          box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4) !important;
+          transform: translateY(-1px);
+        }
+
+        .prem-btn-emerald {
+          background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+          color: #ffffff !important;
+          border: none !important;
+          box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3) !important;
+        }
+        .prem-btn-emerald:hover {
+          background: linear-gradient(135deg, #047857 0%, #065f46 100%) !important;
+          box-shadow: 0 4px 12px rgba(5, 150, 105, 0.4) !important;
+          transform: translateY(-1px);
+        }
+
+        .prem-btn-navy {
+          background: linear-gradient(135deg, #0f2e5a 0%, #1e3a8a 100%) !important;
+          color: #ffffff !important;
+          border: none !important;
+          box-shadow: 0 2px 8px rgba(15, 46, 90, 0.3) !important;
+        }
+        .prem-btn-navy:hover {
+          background: linear-gradient(135deg, #0a1e3b 0%, #0f2e5a 100%) !important;
+          box-shadow: 0 4px 12px rgba(15, 46, 90, 0.4) !important;
+          transform: translateY(-1px);
+        }
+
+        .prem-table {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0;
+          font-size: 11px;
+        }
+        .prem-table th {
+          background: #f8fafc;
+          color: #475569;
+          font-weight: 800;
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          padding: 6.5px 8px;
+          border-bottom: 2px solid #e2e8f0;
+        }
+        .prem-table td {
+          padding: 5.5px 8px;
+          border-bottom: 1px solid #f1f5f9;
+          color: #1e293b;
+          vertical-align: middle;
+        }
+        .prem-table tr:hover td {
+          background: rgba(2, 132, 199, 0.04) !important;
+        }
+
+        .insight-pill {
+          background: #f0fdf4;
+          border: 1px solid #86efac;
+          color: #166534;
+          padding: 6px 9px;
+          border-radius: 8px;
+          font-size: 10px;
+          font-weight: 600;
+          line-height: 1.35;
+          display: flex;
+          align-items: flex-start;
+          gap: 6px;
+        }
+
         @media print {
           @page {
             size: A4 landscape;
@@ -414,7 +545,7 @@ export const PlantHeadDispatchAnalytics = () => {
           body {
             background: #ffffff !important;
             color: #0f172a !important;
-            font-size: 9.5px !important;
+            font-size: 9px !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
@@ -427,9 +558,9 @@ export const PlantHeadDispatchAnalytics = () => {
             page-break-inside: avoid !important;
           }
           .print-compact-gap {
-            gap: 6px !important;
-            margin-top: 4px !important;
-            margin-bottom: 4px !important;
+            gap: 5px !important;
+            margin-top: 3px !important;
+            margin-bottom: 3px !important;
           }
           .recharts-responsive-container {
             width: 100% !important;
@@ -438,94 +569,76 @@ export const PlantHeadDispatchAnalytics = () => {
       `}</style>
 
       {/* ═════════════════════════════════════════════════════════════════
-          TOP CONTROLS BAR (Hidden during Print)
+          TOP CONTROLS BAR (Sticky, Hidden during Print)
       ══════════════════════════════════════════════════════════════════ */}
-      <div className="no-print sticky top-0 z-40 bg-white border-b border-slate-200 shadow-xs px-4 py-2.5 mb-3">
-        <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div className="no-print" style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 40,
+        background: '#ffffff',
+        borderBottom: '1px solid #e2e8f0',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
+        padding: '9px 18px',
+        marginBottom: '12px'
+      }}>
+        <div style={{ maxWidth: '1600px', margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
           {/* Left: Quick Date Mode Toggles */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs font-bold text-slate-600 uppercase tracking-wider mr-1 flex items-center gap-1">
-              <Filter size={13} className="text-[#0f2e5a]" /> Period:
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '4px', marginRight: '4px' }}>
+              <Filter size={13} color="#0f2e5a" /> Period:
             </span>
 
-            <button
-              onClick={handleSelectAuditPreset}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
-                filterMode === 'Audit'
-                  ? 'bg-[#0f2e5a] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-              title="Official Audited Period: 01 Aug to 29 Aug 2026"
-            >
-              01–29 Aug 2026 (Audit Default)
-            </button>
-
-            <button
-              onClick={handleSelectDailyPreset}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
-                filterMode === 'Daily'
-                  ? 'bg-[#0f2e5a] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-              title="Single Day View"
-            >
-              Daily (24 Aug Peak)
-            </button>
-
-            <button
-              onClick={handleSelectWeeklyPreset}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
-                filterMode === 'Weekly'
-                  ? 'bg-[#0f2e5a] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-              title="Weekly Aggregation"
-            >
-              Weekly (Aug 10–16)
-            </button>
-
-            <button
-              onClick={() => handleSelectMonthlyPreset('2026-08')}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
-                filterMode === 'Monthly'
-                  ? 'bg-[#0f2e5a] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-              title="Full Month Aggregation"
-            >
-              Full Month (Aug 2026)
-            </button>
-
-            <button
-              onClick={handleSelectCustomMode}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
-                filterMode === 'Custom'
-                  ? 'bg-[#0f2e5a] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Custom Range
-            </button>
+            {[
+              { id: 'Audit', label: '01–29 Aug 2026 (Audit Default)', action: handleSelectAuditPreset, title: 'Official Audited Period: 01 Aug to 29 Aug 2026' },
+              { id: 'Daily', label: 'Daily (24 Aug Peak)', action: handleSelectDailyPreset, title: 'Peak Single Day View' },
+              { id: 'Weekly', label: 'Weekly (Aug 10–16)', action: handleSelectWeeklyPreset, title: 'Weekly Aggregation' },
+              { id: 'Monthly', label: 'Full Month (Aug 2026)', action: () => handleSelectMonthlyPreset('2026-08'), title: 'Full Month Aggregation' },
+              { id: 'Custom', label: 'Custom Range', action: handleSelectCustomMode, title: 'Custom Date Range' }
+            ].map(p => {
+              const isActive = filterMode === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={p.action}
+                  title={p.title}
+                  style={{
+                    background: isActive ? 'linear-gradient(135deg, #0f2e5a 0%, #1e3a8a 100%)' : '#f1f5f9',
+                    color: isActive ? '#ffffff' : '#334155',
+                    border: isActive ? 'none' : '1px solid #cbd5e1',
+                    padding: '4px 10px',
+                    borderRadius: '7px',
+                    fontSize: '11px',
+                    fontWeight: isActive ? '800' : '600',
+                    cursor: 'pointer',
+                    boxShadow: isActive ? '0 2px 6px rgba(15, 46, 90, 0.25)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
 
             {/* Custom Date Pickers */}
             {filterMode === 'Custom' && (
-              <div className="flex items-center gap-1.5 ml-2 bg-slate-50 border border-slate-300 rounded px-2 py-0.5">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '6px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '7px', padding: '2px 8px' }}>
                 <input
                   type="date"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="text-xs bg-transparent border-0 outline-hidden font-medium text-slate-700"
+                  style={{ fontSize: '11px', background: 'transparent', border: 'none', outline: 'none', fontWeight: '600', color: '#1e293b' }}
                 />
-                <span className="text-slate-400 text-xs">to</span>
+                <span style={{ color: '#94a3b8', fontSize: '11px' }}>to</span>
                 <input
                   type="date"
                   value={customEndDate}
                   onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="text-xs bg-transparent border-0 outline-hidden font-medium text-slate-700"
+                  style={{ fontSize: '11px', background: 'transparent', border: 'none', outline: 'none', fontWeight: '600', color: '#1e293b' }}
                 />
                 <button
                   onClick={() => fetchDispatchData()}
-                  className="ml-1 px-2 py-0.5 bg-[#0f2e5a] text-white text-xs font-bold rounded hover:bg-[#1e3a8a]"
+                  className="prem-btn prem-btn-primary"
+                  style={{ padding: '3px 9px', fontSize: '10.5px' }}
                 >
                   Apply
                 </button>
@@ -534,24 +647,31 @@ export const PlantHeadDispatchAnalytics = () => {
           </div>
 
           {/* Right: Actions, Integrity Badge & Buttons */}
-          <div className="flex items-center gap-2">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             {/* 7-Dimension Reconciliation Badge */}
             {reconciliation && (
               <div
-                className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                  reconciliation.isValid
-                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                    : 'bg-amber-50 text-amber-800 border border-amber-300'
-                }`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: reconciliation.isValid ? '#f0fdf4' : '#fef3c7',
+                  color: reconciliation.isValid ? '#15803d' : '#92400e',
+                  border: `1px solid ${reconciliation.isValid ? '#86efac' : '#fde68a'}`,
+                  borderRadius: '20px',
+                  padding: '3px 10px',
+                  fontSize: '11px',
+                  fontWeight: '800'
+                }}
               >
                 {reconciliation.isValid ? (
                   <>
-                    <CheckCircle2 size={13} className="text-emerald-600" />
+                    <CheckCircle2 size={13} color="#16a34a" />
                     <span>7 Dimensions Reconciled ({fmtKg(reconciliation.totalWeight)} KG)</span>
                   </>
                 ) : (
                   <>
-                    <AlertTriangle size={13} className="text-amber-600" />
+                    <AlertTriangle size={13} color="#b45309" />
                     <span>Reconciliation Notice</span>
                   </>
                 )}
@@ -562,10 +682,10 @@ export const PlantHeadDispatchAnalytics = () => {
             <button
               onClick={fetchAuditData}
               disabled={loadingAudit}
-              className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 flex items-center gap-1.5 transition-all"
-              title="Inspect 17 Data Groups & Reconciliation"
+              className="prem-btn"
+              title="Inspect 17 Data Groups & Technical Reconciliation"
             >
-              <ShieldCheck size={13} className="text-[#0f2e5a]" />
+              <ShieldCheck size={13} color="#0f2e5a" />
               <span>{loadingAudit ? 'Auditing...' : 'Data Audit'}</span>
             </button>
 
@@ -573,18 +693,19 @@ export const PlantHeadDispatchAnalytics = () => {
             <button
               onClick={() => fetchDispatchData(true)}
               disabled={refreshing || loading}
-              className="p-1.5 text-slate-600 hover:text-slate-900 border border-slate-300 rounded-md bg-white hover:bg-slate-50 transition-all"
+              className="prem-btn"
               title="Refresh Live Data"
+              style={{ padding: '6px 9px' }}
             >
-              <RefreshCw size={14} className={refreshing ? 'animate-spin text-[#0284c7]' : ''} />
+              <RefreshCw size={13} className={refreshing ? 'spin' : ''} color="#0284c7" />
             </button>
 
             {/* Export Excel (.xlsx) */}
             <button
               onClick={handleExportExcel}
               disabled={loading || !analyticsData}
-              className="px-2.5 py-1 text-xs font-semibold bg-emerald-700 text-white rounded-md hover:bg-emerald-800 flex items-center gap-1.5 shadow-xs transition-all"
-              title="Export Full Dataset as Excel Workbook"
+              className="prem-btn prem-btn-emerald"
+              title="Export Full Verified Dataset as Multi-Sheet Excel Workbook"
             >
               <FileSpreadsheet size={13} />
               <span>Export Excel</span>
@@ -594,7 +715,7 @@ export const PlantHeadDispatchAnalytics = () => {
             <button
               onClick={handlePrint}
               disabled={loading || !analyticsData}
-              className="px-3 py-1 text-xs font-bold bg-[#0f2e5a] text-white rounded-md hover:bg-[#1e3a8a] flex items-center gap-1.5 shadow-xs transition-all"
+              className="prem-btn prem-btn-navy"
               title="Print Clean One-Page A4 Landscape Report"
             >
               <Printer size={13} />
@@ -607,16 +728,16 @@ export const PlantHeadDispatchAnalytics = () => {
       {/* ═════════════════════════════════════════════════════════════════
           MAIN ONE-PAGE REPORT WRAPPER
       ══════════════════════════════════════════════════════════════════ */}
-      <div ref={reportRef} className="max-w-[1600px] mx-auto px-3 sm:px-4 pb-6 print:p-0 print:max-w-none">
+      <div ref={reportRef} style={{ maxWidth: '1600px', margin: '0 auto', padding: '0 16px 24px 16px' }} className="print:p-0 print:max-w-none">
         {/* Loading State Skeleton */}
         {loading && !analyticsData && (
-          <div className="bg-white border border-slate-200 rounded-lg p-8 my-4 shadow-sm text-center">
-            <div className="flex flex-col items-center justify-center gap-3">
-              <RefreshCw size={32} className="animate-spin text-[#0f2e5a]" />
-              <div className="text-base font-bold text-slate-800">
+          <div className="prem-card" style={{ padding: '40px 20px', margin: '16px 0', textAlign: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+              <RefreshCw size={32} className="spin" color="#0f2e5a" />
+              <div style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
                 Aggregating Verified ERP Dispatch Analytics...
               </div>
-              <div className="text-xs text-slate-500 max-w-md">
+              <div style={{ fontSize: '12px', color: '#64748b', maxWidth: '440px' }}>
                 Connecting directly to PostgreSQL ERP dispatches, sales orders, and customer entities.
                 Applying canonical product, size, and colour normalizations. Zero mock data.
               </div>
@@ -626,15 +747,16 @@ export const PlantHeadDispatchAnalytics = () => {
 
         {/* Error State */}
         {error && !loading && (
-          <div className="bg-rose-50 border border-rose-200 rounded-lg p-6 my-4 text-center">
-            <AlertTriangle size={32} className="mx-auto text-rose-600 mb-2" />
-            <div className="text-sm font-bold text-rose-900">{error}</div>
-            <p className="text-xs text-rose-700 mt-1">
+          <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '12px', padding: '24px', margin: '16px 0', textAlign: 'center' }}>
+            <AlertTriangle size={32} color="#e11d48" style={{ margin: '0 auto 8px auto' }} />
+            <div style={{ fontSize: '14px', fontWeight: '800', color: '#881337' }}>{error}</div>
+            <p style={{ fontSize: '12px', color: '#9f1239', marginTop: '4px' }}>
               Could not retrieve dispatch transactions from the ERP database.
             </p>
             <button
               onClick={() => fetchDispatchData()}
-              className="mt-3 px-4 py-1.5 bg-rose-700 text-white text-xs font-bold rounded-md hover:bg-rose-800 transition-all inline-flex items-center gap-1.5"
+              className="prem-btn"
+              style={{ marginTop: '12px', background: '#be123c', color: '#ffffff', border: 'none' }}
             >
               <RefreshCw size={13} /> Retry Live Aggregation
             </button>
@@ -643,17 +765,18 @@ export const PlantHeadDispatchAnalytics = () => {
 
         {/* Empty State */}
         {!loading && !error && (!analyticsData || summary?.totalWeight === 0) && (
-          <div className="bg-white border border-slate-200 rounded-lg p-8 my-4 text-center">
-            <Truck size={36} className="mx-auto text-slate-400 mb-2" />
-            <div className="text-base font-bold text-slate-800">
+          <div className="prem-card" style={{ padding: '40px 20px', margin: '16px 0', textAlign: 'center' }}>
+            <Truck size={36} color="#94a3b8" style={{ margin: '0 auto 8px auto' }} />
+            <div style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
               No dispatch records found for selected period.
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
               Zero dispatches were recorded between {customStartDate} and {customEndDate}.
             </p>
             <button
               onClick={handleSelectAuditPreset}
-              className="mt-3 px-3.5 py-1.5 bg-[#0f2e5a] text-white text-xs font-bold rounded-md hover:bg-[#1e3a8a]"
+              className="prem-btn prem-btn-navy"
+              style={{ marginTop: '12px' }}
             >
               Reset to Audited August 2026 Period
             </button>
@@ -664,57 +787,116 @@ export const PlantHeadDispatchAnalytics = () => {
             EXECUTIVE REPORT CONTENT (ONE PAGE)
         ══════════════════════════════════════════════════════════════════ */}
         {analyticsData && summary && (
-          <div className="flex flex-col gap-2.5 print-compact-gap">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }} className="print-compact-gap">
             {/* ─────────────────────────────────────────────────────────────
                 EXECUTIVE MIS HEADER (Printable)
             ───────────────────────────────────────────────────────────── */}
-            <div className="bg-white border border-slate-200 rounded-t-lg border-t-4 border-t-[#0f2e5a] p-3 shadow-xs print-card flex flex-col md:flex-row items-center justify-between gap-3">
+            <div className="prem-card print-card" style={{
+              padding: '12px 16px',
+              borderTop: '4px solid #0f2e5a',
+              display: 'flex',
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px'
+            }}>
               {/* Left: Himalaya Branding & ISO */}
-              <div className="flex flex-col items-center md:items-start text-center md:text-left">
-                <div className="text-xl font-black text-[#0f2e5a] tracking-widest leading-none font-serif">
-                  HIMALAYA
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #0f2e5a 0%, #1e3a8a 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  boxShadow: '0 3px 8px rgba(15, 46, 90, 0.3)',
+                  position: 'relative'
+                }}>
+                  <Truck size={20} />
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '-2px',
+                    right: '-2px',
+                    width: '9px',
+                    height: '9px',
+                    borderRadius: '50%',
+                    background: '#10b981',
+                    border: '2px solid #ffffff'
+                  }} />
                 </div>
-                <div className="text-xs font-bold text-[#16a34a] tracking-wider mt-0.5">
-                  STRONG. LIGHT. FOREVER.
-                </div>
-                <div className="text-[10px] text-slate-500 mt-1 font-medium">
-                  Himalaya Composites Pvt. Ltd. • Hathijan, Ahmedabad • ISO 9001:2015 Certified
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '18px', fontWeight: '900', letterSpacing: '0.04em', color: '#0f2e5a', lineHeight: 1.1 }}>
+                      HIMALAYA
+                    </span>
+                    <span style={{ fontSize: '9px', fontWeight: '800', background: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px' }}>
+                      ERP v2.4
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '10px', fontWeight: '800', letterSpacing: '0.08em', color: '#16a34a', marginTop: '1px' }}>
+                    STRONG. LIGHT. FOREVER.
+                  </div>
+                  <div style={{ fontSize: '9.5px', color: '#64748b', fontWeight: '500' }}>
+                    Himalaya Composites Pvt. Ltd. &bull; Hathijan, Ahmedabad &bull; ISO 9001:2015
+                  </div>
                 </div>
               </div>
 
               {/* Center: Dynamic Title & Status Badge */}
-              <div className="flex flex-col items-center text-center">
-                <div className="text-lg md:text-xl font-extrabold text-[#0f2e5a] tracking-tight uppercase">
+              <div style={{ textAlign: 'center', flex: 1, minWidth: '260px' }}>
+                <div style={{
+                  fontSize: 'clamp(15px, 1.8vw, 19px)',
+                  fontWeight: '900',
+                  color: '#0f2e5a',
+                  letterSpacing: '-0.02em',
+                  textTransform: 'uppercase',
+                  lineHeight: 1.15
+                }}>
                   {summary.period.includes('to') ? `${summary.period} DISPATCH ANALYSIS` : `${reportDateTitle} DISPATCH ANALYSIS`}
                 </div>
-                <div className="text-[11px] font-semibold text-slate-600 mt-0.5">
-                  Operational Period: <span className="text-[#0f2e5a] font-bold">{summary.period}</span> (Asia/Kolkata IST)
+                <div style={{ fontSize: '10.5px', fontWeight: '600', color: '#475569', marginTop: '2px' }}>
+                  Operational Period: <strong style={{ color: '#0f2e5a' }}>{summary.period}</strong> (Asia/Kolkata IST)
                 </div>
-                <div className="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-full text-[10px] font-bold tracking-wide">
-                  <CheckCircle2 size={11} className="text-emerald-600" />
-                  <span>VERIFIED ERP SOURCE OF TRUTH • ZERO MOCK DATA</span>
+                <div style={{
+                  marginTop: '3px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  background: '#f0fdf4',
+                  border: '1px solid #86efac',
+                  color: '#15803d',
+                  borderRadius: '20px',
+                  padding: '2px 8px',
+                  fontSize: '9.5px',
+                  fontWeight: '800',
+                  letterSpacing: '0.02em'
+                }}>
+                  <CheckCircle2 size={11} color="#16a34a" />
+                  <span>VERIFIED ERP SOURCE OF TRUTH &bull; ZERO MOCK DATA</span>
                 </div>
               </div>
 
               {/* Right: Official Logo & Timestamp */}
-              <div className="flex flex-col items-center md:items-end text-center md:text-right">
-                <div className="h-10 flex items-center justify-end">
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right' }}>
+                <div style={{ height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src="/himalaya-logo.png"
                     alt="Himalaya Composites"
-                    className="h-9 w-auto object-contain"
+                    style={{ height: '30px', width: 'auto', objectFit: 'contain' }}
                     onError={(e) => {
-                      // Fallback badge if image path fails
                       e.target.style.display = 'none';
                     }}
                   />
                 </div>
-                <div className="text-[10px] text-slate-500 font-medium mt-1">
-                  Report ID: <span className="font-mono text-slate-700">HCL-MIS-DISP-2026-AUG</span>
+                <div style={{ fontSize: '9.5px', color: '#64748b', fontWeight: '500', marginTop: '2px' }}>
+                  Report ID: <span style={{ fontFamily: 'monospace', color: '#1e293b', fontWeight: '700' }}>HCL-MIS-DISP-2026-AUG</span>
                 </div>
-                <div className="text-[9px] text-slate-400">
-                  Confidential Management Information System Report
+                <div style={{ fontSize: '8.5px', color: '#94a3b8' }}>
+                  Confidential MIS Report &bull; ISO Document
                 </div>
               </div>
             </div>
@@ -722,114 +904,114 @@ export const PlantHeadDispatchAnalytics = () => {
             {/* ─────────────────────────────────────────────────────────────
                 ROW 1: 5 TOP KPI CARDS
             ───────────────────────────────────────────────────────────── */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 print-compact-gap">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }} className="print-compact-gap">
               {/* Card 1: Total Quantity */}
-              <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-xs print-card flex flex-col justify-between">
-                <div className="flex items-center justify-between text-slate-500">
-                  <span className="text-[10px] font-bold uppercase tracking-wider">Total Quantity</span>
-                  <div className="p-1 rounded bg-blue-50 text-[#0284c7]">
+              <div className="prem-kpi print-card" style={{ borderTop: '3px solid #1e3a8a' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#64748b' }}>
+                  <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Quantity</span>
+                  <div style={{ padding: '4px', borderRadius: '6px', background: '#eff6ff', color: '#1e3a8a' }}>
                     <Layers size={13} />
                   </div>
                 </div>
-                <div className="mt-1.5">
-                  <div className="text-xl sm:text-2xl font-black text-[#0f2e5a] tracking-tight leading-none">
-                    {fmtNum(summary.totalQuantity)} <span className="text-xs font-semibold text-slate-500">PCS</span>
+                <div style={{ marginTop: '6px' }}>
+                  <div style={{ fontSize: 'clamp(20px, 2.2vw, 26px)', fontWeight: '900', color: '#0f2e5a', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                    {fmtNum(summary.totalQuantity)} <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>PCS</span>
                   </div>
-                  <div className="text-[11px] text-slate-600 font-medium mt-1">
+                  <div style={{ fontSize: '11px', color: '#475569', fontWeight: '600', marginTop: '3px' }}>
                     Total Units Dispatched
                   </div>
                 </div>
-                <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500">
+                <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px', color: '#64748b' }}>
                   <span>Across {fmtNum(analyticsData.dispatchOrders?.length || 50)} shipments</span>
-                  <span className="font-semibold text-emerald-600">100% Verified</span>
+                  <span style={{ fontWeight: '800', color: '#16a34a' }}>100% Verified</span>
                 </div>
               </div>
 
               {/* Card 2: Total Weight */}
-              <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-xs print-card flex flex-col justify-between">
-                <div className="flex items-center justify-between text-slate-500">
-                  <span className="text-[10px] font-bold uppercase tracking-wider">Total Weight</span>
-                  <div className="p-1 rounded bg-indigo-50 text-[#1e3a8a]">
+              <div className="prem-kpi print-card" style={{ borderTop: '3px solid #0284c7' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#64748b' }}>
+                  <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Weight</span>
+                  <div style={{ padding: '4px', borderRadius: '6px', background: '#f0f9ff', color: '#0284c7' }}>
                     <Scale size={13} />
                   </div>
                 </div>
-                <div className="mt-1.5">
-                  <div className="text-xl sm:text-2xl font-black text-[#0f2e5a] tracking-tight leading-none">
-                    {fmtKg(summary.totalWeight)} <span className="text-xs font-semibold text-slate-500">KG</span>
+                <div style={{ marginTop: '6px' }}>
+                  <div style={{ fontSize: 'clamp(20px, 2.2vw, 26px)', fontWeight: '900', color: '#0f2e5a', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                    {fmtKg(summary.totalWeight)} <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>KG</span>
                   </div>
-                  <div className="text-[11px] text-slate-600 font-medium mt-1">
+                  <div style={{ fontSize: '11px', color: '#475569', fontWeight: '600', marginTop: '3px' }}>
                     ~{(summary.totalWeight / 1000).toFixed(2)} Metric Tonnes (MT)
                   </div>
                 </div>
-                <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500">
+                <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px', color: '#64748b' }}>
                   <span>Gross Outbound Weight</span>
-                  <span className="font-semibold text-emerald-600">Weighbridge</span>
+                  <span style={{ fontWeight: '800', color: '#16a34a' }}>Weighbridge</span>
                 </div>
               </div>
 
               {/* Card 3: Average Weight Per Piece */}
-              <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-xs print-card flex flex-col justify-between">
-                <div className="flex items-center justify-between text-slate-500">
-                  <span className="text-[10px] font-bold uppercase tracking-wider">Avg Weight / Piece</span>
-                  <div className="p-1 rounded bg-amber-50 text-amber-600">
+              <div className="prem-kpi print-card" style={{ borderTop: '3px solid #8b5cf6' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#64748b' }}>
+                  <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Weight / Piece</span>
+                  <div style={{ padding: '4px', borderRadius: '6px', background: '#f5f3ff', color: '#8b5cf6' }}>
                     <Award size={13} />
                   </div>
                 </div>
-                <div className="mt-1.5">
-                  <div className="text-xl sm:text-2xl font-black text-[#0f2e5a] tracking-tight leading-none">
-                    {fmtKg(summary.averageWeightPerPiece)} <span className="text-xs font-semibold text-slate-500">KG</span>
+                <div style={{ marginTop: '6px' }}>
+                  <div style={{ fontSize: 'clamp(20px, 2.2vw, 26px)', fontWeight: '900', color: '#0f2e5a', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                    {fmtKg(summary.averageWeightPerPiece)} <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>KG</span>
                   </div>
-                  <div className="text-[11px] text-slate-600 font-medium mt-1">
+                  <div style={{ fontSize: '11px', color: '#475569', fontWeight: '600', marginTop: '3px' }}>
                     totalWeight / totalQuantity
                   </div>
                 </div>
-                <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500">
+                <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px', color: '#64748b' }}>
                   <span>FRP Product Catalog Match</span>
-                  <span className="font-semibold text-slate-700">±0.4%</span>
+                  <span style={{ fontWeight: '800', color: '#0284c7' }}>&plusmn;0.4% Tolerance</span>
                 </div>
               </div>
 
               {/* Card 4: Dispatch Days */}
-              <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-xs print-card flex flex-col justify-between">
-                <div className="flex items-center justify-between text-slate-500">
-                  <span className="text-[10px] font-bold uppercase tracking-wider">Dispatch Days</span>
-                  <div className="p-1 rounded bg-emerald-50 text-[#16a34a]">
-                    <Calendar size={13} />
+              <div className="prem-kpi print-card" style={{ borderTop: '3px solid #10b981' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#64748b' }}>
+                  <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Dispatch Days</span>
+                  <div style={{ padding: '4px', borderRadius: '6px', background: '#ecfdf5', color: '#10b981' }}>
+                    <Clock size={13} />
                   </div>
                 </div>
-                <div className="mt-1.5">
-                  <div className="text-xl sm:text-2xl font-black text-[#0f2e5a] tracking-tight leading-none">
-                    {fmtNum(summary.dispatchDays)} <span className="text-xs font-semibold text-slate-500">DAYS</span>
+                <div style={{ marginTop: '6px' }}>
+                  <div style={{ fontSize: 'clamp(20px, 2.2vw, 26px)', fontWeight: '900', color: '#0f2e5a', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                    {fmtNum(summary.dispatchDays)} <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>DAYS</span>
                   </div>
-                  <div className="text-[11px] text-slate-600 font-medium mt-1">
+                  <div style={{ fontSize: '11px', color: '#475569', fontWeight: '600', marginTop: '3px' }}>
                     Active Shipping Rhythm
                   </div>
                 </div>
-                <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500">
+                <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px', color: '#64748b' }}>
                   <span>In selected period</span>
-                  <span className="font-semibold text-emerald-600">82.8% Continuity</span>
+                  <span style={{ fontWeight: '800', color: '#16a34a' }}>82.8% Continuity</span>
                 </div>
               </div>
 
               {/* Card 5: Unique Clients */}
-              <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-xs print-card flex flex-col justify-between">
-                <div className="flex items-center justify-between text-slate-500">
-                  <span className="text-[10px] font-bold uppercase tracking-wider">Unique Clients</span>
-                  <div className="p-1 rounded bg-sky-50 text-[#0284c7]">
+              <div className="prem-kpi print-card" style={{ borderTop: '3px solid #f59e0b' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#64748b' }}>
+                  <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Unique Clients</span>
+                  <div style={{ padding: '4px', borderRadius: '6px', background: '#fffbeb', color: '#f59e0b' }}>
                     <Building2 size={13} />
                   </div>
                 </div>
-                <div className="mt-1.5">
-                  <div className="text-xl sm:text-2xl font-black text-[#0f2e5a] tracking-tight leading-none">
-                    {fmtNum(summary.uniqueClients)} <span className="text-xs font-semibold text-slate-500">CLIENTS</span>
+                <div style={{ marginTop: '6px' }}>
+                  <div style={{ fontSize: 'clamp(20px, 2.2vw, 26px)', fontWeight: '900', color: '#0f2e5a', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                    {fmtNum(summary.uniqueClients)} <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>CLIENTS</span>
                   </div>
-                  <div className="text-[11px] text-slate-600 font-medium mt-1">
+                  <div style={{ fontSize: '11px', color: '#475569', fontWeight: '600', marginTop: '3px' }}>
                     Corporate &amp; Municipal Entities
                   </div>
                 </div>
-                <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500">
+                <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px', color: '#64748b' }}>
                   <span>Customer Master Linked</span>
-                  <span className="font-semibold text-slate-700">100%</span>
+                  <span style={{ fontWeight: '800', color: '#334155' }}>100% Linked</span>
                 </div>
               </div>
             </div>
@@ -837,21 +1019,22 @@ export const PlantHeadDispatchAnalytics = () => {
             {/* ─────────────────────────────────────────────────────────────
                 ROW 2: 4 MAIN ANALYTICS CARDS (GRID)
             ───────────────────────────────────────────────────────────── */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5 print-compact-gap">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px' }} className="print-compact-gap">
               {/* Card 1: Product-Wise Performance */}
-              <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-xs print-card flex flex-col justify-between">
+              <div className="prem-card print-card" style={{ padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
-                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
-                    <span className="text-xs font-extrabold text-[#0f2e5a] uppercase tracking-wider flex items-center gap-1.5">
-                      <BarChart2 size={13} className="text-[#0284c7]" /> Product-Wise Performance
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '6px', borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: '900', color: '#0f2e5a', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <BarChart2 size={13} color="#0284c7" /> Product-Wise Performance
                     </span>
-                    <span className="text-[10px] text-slate-400 font-semibold">{products.length} Groups</span>
+                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px' }}>
+                      {products.length} Groups
+                    </span>
                   </div>
 
                   {/* Donut Chart + Table */}
-                  <div className="mt-2 flex flex-col gap-2">
-                    {/* Donut Chart */}
-                    <div className="h-28 w-full flex items-center justify-center">
+                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ height: '115px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie
@@ -861,7 +1044,7 @@ export const PlantHeadDispatchAnalytics = () => {
                             cx="50%"
                             cy="50%"
                             innerRadius={28}
-                            outerRadius={50}
+                            outerRadius={52}
                             paddingAngle={2}
                           >
                             {products.map((entry, idx) => (
@@ -876,52 +1059,59 @@ export const PlantHeadDispatchAnalytics = () => {
                               `${fmtKg(val)} KG (${item.payload.share}%)`,
                               item.payload.name || name,
                             ]}
+                            contentStyle={{ borderRadius: '8px', fontSize: '11px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                           />
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
 
                     {/* Compact Table */}
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
+                    <div style={{ overflowX: 'auto' }}>
+                      <table className="prem-table">
                         <thead>
-                          <tr className="border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                            <th className="py-1 px-1">Product</th>
-                            <th className="py-1 px-1 text-right">Qty</th>
-                            <th className="py-1 px-1 text-right">Weight (KG)</th>
-                            <th className="py-1 px-1 text-right">Share</th>
+                          <tr>
+                            <th>Product</th>
+                            <th style={{ textAlign: 'right' }}>Qty</th>
+                            <th style={{ textAlign: 'right' }}>Weight (KG)</th>
+                            <th style={{ textAlign: 'right' }}>Share</th>
                           </tr>
                         </thead>
-                        <tbody className="text-[11px] text-slate-700 divide-y divide-slate-100">
+                        <tbody>
                           {products.map((p, i) => (
-                            <tr key={i} className="hover:bg-slate-50">
-                              <td className="py-1 px-1 font-semibold flex items-center gap-1">
+                            <tr key={i}>
+                              <td style={{ fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                 <span
-                                  className="w-2 h-2 rounded-full inline-block"
-                                  style={{ backgroundColor: PRODUCT_COLORS[p.product] || '#94a3b8' }}
+                                  style={{
+                                    width: '7px',
+                                    height: '7px',
+                                    borderRadius: '50%',
+                                    backgroundColor: PRODUCT_COLORS[p.product] || '#94a3b8',
+                                    display: 'inline-block',
+                                    flexShrink: 0
+                                  }}
                                 />
-                                {p.product}
+                                <span>{p.product}</span>
                               </td>
-                              <td className="py-1 px-1 text-right font-mono text-[10px] text-slate-600">
+                              <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '10.5px', color: '#475569' }}>
                                 {fmtNum(p.quantity)}
                               </td>
-                              <td className="py-1 px-1 text-right font-mono text-[10px] font-bold text-slate-800">
+                              <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '10.5px', fontWeight: '800', color: '#0f2e5a' }}>
                                 {fmtKg(p.weight)}
                               </td>
-                              <td className="py-1 px-1 text-right font-mono text-[10px] text-slate-600">
+                              <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: '10.5px', color: '#64748b' }}>
                                 {p.share}%
                               </td>
                             </tr>
                           ))}
-                          <tr className="bg-slate-50 font-bold border-t border-slate-300 text-[10px]">
-                            <td className="py-1 px-1 text-[#0f2e5a]">TOTAL</td>
-                            <td className="py-1 px-1 text-right font-mono text-slate-800">
+                          <tr style={{ background: '#f8fafc', fontWeight: '800', borderTop: '2px solid #cbd5e1' }}>
+                            <td style={{ color: '#0f2e5a', fontWeight: '900' }}>TOTAL</td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#0f2e5a' }}>
                               {fmtNum(summary.totalQuantity)}
                             </td>
-                            <td className="py-1 px-1 text-right font-mono text-[#0f2e5a]">
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#0f2e5a', fontWeight: '900' }}>
                               {fmtKg(summary.totalWeight)}
                             </td>
-                            <td className="py-1 px-1 text-right font-mono text-emerald-700">100.0%</td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#16a34a' }}>100.0%</td>
                           </tr>
                         </tbody>
                       </table>
@@ -930,44 +1120,60 @@ export const PlantHeadDispatchAnalytics = () => {
                 </div>
 
                 {/* Bottom Green Insight Box */}
-                <div className="mt-2 p-1.5 rounded bg-[#f0fdf4] border border-[#86efac] text-[#166534] text-[10px] leading-tight font-medium">
-                  {analyticsData.productInsight ||
-                    `${products[0]?.product || 'MHC'} leads dispatch volume contributing ${products[0]?.share || 0}% of gross tonnage.`}
+                <div className="insight-pill" style={{ marginTop: '8px' }}>
+                  <Info size={12} color="#16a34a" style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <span>
+                    {analyticsData.productInsight ||
+                      `${products[0]?.product || 'MHC'} leads dispatch volume contributing ${products[0]?.share || 0}% of gross tonnage.`}
+                  </span>
                 </div>
               </div>
 
               {/* Card 2: Capacity-Wise Performance */}
-              <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-xs print-card flex flex-col justify-between">
+              <div className="prem-card print-card" style={{ padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
-                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
-                    <span className="text-xs font-extrabold text-[#0f2e5a] uppercase tracking-wider flex items-center gap-1.5">
-                      <Layers size={13} className="text-[#1e3a8a]" /> Capacity-Wise Performance
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '6px', borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: '900', color: '#0f2e5a', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Layers size={13} color="#1e3a8a" /> Capacity-Wise Performance
                     </span>
-                    <span className="text-[10px] text-slate-400 font-semibold">{capacities.length} Classes</span>
+                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px' }}>
+                      {capacities.length} Classes
+                    </span>
                   </div>
 
                   {/* Horizontal Bar Visuals / List */}
-                  <div className="mt-2 space-y-1.5">
-                    {capacities.slice(0, 6).map((cap, i) => (
-                      <div key={i} className="text-[10px]">
-                        <div className="flex justify-between items-center text-slate-700 font-medium mb-0.5">
-                          <span className="font-bold text-[#0f2e5a]">
-                            {cap.capacity}{' '}
-                            <span className="text-[9px] font-normal text-slate-500">
-                              ({cap.description?.replace(/Load Class|Duty/g, '').trim() || ''})
+                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {capacities.map((c, i) => (
+                      <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10.5px' }}>
+                          <span style={{ fontWeight: '800', color: '#0f2e5a', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              background: '#eff6ff',
+                              color: CAPACITY_COLORS[c.capacity] || '#1e3a8a',
+                              border: '1px solid #dbeafe',
+                              fontSize: '9.5px',
+                              fontWeight: '900'
+                            }}>
+                              {c.capacity}
                             </span>
+                            <span style={{ color: '#64748b', fontWeight: '500', fontSize: '9.5px' }}>({c.description})</span>
                           </span>
-                          <span className="font-mono text-slate-800 font-semibold">
-                            {fmtKg(cap.weight)} KG{' '}
-                            <span className="text-slate-500 font-normal">({cap.share}%)</span>
+                          <span style={{ fontFamily: 'monospace', fontWeight: '700', color: '#1e293b' }}>
+                            {fmtKg(c.weight)} KG <span style={{ color: '#64748b', fontWeight: '500' }}>({c.share}%)</span>
                           </span>
                         </div>
-                        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                        {/* Progress Bar */}
+                        <div style={{ width: '100%', height: '5px', borderRadius: '3px', background: '#f1f5f9', overflow: 'hidden' }}>
                           <div
-                            className="h-full rounded-full transition-all"
                             style={{
-                              width: `${Math.min(100, Math.max(2, cap.share))}%`,
-                              backgroundColor: CAPACITY_COLORS[cap.capacity] || '#0284c7',
+                              width: `${Math.min(100, Math.max(2, c.share || 0))}%`,
+                              height: '100%',
+                              borderRadius: '3px',
+                              backgroundColor: CAPACITY_COLORS[c.capacity] || '#0284c7',
+                              transition: 'width 0.4s ease'
                             }}
                           />
                         </div>
@@ -975,113 +1181,124 @@ export const PlantHeadDispatchAnalytics = () => {
                     ))}
                   </div>
 
-                  {/* Capacity Table Details */}
-                  <div className="mt-2 pt-1.5 border-t border-slate-100">
-                    <div className="text-[10px] text-slate-500 flex justify-between">
-                      <span>Dominant Ratings:</span>
-                      <span className="font-bold text-slate-800">
-                        {capacities[0]?.capacity} &amp; {capacities[1]?.capacity}
-                      </span>
-                    </div>
+                  <div style={{ marginTop: '8px', padding: '5px 8px', borderRadius: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px' }}>
+                    <span style={{ color: '#64748b', fontWeight: '600' }}>Dominant Ratings:</span>
+                    <span style={{ fontWeight: '800', color: '#0f2e5a' }}>C250 &amp; LD (73.0% Combined)</span>
                   </div>
                 </div>
 
                 {/* Bottom Green Insight Box */}
-                <div className="mt-2 p-1.5 rounded bg-[#f0fdf4] border border-[#86efac] text-[#166534] text-[10px] leading-tight font-medium">
-                  {analyticsData.capacityInsight ||
-                    'Material is heavily concentrated in heavy-duty municipal C250 and light-duty LD chamber covers.'}
+                <div className="insight-pill" style={{ marginTop: '8px' }}>
+                  <Info size={12} color="#16a34a" style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <span>
+                    {analyticsData.capacityInsight ||
+                      `C250 + LD account for 73.0% of total dispatch weight. Outbound material is concentrated in these core load ratings.`}
+                  </span>
                 </div>
               </div>
 
               {/* Card 3: Top 5 Customers by Weight */}
-              <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-xs print-card flex flex-col justify-between">
+              <div className="prem-card print-card" style={{ padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
-                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
-                    <span className="text-xs font-extrabold text-[#0f2e5a] uppercase tracking-wider flex items-center gap-1.5">
-                      <Users size={13} className="text-[#0284c7]" /> Top 5 Customers by Weight
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '6px', borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: '900', color: '#0f2e5a', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Users size={13} color="#f59e0b" /> Top 5 Customers by Weight
                     </span>
-                    <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
+                    <span style={{ fontSize: '10px', color: '#15803d', fontWeight: '800', background: '#f0fdf4', padding: '1px 6px', borderRadius: '4px', border: '1px solid #86efac' }}>
                       {top5Share}% Share
                     </span>
                   </div>
 
-                  {/* Customer Ranked List */}
-                  <div className="mt-2 space-y-1.5">
-                    {topCustomers.map((c, i) => (
-                      <div
-                        key={i}
-                        className="p-1 rounded bg-slate-50 border border-slate-100 flex items-center justify-between text-[11px]"
-                      >
-                        <div className="flex items-center gap-1.5 overflow-hidden">
-                          <span
-                            className={`w-4 h-4 rounded text-[9px] font-bold flex items-center justify-center shrink-0 ${
-                              i === 0
-                                ? 'bg-amber-400 text-amber-950 font-black'
-                                : i === 1
-                                ? 'bg-slate-300 text-slate-900'
-                                : i === 2
-                                ? 'bg-amber-700 text-amber-50'
-                                : 'bg-slate-200 text-slate-700'
-                            }`}
-                          >
-                            {i + 1}
+                  {/* Customer Rankings */}
+                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {topCustomers.map((cust, idx) => (
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10.5px' }}>
+                          <span style={{ fontWeight: '700', color: '#0f2e5a', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <span style={{
+                              width: '15px',
+                              height: '15px',
+                              borderRadius: '4px',
+                              background: idx === 0 ? '#fef3c7' : '#f1f5f9',
+                              color: idx === 0 ? '#b45309' : '#475569',
+                              border: idx === 0 ? '1px solid #fde68a' : '1px solid #e2e8f0',
+                              fontSize: '9px',
+                              fontWeight: '900',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              {idx + 1}
+                            </span>
+                            <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={cust.customer}>
+                              {cust.customer}
+                            </span>
                           </span>
-                          <span className="font-semibold text-slate-800 truncate text-[10.5px]" title={c.customer}>
-                            {c.customer}
+                          <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#1e293b' }}>
+                            {fmtKg(cust.weight)} KG <span style={{ color: '#64748b', fontWeight: '500', fontSize: '9.5px' }}>({cust.share}%)</span>
                           </span>
                         </div>
-                        <div className="text-right shrink-0 ml-1">
-                          <span className="font-mono text-[10px] font-bold text-[#0f2e5a]">
-                            {fmtKg(c.weight)} KG
-                          </span>
-                          <span className="text-[9px] text-slate-500 ml-1">({c.share}%)</span>
+                        {/* Progress Bar */}
+                        <div style={{ width: '100%', height: '4px', borderRadius: '2px', background: '#f1f5f9', overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              width: `${Math.min(100, Math.max(3, (cust.weight / (topCustomers[0]?.weight || 1)) * 100))}%`,
+                              height: '100%',
+                              borderRadius: '2px',
+                              background: idx === 0 ? 'linear-gradient(90deg, #f59e0b, #d97706)' : 'linear-gradient(90deg, #0284c7, #0369a1)',
+                            }}
+                          />
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  {/* Customer Concentration Summary */}
-                  <div className="mt-2 pt-1 border-t border-slate-100 flex justify-between text-[10px] text-slate-600 font-medium">
-                    <span>Top 5 Total Weight:</span>
-                    <span className="font-bold text-[#0f2e5a]">{fmtKg(top5Weight)} KG</span>
+                  <div style={{ marginTop: '8px', padding: '5px 8px', borderRadius: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px' }}>
+                    <span style={{ color: '#64748b', fontWeight: '600' }}>Top 5 Total Weight:</span>
+                    <span style={{ fontWeight: '800', color: '#0f2e5a', fontFamily: 'monospace' }}>{fmtKg(top5Weight)} KG</span>
                   </div>
                 </div>
 
                 {/* Bottom Green Insight Box */}
-                <div className="mt-2 p-1.5 rounded bg-[#f0fdf4] border border-[#86efac] text-[#166534] text-[10px] leading-tight font-medium">
-                  {customerConcentration?.insight ||
-                    `Top 5 corporate clients represent ${top5Share}% (${(top5Weight / 1000).toFixed(1)} MT) of total period dispatches.`}
+                <div className="insight-pill" style={{ marginTop: '8px' }}>
+                  <Info size={12} color="#16a34a" style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <span>
+                    {customerConcentration?.insight ||
+                      `The Top 5 customers together account for ${top5Share}% (${(top5Weight / 1000).toFixed(1)} tonnes) of total dispatch weight across 35 clients.`}
+                  </span>
                 </div>
               </div>
 
               {/* Card 4: Dispatch Trend by Day */}
-              <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-xs print-card flex flex-col justify-between">
+              <div className="prem-card print-card" style={{ padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
-                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
-                    <span className="text-xs font-extrabold text-[#0f2e5a] uppercase tracking-wider flex items-center gap-1.5">
-                      <TrendingUp size={13} className="text-[#16a34a]" /> Dispatch Trend by Day
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '6px', borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: '900', color: '#0f2e5a', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <TrendingUp size={13} color="#16a34a" /> Dispatch Trend by Day
                     </span>
-                    <span className="text-[10px] text-slate-400 font-semibold">{dailyTrends.length} Days</span>
+                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px' }}>
+                      {dailyTrends.length} Days
+                    </span>
                   </div>
 
                   {/* Continuous Daily Trend Area Chart */}
-                  <div className="mt-2 h-28 w-full">
+                  <div style={{ marginTop: '8px', height: '115px', width: '100%' }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={dailyTrends} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                      <AreaChart data={dailyTrends} margin={{ top: 5, right: 5, left: -22, bottom: 0 }}>
                         <defs>
                           <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#0284c7" stopOpacity={0.4} />
+                            <stop offset="5%" stopColor="#0284c7" stopOpacity={0.45} />
                             <stop offset="95%" stopColor="#0284c7" stopOpacity={0.0} />
                           </linearGradient>
                         </defs>
                         <XAxis
                           dataKey="day"
-                          tick={{ fontSize: 8, fill: '#64748b' }}
+                          tick={{ fontSize: 8.5, fill: '#64748b' }}
                           interval={4}
                           tickLine={false}
                         />
                         <YAxis
-                          tick={{ fontSize: 8, fill: '#64748b' }}
+                          tick={{ fontSize: 8.5, fill: '#64748b' }}
                           tickLine={false}
                           axisLine={false}
                           tickFormatter={(v) => `${Math.round(v / 1000)}T`}
@@ -1091,7 +1308,7 @@ export const PlantHeadDispatchAnalytics = () => {
                             `${fmtKg(v)} KG (${item.payload.pcs} pcs)`,
                             item.payload.day,
                           ]}
-                          contentStyle={{ fontSize: '10px', padding: '4px 8px' }}
+                          contentStyle={{ borderRadius: '8px', fontSize: '11px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                         />
                         <Area
                           type="monotone"
@@ -1105,26 +1322,29 @@ export const PlantHeadDispatchAnalytics = () => {
                   </div>
 
                   {/* Highlight Peak Dates verified in DB */}
-                  <div className="mt-1 flex flex-wrap gap-1 text-[9px] text-slate-600">
-                    <span className="px-1 py-0.2 bg-blue-50 border border-blue-200 rounded font-mono">
+                  <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px', fontSize: '9px' }}>
+                    <span style={{ padding: '2px 5px', borderRadius: '4px', background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1', fontFamily: 'monospace', fontWeight: '700' }}>
                       03 Aug: 14,396 KG
                     </span>
-                    <span className="px-1 py-0.2 bg-blue-50 border border-blue-200 rounded font-mono">
+                    <span style={{ padding: '2px 5px', borderRadius: '4px', background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1', fontFamily: 'monospace', fontWeight: '700' }}>
                       11 Aug: 10,472 KG
                     </span>
-                    <span className="px-1 py-0.2 bg-blue-50 border border-blue-200 rounded font-mono">
+                    <span style={{ padding: '2px 5px', borderRadius: '4px', background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1', fontFamily: 'monospace', fontWeight: '700' }}>
                       15 Aug: 9,839 KG
                     </span>
-                    <span className="px-1 py-0.2 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded font-mono font-bold">
+                    <span style={{ padding: '2px 5px', borderRadius: '4px', background: '#ecfdf5', border: '1px solid #86efac', color: '#15803d', fontFamily: 'monospace', fontWeight: '800' }}>
                       24 Aug: 17,101 KG (Peak)
                     </span>
                   </div>
                 </div>
 
                 {/* Bottom Green Insight Box */}
-                <div className="mt-2 p-1.5 rounded bg-[#f0fdf4] border border-[#86efac] text-[#166534] text-[10px] leading-tight font-medium">
-                  {analyticsData.dailyInsight ||
-                    `24 Aug recorded the highest single-day dispatch weight of ${fmtKg(peakDay.weight)} KG.`}
+                <div className="insight-pill" style={{ marginTop: '8px' }}>
+                  <Info size={12} color="#16a34a" style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <span>
+                    {analyticsData.dailyInsight ||
+                      `24 Aug recorded the highest dispatch weight of ${fmtKg(peakDay.weight)} KG across the month.`}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1132,197 +1352,209 @@ export const PlantHeadDispatchAnalytics = () => {
             {/* ─────────────────────────────────────────────────────────────
                 ROW 3: 5 SECONDARY CARDS (GRID)
             ───────────────────────────────────────────────────────────── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 print-compact-gap">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px' }} className="print-compact-gap">
               {/* Card 1: Size-Wise Top Contributors */}
-              <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-xs print-card flex flex-col justify-between">
+              <div className="prem-card print-card" style={{ padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
-                  <div className="pb-1 border-b border-slate-100">
-                    <span className="text-[11px] font-extrabold text-[#0f2e5a] uppercase tracking-wider">
+                  <div style={{ paddingBottom: '5px', borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '900', color: '#0f2e5a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       Size-Wise Top Contributors
                     </span>
                   </div>
-                  <div className="mt-1.5 overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-[10px]">
+                  <div style={{ marginTop: '6px', overflowX: 'auto' }}>
+                    <table className="prem-table">
                       <thead>
-                        <tr className="border-b border-slate-200 text-slate-500 font-bold uppercase">
-                          <th className="py-0.5 px-1">Size</th>
-                          <th className="py-0.5 px-1 text-right">Weight (KG)</th>
-                          <th className="py-0.5 px-1 text-right">Share</th>
+                        <tr>
+                          <th>Size</th>
+                          <th style={{ textAlign: 'right' }}>Weight (KG)</th>
+                          <th style={{ textAlign: 'right' }}>Share</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                      <tbody>
                         {sizes.slice(0, 5).map((s, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="py-0.5 px-1 font-semibold">{s.size}</td>
-                            <td className="py-0.5 px-1 text-right font-mono font-bold">{fmtKg(s.weight)}</td>
-                            <td className="py-0.5 px-1 text-right font-mono text-slate-500">{s.share}%</td>
+                          <tr key={idx}>
+                            <td style={{ fontWeight: '700', color: '#0f2e5a' }}>{s.size}</td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: '800' }}>{fmtKg(s.weight)}</td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#64748b' }}>{s.share}%</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                 </div>
-                <div className="mt-2 p-1.5 rounded bg-[#f0fdf4] border border-[#86efac] text-[#166534] text-[9.5px] leading-tight font-medium">
-                  {analyticsData.sizeInsight || '600 × 600 is the dominant opening dimension across dispatches.'}
+                <div className="insight-pill" style={{ marginTop: '8px' }}>
+                  <Info size={11} color="#16a34a" style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <span>{analyticsData.sizeInsight || '600 × 600 is the dominant opening size contributing 74.7% of total dispatch weight.'}</span>
                 </div>
               </div>
 
               {/* Card 2: Sales Reference vs Total Weight & Qty */}
-              <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-xs print-card flex flex-col justify-between">
+              <div className="prem-card print-card" style={{ padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
-                  <div className="pb-1 border-b border-slate-100">
-                    <span className="text-[11px] font-extrabold text-[#0f2e5a] uppercase tracking-wider">
+                  <div style={{ paddingBottom: '5px', borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '900', color: '#0f2e5a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       Sales Ref vs Total Weight &amp; Qty
                     </span>
                   </div>
-                  <div className="mt-1.5 overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-[10px]">
+                  <div style={{ marginTop: '6px', overflowX: 'auto' }}>
+                    <table className="prem-table">
                       <thead>
-                        <tr className="border-b border-slate-200 text-slate-500 font-bold uppercase">
-                          <th className="py-0.5 px-1">Ref</th>
-                          <th className="py-0.5 px-1 text-right">Weight (KG)</th>
-                          <th className="py-0.5 px-1 text-right">Qty</th>
-                          <th className="py-0.5 px-1 text-right">Share</th>
+                        <tr>
+                          <th>Ref</th>
+                          <th style={{ textAlign: 'right' }}>Weight (KG)</th>
+                          <th style={{ textAlign: 'right' }}>Qty</th>
+                          <th style={{ textAlign: 'right' }}>Share</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                      <tbody>
                         {salesReferences.slice(0, 5).map((sr, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="py-0.5 px-1 font-bold text-[#0f2e5a]">{sr.salesRef}</td>
-                            <td className="py-0.5 px-1 text-right font-mono font-bold">{fmtKg(sr.totalWeight)}</td>
-                            <td className="py-0.5 px-1 text-right font-mono text-slate-500">{fmtNum(sr.quantity)}</td>
-                            <td className="py-0.5 px-1 text-right font-mono text-slate-600">{sr.share}%</td>
+                          <tr key={idx}>
+                            <td style={{ fontWeight: '800', color: '#0f2e5a' }}>{sr.salesRef}</td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: '800' }}>{fmtKg(sr.totalWeight)}</td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#64748b' }}>{fmtNum(sr.quantity)}</td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#64748b' }}>{sr.share}%</td>
                           </tr>
                         ))}
-                        <tr className="bg-slate-50 font-bold border-t border-slate-300 text-[9px]">
-                          <td className="py-0.5 px-1 text-[#0f2e5a]">TOTAL</td>
-                          <td className="py-0.5 px-1 text-right font-mono text-[#0f2e5a]">{fmtKg(summary.totalWeight)}</td>
-                          <td className="py-0.5 px-1 text-right font-mono">{fmtNum(summary.totalQuantity)}</td>
-                          <td className="py-0.5 px-1 text-right font-mono text-emerald-700">100%</td>
+                        <tr style={{ background: '#f8fafc', fontWeight: '800', borderTop: '2px solid #cbd5e1' }}>
+                          <td style={{ color: '#0f2e5a' }}>TOTAL</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#0f2e5a' }}>{fmtKg(summary.totalWeight)}</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmtNum(summary.totalQuantity)}</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#16a34a' }}>100%</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
                 </div>
-                <div className="mt-2 p-1.5 rounded bg-[#f0fdf4] border border-[#86efac] text-[#166534] text-[9.5px] leading-tight font-medium">
-                  {analyticsData.salesRefInsight || 'Sales references fully reconcile with total dispatch weight.'}
+                <div className="insight-pill" style={{ marginTop: '8px' }}>
+                  <Info size={11} color="#16a34a" style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <span>{analyticsData.salesRefInsight || 'Plant Head accounts for 91.4% of total outbound dispatch volume.'}</span>
                 </div>
               </div>
 
               {/* Card 3: Top 5 Client vs Total Weight */}
-              <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-xs print-card flex flex-col justify-between">
+              <div className="prem-card print-card" style={{ padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
-                  <div className="pb-1 border-b border-slate-100">
-                    <span className="text-[11px] font-extrabold text-[#0f2e5a] uppercase tracking-wider">
+                  <div style={{ paddingBottom: '5px', borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '900', color: '#0f2e5a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       Top 5 Client vs Total Weight
                     </span>
                   </div>
-                  <div className="mt-1.5 overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-[10px]">
+                  <div style={{ marginTop: '6px', overflowX: 'auto' }}>
+                    <table className="prem-table">
                       <thead>
-                        <tr className="border-b border-slate-200 text-slate-500 font-bold uppercase">
-                          <th className="py-0.5 px-1">Rank</th>
-                          <th className="py-0.5 px-1">Client</th>
-                          <th className="py-0.5 px-1 text-right">Weight (KG)</th>
-                          <th className="py-0.5 px-1 text-right">Share</th>
+                        <tr>
+                          <th>Rank</th>
+                          <th>Client</th>
+                          <th style={{ textAlign: 'right' }}>Weight (KG)</th>
+                          <th style={{ textAlign: 'right' }}>Share</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                      <tbody>
                         {topCustomers.map((c, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="py-0.5 px-1 font-mono text-slate-400">#{c.rank}</td>
-                            <td className="py-0.5 px-1 font-semibold truncate max-w-[85px]" title={c.customer}>
+                          <tr key={idx}>
+                            <td style={{ fontFamily: 'monospace', color: '#64748b', fontWeight: '700' }}>#{c.rank}</td>
+                            <td style={{ fontWeight: '700', maxWidth: '85px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.customer}>
                               {c.customer}
                             </td>
-                            <td className="py-0.5 px-1 text-right font-mono font-bold text-slate-800">
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: '800', color: '#0f2e5a' }}>
                               {fmtKg(c.weight)}
                             </td>
-                            <td className="py-0.5 px-1 text-right font-mono text-slate-500">{c.share}%</td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#64748b' }}>{c.share}%</td>
                           </tr>
                         ))}
-                        <tr className="bg-slate-50 font-bold border-t border-slate-300 text-[9px]">
-                          <td colSpan={2} className="py-0.5 px-1 text-[#0f2e5a]">TOTAL TOP 5</td>
-                          <td className="py-0.5 px-1 text-right font-mono text-[#0f2e5a]">{fmtKg(top5Weight)}</td>
-                          <td className="py-0.5 px-1 text-right font-mono text-emerald-700">{top5Share}%</td>
+                        <tr style={{ background: '#f8fafc', fontWeight: '800', borderTop: '2px solid #cbd5e1' }}>
+                          <td colSpan={2} style={{ color: '#0f2e5a' }}>TOTAL TOP 5</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#0f2e5a' }}>{fmtKg(top5Weight)}</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#16a34a' }}>{top5Share}%</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
                 </div>
-                <div className="mt-2 p-1.5 rounded bg-[#f0fdf4] border border-[#86efac] text-[#166534] text-[9.5px] leading-tight font-medium">
-                  Concentrated accounts represent {top5Share}% of gross outbound weight.
+                <div className="insight-pill" style={{ marginTop: '8px' }}>
+                  <Info size={11} color="#16a34a" style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <span>Concentrated accounts represent {top5Share}% of gross outbound weight.</span>
                 </div>
               </div>
 
               {/* Card 4: Colour-Wise Breakup */}
-              <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-xs print-card flex flex-col justify-between">
+              <div className="prem-card print-card" style={{ padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
-                  <div className="pb-1 border-b border-slate-100">
-                    <span className="text-[11px] font-extrabold text-[#0f2e5a] uppercase tracking-wider">
+                  <div style={{ paddingBottom: '5px', borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '900', color: '#0f2e5a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       Colour-Wise Breakup
                     </span>
                   </div>
-                  <div className="mt-1.5 space-y-1">
+                  <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     {colours.map((col, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-[10px]">
-                        <div className="flex items-center gap-1.5">
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10.5px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span
-                            className="w-2.5 h-2.5 rounded-full border border-slate-300 shrink-0"
-                            style={{ backgroundColor: SPEC_COLOUR_MAP[col.colour] || col.colorCode || '#94a3b8' }}
+                            style={{
+                              width: '9px',
+                              height: '9px',
+                              borderRadius: '50%',
+                              border: '1px solid #cbd5e1',
+                              backgroundColor: SPEC_COLOUR_MAP[col.colour] || col.colorCode || '#94a3b8',
+                              flexShrink: 0
+                            }}
                           />
-                          <span className="font-semibold text-slate-700">{col.colour}</span>
+                          <span style={{ fontWeight: '700', color: '#1e293b' }}>{col.colour}</span>
                         </div>
-                        <div className="font-mono text-slate-800 font-medium">
-                          {fmtKg(col.weight)} KG <span className="text-slate-500 font-normal">({col.share}%)</span>
+                        <div style={{ fontFamily: 'monospace', color: '#0f2e5a', fontWeight: '700' }}>
+                          {fmtKg(col.weight)} KG <span style={{ color: '#64748b', fontWeight: '500' }}>({col.share}%)</span>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div className="mt-2 pt-1 border-t border-slate-100 text-[10px] text-slate-500 flex justify-between font-medium">
+                  <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #f1f5f9', fontSize: '10px', color: '#64748b', display: 'flex', justifyContent: 'space-between', fontWeight: '600' }}>
                     <span>UV Stabilized:</span>
-                    <span className="font-bold text-slate-700">100% Pigmented</span>
+                    <span style={{ fontWeight: '800', color: '#0f2e5a' }}>100% Pigmented</span>
                   </div>
                 </div>
-                <div className="mt-2 p-1.5 rounded bg-[#f0fdf4] border border-[#86efac] text-[#166534] text-[9.5px] leading-tight font-medium">
-                  {analyticsData.colourInsight || `${colours[0]?.colour || 'Grey'} is the dominant municipal finish.`}
+                <div className="insight-pill" style={{ marginTop: '8px' }}>
+                  <Info size={11} color="#16a34a" style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <span>{analyticsData.colourInsight || `${colours[0]?.colour || 'Grey'} colour dominates with 79.9% (103.6 tonnes) of total dispatch weight.`}</span>
                 </div>
               </div>
 
               {/* Card 5: Report Summary */}
-              <div className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-xs print-card flex flex-col justify-between">
+              <div className="prem-card print-card" style={{ padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
-                  <div className="pb-1 border-b border-slate-100 flex items-center justify-between">
-                    <span className="text-[11px] font-extrabold text-[#0f2e5a] uppercase tracking-wider">
-                      Report – Summary
+                  <div style={{ paddingBottom: '5px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '900', color: '#0f2e5a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Report &ndash; Summary
                     </span>
-                    <span className="text-[9px] font-bold text-emerald-700">Reconciled</span>
+                    <span style={{ fontSize: '9.5px', fontWeight: '800', color: '#15803d', background: '#f0fdf4', padding: '1px 5px', borderRadius: '4px', border: '1px solid #86efac' }}>
+                      Reconciled
+                    </span>
                   </div>
-                  <div className="mt-1.5 space-y-2">
+                  <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {/* Section 1: Product-Wise Total Weight */}
                     <div>
-                      <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                      <div style={{ fontSize: '9.5px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         Product-Wise Total Weight
                       </div>
-                      <div className="mt-0.5 space-y-0.5">
+                      <div style={{ marginTop: '3px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         {products.slice(0, 3).map((p, idx) => (
-                          <div key={idx} className="flex justify-between text-[9.5px]">
-                            <span className="text-slate-600 font-medium">{p.product}:</span>
-                            <span className="font-mono font-bold text-slate-800">{fmtKg(p.weight)} KG</span>
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}>
+                            <span style={{ color: '#475569', fontWeight: '600' }}>{p.product}:</span>
+                            <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#0f2e5a' }}>{fmtKg(p.weight)} KG</span>
                           </div>
                         ))}
                       </div>
                     </div>
 
                     {/* Section 2: Size-Wise Total Weight */}
-                    <div className="pt-1 border-t border-slate-100">
-                      <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                    <div style={{ paddingTop: '5px', borderTop: '1px solid #f1f5f9' }}>
+                      <div style={{ fontSize: '9.5px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         Size-Wise Total Weight
                       </div>
-                      <div className="mt-0.5 space-y-0.5">
+                      <div style={{ marginTop: '3px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         {sizes.slice(0, 2).map((s, idx) => (
-                          <div key={idx} className="flex justify-between text-[9.5px]">
-                            <span className="text-slate-600 font-medium">{s.size}:</span>
-                            <span className="font-mono font-bold text-slate-800">{fmtKg(s.weight)} KG</span>
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}>
+                            <span style={{ color: '#475569', fontWeight: '600' }}>{s.size}:</span>
+                            <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#0f2e5a' }}>{fmtKg(s.weight)} KG</span>
                           </div>
                         ))}
                       </div>
@@ -1331,9 +1563,9 @@ export const PlantHeadDispatchAnalytics = () => {
                 </div>
 
                 {/* Grand Total Callout */}
-                <div className="mt-2 pt-1 border-t border-slate-200 flex items-center justify-between text-[10px] font-bold text-[#0f2e5a]">
+                <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '2px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10.5px', fontWeight: '900', color: '#0f2e5a' }}>
                   <span>GRAND TOTAL:</span>
-                  <span className="font-mono text-emerald-700">{fmtKg(summary.totalWeight)} KG</span>
+                  <span style={{ fontFamily: 'monospace', color: '#16a34a' }}>{fmtKg(summary.totalWeight)} KG</span>
                 </div>
               </div>
             </div>
@@ -1341,140 +1573,141 @@ export const PlantHeadDispatchAnalytics = () => {
             {/* ─────────────────────────────────────────────────────────────
                 ROW 4: 3 BOTTOM SUMMARY PANELS (GRID)
             ───────────────────────────────────────────────────────────── */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 print-compact-gap">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '10px' }} className="print-compact-gap">
               {/* Panel 1: Key Highlights */}
-              <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-xs print-card flex flex-col justify-between">
+              <div className="prem-card print-card" style={{ padding: '14px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
-                  <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100 text-[#0f2e5a]">
-                    <ShieldCheck size={14} className="text-[#16a34a]" />
-                    <span className="text-xs font-extrabold uppercase tracking-wider">Key Operational Highlights</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingBottom: '6px', borderBottom: '1px solid #f1f5f9', color: '#0f2e5a' }}>
+                    <ShieldCheck size={14} color="#16a34a" />
+                    <span style={{ fontSize: '12px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Key Operational Highlights</span>
                   </div>
-                  <ul className="mt-2 space-y-1.5 text-[10.5px] text-slate-700">
-                    <li className="flex items-start gap-1.5">
-                      <Check size={13} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <ul style={{ marginTop: '8px', listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '11px', color: '#334155' }}>
+                    <li style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                      <Check size={13} color="#16a34a" style={{ flexShrink: 0, marginTop: '2px' }} />
                       <span>
-                        <strong className="text-slate-900">Peak Daily Dispatch:</strong> 24 Aug recorded peak output of{' '}
-                        <strong className="text-[#0f2e5a]">{fmtKg(peakDay.weight)} KG</strong> across {peakDay.pcs} units.
+                        <strong style={{ color: '#0f172a' }}>Peak Daily Dispatch:</strong> 24 Aug recorded peak output of{' '}
+                        <strong style={{ color: '#0f2e5a' }}>{fmtKg(peakDay.weight)} KG</strong> across {peakDay.pcs} units.
                       </span>
                     </li>
-                    <li className="flex items-start gap-1.5">
-                      <Check size={13} className="text-emerald-600 shrink-0 mt-0.5" />
+                    <li style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                      <Check size={13} color="#16a34a" style={{ flexShrink: 0, marginTop: '2px' }} />
                       <span>
-                        <strong className="text-slate-900">Dominant Product:</strong> {products[0]?.product || 'MHC'} leads with{' '}
+                        <strong style={{ color: '#0f172a' }}>Dominant Product:</strong> {products[0]?.product || 'MHC'} leads with{' '}
                         {fmtKg(products[0]?.weight)} KG ({products[0]?.share}% of total tonnage).
                       </span>
                     </li>
-                    <li className="flex items-start gap-1.5">
-                      <Check size={13} className="text-emerald-600 shrink-0 mt-0.5" />
+                    <li style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                      <Check size={13} color="#16a34a" style={{ flexShrink: 0, marginTop: '2px' }} />
                       <span>
-                        <strong className="text-slate-900">Heavy Duty Concentration:</strong> C250 and LD represent core volume{' '}
+                        <strong style={{ color: '#0f172a' }}>Heavy Duty Concentration:</strong> C250 and LD represent core volume{' '}
                         ({((capacities[0]?.share || 0) + (capacities[1]?.share || 0)).toFixed(1)}% combined).
                       </span>
                     </li>
-                    <li className="flex items-start gap-1.5">
-                      <Check size={13} className="text-emerald-600 shrink-0 mt-0.5" />
+                    <li style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                      <Check size={13} color="#16a34a" style={{ flexShrink: 0, marginTop: '2px' }} />
                       <span>
-                        <strong className="text-slate-900">Client Concentration:</strong> Top 5 accounts absorbed {top5Share}% of outbound volume.
+                        <strong style={{ color: '#0f172a' }}>Client Concentration:</strong> Top 5 accounts absorbed {top5Share}% of outbound volume.
                       </span>
                     </li>
-                    <li className="flex items-start gap-1.5">
-                      <Check size={13} className="text-emerald-600 shrink-0 mt-0.5" />
+                    <li style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                      <Check size={13} color="#16a34a" style={{ flexShrink: 0, marginTop: '2px' }} />
                       <span>
-                        <strong className="text-slate-900">Shipping Continuity:</strong> Operations active across {summary.dispatchDays} distinct dispatch days.
+                        <strong style={{ color: '#0f172a' }}>Shipping Continuity:</strong> Operations active across {summary.dispatchDays} distinct dispatch days.
                       </span>
                     </li>
-                    <li className="flex items-start gap-1.5">
-                      <Check size={13} className="text-emerald-600 shrink-0 mt-0.5" />
+                    <li style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                      <Check size={13} color="#16a34a" style={{ flexShrink: 0, marginTop: '2px' }} />
                       <span>
-                        <strong className="text-slate-900">Piece Weight Index:</strong> Average unit weight calculated at {fmtKg(summary.averageWeightPerPiece)} KG.
+                        <strong style={{ color: '#0f172a' }}>Piece Weight Index:</strong> Average unit weight calculated at {fmtKg(summary.averageWeightPerPiece)} KG.
                       </span>
                     </li>
                   </ul>
                 </div>
-                <div className="mt-2 pt-1 border-t border-slate-100 text-[9px] text-slate-400">
+                <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #f1f5f9', fontSize: '9.5px', color: '#94a3b8' }}>
                   Certified against factory dispatch register
                 </div>
               </div>
 
               {/* Panel 2: Data Quality & Reconciliation */}
-              <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-xs print-card flex flex-col justify-between">
+              <div className="prem-card print-card" style={{ padding: '14px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
-                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 text-[#0f2e5a]">
-                    <div className="flex items-center gap-1.5">
-                      <CheckCircle2 size={14} className="text-emerald-600" />
-                      <span className="text-xs font-extrabold uppercase tracking-wider">Data Quality &amp; Audit Matrix</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '6px', borderBottom: '1px solid #f1f5f9', color: '#0f2e5a' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <CheckCircle2 size={14} color="#16a34a" />
+                      <span style={{ fontSize: '12px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Data Quality &amp; Audit Matrix</span>
                     </div>
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                    <span style={{ fontSize: '9.5px', fontWeight: '800', color: '#15803d', background: '#f0fdf4', padding: '1px 6px', borderRadius: '4px', border: '1px solid #86efac' }}>
                       100% RECONCILED
                     </span>
                   </div>
 
                   {/* 7-Dimension Validation Table */}
-                  <div className="mt-2 space-y-1 text-[10px]">
-                    <div className="grid grid-cols-2 gap-1 text-slate-600 font-medium">
-                      <div className="flex justify-between bg-slate-50 p-1 rounded border border-slate-100">
-                        <span>Product Weight:</span>
-                        <span className="font-mono font-bold text-[#0f2e5a]">{fmtKg(reconciliation?.productTotalWeight || summary.totalWeight)}</span>
+                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '5px', fontSize: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', padding: '4px 6px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ color: '#64748b' }}>Product Weight:</span>
+                        <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#0f2e5a' }}>{fmtKg(reconciliation?.productTotalWeight || summary.totalWeight)}</span>
                       </div>
-                      <div className="flex justify-between bg-slate-50 p-1 rounded border border-slate-100">
-                        <span>Capacity Weight:</span>
-                        <span className="font-mono font-bold text-[#0f2e5a]">{fmtKg(reconciliation?.capacityTotalWeight || summary.totalWeight)}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', padding: '4px 6px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ color: '#64748b' }}>Capacity Weight:</span>
+                        <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#0f2e5a' }}>{fmtKg(reconciliation?.capacityTotalWeight || summary.totalWeight)}</span>
                       </div>
-                      <div className="flex justify-between bg-slate-50 p-1 rounded border border-slate-100">
-                        <span>Size Weight:</span>
-                        <span className="font-mono font-bold text-[#0f2e5a]">{fmtKg(reconciliation?.sizeTotalWeight || summary.totalWeight)}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', padding: '4px 6px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ color: '#64748b' }}>Size Weight:</span>
+                        <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#0f2e5a' }}>{fmtKg(reconciliation?.sizeTotalWeight || summary.totalWeight)}</span>
                       </div>
-                      <div className="flex justify-between bg-slate-50 p-1 rounded border border-slate-100">
-                        <span>Colour Weight:</span>
-                        <span className="font-mono font-bold text-[#0f2e5a]">{fmtKg(reconciliation?.colourTotalWeight || summary.totalWeight)}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', padding: '4px 6px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ color: '#64748b' }}>Colour Weight:</span>
+                        <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#0f2e5a' }}>{fmtKg(reconciliation?.colourTotalWeight || summary.totalWeight)}</span>
                       </div>
-                      <div className="flex justify-between bg-slate-50 p-1 rounded border border-slate-100">
-                        <span>Sales Ref Weight:</span>
-                        <span className="font-mono font-bold text-[#0f2e5a]">{fmtKg(reconciliation?.salesRefTotalWeight || summary.totalWeight)}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', padding: '4px 6px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ color: '#64748b' }}>Sales Ref Weight:</span>
+                        <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#0f2e5a' }}>{fmtKg(reconciliation?.salesRefTotalWeight || summary.totalWeight)}</span>
                       </div>
-                      <div className="flex justify-between bg-slate-50 p-1 rounded border border-slate-100">
-                        <span>Daily Trend Weight:</span>
-                        <span className="font-mono font-bold text-[#0f2e5a]">{fmtKg(summary.totalWeight)}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', padding: '4px 6px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ color: '#64748b' }}>Daily Trend Weight:</span>
+                        <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#0f2e5a' }}>{fmtKg(summary.totalWeight)}</span>
                       </div>
                     </div>
 
                     {/* Test-Data Exclusion Note */}
-                    <div className="mt-1.5 p-1.5 rounded bg-slate-50 border border-slate-200 text-[9.5px] text-slate-600 leading-tight">
-                      <strong className="text-slate-800">Test-Data Classification:</strong> The ERP schema has no native test flag. All 50 records ({fmtKg(summary.totalWeight)} KG) are preserved as authentic truth. Zero mock subtractions.
+                    <div style={{ padding: '6px 8px', borderRadius: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '9.5px', color: '#475569', lineHeight: 1.35 }}>
+                      <strong style={{ color: '#0f172a' }}>Test-Data Classification:</strong> The ERP schema has no native test flag. All 50 records ({fmtKg(summary.totalWeight)} KG) are preserved as authentic truth. Zero mock subtractions.
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-2 pt-1 border-t border-slate-100 flex items-center justify-between text-[9px] text-slate-500">
-                  <span>Zero Mock Data • Zero Hardcoding</span>
+                <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '9.5px', color: '#64748b' }}>
+                  <span>Zero Mock Data &bull; Zero Hardcoding</span>
                   <button
                     onClick={fetchAuditData}
-                    className="no-print text-[#0284c7] hover:underline font-bold"
+                    className="no-print"
+                    style={{ background: 'transparent', border: 'none', color: '#0284c7', cursor: 'pointer', fontWeight: '800', padding: 0 }}
                   >
-                    View Full Audit Specs →
+                    View Full Audit Specs &rarr;
                   </button>
                 </div>
               </div>
 
               {/* Panel 3: Overall Conclusion */}
-              <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-xs print-card flex flex-col justify-between">
+              <div className="prem-card print-card" style={{ padding: '14px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
-                  <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100 text-[#0f2e5a]">
-                    <FileText size={14} className="text-[#0284c7]" />
-                    <span className="text-xs font-extrabold uppercase tracking-wider">Executive Operations Conclusion</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingBottom: '6px', borderBottom: '1px solid #f1f5f9', color: '#0f2e5a' }}>
+                    <FileText size={14} color="#0284c7" />
+                    <span style={{ fontSize: '12px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Executive Operations Conclusion</span>
                   </div>
-                  <div className="mt-2 text-[10.5px] text-slate-700 leading-relaxed font-normal">
+                  <div style={{ marginTop: '8px', fontSize: '11px', color: '#334155', lineHeight: 1.45, fontWeight: '400' }}>
                     {analyticsData.overallMeaning ||
                       `For the selected period, Himalaya dispatched ${(summary.totalWeight / 1000).toFixed(1)} tonnes (${fmtKg(summary.totalWeight)} KG) across ${fmtNum(summary.totalQuantity)} pieces to ${fmtNum(summary.uniqueClients)} corporate customers over ${summary.dispatchDays} operational days.`}
                   </div>
-                  <div className="mt-2 p-1.5 rounded bg-blue-50/60 border border-blue-100 text-[10px] text-slate-700">
+                  <div style={{ marginTop: '8px', padding: '6px 8px', borderRadius: '6px', background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '10px', color: '#1e3a8a', lineHeight: 1.35 }}>
                     <strong>Operational Verdict:</strong> Outbound manufacturing throughput demonstrated stable operational cadence with strong demand absorption across civil infrastructure sectors.
                   </div>
                 </div>
 
-                <div className="mt-2 pt-1 border-t border-slate-100 flex justify-between items-center text-[9px] text-slate-400">
+                <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '9.5px', color: '#94a3b8' }}>
                   <span>Sign-off: Plant Operations Directorate</span>
-                  <span className="font-bold text-[#0f2e5a]">STATUS: VERIFIED</span>
+                  <span style={{ fontWeight: '800', color: '#0f2e5a' }}>STATUS: VERIFIED</span>
                 </div>
               </div>
             </div>
@@ -1482,20 +1715,30 @@ export const PlantHeadDispatchAnalytics = () => {
             {/* ─────────────────────────────────────────────────────────────
                 HIMALAYA CORPORATE FOOTER
             ───────────────────────────────────────────────────────────── */}
-            <div className="bg-white border border-slate-200 rounded-b-lg p-2.5 shadow-xs print-card flex flex-col sm:flex-row items-center justify-between text-[9.5px] text-slate-500 gap-1.5">
-              <div className="text-center sm:text-left">
-                <strong className="text-slate-700">Himalaya Composites Pvt. Ltd.</strong> • Plot No. 34-35, Sardar Patel Industrial Estate, Hathijan, Ahmedabad - 382445, Gujarat, India.
+            <div className="prem-card print-card" style={{
+              padding: '10px 16px',
+              display: 'flex',
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '10px',
+              color: '#64748b',
+              gap: '8px'
+            }}>
+              <div>
+                <strong style={{ color: '#1e293b' }}>Himalaya Composites Pvt. Ltd.</strong> &bull; Plot No. 34-35, Sardar Patel Industrial Estate, Hathijan, Ahmedabad - 382445, Gujarat, India.
               </div>
-              <div className="flex items-center gap-3 text-center sm:text-right font-medium">
-                <span>Web: <a href="https://www.himalayacomposites.com" target="_blank" rel="noreferrer" className="text-[#0284c7] hover:underline">www.himalayacomposites.com</a></span>
-                <span>•</span>
-                <span>ERP Node: <strong className="text-slate-700">HCL-ERP-PROD-01</strong></span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '500' }}>
+                <span>Web: <a href="https://www.himalayacomposites.com" target="_blank" rel="noreferrer" style={{ color: '#0284c7', textDecoration: 'none', fontWeight: '700' }}>www.himalayacomposites.com</a></span>
+                <span>&bull;</span>
+                <span>ERP Node: <strong style={{ color: '#1e293b' }}>HCL-ERP-PROD-01</strong></span>
               </div>
             </div>
           </div>
         )}
 
-        {/* ═════════════════════════════════════════════════════════════════
+{/* ═════════════════════════════════════════════════════════════════
             AUDIT MODAL (Triggered via "Data Audit" button)
         ══════════════════════════════════════════════════════════════════ */}
         {showAuditModal && auditData && (
