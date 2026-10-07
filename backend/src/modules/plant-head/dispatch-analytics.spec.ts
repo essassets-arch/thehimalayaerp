@@ -75,6 +75,27 @@ describe('Dispatch analytics aggregation', () => {
     await expect(service.getDispatchAnalytics('tenant')).rejects.toThrow('Database unavailable');
     await expect(service.getDispatchAnalytics('')).rejects.toThrow('Company is required');
   });
+  it('supports dynamic filtering by product, customer, status and populates filterOptions', async () => {
+    const { service } = setup();
+    // Test product filter
+    const prodResult = await service.getDispatchAnalytics('tenant', undefined, undefined, undefined, '2026-09', undefined, undefined, undefined, 'MHC');
+    expect(prodResult.summary.totalTrips).toBe(1);
+    expect(prodResult.summary.totalQuantity).toBe(10); // dispatch 'one' has 2 MHC + 8 RCS = 10 pcs
+
+    // Test customer filter
+    const custResult = await service.getDispatchAnalytics('tenant', undefined, undefined, undefined, '2026-09', undefined, undefined, undefined, undefined, undefined, 'two');
+    expect(custResult.summary.totalTrips).toBe(1);
+    expect(custResult.summary.totalQuantity).toBe(3);
+
+    // Test status filter
+    const statusResult = await service.getDispatchAnalytics('tenant', undefined, undefined, undefined, '2026-09', undefined, undefined, undefined, undefined, undefined, undefined, 'DISPATCHED');
+    expect(statusResult.summary.totalTrips).toBe(2);
+
+    // Check filterOptions populated
+    expect(custResult.filterOptions.customers).toContain('one');
+    expect(custResult.filterOptions.customers).toContain('two');
+    expect(custResult.filterOptions.statuses).toContain('DISPATCHED');
+  });
   it('runs dispatch audit reporting reconciliation and 17 classifications', async () => {
     const { service } = setup();
     const audit = await service.getDispatchAudit('tenant', undefined, undefined, undefined, '2026-09');

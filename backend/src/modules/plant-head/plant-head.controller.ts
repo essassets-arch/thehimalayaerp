@@ -344,6 +344,9 @@ export class PlantHeadController {
     @Query('area') area?: string,
     @Query('salesPerson') salesPerson?: string,
     @Query('product') product?: string,
+    @Query('capacity') capacity?: string,
+    @Query('customer') customer?: string,
+    @Query('status') status?: string,
   ) {
     const companyId = this.resolveCompanyId(req);
     return this.plantHeadService.getDispatchAnalytics(
@@ -356,6 +359,9 @@ export class PlantHeadController {
       area,
       salesPerson,
       product,
+      capacity,
+      customer,
+      status,
     );
   }
 

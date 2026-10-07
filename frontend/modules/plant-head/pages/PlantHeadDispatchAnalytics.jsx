@@ -108,6 +108,16 @@ export const PlantHeadDispatchAnalytics = () => {
   const [customEndDate, setCustomEndDate] = useState('2026-08-29');
   const [selectedMonth, setSelectedMonth] = useState('2026-08');
 
+  // Multi-dimensional Filter States
+  const [productFilter, setProductFilter] = useState('All');
+  const [capacityFilter, setCapacityFilter] = useState('All');
+  const [customerFilter, setCustomerFilter] = useState('All');
+  const [salesPersonFilter, setSalesPersonFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
+
+  // Prevent repeated smart fallback bouncing
+  const initialFallbackCheckedRef = useRef(false);
+
   // ── Component State ──
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -162,6 +172,13 @@ export const PlantHeadDispatchAnalytics = () => {
         params.set('customEnd', customEndDate);
       }
 
+      // Append multi-dimensional filters
+      if (productFilter && productFilter !== 'All') params.set('product', productFilter);
+      if (capacityFilter && capacityFilter !== 'All') params.set('capacity', capacityFilter);
+      if (customerFilter && customerFilter !== 'All') params.set('customer', customerFilter);
+      if (salesPersonFilter && salesPersonFilter !== 'All') params.set('salesPerson', salesPersonFilter);
+      if (statusFilter && statusFilter !== 'All') params.set('status', statusFilter);
+
       const res = await backendFetch(`/api/backend/plant-head/analytics/dispatch?${params.toString()}`);
       const payload = res?.data || res;
       if (!payload || (!payload.summary && !Array.isArray(payload.products))) {
@@ -170,13 +187,16 @@ export const PlantHeadDispatchAnalytics = () => {
 
       if (reqId === requestSeq.current) {
         setAnalyticsData(payload);
-        // Smart fallback: if requested period has zero records (e.g. August on cloud),
-        // and other months with real data exist, auto-navigate to the latest active month
-        if (!payload.hasData && filterMode === 'Audit' && payload.filterOptions?.months?.length > 0) {
-          const latestActive = payload.filterOptions.months[0];
-          if (latestActive && latestActive !== '2026-08') {
-            setFilterMode('Monthly');
-            setSelectedMonth(latestActive);
+        // Smart fallback on initial load only: if requested period has zero records (e.g. August on cloud),
+        // and other months with real data exist, auto-navigate once to the latest active month
+        if (!initialFallbackCheckedRef.current) {
+          initialFallbackCheckedRef.current = true;
+          if (!payload.hasData && filterMode === 'Audit' && payload.filterOptions?.months?.length > 0) {
+            const latestActive = payload.filterOptions.months[0];
+            if (latestActive && latestActive !== '2026-08') {
+              setFilterMode('Monthly');
+              setSelectedMonth(latestActive);
+            }
           }
         }
       }
@@ -190,11 +210,53 @@ export const PlantHeadDispatchAnalytics = () => {
         setRefreshing(false);
       }
     }
-  }, [filterMode, customStartDate, customEndDate, selectedMonth]);
+  }, [filterMode, customStartDate, customEndDate, selectedMonth, productFilter, capacityFilter, customerFilter, salesPersonFilter, statusFilter]);
 
   useEffect(() => {
     fetchDispatchData();
   }, [fetchDispatchData]);
+
+  // ── Derived Available Filter Options (Live from ERP) ──
+  const availableProducts = useMemo(() => {
+    const raw = analyticsData?.filterOptions?.products || [];
+    return raw.map(p => typeof p === 'string' ? p : p.product).filter(Boolean);
+  }, [analyticsData?.filterOptions?.products]);
+
+  const availableCapacities = useMemo(() => {
+    const raw = analyticsData?.filterOptions?.capacities || [];
+    return raw.map(c => typeof c === 'string' ? c : c.capacity).filter(Boolean);
+  }, [analyticsData?.filterOptions?.capacities]);
+
+  const availableCustomers = useMemo(() => {
+    const raw = analyticsData?.filterOptions?.customers || [];
+    return raw.map(c => typeof c === 'string' ? c : c.customer || c.name || c).filter(Boolean);
+  }, [analyticsData?.filterOptions?.customers]);
+
+  const availableSalesPersons = useMemo(() => {
+    const raw = analyticsData?.filterOptions?.salesPersons || [];
+    return raw.map(s => typeof s === 'string' ? s : s.name || s.salesPerson).filter(Boolean);
+  }, [analyticsData?.filterOptions?.salesPersons]);
+
+  const availableStatuses = useMemo(() => {
+    const raw = analyticsData?.filterOptions?.statuses || [];
+    return raw.filter(Boolean);
+  }, [analyticsData?.filterOptions?.statuses]);
+
+  const hasActiveFilters = useMemo(() => {
+    return productFilter !== 'All' ||
+           capacityFilter !== 'All' ||
+           customerFilter !== 'All' ||
+           salesPersonFilter !== 'All' ||
+           statusFilter !== 'All';
+  }, [productFilter, capacityFilter, customerFilter, salesPersonFilter, statusFilter]);
+
+  const handleResetFilters = useCallback(() => {
+    setProductFilter('All');
+    setCapacityFilter('All');
+    setCustomerFilter('All');
+    setSalesPersonFilter('All');
+    setStatusFilter('All');
+  }, []);
 
   // ── Fetch Audit Data on Demand ──
   const fetchAuditData = async () => {
@@ -269,6 +331,7 @@ export const PlantHeadDispatchAnalytics = () => {
         ['Source of Truth:', 'PostgreSQL ERP Live Queries (Zero Mock Data)'],
         ['Reconciliation Status:', analyticsData.reconciliation?.isValid ? '100% Reconciled Across 7 Dimensions' : 'Variance Detected'],
         ['Export Timestamp:', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })],
+        ['Active Filter Scope:', hasActiveFilters ? `Product: ${productFilter} | Capacity: ${capacityFilter} | Client: ${customerFilter} | Sales: ${salesPersonFilter} | Status: ${statusFilter}` : 'None (Full Period Scope)'],
         [],
         ['Metric / KPI', 'Value', 'Unit', 'Operational Context'],
         ['Total Dispatch Quantity', analyticsData.summary?.totalQuantity || 0, 'PCS', 'Sum of all outbound units'],
@@ -512,6 +575,24 @@ export const PlantHeadDispatchAnalytics = () => {
           transform: translateY(-1px);
         }
 
+        .prem-select {
+          width: 100%;
+          background: #ffffff;
+          border: 1.5px solid #cbd5e1;
+          padding: 6.5px 10px;
+          border-radius: 8px;
+          font-size: 11.5px;
+          font-weight: 700;
+          color: #0f172a;
+          outline: none;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+        .prem-select:focus {
+          border-color: #0284c7;
+          box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+        }
+
         .prem-table {
           width: 100%;
           border-collapse: separate;
@@ -597,132 +678,18 @@ export const PlantHeadDispatchAnalytics = () => {
         marginBottom: '12px'
       }}>
         <div style={{ maxWidth: '1600px', margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-          {/* Left: Quick Date Mode Toggles */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '4px', marginRight: '4px' }}>
-              <Filter size={13} color="#0f2e5a" /> Period:
+          {/* Left: Branding & Active Scope Indicator */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '13px', fontWeight: '900', color: '#0f2e5a', letterSpacing: '0.03em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Truck size={17} color="#0284c7" /> DISPATCH ANALYTICS
             </span>
-
-            {[
-              {
-                id: 'oct-live',
-                label: 'Oct 2026 (Live)',
-                isActive: filterMode === 'Monthly' && selectedMonth === '2026-10',
-                action: () => handleSelectMonthlyPreset('2026-10'),
-                title: 'Live Operational Month: October 2026 (86.9 MT)'
-              },
-              {
-                id: 'sep-peak',
-                label: 'Sep 2026 (Peak)',
-                isActive: filterMode === 'Monthly' && selectedMonth === '2026-09',
-                action: () => handleSelectMonthlyPreset('2026-09'),
-                title: 'Peak Production Month: September 2026 (452.6 MT)'
-              },
-              {
-                id: 'all-time',
-                label: 'All-Time (539.6 MT)',
-                isActive: filterMode === 'Monthly' && selectedMonth === 'all',
-                action: () => handleSelectMonthlyPreset('all'),
-                title: 'Cumulative Total ERP Dispatch History'
-              },
-              {
-                id: 'audit-aug',
-                label: 'Aug 2026 (Audit)',
-                isActive: filterMode === 'Audit' || (filterMode === 'Monthly' && selectedMonth === '2026-08'),
-                action: handleSelectAuditPreset,
-                title: 'Official Audited Dataset: 01 Aug to 29 Aug 2026 (129.7 MT)'
-              },
-              {
-                id: 'daily-peak',
-                label: 'Daily (24 Aug Peak)',
-                isActive: filterMode === 'Daily',
-                action: handleSelectDailyPreset,
-                title: 'Peak Single Day Outbound Aggregate (17,101 KG)'
-              },
-              {
-                id: 'custom-range',
-                label: 'Custom Range',
-                isActive: filterMode === 'Custom',
-                action: handleSelectCustomMode,
-                title: 'Custom Date Range'
-              }
-            ].map(p => {
-              const isActive = p.isActive;
-              return (
-                <button
-                  key={p.id}
-                  onClick={p.action}
-                  title={p.title}
-                  style={{
-                    background: isActive ? 'linear-gradient(135deg, #0f2e5a 0%, #1e3a8a 100%)' : '#f1f5f9',
-                    color: isActive ? '#ffffff' : '#334155',
-                    border: isActive ? 'none' : '1px solid #cbd5e1',
-                    padding: '4px 10px',
-                    borderRadius: '7px',
-                    fontSize: '11px',
-                    fontWeight: isActive ? '800' : '600',
-                    cursor: 'pointer',
-                    boxShadow: isActive ? '0 2px 6px rgba(15, 46, 90, 0.25)' : 'none',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {p.label}
-                </button>
-              );
-            })}
-
-            {/* Dynamic Month Selector from ERP Available Months */}
-            {analyticsData?.filterOptions?.months?.length > 0 && (
-              <select
-                value={filterMode === 'Monthly' ? selectedMonth : ''}
-                onChange={(e) => {
-                  if (e.target.value) handleSelectMonthlyPreset(e.target.value);
-                }}
-                style={{
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  padding: '3px 8px',
-                  borderRadius: '7px',
-                  border: '1px solid #cbd5e1',
-                  background: '#ffffff',
-                  color: '#0f2e5a',
-                  cursor: 'pointer',
-                  outline: 'none'
-                }}
-                title="Select any active month from ERP"
-              >
-                <option value="" disabled>All Months...</option>
-                {analyticsData.filterOptions.months.map(m => (
-                  <option key={m} value={m}>{m} Outbound</option>
-                ))}
-                <option value="all">All-Time Cumulative</option>
-              </select>
-            )}
-
-            {/* Custom Date Pickers */}
-            {filterMode === 'Custom' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '6px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '7px', padding: '2px 8px' }}>
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  style={{ fontSize: '11px', background: 'transparent', border: 'none', outline: 'none', fontWeight: '600', color: '#1e293b' }}
-                />
-                <span style={{ color: '#94a3b8', fontSize: '11px' }}>to</span>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  style={{ fontSize: '11px', background: 'transparent', border: 'none', outline: 'none', fontWeight: '600', color: '#1e293b' }}
-                />
-                <button
-                  onClick={() => fetchDispatchData()}
-                  className="prem-btn prem-btn-primary"
-                  style={{ padding: '3px 9px', fontSize: '10.5px' }}
-                >
-                  Apply
-                </button>
-              </div>
+            <span style={{ fontSize: '11px', fontWeight: '700', background: '#f1f5f9', color: '#475569', padding: '3px 8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+              {summary?.period || (selectedMonth === 'all' ? 'All-Time' : selectedMonth) || 'ERP Source of Truth'}
+            </span>
+            {hasActiveFilters && (
+              <span style={{ fontSize: '10px', fontWeight: '800', background: '#fef3c7', color: '#92400e', padding: '2px 7px', borderRadius: '4px', border: '1px solid #fde68a' }}>
+                Filtered View
+              </span>
             )}
           </div>
 
@@ -809,6 +776,313 @@ export const PlantHeadDispatchAnalytics = () => {
           MAIN ONE-PAGE REPORT WRAPPER
       ══════════════════════════════════════════════════════════════════ */}
       <div ref={reportRef} style={{ maxWidth: '1600px', margin: '0 auto', padding: '0 16px 24px 16px' }} className="print:p-0 print:max-w-none">
+        {/* ═════════════════════════════════════════════════════════════════
+            2. INDUSTRIAL FILTER & MULTI-DIMENSIONAL SELECTION DECK
+        ══════════════════════════════════════════════════════════════════ */}
+        <div className="report-filter-bar no-print prem-card" style={{
+          padding: '14px 20px',
+          marginBottom: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          borderLeft: '4px solid #0284c7'
+        }}>
+          {/* Top Filter Row: Quick Period Pills + Scope Metrics + Reset All Filters */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '11px', fontWeight: '900', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '4px', marginRight: '4px' }}>
+                <Calendar size={13} color="#0284c7" /> Quick Period:
+              </span>
+              {[
+                { id: 'oct-live', label: 'Oct 2026 (Live)', mode: 'Monthly', month: '2026-10', title: 'Live October 2026 Outbound Dispatches' },
+                { id: 'sep-peak', label: 'Sep 2026 (Peak)', mode: 'Monthly', month: '2026-09', title: 'Peak September 2026 Outbound Dispatches (452.6 MT)' },
+                { id: 'aug-audit', label: 'Aug 2026 (Audit)', mode: 'Audit', month: '2026-08', title: 'Audited August 2026 Dataset (129.7 MT)' },
+                { id: 'all-time', label: 'All-Time', mode: 'Monthly', month: 'all', title: 'Cumulative All-Time ERP Dispatches' },
+                { id: 'custom-range', label: 'Custom Range', mode: 'Custom', month: 'custom', title: 'Custom Date Range Picker' },
+              ].map(p => {
+                const isActive = p.mode === 'Audit'
+                  ? filterMode === 'Audit' || (filterMode === 'Monthly' && selectedMonth === '2026-08')
+                  : p.mode === 'Custom'
+                  ? filterMode === 'Custom'
+                  : filterMode === 'Monthly' && selectedMonth === p.month;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      if (p.mode === 'Audit') handleSelectAuditPreset();
+                      else if (p.mode === 'Custom') handleSelectCustomMode();
+                      else handleSelectMonthlyPreset(p.month);
+                    }}
+                    title={p.title}
+                    style={{
+                      background: isActive ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#f8fafc',
+                      color: isActive ? '#ffffff' : '#475569',
+                      border: isActive ? 'none' : '1px solid #cbd5e1',
+                      padding: '4px 11px',
+                      borderRadius: '7px',
+                      fontSize: '11px',
+                      fontWeight: isActive ? '800' : '600',
+                      cursor: 'pointer',
+                      boxShadow: isActive ? '0 2px 6px rgba(2, 132, 199, 0.3)' : 'none',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {/* Dynamic Scope Badge */}
+              {summary && (
+                <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>
+                  Active Scope: <strong style={{ color: '#0f172a' }}>{fmtNum(summary.totalQuantity)} PCS</strong> ({fmtKg(summary.totalWeight)} KG)
+                </span>
+              )}
+
+              {/* Reset All Filters Button */}
+              {hasActiveFilters && (
+                <button
+                  onClick={handleResetFilters}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#e11d48',
+                    fontSize: '11px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                  title="Clear all active criteria back to period scope"
+                >
+                  <X size={12} /> Reset All Filters
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Middle Filter Row: 6 Clean Industrial Dropdowns in Auto-Fit Grid */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
+            gap: '10px',
+            alignItems: 'center'
+          }}>
+            {/* 1. Period Selector */}
+            <div>
+              <label style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                Reporting Period
+              </label>
+              <select
+                value={filterMode === 'Custom' ? 'custom' : filterMode === 'Audit' ? '2026-08' : selectedMonth}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'custom') handleSelectCustomMode();
+                  else if (val === '2026-08') handleSelectAuditPreset();
+                  else handleSelectMonthlyPreset(val);
+                }}
+                className="prem-select"
+              >
+                {analyticsData?.filterOptions?.months && analyticsData.filterOptions.months.length > 0 ? (
+                  <>
+                    {analyticsData.filterOptions.months.map(m => (
+                      <option key={m} value={m}>{m} Outbound</option>
+                    ))}
+                    <option value="all">All-Time Cumulative</option>
+                    <option value="custom">Custom Date Range</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="2026-10">October 2026</option>
+                    <option value="2026-09">September 2026</option>
+                    <option value="2026-08">August 2026 (Audit)</option>
+                    <option value="all">All-Time Cumulative</option>
+                    <option value="custom">Custom Date Range</option>
+                  </>
+                )}
+              </select>
+            </div>
+
+            {/* 2. Product Family / Category */}
+            <div>
+              <label style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                Product Family / Code
+              </label>
+              <select
+                value={productFilter}
+                onChange={(e) => setProductFilter(e.target.value)}
+                className="prem-select"
+                style={{
+                  borderColor: productFilter !== 'All' ? '#0284c7' : '#cbd5e1',
+                  background: productFilter !== 'All' ? '#f0f9ff' : '#ffffff',
+                  color: productFilter !== 'All' ? '#0369a1' : '#0f172a'
+                }}
+              >
+                <option value="All">All Products ({availableProducts.length})</option>
+                {availableProducts.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 3. Load Capacity / Rating */}
+            <div>
+              <label style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                Load Capacity / Rating
+              </label>
+              <select
+                value={capacityFilter}
+                onChange={(e) => setCapacityFilter(e.target.value)}
+                className="prem-select"
+                style={{
+                  borderColor: capacityFilter !== 'All' ? '#0284c7' : '#cbd5e1',
+                  background: capacityFilter !== 'All' ? '#f0f9ff' : '#ffffff',
+                  color: capacityFilter !== 'All' ? '#0369a1' : '#0f172a'
+                }}
+              >
+                <option value="All">All Capacities ({availableCapacities.length})</option>
+                {availableCapacities.map((cap) => (
+                  <option key={cap} value={cap}>{cap}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 4. Customer / Client Account */}
+            <div>
+              <label style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                Customer / Client Account
+              </label>
+              <select
+                value={customerFilter}
+                onChange={(e) => setCustomerFilter(e.target.value)}
+                className="prem-select"
+                style={{
+                  borderColor: customerFilter !== 'All' ? '#0284c7' : '#cbd5e1',
+                  background: customerFilter !== 'All' ? '#f0f9ff' : '#ffffff',
+                  color: customerFilter !== 'All' ? '#0369a1' : '#0f172a'
+                }}
+              >
+                <option value="All">All Clients ({availableCustomers.length})</option>
+                {availableCustomers.map((cust) => (
+                  <option key={cust} value={cust}>{cust}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 5. Sales Representative */}
+            <div>
+              <label style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                Sales Executive / Rep
+              </label>
+              <select
+                value={salesPersonFilter}
+                onChange={(e) => setSalesPersonFilter(e.target.value)}
+                className="prem-select"
+                style={{
+                  borderColor: salesPersonFilter !== 'All' ? '#0284c7' : '#cbd5e1',
+                  background: salesPersonFilter !== 'All' ? '#f0f9ff' : '#ffffff',
+                  color: salesPersonFilter !== 'All' ? '#0369a1' : '#0f172a'
+                }}
+              >
+                <option value="All">All Sales Reps ({availableSalesPersons.length})</option>
+                {availableSalesPersons.map((sp) => (
+                  <option key={sp} value={sp}>{sp}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 6. Dispatch Status */}
+            <div>
+              <label style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                Dispatch Status
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="prem-select"
+                style={{
+                  borderColor: statusFilter !== 'All' ? '#0284c7' : '#cbd5e1',
+                  background: statusFilter !== 'All' ? '#f0f9ff' : '#ffffff',
+                  color: statusFilter !== 'All' ? '#0369a1' : '#0f172a'
+                }}
+              >
+                <option value="All">All Statuses ({availableStatuses.length || 'All'})</option>
+                {availableStatuses.map((st) => (
+                  <option key={st} value={st}>{st.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Custom Date Range Selector (Conditionally Revealed) */}
+          {filterMode === 'Custom' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '11px', fontWeight: '800', color: '#0f2e5a' }}>Custom Date Range:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  style={{ fontSize: '11px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '5px', padding: '3px 7px', fontWeight: '600', color: '#1e293b' }}
+                />
+                <span style={{ color: '#94a3b8', fontSize: '11px' }}>to</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  style={{ fontSize: '11px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '5px', padding: '3px 7px', fontWeight: '600', color: '#1e293b' }}
+                />
+              </div>
+              <button
+                onClick={() => fetchDispatchData()}
+                className="prem-btn prem-btn-primary"
+                style={{ padding: '4px 12px', fontSize: '11px' }}
+              >
+                Apply Custom Range
+              </button>
+            </div>
+          )}
+
+          {/* Bottom Row: Active Filter Pills */}
+          {hasActiveFilters && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', paddingTop: '6px', borderTop: '1px dashed #e2e8f0' }}>
+              <span style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Active Filters:</span>
+              {productFilter !== 'All' && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '700' }}>
+                  Product: {productFilter}
+                  <X size={11} style={{ cursor: 'pointer' }} onClick={() => setProductFilter('All')} />
+                </span>
+              )}
+              {capacityFilter !== 'All' && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '700' }}>
+                  Capacity: {capacityFilter}
+                  <X size={11} style={{ cursor: 'pointer' }} onClick={() => setCapacityFilter('All')} />
+                </span>
+              )}
+              {customerFilter !== 'All' && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '700' }}>
+                  Client: {customerFilter}
+                  <X size={11} style={{ cursor: 'pointer' }} onClick={() => setCustomerFilter('All')} />
+                </span>
+              )}
+              {salesPersonFilter !== 'All' && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '700' }}>
+                  Sales: {salesPersonFilter}
+                  <X size={11} style={{ cursor: 'pointer' }} onClick={() => setSalesPersonFilter('All')} />
+                </span>
+              )}
+              {statusFilter !== 'All' && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '700' }}>
+                  Status: {statusFilter}
+                  <X size={11} style={{ cursor: 'pointer' }} onClick={() => setStatusFilter('All')} />
+                </span>
+              )}
+            </div>
+          )}
+        </div>
         {/* Loading State Skeleton */}
         {loading && !analyticsData && (
           <div className="prem-card" style={{ padding: '40px 20px', margin: '16px 0', textAlign: 'center' }}>
@@ -850,18 +1124,30 @@ export const PlantHeadDispatchAnalytics = () => {
               <Truck size={28} color="#0f2e5a" />
             </div>
             <div style={{ fontSize: '17px', fontWeight: '800', color: '#0f2e5a' }}>
-              No Outbound Dispatches Found for {filterMode === 'Audit' ? 'August 2026 Audit Period' : selectedMonth === 'all' ? 'All-Time' : selectedMonth || `${customStartDate} to ${customEndDate}`}
+              {hasActiveFilters
+                ? 'No Outbound Dispatches Match the Selected Filter Criteria'
+                : `No Outbound Dispatches Found for ${filterMode === 'Audit' ? 'August 2026 Audit Period' : selectedMonth === 'all' ? 'All-Time' : selectedMonth || `${customStartDate} to ${customEndDate}`}`}
             </div>
             <p style={{ fontSize: '13px', color: '#64748b', marginTop: '6px', maxWidth: '640px', margin: '6px auto 0 auto', lineHeight: 1.5 }}>
-              This ERP database has no dispatch records in the selected date range ({customStartDate} to {customEndDate}).
-              {analyticsData?.filterOptions?.months?.length > 0 ? (
+              {hasActiveFilters
+                ? 'Try resetting the product, capacity, customer, or status filters to expand the outbound search scope.'
+                : `This ERP database has no dispatch records in the selected date range (${customStartDate} to ${customEndDate}).`
+              }
+              {analyticsData?.filterOptions?.months?.length > 0 && !hasActiveFilters && (
                 <> Authentic production dispatches are available for <strong>{analyticsData.filterOptions.months.join(', ')}</strong>.</>
-              ) : (
-                <> Click below to view live October 2026, peak September 2026, or All-Time aggregates.</>
               )}
             </p>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
+              {hasActiveFilters && (
+                <button
+                  onClick={handleResetFilters}
+                  className="prem-btn"
+                  style={{ padding: '8px 16px', fontSize: '12px', background: '#e11d48', color: '#ffffff', border: 'none' }}
+                >
+                  <X size={14} /> Reset Filter Criteria
+                </button>
+              )}
               <button
                 onClick={() => handleSelectMonthlyPreset('2026-10')}
                 className="prem-btn prem-btn-emerald"

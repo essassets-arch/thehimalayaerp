@@ -4102,6 +4102,9 @@ export class PlantHeadService {
     areaFilter?: string,
     salesPersonFilter?: string,
     productFilter?: string,
+    capacityFilter?: string,
+    customerFilter?: string,
+    statusFilter?: string,
   ) {
     if (!companyId?.trim()) throw new BadRequestException('Company is required');
     const { startDate, endDate, periodLabel, isAllTime } = dispatchAnalyticsPeriod(filter, customStart, customEnd, month, year);
@@ -4312,6 +4315,9 @@ export class PlantHeadService {
           months: discoveredMonths,
           salesPersons: [],
           products: [],
+          capacities: [],
+          customers: [],
+          statuses: [],
           areas: [],
         },
         kpis: {
@@ -4398,6 +4404,9 @@ export class PlantHeadService {
     // Filter Options collectors across all available records
     const distinctSalesPersons = new Set<string>();
     const distinctProducts = new Set<string>();
+    const distinctCapacities = new Set<string>();
+    const distinctCustomers = new Set<string>();
+    const distinctStatuses = new Set<string>();
     const distinctLocalities = new Map<string, { locality: string; city: string; pincode: string }>();
 
     for (const d of dbDispatches) {
@@ -4410,7 +4419,13 @@ export class PlantHeadService {
       distinctLocalities.set(loc.locality, { locality: loc.locality, city: loc.city, pincode: loc.pincode });
 
       const sRef = d.salesOrder?.salesExecutive?.name || 'Not recorded';
-      distinctSalesPersons.add(sRef);
+      if (sRef && sRef !== 'Not recorded') distinctSalesPersons.add(sRef);
+
+      const cName = d.salesOrder?.customer?.companyName || 'Client Account';
+      if (cName && cName !== 'Client Account') distinctCustomers.add(cName);
+
+      const dStatus = d.status || 'DISPATCHED';
+      distinctStatuses.add(dStatus);
 
       const dWeight = Number(d.totalWeight) || 0;
       const dFreight = Number(d.freightAmount) || 0;
@@ -4421,9 +4436,11 @@ export class PlantHeadService {
         const specs = (itemObj.specifications || {}) as Record<string, any>;
         const rawName = itemObj.product?.name || itemObj.productNameSnapshot || '';
         const prod = standardizeProduct(specs.product, rawName);
-        distinctProducts.add(prod);
+        if (prod && prod !== 'Mixed / unallocated' && prod !== 'Not recorded') distinctProducts.add(prod);
 
         const cap = standardizeCapacity(specs.capacity || rawName);
+        if (cap && cap !== 'Mixed / unallocated' && cap !== 'Not recorded') distinctCapacities.add(cap);
+
         const size = standardizeSize(specs.size || rawName);
         const colour = standardizeColour(specs.colour || specs.color);
         const itQty = Number(it.quantity) || 0;
@@ -4434,6 +4451,10 @@ export class PlantHeadService {
       const primaryCap = (new Set(itemSpecs.map(it => it.cap)).size > 1 ? 'Mixed / unallocated' : itemSpecs[0]?.cap) || 'Not recorded';
       const primarySize = (new Set(itemSpecs.map(it => it.size)).size > 1 ? 'Mixed / unallocated' : itemSpecs[0]?.size) || 'Not recorded';
       const primaryColour = (new Set(itemSpecs.map(it => it.colour)).size > 1 ? 'Mixed / unallocated' : itemSpecs[0]?.colour) || 'Not recorded';
+
+      if (primaryCap && primaryCap !== 'Mixed / unallocated' && primaryCap !== 'Not recorded') {
+        distinctCapacities.add(primaryCap);
+      }
 
       // ── Apply User Filters ──
       if (areaFilter && areaFilter !== 'All') {
@@ -4451,8 +4472,23 @@ export class PlantHeadService {
       }
 
       if (productFilter && productFilter !== 'All') {
-        const hasProd = itemSpecs.some((it: any) => it.prod.toLowerCase() === productFilter.toLowerCase());
+        const hasProd = itemSpecs.some((it: any) => it.prod.toLowerCase() === productFilter.toLowerCase()) || primaryProd.toLowerCase() === productFilter.toLowerCase();
         if (!hasProd) continue;
+      }
+
+      if (capacityFilter && capacityFilter !== 'All') {
+        const hasCap = itemSpecs.some((it: any) => it.cap.toLowerCase() === capacityFilter.toLowerCase()) || primaryCap.toLowerCase() === capacityFilter.toLowerCase();
+        if (!hasCap) continue;
+      }
+
+      if (customerFilter && customerFilter !== 'All') {
+        const cLower = cName.toLowerCase();
+        const filtLower = customerFilter.toLowerCase();
+        if (cLower !== filtLower && !cLower.includes(filtLower)) continue;
+      }
+
+      if (statusFilter && statusFilter !== 'All') {
+        if (dStatus.toUpperCase() !== statusFilter.toUpperCase()) continue;
       }
 
       // Passed filters! Aggregate dispatch
@@ -4460,7 +4496,6 @@ export class PlantHeadService {
       totalFreight += dFreight;
       totalQty += dPcs;
 
-      const cName = d.salesOrder?.customer?.companyName || 'Client Account';
       const cId = d.salesOrder?.customerId || d.salesOrder?.customer?.id;
       const cCity = loc.city;
       clientSet.add(cName);
@@ -4998,14 +5033,20 @@ export class PlantHeadService {
     // Filter options for frontend dropdowns
     const filterOptions = {
       months: discoveredMonths,
-      salesPersons: Array.from(distinctSalesPersons).map(name => {
+      salesPersons: Array.from(distinctSalesPersons).sort().map(name => {
         const found = salesRefsLive.find(s => s.salesRef === name);
         return { name, share: found ? found.share : 0 };
       }),
-      products: Array.from(distinctProducts).map(product => {
+      products: Array.from(distinctProducts).sort().map(product => {
         const found = productsLive.find(p => p.product === product);
         return { product, share: found ? found.share : 0 };
       }),
+      capacities: Array.from(distinctCapacities).sort().map(capacity => {
+        const found = capacitiesLive.find(c => c.capacity === capacity);
+        return { capacity, share: found ? found.share : 0 };
+      }),
+      customers: Array.from(distinctCustomers).sort(),
+      statuses: Array.from(distinctStatuses).sort(),
       areas: Array.from(distinctLocalities.values()),
     };
 
