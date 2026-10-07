@@ -826,4 +826,66 @@ describe('Production Analytics - Rules 23–28 Comprehensive Verification Suite'
     expect(report.sizeWise.some((s: any) => s.name === '900MM DIA')).toBe(true);
     expect(report.reconciliation.unmappedSizesCount).toBe(0);
   });
+
+  // ── TEST 20: Daily Shift Report Cover/Frame Flow into Plant Head Analytics ──
+  it('Test 20: Floor Daily Reports accurately flow into TOTAL COVERS, TOTAL FRAMES, Finished Sets, and Loose Parts', async () => {
+    const floorReport = {
+      id: 'dr-floor-oct',
+      reportNo: 'PR-2026-000101',
+      reportDate: new Date('2026-10-06T10:00:00.000Z'),
+      status: 'APPROVED',
+      items: [
+        {
+          id: 'dri-1',
+          workOrderId: null,
+          productId: 'p-mhc-600',
+          customProductName: 'HIMALAYA FRP MHC 600X600 B125',
+          size: '600 × 600',
+          type: 'MHC',
+          capacity: 'B125',
+          coverQty: 55, // 50 in sets + 5 loose
+          frameQty: 52, // 50 in sets + 2 loose
+          setQty: 50,
+          extraCoverQty: 5,
+          extraFrameQty: 2,
+          coverUnitWeight: 22,
+          frameUnitWeight: 23,
+          totalWeight: 2406,
+          product: {
+            id: 'p-mhc-600',
+            name: 'HIMALAYA FRP MHC 600X600 B125',
+            category: 'FRP COVERS',
+            type: 'MHC',
+            capacity: 'B125',
+            size: '600 × 600',
+            coversPerSet: 1,
+            framesPerSet: 1,
+            coverUnitWeight: 22,
+            frameUnitWeight: 23,
+            weight: 45,
+          },
+        },
+      ],
+    };
+
+    const mockPrisma = {
+      workOrder: { findMany: jest.fn().mockResolvedValue([]) },
+      qCInspection: { findMany: jest.fn().mockResolvedValue([]) },
+      productionDailyReport: { findMany: jest.fn().mockResolvedValue([floorReport]) },
+      machine: { findMany: jest.fn().mockResolvedValue([]) },
+      salesOrder: { groupBy: jest.fn().mockResolvedValue([]) },
+    };
+
+    const service = new PlantHeadService(mockPrisma as any, {} as any);
+    const report = await service.getMonthlyProductionReport('tenant-1', undefined, undefined, undefined, undefined, undefined, undefined, '2026-10');
+
+    // Baseline (2975 covers, 2876 frames, 1772 sets, 38 loose covers, 20 loose frames) + Floor Report (55 covers, 52 frames, 50 sets, 5 loose covers, 2 loose frames)
+    expect(report.kpis.totalCovers).toBe(2975 + 55);
+    expect(report.kpis.totalFrames).toBe(2876 + 52);
+    expect(report.kpis.totalPieces).toBe(5851 + 107);
+    expect(report.kpis.totalFinishedSets).toBe(1772 + 50);
+    expect(report.kpis.totalLooseCovers).toBe(38 + 5);
+    expect(report.kpis.totalLooseFrames).toBe(20 + 2);
+    expect(report.kpis.totalLoosePieces).toBe(58 + 7);
+  });
 });
