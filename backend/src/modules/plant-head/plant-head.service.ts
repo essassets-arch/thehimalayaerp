@@ -2646,7 +2646,6 @@ export class PlantHeadService {
       totalLooseCovers += sItem.extraCoverQty;
       totalLooseFrames += sItem.extraFrameQty;
       totalFinishedSets += sItem.setQty;
-      completedCount++;
 
       // Update product type map
       if (!productTypeMap.has(pType)) {
@@ -2789,7 +2788,7 @@ export class PlantHeadService {
         frames: val.frames || 0,
         share: totalPieces > 0 ? Math.round((val.pieces / totalPieces) * 1000) / 10 : 0,
         weightShare: totalWeight > 0 ? Math.round((val.weight / totalWeight) * 1000) / 10 : 0,
-      })).sort((a, b) => b.weight - a.weight);
+      })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
 
     const productTypesList = [...productTypeMap.values()].map(pt => ({
       name: pt.name,
@@ -2801,7 +2800,7 @@ export class PlantHeadService {
       weightShare: totalWeight > 0 ? Math.round((pt.weight / totalWeight) * 1000) / 10 : 0,
       share: totalPieces > 0 ? Math.round((pt.pieces / totalPieces) * 1000) / 10 : 0,
       pieceShare: totalPieces > 0 ? Math.round((pt.pieces / totalPieces) * 1000) / 10 : 0,
-    })).sort((a, b) => b.weight - a.weight);
+    })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
 
     const coverFrameList = [...coverFrameMap.values()].map(cf => ({
       product: cf.product,
@@ -2814,7 +2813,7 @@ export class PlantHeadService {
       weight: Math.round(cf.weight * 100) / 100,
       weightShare: totalWeight > 0 ? Math.round((cf.weight / totalWeight) * 1000) / 10 : 0,
       workOrders: cf.workOrders,
-    })).sort((a, b) => b.weight - a.weight);
+    })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
 
     const sizesList = serialiseBuckets(sizeMap);
     const capacitiesList = serialiseBuckets(capacityMap);
@@ -2962,6 +2961,8 @@ export class PlantHeadService {
       },
     };
 
+    const effectiveTotalWeight = roundedTotalWeight > 0 ? roundedTotalWeight : (roundedScaleWeight || 0);
+
     return {
       hasData: workOrders.length > 0 || standaloneDailyItems.length > 0,
       period: {
@@ -2972,10 +2973,14 @@ export class PlantHeadService {
         monthKey: monthKey || normMonth || '2026-09',
       },
       source: 'completed-work-orders-live',
-      reconciliation,
+      reconciliation: {
+        ...reconciliation,
+        standaloneRunsCount: standaloneDailyItems.length,
+      },
       kpis: {
         totalWeight: roundedTotalWeight,
-        totalWeightTonnes: Math.round((totalWeight / 1000) * 100) / 100,
+        effectiveWeight: effectiveTotalWeight,
+        totalWeightTonnes: Math.round((effectiveTotalWeight / 1000) * 100) / 100,
         totalScaleWeight: roundedScaleWeight,
         weightVariance: roundedWeightVariance,
         hasScaleWeight: hasAnyScaleWeight,
@@ -2990,7 +2995,8 @@ export class PlantHeadService {
         totalLooseFrames,
         totalLoosePieces: totalLooseCovers + totalLooseFrames,
         floorReconciledCount,
-        averageWeightPerPiece: totalPieces > 0 ? Math.round((totalWeight / totalPieces) * 100) / 100 : 0,
+        standaloneRunsCount: standaloneDailyItems.length,
+        averageWeightPerPiece: totalPieces > 0 ? Math.round((effectiveTotalWeight / totalPieces) * 100) / 100 : 0,
         totalWorkOrders: workOrders.length,
         completedWorkOrders: completedCount,
         pendingWorkOrders: activeCount,
@@ -3003,7 +3009,7 @@ export class PlantHeadService {
         activeMachines: machineFleet.length,
         uniqueCustomers: customerMap.size,
         narrative: workOrders.length > 0
-          ? `During ${periodLabel}, Himalaya manufactured ${Math.round((totalWeight / 1000) * 10) / 10} tonnes (${roundedTotalWeight.toLocaleString()} kg) of composite components comprising ${totalCovers.toLocaleString()} covers and ${totalFrames.toLocaleString()} frames across ${workOrders.length} work orders.`
+          ? `During ${periodLabel}, Himalaya manufactured ${Math.round((effectiveTotalWeight / 1000) * 10) / 10} tonnes (${Math.round(effectiveTotalWeight).toLocaleString()} kg${roundedTotalWeight === 0 && roundedScaleWeight > 0 ? ' floor scale measured' : ''}) of composite components comprising ${totalCovers.toLocaleString()} covers and ${totalFrames.toLocaleString()} frames across ${workOrders.length} work orders.`
           : `No production records found for ${periodLabel}.`,
       },
       productTypes: productTypesList,
@@ -3017,7 +3023,7 @@ export class PlantHeadService {
         share: totalPieces > 0 ? Math.round((p.pieces / totalPieces) * 1000) / 10 : 0,
         pieceShare: totalPieces > 0 ? Math.round((p.pieces / totalPieces) * 1000) / 10 : 0,
         weightShare: totalWeight > 0 ? Math.round((p.weight / totalWeight) * 1000) / 10 : 0,
-      })).sort((a, b) => b.weight - a.weight),
+      })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces)),
       productImages: [...productDetailMap.values()].map(p => ({
         id: p.id,
         name: p.name,
@@ -3030,7 +3036,7 @@ export class PlantHeadService {
         pieces: p.pieces,
         covers: p.covers,
         frames: p.frames,
-      })).sort((a, b) => b.weight - a.weight),
+      })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces)),
       coverFrameBreakdown: coverFrameList,
       coverFrameWise: coverFrameList,
       sizes: sizesList,

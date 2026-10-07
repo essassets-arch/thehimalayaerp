@@ -259,11 +259,12 @@ export const PlantHeadProductionAnalytics = () => {
       name: p.type || p.name || 'FRP Covers',
       weight: Number(p.weight || 0),
       weightShare: Number(p.weightShare || 0),
+      share: Number(p.share || p.pieceShare || 0),
       covers: Number(p.covers || 0),
       frames: Number(p.frames || 0),
       pieces: Number(p.pieces || 0),
       workOrders: Number(p.workOrders || 0),
-    })).sort((a, b) => b.weight - a.weight);
+    })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
   }, [report?.productWise, report?.productTypes]);
 
   // 1b. Specific Product Models List (Individual SKUs)
@@ -277,11 +278,14 @@ export const PlantHeadProductionAnalytics = () => {
       size: p.size || 'STANDARD',
       capacity: p.capacity || 'EN 124',
       weight: Number(p.weight || 0),
+      scaleWeight: Number(p.scaleWeight || 0),
+      effectiveWeight: Number(p.effectiveWeight || p.weight || p.scaleWeight || 0),
       weightShare: Number(p.weightShare || 0),
+      share: Number(p.share || p.pieceShare || 0),
       covers: Number(p.covers || 0),
       frames: Number(p.frames || 0),
       pieces: Number(p.pieces || 0),
-    })).sort((a, b) => b.weight - a.weight);
+    })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
   }, [report?.products]);
 
   // 2. Size-wise Production List
@@ -291,10 +295,11 @@ export const PlantHeadProductionAnalytics = () => {
       name: s.size || s.name || 'Unassigned',
       weight: Number(s.weight || 0),
       weightShare: Number(s.weightShare || 0),
+      share: Number(s.share || 0),
       pieces: Number(s.pieces || 0),
       covers: Number(s.covers || 0),
       frames: Number(s.frames || 0),
-    })).sort((a, b) => b.weight - a.weight);
+    })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
   }, [report?.sizeWise, report?.sizes]);
 
   // 3. Load-capacity-wise Production List
@@ -304,10 +309,11 @@ export const PlantHeadProductionAnalytics = () => {
       name: c.capacity || c.name || 'Not Configured',
       weight: Number(c.weight || 0),
       weightShare: Number(c.weightShare || 0),
+      share: Number(c.share || 0),
       pieces: Number(c.pieces || 0),
       covers: Number(c.covers || 0),
       frames: Number(c.frames || 0),
-    })).sort((a, b) => b.weight - a.weight);
+    })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
   }, [report?.capacityWise, report?.capacities]);
 
   // 4. Cover & Frame Production List
@@ -322,7 +328,7 @@ export const PlantHeadProductionAnalytics = () => {
       frames: Number(cf.frames || 0),
       pieces: Number(cf.pieces || 0),
       weight: Number(cf.weight || 0),
-    })).sort((a, b) => b.weight - a.weight);
+    })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
   }, [report?.coverFrameWise, report?.coverFrameBreakdown]);
 
   // 5. Top 10 Sizes for Bar Chart
@@ -1246,29 +1252,41 @@ export const PlantHeadProductionAnalytics = () => {
                 </span>
                 <Factory size={16} color="#0284c7" />
               </div>
-              <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '4px 0 2px 0', letterSpacing: '-0.02em' }}>
-                {fmt(kpis.totalWeight, 2)} <span style={{ fontSize: '13px', fontWeight: '800', color: '#0284c7' }}>KG</span>
-              </div>
-              <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-                <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: '4px', fontWeight: '800' }}>
-                  {fmt(kpis.totalPieces)} Pcs
-                </span>
-                <span>&bull;</span>
-                <span>{kpis.totalWeightTonnes} MT</span>
-                <span>&bull;</span>
-                <span>
-                  Avg {kpis.totalPieces > 0
-                    ? (kpis.totalWeight / kpis.totalPieces < 1
-                        ? (kpis.totalWeight / kpis.totalPieces).toFixed(2)
-                        : (kpis.totalWeight / kpis.totalPieces).toFixed(1))
-                    : 0} kg/pc
-                </span>
-                {kpis.hasScaleWeight && (
-                  <span style={{ background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontWeight: '800' }}>
-                    Scale: {fmt(kpis.totalScaleWeight, 1)} KG (Var: {kpis.weightVariance > 0 ? `+${fmt(kpis.weightVariance, 1)}` : fmt(kpis.weightVariance, 1)} KG)
-                  </span>
-                )}
-              </div>
+              {(() => {
+                const calcW = Number(kpis.totalWeight || 0);
+                const scaleW = Number(kpis.totalScaleWeight || 0);
+                const displayWeight = calcW > 0 ? calcW : scaleW;
+                const displayTonnes = kpis.totalWeightTonnes || Math.round((displayWeight / 1000) * 100) / 100;
+                const avgPerPc = kpis.averageWeightPerPiece || (kpis.totalPieces > 0 ? (displayWeight / kpis.totalPieces) : 0);
+                const avgStr = avgPerPc < 1 ? Number(avgPerPc).toFixed(2) : Number(avgPerPc).toFixed(1);
+
+                return (
+                  <>
+                    <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '4px 0 2px 0', letterSpacing: '-0.02em' }}>
+                      {fmt(displayWeight, 2)} <span style={{ fontSize: '13px', fontWeight: '800', color: '#0284c7' }}>KG</span>
+                    </div>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                      <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: '4px', fontWeight: '800' }}>
+                        {fmt(kpis.totalPieces)} Pcs
+                      </span>
+                      <span>&bull;</span>
+                      <span>{displayTonnes} MT</span>
+                      <span>&bull;</span>
+                      <span>Avg {avgStr} kg/pc</span>
+                      {kpis.hasScaleWeight && calcW > 0 && (
+                        <span style={{ background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontWeight: '800' }}>
+                          Scale: {fmt(scaleW, 1)} KG (Var: {kpis.weightVariance > 0 ? `+${fmt(kpis.weightVariance, 1)}` : fmt(kpis.weightVariance, 1)} KG)
+                        </span>
+                      )}
+                      {calcW === 0 && scaleW > 0 && (
+                        <span style={{ background: '#dcfce7', color: '#166534', padding: '1px 6px', borderRadius: '4px', fontWeight: '800' }}>
+                          Floor Scale Measured (Calc: 0 KG)
+                        </span>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             {/* Card 2: TOTAL COVERS */}
@@ -1398,6 +1416,14 @@ export const PlantHeadProductionAnalytics = () => {
                     </span>
                   </>
                 )}
+                {kpis.standaloneRunsCount > 0 && (
+                  <>
+                    <span>&bull;</span>
+                    <span style={{ color: '#6d28d9', fontWeight: '800', background: '#ede9fe', padding: '1px 5px', borderRadius: '4px' }}>
+                      {fmt(kpis.standaloneRunsCount)} Standalone Floor Runs
+                    </span>
+                  </>
+                )}
                 <span>&bull;</span>
                 <span style={{ fontWeight: '800', color: '#0f172a' }}>
                   {kpis.completionRate}%
@@ -1503,10 +1529,10 @@ export const PlantHeadProductionAnalytics = () => {
                           {fmt(item.pieces)}
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>
-                          {fmt(item.weight, 2)}
+                          {fmt(item.weight > 0 ? item.weight : (item.effectiveWeight || item.scaleWeight || 0), 2)}
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '700', color: '#334155' }}>
-                          {item.weightShare.toFixed(1)}%
+                          {(item.weightShare > 0 ? item.weightShare : (item.share || 0)).toFixed(1)}%
                         </td>
                       </tr>
                     ))}
@@ -1518,7 +1544,7 @@ export const PlantHeadProductionAnalytics = () => {
                         {fmt(kpis.totalPieces)}
                       </td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', color: '#0284c7', fontFamily: 'monospace' }}>
-                        {fmt(kpis.totalWeight, 2)}
+                        {fmt(kpis.totalWeight > 0 ? kpis.totalWeight : (kpis.totalScaleWeight || 0), 2)} {kpis.totalWeight === 0 && kpis.totalScaleWeight > 0 ? '(Scale)' : ''}
                       </td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', color: '#16a34a' }}>
                         100%
@@ -1571,7 +1597,7 @@ export const PlantHeadProductionAnalytics = () => {
                           {fmt(sz.weight, 2)}
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '700', color: '#334155' }}>
-                          {sz.weightShare.toFixed(1)}%
+                          {(sz.weightShare > 0 ? sz.weightShare : (sz.share || 0)).toFixed(1)}%
                         </td>
                       </tr>
                     ))}
@@ -1583,7 +1609,7 @@ export const PlantHeadProductionAnalytics = () => {
                         {fmt(kpis.totalPieces)}
                       </td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', color: '#0284c7', fontFamily: 'monospace' }}>
-                        {fmt(kpis.totalWeight, 2)}
+                        {fmt(kpis.totalWeight > 0 ? kpis.totalWeight : (kpis.totalScaleWeight || 0), 2)} {kpis.totalWeight === 0 && kpis.totalScaleWeight > 0 ? '(Scale)' : ''}
                       </td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', color: '#16a34a' }}>
                         100%
@@ -1636,7 +1662,7 @@ export const PlantHeadProductionAnalytics = () => {
                           {fmt(cap.weight, 2)}
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '700', color: '#334155' }}>
-                          {cap.weightShare.toFixed(1)}%
+                          {(cap.weightShare > 0 ? cap.weightShare : (cap.share || 0)).toFixed(1)}%
                         </td>
                       </tr>
                     ))}
@@ -1648,7 +1674,7 @@ export const PlantHeadProductionAnalytics = () => {
                         {fmt(kpis.totalPieces)}
                       </td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', color: '#0284c7', fontFamily: 'monospace' }}>
-                        {fmt(kpis.totalWeight, 2)}
+                        {fmt(kpis.totalWeight > 0 ? kpis.totalWeight : (kpis.totalScaleWeight || 0), 2)} {kpis.totalWeight === 0 && kpis.totalScaleWeight > 0 ? '(Scale)' : ''}
                       </td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', color: '#16a34a' }}>
                         100%
@@ -1745,10 +1771,12 @@ export const PlantHeadProductionAnalytics = () => {
             }}>
               <div style={{ marginBottom: '8px' }}>
                 <h3 style={{ fontSize: '13px', fontWeight: '900', color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                  Product Wise Weight Distribution
+                  {kpis.totalWeight > 0 ? 'Product Wise Weight Distribution' : 'Product Wise Distribution'}
                 </h3>
                 <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0 0' }}>
-                  Dynamic breakdown of production weight by product line
+                  {kpis.totalWeight > 0
+                    ? 'Dynamic breakdown of production weight by product line'
+                    : `Dynamic breakdown by pieces (${kpis.hasScaleWeight ? `Floor Scale: ${fmt(kpis.totalScaleWeight, 1)} KG` : 'Master specs'})`}
                 </p>
               </div>
 
@@ -1757,7 +1785,7 @@ export const PlantHeadProductionAnalytics = () => {
                   <PieChart>
                     <Pie
                       data={productWiseList}
-                      dataKey="weight"
+                      dataKey={kpis.totalWeight > 0 ? "weight" : "pieces"}
                       nameKey="name"
                       cx="50%"
                       cy="48%"
@@ -1771,7 +1799,12 @@ export const PlantHeadProductionAnalytics = () => {
                     </Pie>
                     <Tooltip
                       contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
-                      formatter={(val, name, item) => [`${fmt(val, 2)} KG (${item.payload.weightShare}%)`, name]}
+                      formatter={(val, name, item) => [
+                        kpis.totalWeight > 0
+                          ? `${fmt(val, 2)} KG (${item.payload.weightShare}%)`
+                          : `${fmt(val)} Pcs (${item.payload.share || item.payload.pieceShare || 0}%)`,
+                        name
+                      ]}
                     />
                     <Legend
                       verticalAlign="bottom"
@@ -1791,8 +1824,12 @@ export const PlantHeadProductionAnalytics = () => {
                   pointerEvents: 'none'
                 }}>
                   <div style={{ fontSize: '9px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Total</div>
-                  <div style={{ fontSize: '14px', fontWeight: '900', color: '#0f172a', lineHeight: 1.1 }}>{fmt(kpis.totalWeight)}</div>
-                  <div style={{ fontSize: '9px', fontWeight: '800', color: '#0284c7' }}>KG</div>
+                  <div style={{ fontSize: '14px', fontWeight: '900', color: '#0f172a', lineHeight: 1.1 }}>
+                    {fmt(kpis.totalWeight > 0 ? kpis.totalWeight : (kpis.totalScaleWeight > 0 ? kpis.totalScaleWeight : kpis.totalPieces))}
+                  </div>
+                  <div style={{ fontSize: '9px', fontWeight: '800', color: '#0284c7' }}>
+                    {kpis.totalWeight > 0 ? 'KG' : (kpis.totalScaleWeight > 0 ? 'KG (Scale)' : 'PCS')}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1809,7 +1846,7 @@ export const PlantHeadProductionAnalytics = () => {
             }}>
               <div style={{ marginBottom: '8px' }}>
                 <h3 style={{ fontSize: '13px', fontWeight: '900', color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                  Top 10 Sizes by Production Weight
+                  {kpis.totalWeight > 0 ? 'Top 10 Sizes by Production Weight' : 'Top 10 Sizes by Manufactured Pieces'}
                 </h3>
                 <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0 0' }}>
                   Ranked dimension throughput automatically selected from database
@@ -1837,9 +1874,14 @@ export const PlantHeadProductionAnalytics = () => {
                     />
                     <Tooltip
                       contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
-                      formatter={(val, name, item) => [`${fmt(val, 2)} KG (${item.payload.weightShare}%)`, 'Weight']}
+                      formatter={(val, name, item) => [
+                        kpis.totalWeight > 0
+                          ? `${fmt(val, 2)} KG (${item.payload.weightShare}%)`
+                          : `${fmt(val)} Pcs (${item.payload.share || 0}%)`,
+                        kpis.totalWeight > 0 ? 'Weight' : 'Pieces'
+                      ]}
                     />
-                    <Bar dataKey="weight" fill="#0284c7" radius={[0, 4, 4, 0]}>
+                    <Bar dataKey={kpis.totalWeight > 0 ? "weight" : "pieces"} fill="#0284c7" radius={[0, 4, 4, 0]}>
                       {top10SizesList.map((entry, index) => (
                         <Cell key={`cell-sz-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                       ))}
@@ -1861,7 +1903,7 @@ export const PlantHeadProductionAnalytics = () => {
             }}>
               <div style={{ marginBottom: '8px' }}>
                 <h3 style={{ fontSize: '13px', fontWeight: '900', color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                  Capacity Weight Distribution
+                  {kpis.totalWeight > 0 ? 'Capacity Weight Distribution' : 'Capacity Piece Distribution'}
                 </h3>
                 <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0 0' }}>
                   Actual load class distribution from Product Master records
@@ -1873,7 +1915,7 @@ export const PlantHeadProductionAnalytics = () => {
                   <PieChart>
                     <Pie
                       data={capacityWiseList}
-                      dataKey="weight"
+                      dataKey={kpis.totalWeight > 0 ? "weight" : "pieces"}
                       nameKey="name"
                       cx="50%"
                       cy="48%"
@@ -1887,7 +1929,12 @@ export const PlantHeadProductionAnalytics = () => {
                     </Pie>
                     <Tooltip
                       contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '11px' }}
-                      formatter={(val, name, item) => [`${fmt(val, 2)} KG (${item.payload.weightShare}%)`, name]}
+                      formatter={(val, name, item) => [
+                        kpis.totalWeight > 0
+                          ? `${fmt(val, 2)} KG (${item.payload.weightShare}%)`
+                          : `${fmt(val)} Pcs (${item.payload.share || 0}%)`,
+                        name
+                      ]}
                     />
                     <Legend
                       verticalAlign="bottom"
@@ -1907,8 +1954,12 @@ export const PlantHeadProductionAnalytics = () => {
                   pointerEvents: 'none'
                 }}>
                   <div style={{ fontSize: '9px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Total</div>
-                  <div style={{ fontSize: '14px', fontWeight: '900', color: '#0f172a', lineHeight: 1.1 }}>{fmt(kpis.totalWeight)}</div>
-                  <div style={{ fontSize: '9px', fontWeight: '800', color: '#0284c7' }}>KG</div>
+                  <div style={{ fontSize: '14px', fontWeight: '900', color: '#0f172a', lineHeight: 1.1 }}>
+                    {fmt(kpis.totalWeight > 0 ? kpis.totalWeight : (kpis.totalScaleWeight > 0 ? kpis.totalScaleWeight : kpis.totalPieces))}
+                  </div>
+                  <div style={{ fontSize: '9px', fontWeight: '800', color: '#0284c7' }}>
+                    {kpis.totalWeight > 0 ? 'KG' : (kpis.totalScaleWeight > 0 ? 'KG (Scale)' : 'PCS')}
+                  </div>
                 </div>
               </div>
             </div>
