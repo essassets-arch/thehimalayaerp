@@ -2069,8 +2069,22 @@ export class PlantHeadService {
           continue;
         }
       }
+      const normStatus = (status || '').toString().toUpperCase().trim();
+      const isCompleted =
+        normStatus === 'COMPLETED' ||
+        normStatus === 'READY_FOR_DISPATCH' ||
+        normStatus === 'DISPATCHED' ||
+        normStatus === 'CLOSED' ||
+        normStatus === 'QC_APPROVED' ||
+        Boolean(wo.completedAt);
+
       if (statusFilter && statusFilter !== 'All') {
-        if (status !== statusFilter && wo.productionStatus !== statusFilter) {
+        const normFilter = statusFilter.toUpperCase().trim();
+        if (normFilter === 'COMPLETED') {
+          if (!isCompleted) continue;
+        } else if (normFilter === 'PENDING' || normFilter === 'IN_PROGRESS' || normFilter === 'ACTIVE') {
+          if (isCompleted) continue;
+        } else if (normStatus !== normFilter && (wo.productionStatus as any) !== normFilter) {
           continue;
         }
       }
@@ -2101,7 +2115,7 @@ export class PlantHeadService {
       totalFrames += frames;
       totalPieces += pieces;
 
-      if (status === 'COMPLETED') completedCount++;
+      if (isCompleted) completedCount++;
       else activeCount++;
 
       // Pipeline statuses map
@@ -2261,7 +2275,9 @@ export class PlantHeadService {
         pieces,
         status,
         productionStatus: wo.productionStatus || status,
-        qcResult: wo.qcResult || (wo.qcInspections?.length > 0 ? wo.qcInspections[0].status : (status === 'COMPLETED' ? 'PASS' : 'PENDING')),
+        isCompleted,
+        stage: isCompleted ? 'COMPLETED' : 'PENDING',
+        qcResult: wo.qcResult || (wo.qcInspections?.length > 0 ? wo.qcInspections[0].status : (isCompleted ? 'PASS' : 'PENDING')),
         qcRemarks: wo.qcInspections?.[0]?.remarks || null,
         createdAt: wo.createdAt,
         completedAt: wo.completedAt,
@@ -2475,6 +2491,7 @@ export class PlantHeadService {
         averageWeightPerPiece: totalPieces > 0 ? Math.round((totalWeight / totalPieces) * 100) / 100 : 0,
         totalWorkOrders: workOrders.length,
         completedWorkOrders: completedCount,
+        pendingWorkOrders: activeCount,
         activeWorkOrders: activeCount,
         completionRate: workOrders.length > 0 ? Math.round((completedCount / workOrders.length) * 1000) / 10 : 0,
         fpyRate,
