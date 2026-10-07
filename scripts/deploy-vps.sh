@@ -74,7 +74,7 @@ echo ""
 echo "⚙️ Step 4b: Resolving any previously failed migration locks..."
 POSTGRES_CONTAINER=$(docker ps --format '{{.Names}}' 2>/dev/null | grep -E 'himalaya-postgres|postgres' | head -n 1 || echo "himalaya-postgres")
 docker exec -i "$POSTGRES_CONTAINER" psql -U "${POSTGRES_USER:-himalaya_erp_user}" -d "${POSTGRES_DB:-himalaya_erp}" -c "DELETE FROM _prisma_migrations WHERE finished_at IS NULL OR rolled_back_at IS NOT NULL;" 2>/dev/null || true
-docker exec -i "$POSTGRES_CONTAINER" psql -U "${POSTGRES_USER:-himalaya_erp_user}" -d "${POSTGRES_DB:-himalaya_erp}" -c "ALTER TABLE \"Quotation\" ADD COLUMN IF NOT EXISTS \"siteInchargeName\" TEXT; ALTER TABLE \"Quotation\" ADD COLUMN IF NOT EXISTS \"siteInchargeMobile\" TEXT;" 2>/dev/null || true
+docker exec -i "$POSTGRES_CONTAINER" psql -U "${POSTGRES_USER:-himalaya_erp_user}" -d "${POSTGRES_DB:-himalaya_erp}" -c "ALTER TABLE \"Quotation\" ADD COLUMN IF NOT EXISTS \"siteInchargeName\" TEXT; ALTER TABLE \"Quotation\" ADD COLUMN IF NOT EXISTS \"siteInchargeMobile\" TEXT; ALTER TABLE \"Product\" ADD COLUMN IF NOT EXISTS \"isTrading\" BOOLEAN NOT NULL DEFAULT false; UPDATE \"Product\" SET \"isTrading\" = true WHERE \"productType\" = 'TRADING' OR \"dispatchCategory\" IN ('D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'CAT 2', 'CAT_2', '2');" 2>/dev/null || true
 
 echo ""
 echo "⚙️ Step 4c: Running Prisma database migrations..."

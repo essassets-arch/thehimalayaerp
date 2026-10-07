@@ -163,6 +163,12 @@ export class PlantHeadController {
     );
   }
 
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.dashboard.read',
+  )
   @Get('analytics/monthly-production-report')
   async getMonthlyProductionReport(
     @Req() req: Request,

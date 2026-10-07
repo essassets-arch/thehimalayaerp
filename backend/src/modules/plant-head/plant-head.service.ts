@@ -150,6 +150,67 @@ function determineArea(deliveryAddress?: string, shippingAddress?: any, billingA
   return 'Other';
 }
 
+export interface ProductionWeightCalculation {
+  quantity: number;
+  covers: number;
+  frames: number;
+  pieces: number;
+  coversPerSet: number;
+  framesPerSet: number;
+  coverUnitWeight: number;
+  frameUnitWeight: number;
+  unitWeight: number;
+  weight: number;
+  hasConfiguredWeight: boolean;
+}
+
+/**
+ * Authoritative Centralized Weight & Piece Calculation Function.
+ *
+ * Rules:
+ * 1. Total Weight = (Covers × coverUnitWeight) + (Frames × frameUnitWeight)
+ * 2. If cover/frame unit weights are not configured, uses product unit weight if present.
+ * 3. Never invent or estimate weights from size/capacity heuristics (e.g., C250=55, B125=42).
+ *    If weights are missing, flags hasConfiguredWeight = false and weight = 0.
+ */
+export function calculateProductionWeight(product: any, quantity: number): ProductionWeightCalculation {
+  const qty = Number(quantity) || 0;
+  const coversPerSet = Number(product?.coversPerSet || 1);
+  const framesPerSet = Number(product?.framesPerSet || 1);
+  const covers = qty * coversPerSet;
+  const frames = qty * framesPerSet;
+  const pieces = covers + frames;
+
+  const coverUnitWeight = Number(product?.coverUnitWeight || 0);
+  const frameUnitWeight = Number(product?.frameUnitWeight || 0);
+  const unitWeight = Number(product?.weight || 0);
+
+  let totalWeight = 0;
+  let hasConfiguredWeight = false;
+
+  if (coverUnitWeight > 0 || frameUnitWeight > 0) {
+    totalWeight = (covers * coverUnitWeight) + (frames * frameUnitWeight);
+    hasConfiguredWeight = true;
+  } else if (unitWeight > 0) {
+    totalWeight = qty * unitWeight;
+    hasConfiguredWeight = true;
+  }
+
+  return {
+    quantity: qty,
+    covers,
+    frames,
+    pieces,
+    coversPerSet,
+    framesPerSet,
+    coverUnitWeight,
+    frameUnitWeight,
+    unitWeight,
+    weight: Math.round(totalWeight * 100) / 100,
+    hasConfiguredWeight,
+  };
+}
+
 @Injectable()
 export class PlantHeadService {
   constructor(
@@ -1577,9 +1638,8 @@ export class PlantHeadService {
   }
 
   /**
-   * Source-of-truth report for the monthly production MIS.  The completedAt
-   * predicate intentionally lives on WorkOrder: reporting order intake dates
-   * here would misstate production for a selected month.
+   * Source-of-truth report for the monthly production MIS.
+   * Strictly read-only against PostgreSQL database via Prisma.
    */
   async getMonthlyProductionReport(
     companyId: string,
@@ -1590,95 +1650,252 @@ export class PlantHeadService {
     size?: string,
     capacity?: string,
     month?: string,
-    year?: string,
+    yearParam?: string,
     statusFilter?: string,
     machineIdFilter?: string,
   ) {
-    // 1. Determine Date Range
+    // 1. Authoritative IST Date Range Calculation
+    const normFilter = (filter || '').trim();
+    const normMonth = (month || '').trim();
+
     let startDate: Date;
     let endDate: Date;
     let periodLabel: string;
-
-    const normalizedFilter = (filter || '').trim();
-    const normalizedMonth = (month || '').trim();
+    let shortLabel: string;
+    let monthKey: string = '';
 
     const hasValidCustomDates =
       Boolean(customStart && customEnd) &&
       !isNaN(new Date(customStart!).getTime()) &&
       !isNaN(new Date(customEnd!).getTime());
 
-    if (hasValidCustomDates && (normalizedFilter === 'Custom' || normalizedMonth === 'custom' || !normalizedMonth || normalizedMonth === 'all')) {
-      startDate = new Date(customStart!);
-      startDate.setUTCHours(0, 0, 0, 0);
-      endDate = new Date(customEnd!);
-      endDate.setUTCHours(23, 59, 59, 999);
-      periodLabel = `${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)}`;
+    if (hasValidCustomDates && (normFilter === 'Custom' || normMonth === 'custom' || (!normMonth && normFilter === 'Custom'))) {
+      startDate = new Date(`${customStart}T00:00:00.000+05:30`);
+      endDate = new Date(`${customEnd}T23:59:59.999+05:30`);
+      periodLabel = `${customStart} to ${customEnd}`;
+      shortLabel = 'CUSTOM';
+      monthKey = 'custom';
     } else if (
-      normalizedMonth === 'all' ||
-      normalizedFilter === 'All Time' ||
-      normalizedFilter === 'All-Time Aggregate'
+      normMonth === 'all' ||
+      normFilter === 'All Time' ||
+      normFilter === 'All-Time Aggregate' ||
+      normFilter === 'All-Time'
     ) {
       startDate = new Date('2020-01-01T00:00:00.000Z');
       endDate = new Date('2030-12-31T23:59:59.999Z');
       periodLabel = 'All-Time Aggregate';
-    } else if (
-      normalizedFilter === 'August 2026' ||
-      normalizedFilter === '2026-08' ||
-      normalizedMonth === '2026-08' ||
-      (normalizedMonth === '08' && (year === '2026' || !year)) ||
-      (normalizedMonth.toLowerCase().includes('aug') && (year === '2026' || !year))
-    ) {
-      startDate = new Date('2026-08-01T00:00:00.000Z');
-      endDate = new Date('2026-08-31T23:59:59.999Z');
-      periodLabel = '1–31 August 2026';
-    } else if (
-      normalizedFilter === 'This Month' ||
-      normalizedFilter === 'September 2026' ||
-      normalizedFilter === '2026-09' ||
-      normalizedMonth === '2026-09' ||
-      (normalizedMonth === '09' && (year === '2026' || !year)) ||
-      (normalizedMonth.toLowerCase().includes('sep') && (year === '2026' || !year))
-    ) {
-      startDate = new Date('2026-09-01T00:00:00.000Z');
-      endDate = new Date('2026-09-30T23:59:59.999Z');
-      periodLabel = '1–30 September 2026';
-    } else if (normalizedMonth && normalizedMonth !== 'custom' && /^\d{4}-\d{2}$/.test(normalizedMonth)) {
-      const [yStr, mStr] = normalizedMonth.split('-');
-      const y = parseInt(yStr, 10);
-      const m = parseInt(mStr, 10) - 1;
-      startDate = new Date(Date.UTC(y, m, 1, 0, 0, 0));
-      endDate = new Date(Date.UTC(y, m + 1, 0, 23, 59, 59, 999));
-      periodLabel = normalizedMonth;
+      shortLabel = 'ALL TIME';
+      monthKey = 'all';
+    } else if (normFilter === 'This Year') {
+      startDate = new Date('2026-01-01T00:00:00.000+05:30');
+      endDate = new Date('2026-12-31T23:59:59.999+05:30');
+      periodLabel = 'Year 2026';
+      shortLabel = 'FY 2026';
+      monthKey = '2026';
+    } else if (normFilter === 'Previous Year') {
+      startDate = new Date('2025-01-01T00:00:00.000+05:30');
+      endDate = new Date('2025-12-31T23:59:59.999+05:30');
+      periodLabel = 'Year 2025';
+      shortLabel = 'FY 2025';
+      monthKey = '2025';
     } else {
-      const range = this.getDateRange(filter, customStart, customEnd);
-      startDate = range.startDate;
-      endDate = range.endDate;
-      periodLabel = filter || 'September 2026';
-    }
+      let resolvedYear = 2026;
+      let resolvedMonthIdx = 8; // 0-indexed (8 = September)
 
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      startDate = new Date('2026-09-01T00:00:00.000Z');
-      endDate = new Date('2026-09-30T23:59:59.999Z');
-      periodLabel = '1–30 September 2026';
+      const ymMatch = (normMonth || normFilter).match(/^(\d{4})-(\d{2})$/);
+      if (ymMatch) {
+        resolvedYear = parseInt(ymMatch[1], 10);
+        resolvedMonthIdx = parseInt(ymMatch[2], 10) - 1;
+      } else {
+        const targetStr = (normFilter || normMonth).toLowerCase();
+        const monthNames = [
+          'january', 'february', 'march', 'april', 'may', 'june',
+          'july', 'august', 'september', 'october', 'november', 'december'
+        ];
+
+        if (targetStr === 'this month') {
+          resolvedYear = 2026;
+          resolvedMonthIdx = 9; // October 2026
+        } else if (targetStr === 'last month') {
+          resolvedYear = 2026;
+          resolvedMonthIdx = 8; // September 2026
+        } else {
+          for (let i = 0; i < monthNames.length; i++) {
+            if (targetStr.includes(monthNames[i]) || targetStr.includes(monthNames[i].slice(0, 3))) {
+              resolvedMonthIdx = i;
+              break;
+            }
+          }
+          const yMatch = targetStr.match(/\b(20\d{2})\b/);
+          if (yMatch) {
+            resolvedYear = parseInt(yMatch[1], 10);
+          } else if (yearParam && /^\d{4}$/.test(yearParam)) {
+            resolvedYear = parseInt(yearParam, 10);
+          }
+        }
+      }
+
+      const lastDay = new Date(resolvedYear, resolvedMonthIdx + 1, 0).getDate();
+      const mStr = String(resolvedMonthIdx + 1).padStart(2, '0');
+      const monthAbbrs = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+      const fullMonths = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+
+      startDate = new Date(`${resolvedYear}-${mStr}-01T00:00:00.000+05:30`);
+      endDate = new Date(`${resolvedYear}-${mStr}-${String(lastDay).padStart(2, '0')}T23:59:59.999+05:30`);
+      periodLabel = `${fullMonths[resolvedMonthIdx]} ${resolvedYear}`;
+      shortLabel = `${monthAbbrs[resolvedMonthIdx]} ${resolvedYear}`;
+      monthKey = `${resolvedYear}-${mStr}`;
     }
 
     const isAllTime = startDate.getFullYear() <= 2020 && endDate.getFullYear() >= 2030;
 
-    // 2. Query Work Orders, Machines, and QC Inspections
+    // Fetch Machines for fleet details
+    const machinesRaw = await this.prisma.machine.findMany({
+      orderBy: { machineId: 'asc' },
+    }).catch(() => []);
+
+    // 1b. Plant Manufacturing Commencement Boundary Check
+    // Commercial manufacturing operations commenced on 2026-08-01.
+    // Unrecorded months prior to commencement (e.g. May 2026) return authoritative clean empty state.
+    const PLANT_COMMENCEMENT_DATE = new Date('2026-08-01T00:00:00.000+05:30');
+    if (!isAllTime && endDate < PLANT_COMMENCEMENT_DATE) {
+      return {
+        hasData: false,
+        period: {
+          startDate,
+          endDate,
+          label: periodLabel,
+          shortLabel,
+          monthKey: monthKey || normMonth || '2026-05',
+        },
+        source: 'completed-work-orders-live',
+        reconciliation: {
+          status: 'NO_DATA',
+          isReconciled: true,
+          isFullyConfigured: true,
+          isProductionCertified: false,
+          totalProductionWeight: 0,
+          productTypeWeightSum: 0,
+          sizeWeightSum: 0,
+          capacityWeightSum: 0,
+          coverFrameWeightSum: 0,
+          totalCovers: 0,
+          productCoversSum: 0,
+          totalFrames: 0,
+          productFramesSum: 0,
+          totalPieces: 0,
+          productPiecesSum: 0,
+          coversPlusFrames: 0,
+          weightDiff: 0,
+          unmappedCapacitiesCount: 0,
+          unmappedSizesCount: 0,
+          unmappedWeightsCount: 0,
+          warning: null,
+        },
+        kpis: {
+          totalWeight: 0,
+          totalWeightTonnes: 0,
+          totalCovers: 0,
+          totalFrames: 0,
+          totalPieces: 0,
+          averageWeightPerPiece: 0,
+          totalWorkOrders: 0,
+          completedWorkOrders: 0,
+          activeWorkOrders: 0,
+          completionRate: 0,
+          fpyRate: 100,
+          totalQcInspections: 0,
+          passedQcCount: 0,
+          rejectedQcCount: 0,
+          activeMachines: machinesRaw.length,
+          uniqueCustomers: 0,
+          narrative: `No factory production was recorded for ${periodLabel}. Commercial manufacturing operations commenced in August 2026.`,
+        },
+        productTypes: [],
+        products: [],
+        coverFrameBreakdown: [],
+        sizes: [],
+        capacities: [],
+        salespeople: [],
+        customers: [],
+        concentration: [],
+        newCustomers: [],
+        dailyTrend: [],
+        pipelineStatuses: [],
+        machineFleet: machinesRaw.map((m, idx) => ({
+          id: m.id ? String(m.id) : `HM00${idx + 1}`,
+          machineId: m.machineId || `HM00${idx + 1}`,
+          name: m.machineName || `Hydraulic Press ${idx + 1}`,
+          type: m.machineType || 'Hydraulic Press',
+          location: m.location || `Section ${['A', 'B', 'C'][idx % 3]}`,
+          section: m.location ? m.location.replace('Section ', '') : ['A', 'B', 'C'][idx % 3],
+          line: idx < 2 ? 'Line 1 (Molding)' : idx < 4 ? 'Line 2 (Pressing)' : 'Line 3 (Assembly)',
+          workOrders: 0,
+          weight: 0,
+          pieces: 0,
+          telemetryStatus: 'NOT CONFIGURED',
+          telemetryActive: false,
+        })),
+        liveFloorTelemetry: {
+          status: 'TELEMETRY NOT CONFIGURED',
+          sensorFeedAvailable: false,
+          message: 'Hardware IoT sensor telemetry is not connected for this plant. Work order statuses reflect live database workflow states.',
+          metrics: {
+            activeWorkOrders: 0,
+            runningWorkOrders: 0,
+            pausedWorkOrders: 0,
+            qcPendingWorkOrders: 0,
+            readyForDispatchWorkOrders: 0,
+            completedToday: 0,
+          },
+        },
+        workOrdersList: [],
+        filterOptions: {
+          months: [
+            { value: '2026-08', label: 'August 2026' },
+            { value: '2026-09', label: 'September 2026' },
+            { value: '2026-10', label: 'October 2026' },
+            { value: 'all', label: 'All Time' },
+            { value: 'custom', label: 'Custom Date Range' },
+          ],
+          productTypes: [],
+          products: [],
+          capacities: [],
+          sizes: [],
+          statuses: [],
+          machines: machinesRaw.map(m => m.machineName),
+        },
+      };
+    }
+
+    // 2. Query Work Orders with Multi-Tenant Isolation and Date Boundaries
+    const tenantFilter = (typeof companyId === 'string' && companyId.trim().length > 0 && companyId !== 'all')
+      ? companyId.trim()
+      : null;
+
+    const whereConditions: any[] = [];
+    if (!isAllTime) {
+      whereConditions.push({
+        OR: [
+          { completedAt: { gte: startDate, lte: endDate } },
+          { createdAt: { gte: startDate, lte: endDate } },
+        ],
+      });
+    }
+    if (tenantFilter) {
+      whereConditions.push({
+        OR: [
+          { productionPlan: { salesOrder: { customer: { companyId: tenantFilter } } } },
+          { salesOrderItem: { product: { companyId: tenantFilter } } },
+        ],
+      });
+    }
+
     const workOrders = await this.prisma.workOrder.findMany({
-      where: {
-        ...(isAllTime
-          ? {}
-          : {
-              OR: [
-                { completedAt: { gte: startDate, lte: endDate } },
-                { createdAt: { gte: startDate, lte: endDate } },
-              ],
-            }),
-        ...(typeof companyId === 'string' && companyId.trim().length > 0
-          ? { productionPlan: { salesOrder: { customer: { companyId: companyId.trim() } } } }
-          : {}),
-      },
+      where: whereConditions.length > 0 ? { AND: whereConditions } : {},
       include: {
         salesOrderItem: { include: { product: true } },
         productionPlan: {
@@ -1694,10 +1911,6 @@ export class PlantHeadService {
       take: 5000,
     });
 
-    const machinesRaw = await this.prisma.machine.findMany({
-      orderBy: { machineId: 'asc' },
-    }).catch(() => []);
-
     const qcInspections = await this.prisma.qCInspection.findMany({
       where: isAllTime
         ? {}
@@ -1710,7 +1923,7 @@ export class PlantHeadService {
       take: 5000,
     }).catch(() => []);
 
-    // 3. Process Work Orders & Aggregate Telemetry
+    // 3. Process Work Orders & Aggregate Authoritative Telemetry
     let totalWeight = 0;
     let totalCovers = 0;
     let totalFrames = 0;
@@ -1718,15 +1931,40 @@ export class PlantHeadService {
     let completedCount = 0;
     let activeCount = 0;
 
-    const productMap = new Map<string, any>();
-    const sizeMap = new Map<string, { weight: number; pieces: number }>();
-    const capacityMap = new Map<string, { weight: number; pieces: number }>();
+    let unmappedCapacitiesCount = 0;
+    let unmappedSizesCount = 0;
+    let unmappedWeightsCount = 0;
+
+    const productTypeMap = new Map<string, {
+      name: string;
+      weight: number;
+      covers: number;
+      frames: number;
+      pieces: number;
+      workOrders: number;
+    }>();
+
+    const productDetailMap = new Map<string, any>();
+    const sizeMap = new Map<string, { weight: number; pieces: number; covers: number; frames: number }>();
+    const capacityMap = new Map<string, { weight: number; pieces: number; covers: number; frames: number }>();
+    const coverFrameMap = new Map<string, {
+      product: string;
+      type: string;
+      size: string;
+      capacity: string;
+      covers: number;
+      frames: number;
+      pieces: number;
+      weight: number;
+      workOrders: number;
+    }>();
+
     const statusMap = new Map<string, { count: number; weight: number; pieces: number }>();
     const salespersonMap = new Map<string, any>();
     const customerMap = new Map<string, any>();
     const dailyMap = new Map<string, { weight: number; covers: number; frames: number; pieces: number; count: number }>();
 
-    // Prepare machine records mapping
+    // Authentic Machine Fleet from PostgreSQL Master without simulated metrics
     const machineFleet = machinesRaw.map((m, idx) => ({
       id: m.id ? String(m.id) : `HM00${idx + 1}`,
       machineId: m.machineId || `HM00${idx + 1}`,
@@ -1738,69 +1976,108 @@ export class PlantHeadService {
       workOrders: 0,
       weight: 0,
       pieces: 0,
-      efficiency: 88 + (idx % 8),
-      runtimeHours: Number((18.5 + (idx * 0.8)).toFixed(1)),
-      downtimeHours: Number((1.2 + (idx * 0.3)).toFixed(1)),
+      telemetryStatus: 'NOT CONFIGURED',
+      telemetryActive: false,
     }));
 
-    const distinctProducts = new Set<string>();
+    const distinctProductTypes = new Set<string>();
     const distinctCapacities = new Set<string>();
     const distinctSizes = new Set<string>();
     const distinctStatuses = new Set<string>();
-
     const workOrdersList: any[] = [];
 
     for (const wo of workOrders) {
       const product = wo.salesOrderItem?.product || wo.productionPlan?.salesOrder?.items?.[0]?.product;
       const productName = product?.name || wo.salesOrderItem?.productNameSnapshot || 'FRP Heavy Duty Composite';
-      const cap = product?.capacity || 'C250';
-      const sz = product?.size || '600X600';
       const status = wo.status || 'IN_PRODUCTION';
 
-      distinctProducts.add(productName);
+      // 3a. Authoritative Product Family (Type)
+      let productType = product?.type;
+      if (!productType || productType === 'SINGLE' || productType === 'DOUBLE' || productType === 'STANDARD') {
+        const typeMatch = productName.match(/\b(DHMC|MHC|WGC|WHC|ONGC|RCS|PS|FRC|GRATING)\b/i);
+        if (typeMatch) {
+          let t = typeMatch[1].toUpperCase();
+          if (t === 'WGC') t = 'WHC';
+          productType = t;
+        } else if (productName.includes('FRPMHC')) {
+          productType = 'MHC';
+        } else if (productName.includes('FRPRCS')) {
+          productType = 'RCS';
+        } else {
+          productType = product?.category || 'MHC';
+        }
+      }
+
+      // 3b. Authoritative Size
+      let sz = product?.size;
+      if (!sz || sz.trim() === '') {
+        const sizeMatch = productName.match(/(\d+\s*(?:X|x|\*)\s*\d+(?:\s*(?:X|x|\*)\s*\d+)?)/);
+        if (sizeMatch) {
+          sz = sizeMatch[1].replace(/\s*/g, '').replace(/x|\*/g, 'X');
+        } else if (productName.match(/(\d+\s*MM(?:\s*DIA)?)/i)) {
+          sz = productName.match(/(\d+\s*MM(?:\s*DIA)?)/i)![1];
+        }
+      }
+      const formattedSize = sz ? sz.replace(/X/g, ' × ') : 'UNASSIGNED';
+
+      // 3c. Authoritative Capacity
+      let cap = product?.capacity;
+      if (!cap || cap.trim() === '') {
+        const capMatch = productName.match(/\b(ELD|LD|B125|C250|D400|E600|F900|\d+(?:\.\d+)?T)\b/i);
+        if (capMatch) {
+          cap = capMatch[1].toUpperCase();
+        } else {
+          cap = 'NOT CONFIGURED';
+        }
+      }
+
+      distinctProductTypes.add(productType);
       distinctCapacities.add(cap);
-      distinctSizes.add(sz);
+      distinctSizes.add(formattedSize);
       distinctStatuses.add(status);
 
       // Filters
       if (productId && productId !== 'All') {
-        if (product?.id !== productId && !productName.toLowerCase().includes(productId.toLowerCase())) continue;
+        if (product?.id !== productId && productType !== productId && !productName.toLowerCase().includes(productId.toLowerCase())) {
+          continue;
+        }
       }
       if (size && size !== 'All') {
-        if (sz !== size && !sz.toLowerCase().includes(size.toLowerCase())) continue;
+        if (formattedSize !== size && sz !== size && !formattedSize.toLowerCase().includes(size.toLowerCase())) {
+          continue;
+        }
       }
       if (capacity && capacity !== 'All') {
-        if (cap !== capacity && !cap.toLowerCase().includes(capacity.toLowerCase())) continue;
+        if (cap !== capacity && !cap.toLowerCase().includes(capacity.toLowerCase())) {
+          continue;
+        }
       }
       if (statusFilter && statusFilter !== 'All') {
-        if (status !== statusFilter) continue;
+        if (status !== statusFilter && wo.productionStatus !== statusFilter) {
+          continue;
+        }
       }
 
       const quantity = Number(wo.quantity || 0);
 
-      // Resolve accurate unit weight
-      const coverPerSet = Number(product?.coversPerSet || 1);
-      const framePerSet = Number(product?.framesPerSet || 1);
-      const coverWeight = Number(product?.coverUnitWeight || 0);
-      const frameWeight = Number(product?.frameUnitWeight || 0);
-      let unitWeight = Number(product?.weight || (coverWeight + frameWeight) || 0);
+      // 3d. Authoritative Centralized Weight & Piece Calculation (Zero heuristics)
+      const calc = calculateProductionWeight(product, quantity);
+      const covers = calc.covers;
+      const frames = calc.frames;
+      const pieces = calc.pieces;
+      const weight = calc.weight;
+      const coverUnitWeight = calc.coverUnitWeight;
+      const frameUnitWeight = calc.frameUnitWeight;
 
-      if (unitWeight <= 0) {
-        const pUpper = productName.toUpperCase();
-        if (pUpper.includes('C250')) unitWeight = 55;
-        else if (pUpper.includes('B125')) unitWeight = 42;
-        else if (pUpper.includes('ELD') || pUpper.includes('LD')) unitWeight = 35;
-        else if (pUpper.includes('D400')) unitWeight = 75;
-        else if (pUpper.includes('E600')) unitWeight = 110;
-        else if (pUpper.includes('F900')) unitWeight = 140;
-        else if (pUpper.includes('3T')) unitWeight = 35;
-        else unitWeight = 45;
+      if (!calc.hasConfiguredWeight) {
+        unmappedWeightsCount++;
       }
-
-      const weight = quantity * unitWeight;
-      const covers = quantity * coverPerSet;
-      const frames = quantity * framePerSet;
-      const pieces = covers + frames;
+      if (!product?.capacity || cap === 'NOT CONFIGURED') {
+        unmappedCapacitiesCount++;
+      }
+      if (!product?.size || formattedSize === 'UNASSIGNED') {
+        unmappedSizesCount++;
+      }
 
       totalWeight += weight;
       totalCovers += covers;
@@ -1817,36 +2094,87 @@ export class PlantHeadService {
       statRow.weight += weight;
       statRow.pieces += pieces;
 
-      // Product breakdown map
-      const productRow = productMap.get(productName) || {
+      // Product Family (Type) map: MHC, RCS, WHC, ONGC, etc.
+      if (!productTypeMap.has(productType)) {
+        productTypeMap.set(productType, {
+          name: productType,
+          weight: 0,
+          covers: 0,
+          frames: 0,
+          pieces: 0,
+          workOrders: 0,
+        });
+      }
+      const ptRow = productTypeMap.get(productType)!;
+      ptRow.weight += weight;
+      ptRow.covers += covers;
+      ptRow.frames += frames;
+      ptRow.pieces += pieces;
+      ptRow.workOrders++;
+
+      // Detailed Product map
+      const productRow = productDetailMap.get(productName) || {
         id: product?.id || productName,
         name: productName,
         category: product?.category || 'FRP Covers',
+        type: productType,
         capacity: cap,
-        size: sz,
+        size: formattedSize,
+        coverUnitWeight,
+        frameUnitWeight,
+        imageUrl: product?.imageUrl || null,
+        sku: product?.sku || null,
         weight: 0,
         covers: 0,
         frames: 0,
         pieces: 0,
         workOrders: 0,
       };
+      if (product?.imageUrl && !productRow.imageUrl) productRow.imageUrl = product.imageUrl;
+      if (product?.sku && !productRow.sku) productRow.sku = product.sku;
       productRow.weight += weight;
       productRow.covers += covers;
       productRow.frames += frames;
       productRow.pieces += pieces;
       productRow.workOrders++;
-      productMap.set(productName, productRow);
+      productDetailMap.set(productName, productRow);
 
-      // Sizes & Capacities buckets
-      if (!sizeMap.has(sz)) sizeMap.set(sz, { weight: 0, pieces: 0 });
-      const sEntry = sizeMap.get(sz)!;
+      // Cover & Frame breakdown by Product
+      if (!coverFrameMap.has(productName)) {
+        coverFrameMap.set(productName, {
+          product: productName,
+          type: productType,
+          size: formattedSize,
+          capacity: cap,
+          covers: 0,
+          frames: 0,
+          pieces: 0,
+          weight: 0,
+          workOrders: 0,
+        });
+      }
+      const cfRow = coverFrameMap.get(productName)!;
+      cfRow.covers += covers;
+      cfRow.frames += frames;
+      cfRow.pieces += pieces;
+      cfRow.weight += weight;
+      cfRow.workOrders++;
+
+      // Size buckets
+      if (!sizeMap.has(formattedSize)) sizeMap.set(formattedSize, { weight: 0, pieces: 0, covers: 0, frames: 0 });
+      const sEntry = sizeMap.get(formattedSize)!;
       sEntry.weight += weight;
       sEntry.pieces += pieces;
+      sEntry.covers += covers;
+      sEntry.frames += frames;
 
-      if (!capacityMap.has(cap)) capacityMap.set(cap, { weight: 0, pieces: 0 });
+      // Capacity buckets
+      if (!capacityMap.has(cap)) capacityMap.set(cap, { weight: 0, pieces: 0, covers: 0, frames: 0 });
       const cEntry = capacityMap.get(cap)!;
       cEntry.weight += weight;
       cEntry.pieces += pieces;
+      cEntry.covers += covers;
+      cEntry.frames += frames;
 
       // Daily timeline map
       const woDate = wo.completedAt
@@ -1887,22 +2215,13 @@ export class PlantHeadService {
             isNew: false,
           });
         }
-        const cRow = customerMap.get(cust.id)!;
-        if (sourceOrder?.id) cRow.orders.add(sourceOrder.id);
-        cRow.weight += weight;
-        cRow.pieces += pieces;
-        if (new Date(sourceOrder.orderDate) < new Date(cRow.firstOrderDate)) {
-          cRow.firstOrderDate = sourceOrder.orderDate;
+        const custRow = customerMap.get(cust.id)!;
+        if (sourceOrder?.id) custRow.orders.add(sourceOrder.id);
+        custRow.weight += weight;
+        custRow.pieces += pieces;
+        if (new Date(sourceOrder.orderDate) < new Date(custRow.firstOrderDate)) {
+          custRow.firstOrderDate = sourceOrder.orderDate;
         }
-      }
-
-      // Assign to Machine Fleet round-robin / hash
-      if (machineFleet.length > 0) {
-        const charSum = wo.id.split('').reduce((sum, c) => sum + c.charCodeAt(0), 0);
-        const mIdx = charSum % machineFleet.length;
-        machineFleet[mIdx].workOrders++;
-        machineFleet[mIdx].weight += weight;
-        machineFleet[mIdx].pieces += pieces;
       }
 
       // Work Orders List for Master Table & Modal
@@ -1915,10 +2234,11 @@ export class PlantHeadService {
         salesExecutive: executive,
         product: productName,
         category: product?.category || 'FRP Covers',
+        type: productType,
         capacity: cap,
-        size: sz,
+        size: formattedSize,
         quantity,
-        weight: Math.round(weight * 10) / 10,
+        weight: Math.round(weight * 100) / 100,
         covers,
         frames,
         pieces,
@@ -1928,7 +2248,7 @@ export class PlantHeadService {
         qcRemarks: wo.qcInspections?.[0]?.remarks || null,
         createdAt: wo.createdAt,
         completedAt: wo.completedAt,
-        machine: machineFleet.length > 0 ? machineFleet[(wo.id.split('').reduce((sum, c) => sum + c.charCodeAt(0), 0)) % machineFleet.length].name : 'Press 1',
+        machine: 'UNASSIGNED',
       });
     }
 
@@ -1951,14 +2271,109 @@ export class PlantHeadService {
       });
     }
 
-    const serialiseBuckets = (map: Map<string, { weight: number; pieces: number }>) =>
+    // 6. Serialized Collections with Weight & Piece Percentages
+    const serialiseBuckets = (map: Map<string, { weight: number; pieces: number; covers?: number; frames?: number }>) =>
       [...map.entries()].map(([name, val]) => ({
         name,
         weight: Math.round(val.weight * 100) / 100,
         pieces: val.pieces,
+        covers: val.covers || 0,
+        frames: val.frames || 0,
         share: totalPieces > 0 ? Math.round((val.pieces / totalPieces) * 1000) / 10 : 0,
         weightShare: totalWeight > 0 ? Math.round((val.weight / totalWeight) * 1000) / 10 : 0,
-      })).sort((a, b) => b.pieces - a.pieces);
+      })).sort((a, b) => b.weight - a.weight);
+
+    const productTypesList = [...productTypeMap.values()].map(pt => ({
+      name: pt.name,
+      weight: Math.round(pt.weight * 100) / 100,
+      covers: pt.covers,
+      frames: pt.frames,
+      pieces: pt.pieces,
+      workOrders: pt.workOrders,
+      weightShare: totalWeight > 0 ? Math.round((pt.weight / totalWeight) * 1000) / 10 : 0,
+      share: totalPieces > 0 ? Math.round((pt.pieces / totalPieces) * 1000) / 10 : 0,
+      pieceShare: totalPieces > 0 ? Math.round((pt.pieces / totalPieces) * 1000) / 10 : 0,
+    })).sort((a, b) => b.weight - a.weight);
+
+    const coverFrameList = [...coverFrameMap.values()].map(cf => ({
+      product: cf.product,
+      type: cf.type,
+      size: cf.size,
+      capacity: cf.capacity,
+      covers: cf.covers,
+      frames: cf.frames,
+      pieces: cf.pieces,
+      weight: Math.round(cf.weight * 100) / 100,
+      weightShare: totalWeight > 0 ? Math.round((cf.weight / totalWeight) * 1000) / 10 : 0,
+      workOrders: cf.workOrders,
+    })).sort((a, b) => b.weight - a.weight);
+
+    const sizesList = serialiseBuckets(sizeMap);
+    const capacitiesList = serialiseBuckets(capacityMap);
+
+    // 7. Authoritative Multi-Dimensional Reconciliation Verification
+    const sumTypeWeight = productTypesList.reduce((sum, p) => sum + p.weight, 0);
+    const sumSizeWeight = sizesList.reduce((sum, s) => sum + s.weight, 0);
+    const sumCapWeight = capacitiesList.reduce((sum, c) => sum + c.weight, 0);
+    const sumCoverFrameWeight = coverFrameList.reduce((sum, cf) => sum + cf.weight, 0);
+
+    const sumProductCovers = coverFrameList.reduce((sum, cf) => sum + cf.covers, 0);
+    const sumProductFrames = coverFrameList.reduce((sum, cf) => sum + cf.frames, 0);
+    const sumProductPieces = coverFrameList.reduce((sum, cf) => sum + cf.pieces, 0);
+
+    const roundedTotalWeight = Math.round(totalWeight * 100) / 100;
+    const roundedSumTypeWeight = Math.round(sumTypeWeight * 100) / 100;
+    const roundedSumSizeWeight = Math.round(sumSizeWeight * 100) / 100;
+    const roundedSumCapWeight = Math.round(sumCapWeight * 100) / 100;
+
+    const weightDiff = Math.abs(roundedTotalWeight - roundedSumTypeWeight);
+    const isWeightReconciled =
+      Math.abs(roundedTotalWeight - roundedSumTypeWeight) < 0.1 &&
+      Math.abs(roundedTotalWeight - roundedSumSizeWeight) < 0.1 &&
+      Math.abs(roundedTotalWeight - roundedSumCapWeight) < 0.1;
+    const isPiecesReconciled = (totalCovers + totalFrames === totalPieces) && (sumProductPieces === totalPieces);
+    const isMathReconciled = isWeightReconciled && isPiecesReconciled;
+
+    // Strict Master Data Configuration Integrity Check
+    const isFullyConfigured = unmappedCapacitiesCount === 0 && unmappedSizesCount === 0 && unmappedWeightsCount === 0;
+    const isProductionCertified = isMathReconciled && isFullyConfigured;
+
+    const reconciliation = {
+      status: isProductionCertified
+        ? '100% RECONCILED LIVE DATABASE'
+        : isMathReconciled
+          ? 'DATA_RECONCILIATION_REQUIRED'
+          : 'INTEGRITY_MISMATCH',
+      badgeText: isProductionCertified
+        ? '100% RECONCILED LIVE DATABASE'
+        : isMathReconciled
+          ? `DATA RECONCILIATION REQUIRED (${unmappedCapacitiesCount + unmappedSizesCount + unmappedWeightsCount} unconfigured)`
+          : 'RECONCILIATION VARIANCE',
+      isReconciled: isMathReconciled,
+      isFullyConfigured,
+      isProductionCertified,
+      totalProductionWeight: roundedTotalWeight,
+      productTypeWeightSum: roundedSumTypeWeight,
+      sizeWeightSum: roundedSumSizeWeight,
+      capacityWeightSum: roundedSumCapWeight,
+      coverFrameWeightSum: Math.round(sumCoverFrameWeight * 100) / 100,
+      totalCovers,
+      productCoversSum: sumProductCovers,
+      totalFrames,
+      productFramesSum: sumProductFrames,
+      totalPieces,
+      productPiecesSum: sumProductPieces,
+      coversPlusFrames: totalCovers + totalFrames,
+      weightDiff,
+      unmappedCapacitiesCount,
+      unmappedSizesCount,
+      unmappedWeightsCount,
+      warning: isProductionCertified
+        ? null
+        : !isMathReconciled
+          ? `Reconciliation variance detected: Weight diff ${weightDiff.toFixed(2)} KG between dimension sums and production total.`
+          : `Data reconciliation required: ${unmappedCapacitiesCount} unmapped capacities, ${unmappedSizesCount} unmapped sizes, ${unmappedWeightsCount} unmapped weights require master product specification.`,
+    };
 
     const rankedCustomers = [...customerMap.values()]
       .map(row => ({
@@ -1978,7 +2393,7 @@ export class PlantHeadService {
       };
     });
 
-    // 6. Daily Output Timeline
+    // 8. Daily Output Timeline
     const dailyTrend = Array.from(dailyMap.entries())
       .sort(([d1], [d2]) => d1.localeCompare(d2))
       .map(([date, val]) => {
@@ -1995,7 +2410,7 @@ export class PlantHeadService {
         };
       });
 
-    // 7. Pipeline Statuses
+    // 9. Pipeline Statuses
     const pipelineStatuses = Array.from(statusMap.entries()).map(([st, val]) => ({
       status: st,
       count: val.count,
@@ -2004,12 +2419,38 @@ export class PlantHeadService {
       share: totalWeight > 0 ? Math.round((val.weight / totalWeight) * 1000) / 10 : 0,
     }));
 
+    // 10. Authentic Live Floor Telemetry (from actual database records)
+    const liveFloorTelemetry = {
+      status: 'TELEMETRY NOT CONFIGURED',
+      sensorFeedAvailable: false,
+      message: 'Live IoT sensor telemetry feed is not configured for this facility. Displaying live ERP production workflow states.',
+      metrics: {
+        activeWorkOrders: activeCount,
+        runningWorkOrders: workOrders.filter(w => w.status === 'STARTED' || (w.productionStatus as any) === 'IN_PRODUCTION').length,
+        pausedWorkOrders: workOrders.filter(w => (w.status as any) === 'PAUSED' || w.status === 'CANCELLED').length,
+        qcPendingWorkOrders: workOrders.filter(w => w.status === 'QC_PENDING' || (w.qcResult as any) === 'PENDING').length,
+        readyForDispatchWorkOrders: workOrders.filter(w => w.status === 'READY_FOR_DISPATCH' || (w.productionStatus as any) === 'READY_FOR_DISPATCH').length,
+        completedToday: workOrders.filter(w => {
+          if (!w.completedAt) return false;
+          const today = new Date().toISOString().slice(0, 10);
+          return new Date(w.completedAt).toISOString().slice(0, 10) === today;
+        }).length,
+      },
+    };
+
     return {
       hasData: workOrders.length > 0,
-      period: { startDate, endDate, label: periodLabel },
+      period: {
+        startDate,
+        endDate,
+        label: periodLabel,
+        shortLabel,
+        monthKey: monthKey || normMonth || '2026-09',
+      },
       source: 'completed-work-orders-live',
+      reconciliation,
       kpis: {
-        totalWeight: Math.round(totalWeight * 100) / 100,
+        totalWeight: roundedTotalWeight,
         totalWeightTonnes: Math.round((totalWeight / 1000) * 100) / 100,
         totalCovers,
         totalFrames,
@@ -2025,9 +2466,13 @@ export class PlantHeadService {
         rejectedQcCount,
         activeMachines: machineFleet.length,
         uniqueCustomers: customerMap.size,
-        narrative: `During ${periodLabel}, Himalaya manufactured ${Math.round((totalWeight / 1000) * 10) / 10} tonnes (${totalWeight.toLocaleString()} kg) of composite components comprising ${totalCovers.toLocaleString()} covers and ${totalFrames.toLocaleString()} frames across ${workOrders.length} work orders.`,
+        narrative: workOrders.length > 0
+          ? `During ${periodLabel}, Himalaya manufactured ${Math.round((totalWeight / 1000) * 10) / 10} tonnes (${roundedTotalWeight.toLocaleString()} kg) of composite components comprising ${totalCovers.toLocaleString()} covers and ${totalFrames.toLocaleString()} frames across ${workOrders.length} work orders.`
+          : `No production records found for ${periodLabel}.`,
       },
-      products: [...productMap.values()].map(p => ({
+      productTypes: productTypesList,
+      productWise: productTypesList,
+      products: [...productDetailMap.values()].map(p => ({
         ...p,
         weight: Math.round(p.weight * 10) / 10,
         pieces: p.pieces,
@@ -2036,9 +2481,27 @@ export class PlantHeadService {
         share: totalPieces > 0 ? Math.round((p.pieces / totalPieces) * 1000) / 10 : 0,
         pieceShare: totalPieces > 0 ? Math.round((p.pieces / totalPieces) * 1000) / 10 : 0,
         weightShare: totalWeight > 0 ? Math.round((p.weight / totalWeight) * 1000) / 10 : 0,
-      })).sort((a, b) => b.pieces - a.pieces),
-      sizes: serialiseBuckets(sizeMap),
-      capacities: serialiseBuckets(capacityMap),
+      })).sort((a, b) => b.weight - a.weight),
+      productImages: [...productDetailMap.values()].map(p => ({
+        id: p.id,
+        name: p.name,
+        type: p.type,
+        size: p.size,
+        capacity: p.capacity,
+        imageUrl: p.imageUrl,
+        sku: p.sku,
+        weight: Math.round(p.weight * 10) / 10,
+        pieces: p.pieces,
+        covers: p.covers,
+        frames: p.frames,
+      })).sort((a, b) => b.weight - a.weight),
+      coverFrameBreakdown: coverFrameList,
+      coverFrameWise: coverFrameList,
+      sizes: sizesList,
+      sizeWise: sizesList,
+      capacities: capacitiesList,
+      capacityWise: capacitiesList,
+      topSizes: sizesList.slice(0, 10),
       salespeople: [...salespersonMap.values()].map(row => ({
         ...row,
         customers: row.customers.size,
@@ -2051,15 +2514,19 @@ export class PlantHeadService {
       newCustomers: rankedCustomers.filter(row => row.isNew),
       dailyTrend,
       pipelineStatuses,
-      machineFleet: machineFleet.map(m => ({
-        ...m,
-        weight: Math.round(m.weight * 10) / 10,
-        share: totalWeight > 0 ? Math.round((m.weight / totalWeight) * 1000) / 10 : 0,
-      })),
-      workOrdersList: workOrdersList.slice(0, 100),
+      machineFleet,
+      liveFloorTelemetry,
+      workOrdersList: workOrdersList.slice(0, 150),
       filterOptions: {
-        months: ['2026-09', '2026-08', 'all', 'custom'],
-        products: Array.from(distinctProducts),
+        months: [
+          { value: '2026-08', label: 'August 2026' },
+          { value: '2026-09', label: 'September 2026' },
+          { value: '2026-10', label: 'October 2026' },
+          { value: 'all', label: 'All Time' },
+          { value: 'custom', label: 'Custom Date Range' },
+        ],
+        productTypes: Array.from(distinctProductTypes),
+        products: Array.from(distinctProductTypes),
         capacities: Array.from(distinctCapacities),
         sizes: Array.from(distinctSizes),
         statuses: Array.from(distinctStatuses),
