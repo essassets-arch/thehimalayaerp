@@ -559,4 +559,150 @@ describe('Production Analytics - Rules 23–28 Comprehensive Verification Suite'
     expect(row.actualScaleWeight).toBe(355.5);
     expect(row.weightVariance).toBe(5.5);
   });
+
+  // ── TEST 17: Exclusion of Trading / Category 2 Products ──
+  it('Test 17: Exclude Trading / Category 2 products (Coverblocks, WCB, PCB, D2) from Plant Head report by default', async () => {
+    const woManufacturing = {
+      id: 'wo-mfg-1',
+      workOrderNumber: 'WO-MFG-001',
+      quantity: 50,
+      status: 'COMPLETED',
+      createdAt: new Date('2026-10-02T10:00:00Z'),
+      completedAt: new Date('2026-10-03T10:00:00Z'),
+      salesOrderItem: {
+        product: { id: 'p-mhc', name: 'HIMALAYA FRP MHC 600X600 LD BLACK', category: 'MHC', coversPerSet: 1, framesPerSet: 1, weight: 30 },
+      },
+    };
+
+    const woCoverblock1 = {
+      id: 'wo-cb-1',
+      workOrderNumber: 'WO-TRD-001',
+      quantity: 5100,
+      status: 'COMPLETED',
+      createdAt: new Date('2026-10-02T10:00:00Z'),
+      completedAt: new Date('2026-10-03T10:00:00Z'),
+      salesOrderItem: {
+        product: { id: 'p-wcb', name: 'WCB MULTIPLE', sku: 'WCBMULTIPLE', category: 'COVERBLOCK', dispatchCategory: 'D2' },
+      },
+    };
+
+    const woCoverblock2 = {
+      id: 'wo-cb-2',
+      workOrderNumber: 'WO-TRD-002',
+      quantity: 140,
+      status: 'COMPLETED',
+      createdAt: new Date('2026-10-02T10:00:00Z'),
+      completedAt: new Date('2026-10-03T10:00:00Z'),
+      salesOrderItem: {
+        product: { id: 'p-pcb', name: 'PCB 40 MM', sku: 'PCB40MM', category: 'COVERBLOCK' },
+      },
+    };
+
+    const mockPrisma = {
+      workOrder: { findMany: jest.fn().mockResolvedValue([woManufacturing, woCoverblock1, woCoverblock2]) },
+      qCInspection: { findMany: jest.fn().mockResolvedValue([]) },
+      productionDailyReport: { findMany: jest.fn().mockResolvedValue([]) },
+      machine: { findMany: jest.fn().mockResolvedValue([]) },
+      salesOrder: { groupBy: jest.fn().mockResolvedValue([]) },
+    };
+
+    const service = new PlantHeadService(mockPrisma as any, {} as any);
+
+    // 1. By default, trading products are excluded
+    const reportDefault = await service.getMonthlyProductionReport('tenant-1', undefined, undefined, undefined, undefined, undefined, undefined, '2026-10');
+    expect(reportDefault.kpis.totalWorkOrders).toBe(1);
+    expect(reportDefault.workOrdersList.length).toBe(1);
+    expect(reportDefault.workOrdersList[0].product).toBe('HIMALAYA FRP MHC 600X600 LD BLACK');
+    expect(reportDefault.productWise.some((p: any) => p.name === 'COVERBLOCK')).toBe(false);
+    expect(reportDefault.kpis.totalPieces).toBe(100); // 50 covers + 50 frames
+
+    // 2. When includeTrading is explicitly true, trading products are included
+    const reportTrading = await service.getMonthlyProductionReport(
+      'tenant-1', undefined, undefined, undefined, undefined, undefined, undefined, '2026-10', undefined, undefined, undefined, undefined, true
+    );
+    expect(reportTrading.kpis.totalWorkOrders).toBe(3);
+    expect(reportTrading.productWise.some((p: any) => p.name === 'COVERBLOCK')).toBe(true);
+  });
+
+  // ── TEST 18: Floor Scale Weight Tracking When Product Master Weight is Zero ──
+  it('Test 18: Dual scaleWeight and effectiveWeight propagate to productTypes, sizes, capacities, and individual products', async () => {
+    const dr = {
+      id: 'dr-oct',
+      reportNo: 'DR-OCT-01',
+      reportDate: new Date('2026-10-05T10:00:00Z'),
+      status: 'APPROVED',
+      items: [
+        {
+          id: 'dri-oct-1',
+          workOrderId: 'wo-oct-1',
+          coverQty: 25,
+          frameQty: 25,
+          setQty: 25,
+          extraCoverQty: 0,
+          extraFrameQty: 0,
+          coverUnitWeight: 0, // No theoretical weight in master
+          frameUnitWeight: 0,
+          actualCoverWeight: 400.0,
+          actualFrameWeight: 403.7,
+        },
+      ],
+    };
+
+    const wo = {
+      id: 'wo-oct-1',
+      workOrderNumber: 'WO-OCT-001',
+      quantity: 25,
+      status: 'COMPLETED',
+      createdAt: new Date('2026-10-05T08:00:00Z'),
+      completedAt: new Date('2026-10-05T18:00:00Z'),
+      salesOrderItem: {
+        product: {
+          id: 'p-oct-1',
+          name: 'HIMALAYA FRP MHC 600X600 LD BLACK',
+          type: 'MHC',
+          size: '600X600',
+          capacity: 'LD',
+          coversPerSet: 1,
+          framesPerSet: 1,
+          weight: 0,
+        },
+      },
+    };
+
+    const mockPrisma = {
+      workOrder: { findMany: jest.fn().mockResolvedValue([wo]) },
+      qCInspection: { findMany: jest.fn().mockResolvedValue([]) },
+      productionDailyReport: { findMany: jest.fn().mockResolvedValue([dr]) },
+      machine: { findMany: jest.fn().mockResolvedValue([]) },
+      salesOrder: { groupBy: jest.fn().mockResolvedValue([]) },
+    };
+
+    const service = new PlantHeadService(mockPrisma as any, {} as any);
+    const report = await service.getMonthlyProductionReport('tenant-1', undefined, undefined, undefined, undefined, undefined, undefined, '2026-10');
+
+    expect(report.kpis.totalWeight).toBe(0);
+    expect(report.kpis.totalScaleWeight).toBe(803.7);
+    expect(report.kpis.effectiveWeight).toBe(803.7);
+
+    // Product Type map has scaleWeight and effectiveWeight
+    const mhcType = report.productWise.find((p: any) => p.name === 'MHC');
+    expect(mhcType).toBeDefined();
+    expect(mhcType.scaleWeight).toBe(803.7);
+    expect(mhcType.effectiveWeight).toBe(803.7);
+
+    // Size map has scaleWeight and effectiveWeight
+    const szEntry = report.sizeWise.find((s: any) => s.name === '600 × 600');
+    expect(szEntry).toBeDefined();
+    expect(szEntry.scaleWeight).toBe(803.7);
+    expect(szEntry.effectiveWeight).toBe(803.7);
+
+    // Capacity map has scaleWeight and effectiveWeight
+    const capEntry = report.capacityWise.find((c: any) => c.name === 'LD');
+    expect(capEntry).toBeDefined();
+    expect(capEntry.scaleWeight).toBe(803.7);
+    expect(capEntry.effectiveWeight).toBe(803.7);
+
+    // Math is reconciled on scale weights
+    expect(report.reconciliation.isReconciled).toBe(true);
+  });
 });

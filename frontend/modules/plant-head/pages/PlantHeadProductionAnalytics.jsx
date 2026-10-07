@@ -120,6 +120,7 @@ export const PlantHeadProductionAnalytics = () => {
   const [sizeFilter, setSizeFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [companyFilter, setCompanyFilter] = useState('All');
+  const [includeTrading, setIncludeTrading] = useState(false);
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
@@ -149,6 +150,7 @@ export const PlantHeadProductionAnalytics = () => {
       if (capacityFilter !== 'All') q.set('capacity', capacityFilter);
       if (sizeFilter !== 'All') q.set('size', sizeFilter);
       if (statusFilter !== 'All') q.set('status', statusFilter);
+      if (includeTrading) q.set('includeTrading', 'true');
       if (selectedMonth === 'custom' && customStartDate && customEndDate) {
         q.set('customStart', customStartDate);
         q.set('customEnd', customEndDate);
@@ -165,7 +167,7 @@ export const PlantHeadProductionAnalytics = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedMonth, categoryFilter, capacityFilter, sizeFilter, statusFilter, customStartDate, customEndDate, companyFilter]);
+  }, [selectedMonth, categoryFilter, capacityFilter, sizeFilter, statusFilter, includeTrading, customStartDate, customEndDate, companyFilter]);
 
   useEffect(() => {
     loadProductionData();
@@ -173,14 +175,15 @@ export const PlantHeadProductionAnalytics = () => {
 
   // ── Filter reset and active check ──
   const hasActiveFilters = useMemo(() => {
-    return categoryFilter !== 'All' || capacityFilter !== 'All' || sizeFilter !== 'All' || statusFilter !== 'All' || selectedMonth === 'custom';
-  }, [categoryFilter, capacityFilter, sizeFilter, statusFilter, selectedMonth]);
+    return categoryFilter !== 'All' || capacityFilter !== 'All' || sizeFilter !== 'All' || statusFilter !== 'All' || includeTrading || selectedMonth === 'custom';
+  }, [categoryFilter, capacityFilter, sizeFilter, statusFilter, includeTrading, selectedMonth]);
 
   const handleResetFilters = useCallback(() => {
     setCategoryFilter('All');
     setCapacityFilter('All');
     setSizeFilter('All');
     setStatusFilter('All');
+    setIncludeTrading(false);
     const d = new Date();
     setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     setCustomStartDate('');
@@ -262,13 +265,15 @@ export const PlantHeadProductionAnalytics = () => {
     return raw.map(p => ({
       name: p.type || p.name || 'Unspecified',
       weight: Number(p.weight || 0),
+      scaleWeight: Number(p.scaleWeight || 0),
+      effectiveWeight: Number(p.effectiveWeight || p.weight || p.scaleWeight || 0),
       weightShare: Number(p.weightShare || 0),
       share: Number(p.share || p.pieceShare || 0),
       covers: Number(p.covers || 0),
       frames: Number(p.frames || 0),
       pieces: Number(p.pieces || 0),
       workOrders: Number(p.workOrders || 0),
-    })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
+    })).sort((a, b) => (b.weight - a.weight) || (b.scaleWeight - a.scaleWeight) || (b.pieces - a.pieces));
   }, [report?.productWise, report?.productTypes]);
 
   // 1b. Specific Product Models List (Individual SKUs)
@@ -289,7 +294,7 @@ export const PlantHeadProductionAnalytics = () => {
       covers: Number(p.covers || 0),
       frames: Number(p.frames || 0),
       pieces: Number(p.pieces || 0),
-    })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
+    })).sort((a, b) => (b.weight - a.weight) || (b.scaleWeight - a.scaleWeight) || (b.pieces - a.pieces));
   }, [report?.products]);
 
   // 2. Size-wise Production List
@@ -298,12 +303,14 @@ export const PlantHeadProductionAnalytics = () => {
     return raw.map(s => ({
       name: s.size || s.name || 'Unassigned',
       weight: Number(s.weight || 0),
+      scaleWeight: Number(s.scaleWeight || 0),
+      effectiveWeight: Number(s.effectiveWeight || s.weight || s.scaleWeight || 0),
       weightShare: Number(s.weightShare || 0),
       share: Number(s.share || 0),
       pieces: Number(s.pieces || 0),
       covers: Number(s.covers || 0),
       frames: Number(s.frames || 0),
-    })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
+    })).sort((a, b) => (b.weight - a.weight) || (b.scaleWeight - a.scaleWeight) || (b.pieces - a.pieces));
   }, [report?.sizeWise, report?.sizes]);
 
   // 3. Load-capacity-wise Production List
@@ -312,12 +319,14 @@ export const PlantHeadProductionAnalytics = () => {
     return raw.map(c => ({
       name: c.capacity || c.name || 'Not Configured',
       weight: Number(c.weight || 0),
+      scaleWeight: Number(c.scaleWeight || 0),
+      effectiveWeight: Number(c.effectiveWeight || c.weight || c.scaleWeight || 0),
       weightShare: Number(c.weightShare || 0),
       share: Number(c.share || 0),
       pieces: Number(c.pieces || 0),
       covers: Number(c.covers || 0),
       frames: Number(c.frames || 0),
-    })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
+    })).sort((a, b) => (b.weight - a.weight) || (b.scaleWeight - a.scaleWeight) || (b.pieces - a.pieces));
   }, [report?.capacityWise, report?.capacities]);
 
   // 4. Cover & Frame Production List
@@ -332,7 +341,9 @@ export const PlantHeadProductionAnalytics = () => {
       frames: Number(cf.frames || 0),
       pieces: Number(cf.pieces || 0),
       weight: Number(cf.weight || 0),
-    })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
+      scaleWeight: Number(cf.scaleWeight || 0),
+      effectiveWeight: Number(cf.effectiveWeight || cf.weight || cf.scaleWeight || 0),
+    })).sort((a, b) => (b.weight - a.weight) || (b.scaleWeight - a.scaleWeight) || (b.pieces - a.pieces));
   }, [report?.coverFrameWise, report?.coverFrameBreakdown]);
 
   // 5. Top 10 Sizes for Bar Chart
@@ -1136,6 +1147,37 @@ export const PlantHeadProductionAnalytics = () => {
               <option value="STARTED">Started / In Production</option>
             </select>
           </div>
+
+          {/* 6. Production Scope Filter */}
+          <div>
+            <label style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>
+              Item Scope
+            </label>
+            <button
+              type="button"
+              onClick={() => setIncludeTrading(!includeTrading)}
+              title={includeTrading ? 'Click to show only manufacturing items' : 'Click to include D2 trading items'}
+              style={{
+                width: '100%',
+                background: includeTrading ? '#fef3c7' : '#f8fafc',
+                border: includeTrading ? '1.5px solid #d97706' : '1.5px solid #cbd5e1',
+                color: includeTrading ? '#b45309' : '#0f172a',
+                padding: '6px 8px',
+                borderRadius: '7px',
+                fontSize: '11px',
+                fontWeight: '800',
+                outline: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                height: '32px'
+              }}
+            >
+              {includeTrading ? '⚠️ Includes Trading' : '🏭 Factory Mfg Only'}
+            </button>
+          </div>
         </div>
 
         {/* Custom Date Pickers (if "custom" is selected) */}
@@ -1603,7 +1645,7 @@ export const PlantHeadProductionAnalytics = () => {
                           {fmt(sz.pieces)}
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0f172a', fontFamily: 'monospace' }}>
-                          {fmt(sz.weight, 2)}
+                          {fmt(sz.weight > 0 ? sz.weight : (sz.effectiveWeight || sz.scaleWeight || 0), 2)}
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '700', color: '#334155' }}>
                           {(sz.weightShare > 0 ? sz.weightShare : (sz.share || 0)).toFixed(1)}%
@@ -1668,7 +1710,7 @@ export const PlantHeadProductionAnalytics = () => {
                           {fmt(cap.pieces)}
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0f172a', fontFamily: 'monospace' }}>
-                          {fmt(cap.weight, 2)}
+                          {fmt(cap.weight > 0 ? cap.weight : (cap.effectiveWeight || cap.scaleWeight || 0), 2)}
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '700', color: '#334155' }}>
                           {(cap.weightShare > 0 ? cap.weightShare : (cap.share || 0)).toFixed(1)}%

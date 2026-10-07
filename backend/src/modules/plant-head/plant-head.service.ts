@@ -1704,8 +1704,10 @@ export class PlantHeadService {
     statusFilter?: string,
     machineIdFilter?: string,
     category?: string,
+    includeTradingParam?: boolean | string,
   ) {
     // 1. Authoritative IST Date Range Calculation
+    const shouldIncludeTrading = includeTradingParam === true || includeTradingParam === 'true' || includeTradingParam === '1';
     const normFilter = (filter || '').trim();
     const normMonth = (month || '').trim();
 
@@ -2036,6 +2038,9 @@ export class PlantHeadService {
 
     for (const report of dailyReports) {
       for (const item of (report.items || [])) {
+        if (!shouldIncludeTrading && this.isTradingProduct(item.product, item)) {
+          continue;
+        }
         const coverQty = Number(item.coverQty || 0);
         const frameQty = Number(item.frameQty || 0);
         // Rule 27 / Locked implementation detail:
@@ -2153,6 +2158,7 @@ export class PlantHeadService {
     const productTypeMap = new Map<string, {
       name: string;
       weight: number;
+      scaleWeight: number;
       covers: number;
       frames: number;
       pieces: number;
@@ -2160,8 +2166,8 @@ export class PlantHeadService {
     }>();
 
     const productDetailMap = new Map<string, any>();
-    const sizeMap = new Map<string, { weight: number; pieces: number; covers: number; frames: number }>();
-    const capacityMap = new Map<string, { weight: number; pieces: number; covers: number; frames: number }>();
+    const sizeMap = new Map<string, { weight: number; scaleWeight: number; pieces: number; covers: number; frames: number }>();
+    const capacityMap = new Map<string, { weight: number; scaleWeight: number; pieces: number; covers: number; frames: number }>();
     const coverFrameMap = new Map<string, {
       product: string;
       type: string;
@@ -2171,6 +2177,7 @@ export class PlantHeadService {
       frames: number;
       pieces: number;
       weight: number;
+      scaleWeight: number;
       workOrders: number;
     }>();
 
@@ -2202,7 +2209,14 @@ export class PlantHeadService {
     const distinctStatuses = new Set<string>();
     const workOrdersList: any[] = [];
 
-    for (const wo of workOrders) {
+    const targetWorkOrders = shouldIncludeTrading
+      ? workOrders
+      : workOrders.filter(wo => {
+          const product = wo.salesOrderItem?.product || wo.productionPlan?.salesOrder?.items?.[0]?.product;
+          return !this.isTradingProduct(product, wo.salesOrderItem);
+        });
+
+    for (const wo of targetWorkOrders) {
       const product = wo.salesOrderItem?.product || wo.productionPlan?.salesOrder?.items?.[0]?.product;
       const productName = product?.name || wo.salesOrderItem?.productNameSnapshot || 'FRP Heavy Duty Composite';
       const status = wo.status || 'IN_PRODUCTION';
@@ -2405,6 +2419,7 @@ export class PlantHeadService {
         productTypeMap.set(productType, {
           name: productType,
           weight: 0,
+          scaleWeight: 0,
           covers: 0,
           frames: 0,
           pieces: 0,
@@ -2413,6 +2428,7 @@ export class PlantHeadService {
       }
       const ptRow = productTypeMap.get(productType)!;
       ptRow.weight += weight;
+      ptRow.scaleWeight += (actualScaleWeight || 0);
       ptRow.covers += covers;
       ptRow.frames += frames;
       ptRow.pieces += pieces;
@@ -2431,6 +2447,7 @@ export class PlantHeadService {
         imageUrl: product?.imageUrl || null,
         sku: product?.sku || null,
         weight: 0,
+        scaleWeight: 0,
         covers: 0,
         frames: 0,
         pieces: 0,
@@ -2439,6 +2456,7 @@ export class PlantHeadService {
       if (product?.imageUrl && !productRow.imageUrl) productRow.imageUrl = product.imageUrl;
       if (product?.sku && !productRow.sku) productRow.sku = product.sku;
       productRow.weight += weight;
+      productRow.scaleWeight += (actualScaleWeight || 0);
       productRow.covers += covers;
       productRow.frames += frames;
       productRow.pieces += pieces;
@@ -2456,6 +2474,7 @@ export class PlantHeadService {
           frames: 0,
           pieces: 0,
           weight: 0,
+          scaleWeight: 0,
           workOrders: 0,
         });
       }
@@ -2464,20 +2483,23 @@ export class PlantHeadService {
       cfRow.frames += frames;
       cfRow.pieces += pieces;
       cfRow.weight += weight;
+      cfRow.scaleWeight += (actualScaleWeight || 0);
       cfRow.workOrders++;
 
       // Size buckets
-      if (!sizeMap.has(formattedSize)) sizeMap.set(formattedSize, { weight: 0, pieces: 0, covers: 0, frames: 0 });
+      if (!sizeMap.has(formattedSize)) sizeMap.set(formattedSize, { weight: 0, scaleWeight: 0, pieces: 0, covers: 0, frames: 0 });
       const sEntry = sizeMap.get(formattedSize)!;
       sEntry.weight += weight;
+      sEntry.scaleWeight += (actualScaleWeight || 0);
       sEntry.pieces += pieces;
       sEntry.covers += covers;
       sEntry.frames += frames;
 
       // Capacity buckets
-      if (!capacityMap.has(cap)) capacityMap.set(cap, { weight: 0, pieces: 0, covers: 0, frames: 0 });
+      if (!capacityMap.has(cap)) capacityMap.set(cap, { weight: 0, scaleWeight: 0, pieces: 0, covers: 0, frames: 0 });
       const cEntry = capacityMap.get(cap)!;
       cEntry.weight += weight;
+      cEntry.scaleWeight += (actualScaleWeight || 0);
       cEntry.pieces += pieces;
       cEntry.covers += covers;
       cEntry.frames += frames;
@@ -2578,6 +2600,9 @@ export class PlantHeadService {
 
     // 3f. Aggregate Standalone Floor Daily Report Items (Rule 28)
     for (const sItem of standaloneDailyItems) {
+      if (!shouldIncludeTrading && this.isTradingProduct(sItem.product, sItem)) {
+        continue;
+      }
       const pName = sItem.product?.name || sItem.customProductName || 'Composite Component';
       const pType = sItem.type || sItem.product?.type || 'MHC';
       const pSize = sItem.size || sItem.product?.size || 'UNASSIGNED';
@@ -2624,10 +2649,11 @@ export class PlantHeadService {
 
       // Update product type map
       if (!productTypeMap.has(pType)) {
-        productTypeMap.set(pType, { name: pType, weight: 0, covers: 0, frames: 0, pieces: 0, workOrders: 0 });
+        productTypeMap.set(pType, { name: pType, weight: 0, scaleWeight: 0, covers: 0, frames: 0, pieces: 0, workOrders: 0 });
       }
       const ptRow = productTypeMap.get(pType)!;
       ptRow.weight += sCalcW;
+      ptRow.scaleWeight += (sScaleW || 0);
       ptRow.covers += sItem.coverQty;
       ptRow.frames += sItem.frameQty;
       ptRow.pieces += sComponents;
@@ -2646,12 +2672,14 @@ export class PlantHeadService {
         imageUrl: sItem.product?.imageUrl || null,
         sku: sItem.product?.sku || null,
         weight: 0,
+        scaleWeight: 0,
         covers: 0,
         frames: 0,
         pieces: 0,
         workOrders: 0,
       };
       productRow.weight += sCalcW;
+      productRow.scaleWeight += (sScaleW || 0);
       productRow.covers += sItem.coverQty;
       productRow.frames += sItem.frameQty;
       productRow.pieces += sComponents;
@@ -2669,6 +2697,7 @@ export class PlantHeadService {
           frames: 0,
           pieces: 0,
           weight: 0,
+          scaleWeight: 0,
           workOrders: 0,
         });
       }
@@ -2677,7 +2706,26 @@ export class PlantHeadService {
       cfRow.frames += sItem.frameQty;
       cfRow.pieces += sComponents;
       cfRow.weight += sCalcW;
+      cfRow.scaleWeight += (sScaleW || 0);
       cfRow.workOrders++;
+
+      // Size buckets
+      if (!sizeMap.has(formattedPSize)) sizeMap.set(formattedPSize, { weight: 0, scaleWeight: 0, pieces: 0, covers: 0, frames: 0 });
+      const sEntry = sizeMap.get(formattedPSize)!;
+      sEntry.weight += sCalcW;
+      sEntry.scaleWeight += (sScaleW || 0);
+      sEntry.pieces += sComponents;
+      sEntry.covers += sItem.coverQty;
+      sEntry.frames += sItem.frameQty;
+
+      // Capacity buckets
+      if (!capacityMap.has(pCap)) capacityMap.set(pCap, { weight: 0, scaleWeight: 0, pieces: 0, covers: 0, frames: 0 });
+      const cEntry = capacityMap.get(pCap)!;
+      cEntry.weight += sCalcW;
+      cEntry.scaleWeight += (sScaleW || 0);
+      cEntry.pieces += sComponents;
+      cEntry.covers += sItem.coverQty;
+      cEntry.frames += sItem.frameQty;
 
       // Timeline map
       const sDate = sItem.reportDate ? new Date(sItem.reportDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
@@ -2756,41 +2804,68 @@ export class PlantHeadService {
     }
 
     // 6. Serialized Collections with Weight & Piece Percentages
-    const serialiseBuckets = (map: Map<string, { weight: number; pieces: number; covers?: number; frames?: number }>) =>
-      [...map.entries()].map(([name, val]) => ({
-        name,
-        weight: Math.round(val.weight * 100) / 100,
-        pieces: val.pieces,
-        covers: val.covers || 0,
-        frames: val.frames || 0,
-        share: totalPieces > 0 ? Math.round((val.pieces / totalPieces) * 1000) / 10 : 0,
-        weightShare: totalWeight > 0 ? Math.round((val.weight / totalWeight) * 1000) / 10 : 0,
-      })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
+    const serialiseBuckets = (map: Map<string, { weight: number; scaleWeight?: number; pieces: number; covers?: number; frames?: number }>) =>
+      [...map.entries()].map(([name, val]) => {
+        const rowWeight = Math.round(val.weight * 100) / 100;
+        const rowScaleWeight = Math.round((val.scaleWeight || 0) * 100) / 100;
+        const effectiveWeight = rowWeight > 0 ? rowWeight : rowScaleWeight;
+        return {
+          name,
+          weight: rowWeight,
+          scaleWeight: rowScaleWeight,
+          effectiveWeight,
+          pieces: val.pieces,
+          covers: val.covers || 0,
+          frames: val.frames || 0,
+          share: totalPieces > 0 ? Math.round((val.pieces / totalPieces) * 1000) / 10 : 0,
+          weightShare: totalWeight > 0
+            ? Math.round((val.weight / totalWeight) * 1000) / 10
+            : (totalScaleWeight > 0 ? Math.round(((val.scaleWeight || 0) / totalScaleWeight) * 1000) / 10 : 0),
+        };
+      }).sort((a, b) => (b.weight - a.weight) || ((b.scaleWeight || 0) - (a.scaleWeight || 0)) || (b.pieces - a.pieces));
 
-    const productTypesList = [...productTypeMap.values()].map(pt => ({
-      name: pt.name,
-      weight: Math.round(pt.weight * 100) / 100,
-      covers: pt.covers,
-      frames: pt.frames,
-      pieces: pt.pieces,
-      workOrders: pt.workOrders,
-      weightShare: totalWeight > 0 ? Math.round((pt.weight / totalWeight) * 1000) / 10 : 0,
-      share: totalPieces > 0 ? Math.round((pt.pieces / totalPieces) * 1000) / 10 : 0,
-      pieceShare: totalPieces > 0 ? Math.round((pt.pieces / totalPieces) * 1000) / 10 : 0,
-    })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
+    const productTypesList = [...productTypeMap.values()].map(pt => {
+      const rowWeight = Math.round(pt.weight * 100) / 100;
+      const rowScaleWeight = Math.round((pt.scaleWeight || 0) * 100) / 100;
+      const effectiveWeight = rowWeight > 0 ? rowWeight : rowScaleWeight;
+      return {
+        name: pt.name,
+        weight: rowWeight,
+        scaleWeight: rowScaleWeight,
+        effectiveWeight,
+        covers: pt.covers,
+        frames: pt.frames,
+        pieces: pt.pieces,
+        workOrders: pt.workOrders,
+        weightShare: totalWeight > 0
+          ? Math.round((pt.weight / totalWeight) * 1000) / 10
+          : (totalScaleWeight > 0 ? Math.round(((pt.scaleWeight || 0) / totalScaleWeight) * 1000) / 10 : 0),
+        share: totalPieces > 0 ? Math.round((pt.pieces / totalPieces) * 1000) / 10 : 0,
+        pieceShare: totalPieces > 0 ? Math.round((pt.pieces / totalPieces) * 1000) / 10 : 0,
+      };
+    }).sort((a, b) => (b.weight - a.weight) || ((b.scaleWeight || 0) - (a.scaleWeight || 0)) || (b.pieces - a.pieces));
 
-    const coverFrameList = [...coverFrameMap.values()].map(cf => ({
-      product: cf.product,
-      type: cf.type,
-      size: cf.size,
-      capacity: cf.capacity,
-      covers: cf.covers,
-      frames: cf.frames,
-      pieces: cf.pieces,
-      weight: Math.round(cf.weight * 100) / 100,
-      weightShare: totalWeight > 0 ? Math.round((cf.weight / totalWeight) * 1000) / 10 : 0,
-      workOrders: cf.workOrders,
-    })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces));
+    const coverFrameList = [...coverFrameMap.values()].map(cf => {
+      const rowWeight = Math.round(cf.weight * 100) / 100;
+      const rowScaleWeight = Math.round((cf.scaleWeight || 0) * 100) / 100;
+      const effectiveWeight = rowWeight > 0 ? rowWeight : rowScaleWeight;
+      return {
+        product: cf.product,
+        type: cf.type,
+        size: cf.size,
+        capacity: cf.capacity,
+        covers: cf.covers,
+        frames: cf.frames,
+        pieces: cf.pieces,
+        weight: rowWeight,
+        scaleWeight: rowScaleWeight,
+        effectiveWeight,
+        weightShare: totalWeight > 0
+          ? Math.round((cf.weight / totalWeight) * 1000) / 10
+          : (totalScaleWeight > 0 ? Math.round(((cf.scaleWeight || 0) / totalScaleWeight) * 1000) / 10 : 0),
+        workOrders: cf.workOrders,
+      };
+    }).sort((a, b) => (b.weight - a.weight) || ((b.scaleWeight || 0) - (a.scaleWeight || 0)) || (b.pieces - a.pieces));
 
     const sizesList = serialiseBuckets(sizeMap);
     const capacitiesList = serialiseBuckets(capacityMap);
@@ -2800,6 +2875,13 @@ export class PlantHeadService {
     const sumSizeWeight = sizesList.reduce((sum, s) => sum + s.weight, 0);
     const sumCapWeight = capacitiesList.reduce((sum, c) => sum + c.weight, 0);
     const sumCoverFrameWeight = coverFrameList.reduce((sum, cf) => sum + cf.weight, 0);
+
+    const sumTypeScaleWeight = productTypesList.reduce((sum, p) => sum + (p.scaleWeight || 0), 0);
+    const sumSizeScaleWeight = sizesList.reduce((sum, s) => sum + (s.scaleWeight || 0), 0);
+    const sumCapScaleWeight = capacitiesList.reduce((sum, c) => sum + (c.scaleWeight || 0), 0);
+    const roundedSumTypeScale = Math.round(sumTypeScaleWeight * 100) / 100;
+    const roundedSumSizeScale = Math.round(sumSizeScaleWeight * 100) / 100;
+    const roundedSumCapScale = Math.round(sumCapScaleWeight * 100) / 100;
 
     const sumProductCovers = coverFrameList.reduce((sum, cf) => sum + cf.covers, 0);
     const sumProductFrames = coverFrameList.reduce((sum, cf) => sum + cf.frames, 0);
@@ -2817,9 +2899,15 @@ export class PlantHeadService {
 
     const weightDiff = Math.abs(roundedTotalWeight - roundedSumTypeWeight);
     const isWeightReconciled =
-      Math.abs(roundedTotalWeight - roundedSumTypeWeight) < 0.1 &&
-      Math.abs(roundedTotalWeight - roundedSumSizeWeight) < 0.1 &&
-      Math.abs(roundedTotalWeight - roundedSumCapWeight) < 0.1;
+      roundedTotalWeight > 0
+        ? (Math.abs(roundedTotalWeight - roundedSumTypeWeight) < 0.1 &&
+           Math.abs(roundedTotalWeight - roundedSumSizeWeight) < 0.1 &&
+           Math.abs(roundedTotalWeight - roundedSumCapWeight) < 0.1)
+        : (roundedScaleWeight !== null && roundedScaleWeight > 0
+            ? (Math.abs(roundedScaleWeight - roundedSumTypeScale) < 0.1 &&
+               Math.abs(roundedScaleWeight - roundedSumSizeScale) < 0.1 &&
+               Math.abs(roundedScaleWeight - roundedSumCapScale) < 0.1)
+            : true);
     const isPiecesReconciled = (totalCovers + totalFrames === totalPieces) && (sumProductPieces === totalPieces);
     const isMathReconciled = isWeightReconciled && isPiecesReconciled;
 
@@ -2933,11 +3021,11 @@ export class PlantHeadService {
       message: 'Live IoT sensor telemetry feed is not configured for this facility. Displaying live ERP production workflow states.',
       metrics: {
         activeWorkOrders: activeCount,
-        runningWorkOrders: workOrders.filter(w => w.status === 'STARTED' || (w.productionStatus as any) === 'IN_PRODUCTION').length,
-        pausedWorkOrders: workOrders.filter(w => (w.status as any) === 'PAUSED' || w.status === 'CANCELLED').length,
-        qcPendingWorkOrders: workOrders.filter(w => w.status === 'QC_PENDING' || (w.qcResult as any) === 'PENDING').length,
-        readyForDispatchWorkOrders: workOrders.filter(w => w.status === 'READY_FOR_DISPATCH' || (w.productionStatus as any) === 'READY_FOR_DISPATCH').length,
-        completedToday: workOrders.filter(w => {
+        runningWorkOrders: targetWorkOrders.filter(w => w.status === 'STARTED' || (w.productionStatus as any) === 'IN_PRODUCTION').length,
+        pausedWorkOrders: targetWorkOrders.filter(w => (w.status as any) === 'PAUSED' || w.status === 'CANCELLED').length,
+        qcPendingWorkOrders: targetWorkOrders.filter(w => w.status === 'QC_PENDING' || (w.qcResult as any) === 'PENDING').length,
+        readyForDispatchWorkOrders: targetWorkOrders.filter(w => w.status === 'READY_FOR_DISPATCH' || (w.productionStatus as any) === 'READY_FOR_DISPATCH').length,
+        completedToday: targetWorkOrders.filter(w => {
           if (!w.completedAt) return false;
           const today = new Date().toISOString().slice(0, 10);
           return new Date(w.completedAt).toISOString().slice(0, 10) === today;
@@ -2948,7 +3036,7 @@ export class PlantHeadService {
     const effectiveTotalWeight = roundedTotalWeight > 0 ? roundedTotalWeight : (roundedScaleWeight || 0);
 
     return {
-      hasData: workOrders.length > 0 || standaloneDailyItems.length > 0,
+      hasData: targetWorkOrders.length > 0 || standaloneDailyItems.length > 0,
       period: {
         startDate,
         endDate,
@@ -2981,46 +3069,62 @@ export class PlantHeadService {
         floorReconciledCount,
         standaloneRunsCount: standaloneDailyItems.length,
         averageWeightPerPiece: totalPieces > 0 ? Math.round((effectiveTotalWeight / totalPieces) * 100) / 100 : 0,
-        totalWorkOrders: workOrders.length,
+        totalWorkOrders: targetWorkOrders.length,
         completedWorkOrders: completedCount,
         pendingWorkOrders: activeCount,
         activeWorkOrders: activeCount,
-        completionRate: workOrders.length > 0 ? Math.round((completedCount / workOrders.length) * 1000) / 10 : 0,
+        completionRate: targetWorkOrders.length > 0 ? Math.round((completedCount / targetWorkOrders.length) * 1000) / 10 : 0,
         fpyRate,
         totalQcInspections,
         passedQcCount,
         rejectedQcCount,
         activeMachines: machineFleet.length,
         uniqueCustomers: customerMap.size,
-        narrative: workOrders.length > 0
-          ? `During ${periodLabel}, Himalaya manufactured ${Math.round((effectiveTotalWeight / 1000) * 10) / 10} tonnes (${Math.round(effectiveTotalWeight).toLocaleString()} kg${roundedTotalWeight === 0 && (roundedScaleWeight || 0) > 0 ? ' floor scale measured' : ''}) of composite components comprising ${totalCovers.toLocaleString()} covers and ${totalFrames.toLocaleString()} frames across ${workOrders.length} work orders.`
+        narrative: targetWorkOrders.length > 0
+          ? `During ${periodLabel}, Himalaya manufactured ${Math.round((effectiveTotalWeight / 1000) * 10) / 10} tonnes (${Math.round(effectiveTotalWeight).toLocaleString()} kg${roundedTotalWeight === 0 && (roundedScaleWeight || 0) > 0 ? ' floor scale measured' : ''}) of composite components comprising ${totalCovers.toLocaleString()} covers and ${totalFrames.toLocaleString()} frames across ${targetWorkOrders.length} work orders.`
           : `No production records found for ${periodLabel}.`,
       },
       productTypes: productTypesList,
       productWise: productTypesList,
-      products: [...productDetailMap.values()].map(p => ({
-        ...p,
-        weight: Math.round(p.weight * 10) / 10,
-        pieces: p.pieces,
-        covers: p.covers,
-        frames: p.frames,
-        share: totalPieces > 0 ? Math.round((p.pieces / totalPieces) * 1000) / 10 : 0,
-        pieceShare: totalPieces > 0 ? Math.round((p.pieces / totalPieces) * 1000) / 10 : 0,
-        weightShare: totalWeight > 0 ? Math.round((p.weight / totalWeight) * 1000) / 10 : 0,
-      })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces)),
-      productImages: [...productDetailMap.values()].map(p => ({
-        id: p.id,
-        name: p.name,
-        type: p.type,
-        size: p.size,
-        capacity: p.capacity,
-        imageUrl: p.imageUrl,
-        sku: p.sku,
-        weight: Math.round(p.weight * 10) / 10,
-        pieces: p.pieces,
-        covers: p.covers,
-        frames: p.frames,
-      })).sort((a, b) => (b.weight - a.weight) || (b.pieces - a.pieces)),
+      products: [...productDetailMap.values()].map(p => {
+        const rowWeight = Math.round(p.weight * 10) / 10;
+        const rowScaleWeight = Math.round((p.scaleWeight || 0) * 10) / 10;
+        const effectiveWeight = rowWeight > 0 ? rowWeight : rowScaleWeight;
+        return {
+          ...p,
+          weight: rowWeight,
+          scaleWeight: rowScaleWeight,
+          effectiveWeight,
+          pieces: p.pieces,
+          covers: p.covers,
+          frames: p.frames,
+          share: totalPieces > 0 ? Math.round((p.pieces / totalPieces) * 1000) / 10 : 0,
+          pieceShare: totalPieces > 0 ? Math.round((p.pieces / totalPieces) * 1000) / 10 : 0,
+          weightShare: totalWeight > 0
+            ? Math.round((p.weight / totalWeight) * 1000) / 10
+            : (totalScaleWeight > 0 ? Math.round(((p.scaleWeight || 0) / totalScaleWeight) * 1000) / 10 : 0),
+        };
+      }).sort((a, b) => (b.weight - a.weight) || (b.scaleWeight - a.scaleWeight) || (b.pieces - a.pieces)),
+      productImages: [...productDetailMap.values()].map(p => {
+        const rowWeight = Math.round(p.weight * 10) / 10;
+        const rowScaleWeight = Math.round((p.scaleWeight || 0) * 10) / 10;
+        const effectiveWeight = rowWeight > 0 ? rowWeight : rowScaleWeight;
+        return {
+          id: p.id,
+          name: p.name,
+          type: p.type,
+          size: p.size,
+          capacity: p.capacity,
+          imageUrl: p.imageUrl,
+          sku: p.sku,
+          weight: rowWeight,
+          scaleWeight: rowScaleWeight,
+          effectiveWeight,
+          pieces: p.pieces,
+          covers: p.covers,
+          frames: p.frames,
+        };
+      }).sort((a, b) => (b.weight - a.weight) || (b.scaleWeight - a.scaleWeight) || (b.pieces - a.pieces)),
       coverFrameBreakdown: coverFrameList,
       coverFrameWise: coverFrameList,
       sizes: sizesList,

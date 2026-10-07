@@ -183,6 +183,7 @@ export class PlantHeadController {
     @Query('year') year?: string,
     @Query('status') status?: string,
     @Query('machineId') machineId?: string,
+    @Query('includeTrading') includeTrading?: string,
   ) {
     const companyId = this.resolveCompanyId(req);
     return this.plantHeadService.getMonthlyProductionReport(
@@ -198,6 +199,7 @@ export class PlantHeadController {
       status,
       machineId,
       category,
+      includeTrading === 'true' || includeTrading === '1',
     );
   }
 

@@ -122,22 +122,22 @@ export function resolveProductRouting(
     category.includes('RCC PIPE') ||
     category.includes('OTHERS') ||
     category.includes('TRADING') ||
-    category.includes('GRATING') ||
-    category.includes('FRP GRATING')
+    category.includes('MOULDED')
   ) {
     return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };
   }
 
-  const name = String(input?.name || input?.productName || '').toUpperCase();
+  const name = String(input?.name || input?.productName || (input as any)?.customProductName || (input as any)?.productNameSnapshot || '').toUpperCase();
   const sku = String(input?.sku || input?.productCode || '').toUpperCase();
-  const combined = `${name} ${sku}`;
+  const itemType = String((input as any)?.type || '').toUpperCase();
+  const combined = `${name} ${sku} ${itemType}`;
 
   if (
     combined.includes('MOULDED') ||
-    combined.includes('GRATING') ||
     combined.includes('COVERBLOCK') ||
     combined.includes('COVER BLOCK') ||
-    combined.includes('RCC PIPE')
+    combined.includes('RCC PIPE') ||
+    /\b(WCB|PCB|HTCB|DTCB|MCB|BTCB|FRCCP|FRCT|FRCSQRC|FRCRFRC|FRCSFSC|FRCROFROC|FRCGT|FRCTSOC|FRCTPEC)\b/.test(combined)
   ) {
     return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };
   }
