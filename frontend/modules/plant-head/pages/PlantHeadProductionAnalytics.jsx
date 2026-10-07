@@ -138,9 +138,17 @@ const ProductImageCard = ({ product }) => {
 
 export const PlantHeadProductionAnalytics = () => {
   // ── Filters & Timeframe State ──
-  const [selectedMonth, setSelectedMonth] = useState('2026-08');
+  const [selectedMonth, setSelectedMonth] = useState('2026-09');
+  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [capacityFilter, setCapacityFilter] = useState('All');
+  const [sizeFilter, setSizeFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [companyFilter, setCompanyFilter] = useState('All');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+
+  // Table 1 view toggle: 'category' (Product Families: MHC, DHMC, WHC, etc.) vs 'product' (Individual Product SKUs)
+  const [table1Mode, setTable1Mode] = useState('category');
 
   // View Mode: 'one-page' (Target Monthly Production Report) vs 'audit-master' (Detailed Work Orders Master)
   const [viewMode, setViewMode] = useState('one-page');
@@ -160,8 +168,15 @@ export const PlantHeadProductionAnalytics = () => {
     setError('');
     try {
       const q = new URLSearchParams();
-      q.set('month', selectedMonth);
+      if (selectedMonth) q.set('month', selectedMonth);
+      if (categoryFilter !== 'All') q.set('category', categoryFilter);
+      if (capacityFilter !== 'All') q.set('capacity', capacityFilter);
+      if (sizeFilter !== 'All') q.set('size', sizeFilter);
       if (statusFilter !== 'All') q.set('status', statusFilter);
+      if (selectedMonth === 'custom' && customStartDate && customEndDate) {
+        q.set('customStart', customStartDate);
+        q.set('customEnd', customEndDate);
+      }
       if (companyFilter !== 'All') q.set('companyId', companyFilter);
 
       const res = await backendFetch(`/api/backend/plant-head/analytics/monthly-production-report?${q.toString()}`, { cacheTtlMs: 0 });
@@ -174,19 +189,52 @@ export const PlantHeadProductionAnalytics = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedMonth, statusFilter, companyFilter]);
+  }, [selectedMonth, categoryFilter, capacityFilter, sizeFilter, statusFilter, customStartDate, customEndDate, companyFilter]);
 
   useEffect(() => {
     loadProductionData();
   }, [loadProductionData]);
 
+  // ── Filter reset and active check ──
+  const hasActiveFilters = useMemo(() => {
+    return categoryFilter !== 'All' || capacityFilter !== 'All' || sizeFilter !== 'All' || statusFilter !== 'All' || selectedMonth === 'custom';
+  }, [categoryFilter, capacityFilter, sizeFilter, statusFilter, selectedMonth]);
+
+  const handleResetFilters = useCallback(() => {
+    setCategoryFilter('All');
+    setCapacityFilter('All');
+    setSizeFilter('All');
+    setStatusFilter('All');
+    setSelectedMonth('2026-09');
+    setCustomStartDate('');
+    setCustomEndDate('');
+  }, []);
+
+  const availableCategories = useMemo(() => {
+    const cats = report?.filterOptions?.categories || report?.filterOptions?.productTypes || [];
+    return Array.from(new Set(cats.map(c => String(c).trim()))).filter(Boolean).sort();
+  }, [report?.filterOptions?.categories, report?.filterOptions?.productTypes]);
+
+  const availableCapacities = useMemo(() => {
+    const caps = report?.filterOptions?.capacities || [];
+    return Array.from(new Set(caps.map(c => String(c).trim()))).filter(Boolean).sort();
+  }, [report?.filterOptions?.capacities]);
+
+  const availableSizes = useMemo(() => {
+    const sizes = report?.filterOptions?.sizes || [];
+    return Array.from(new Set(sizes.map(s => String(s).trim()))).filter(Boolean).sort();
+  }, [report?.filterOptions?.sizes]);
+
   // ── Dynamic Period Label formatting ──
   const dynamicPeriodShort = useMemo(() => {
-    if (!selectedMonth) return 'AUG 2026';
-    if (selectedMonth === '2026-08') return 'AUG 2026';
+    if (!selectedMonth) return 'SEP 2026';
     if (selectedMonth === '2026-09') return 'SEP 2026';
+    if (selectedMonth === '2026-08') return 'AUG 2026';
     if (selectedMonth === '2026-10') return 'OCT 2026';
     if (selectedMonth === 'all') return 'ALL-TIME';
+    if (selectedMonth === 'custom') {
+      return customStartDate && customEndDate ? `${customStartDate} to ${customEndDate}` : 'CUSTOM RANGE';
+    }
     const parts = selectedMonth.split('-');
     if (parts.length === 2) {
       const mIdx = parseInt(parts[1], 10) - 1;
@@ -194,7 +242,7 @@ export const PlantHeadProductionAnalytics = () => {
       if (monthNames[mIdx]) return `${monthNames[mIdx]} ${parts[0]}`;
     }
     return report?.period?.shortLabel || selectedMonth.toUpperCase();
-  }, [selectedMonth, report?.period?.shortLabel]);
+  }, [selectedMonth, customStartDate, customEndDate, report?.period?.shortLabel]);
 
   // ── Memoized Authoritative Aggregations ──
   const kpis = useMemo(() => {
@@ -219,7 +267,7 @@ export const PlantHeadProductionAnalytics = () => {
     return report?.reconciliation || null;
   }, [report?.reconciliation]);
 
-  // 1. Product-wise Production List
+  // 1. Product-wise Production List (Category/Family breakdown)
   const productWiseList = useMemo(() => {
     const raw = report?.productWise || report?.productTypes || [];
     return raw.map(p => ({
@@ -229,8 +277,27 @@ export const PlantHeadProductionAnalytics = () => {
       covers: Number(p.covers || 0),
       frames: Number(p.frames || 0),
       pieces: Number(p.pieces || 0),
+      workOrders: Number(p.workOrders || 0),
     })).sort((a, b) => b.weight - a.weight);
   }, [report?.productWise, report?.productTypes]);
+
+  // 1b. Specific Product Models List (Individual SKUs)
+  const individualProductsList = useMemo(() => {
+    const raw = report?.products || [];
+    return raw.map(p => ({
+      id: p.id,
+      name: p.name || 'Product Specification',
+      category: p.category || p.type || 'FRP Covers',
+      type: p.type || 'FRP',
+      size: p.size || 'STANDARD',
+      capacity: p.capacity || 'EN 124',
+      weight: Number(p.weight || 0),
+      weightShare: Number(p.weightShare || 0),
+      covers: Number(p.covers || 0),
+      frames: Number(p.frames || 0),
+      pieces: Number(p.pieces || 0),
+    })).sort((a, b) => b.weight - a.weight);
+  }, [report?.products]);
 
   // 2. Size-wise Production List
   const sizeWiseList = useMemo(() => {
@@ -296,6 +363,7 @@ export const PlantHeadProductionAnalytics = () => {
     return workOrdersList.filter(w =>
       (w.workOrderNumber || '').toLowerCase().includes(q) ||
       (w.product || '').toLowerCase().includes(q) ||
+      (w.category || '').toLowerCase().includes(q) ||
       (w.customer || '').toLowerCase().includes(q) ||
       (w.size || '').toLowerCase().includes(q) ||
       (w.capacity || '').toLowerCase().includes(q)
@@ -748,6 +816,256 @@ export const PlantHeadProductionAnalytics = () => {
       </header>
 
       {/* ══════════════════════════════════════════════════════════════════════
+          2. AUTHORITATIVE INDUSTRIAL FILTER & PERIOD SELECTION BAR
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div className="report-filter-bar no-print" style={{
+        background: '#ffffff',
+        borderRadius: '12px',
+        padding: '12px 18px',
+        marginBottom: '16px',
+        border: '1.5px solid #e2e8f0',
+        boxShadow: '0 2px 6px rgba(15, 23, 42, 0.02)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px'
+      }}>
+        {/* Top Row: Quick Month Switcher Buttons + Active Filters Summary */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '11px', fontWeight: '900', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Calendar size={13} color="#0284c7" /> Month:
+            </span>
+            {[
+              { id: '2026-09', label: 'Sep 2026 (Live 744 WOs)' },
+              { id: '2026-08', label: 'Aug 2026 (Live 29 WOs)' },
+              { id: '2026-10', label: 'Oct 2026' },
+              { id: 'all', label: 'All-Time' },
+            ].map((btn) => (
+              <button
+                key={btn.id}
+                onClick={() => setSelectedMonth(btn.id)}
+                style={{
+                  background: selectedMonth === btn.id ? '#0284c7' : '#f1f5f9',
+                  color: selectedMonth === btn.id ? '#ffffff' : '#334155',
+                  border: selectedMonth === btn.id ? '1px solid #0284c7' : '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  padding: '4px 10px',
+                  fontSize: '11px',
+                  fontWeight: selectedMonth === btn.id ? '800' : '700',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Reset Filters Button if any filter active */}
+          {hasActiveFilters && (
+            <button
+              onClick={handleResetFilters}
+              style={{
+                background: '#fee2e2',
+                color: '#b91c1c',
+                border: '1px solid #fca5a5',
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontSize: '11px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <X size={12} /> Reset All Filters
+            </button>
+          )}
+        </div>
+
+        {/* Bottom Row: The 5 Filter Dropdowns Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
+          gap: '10px',
+          alignItems: 'center'
+        }}>
+          {/* 1. Month / Period Dropdown */}
+          <div>
+            <label style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>
+              Reporting Period
+            </label>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              style={{
+                width: '100%',
+                background: '#f8fafc',
+                border: '1.5px solid #cbd5e1',
+                padding: '6px 8px',
+                borderRadius: '7px',
+                fontSize: '11.5px',
+                fontWeight: '800',
+                color: '#0f172a',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="2026-09">September 2026 (Live 744 WOs)</option>
+              <option value="2026-08">August 2026 (Live 29 WOs)</option>
+              <option value="2026-10">October 2026</option>
+              <option value="2026-11">November 2026</option>
+              <option value="2026-12">December 2026</option>
+              <option value="2026-07">July 2026</option>
+              <option value="2026-06">June 2026</option>
+              <option value="2026-05">May 2026</option>
+              <option value="all">All-Time Aggregate</option>
+              <option value="custom">Custom Date Range</option>
+            </select>
+          </div>
+
+          {/* 2. Product Category / Family Filter */}
+          <div>
+            <label style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>
+              Product Category / Family
+            </label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              style={{
+                width: '100%',
+                background: categoryFilter !== 'All' ? '#e0f2fe' : '#f8fafc',
+                border: categoryFilter !== 'All' ? '1.5px solid #0284c7' : '1.5px solid #cbd5e1',
+                color: categoryFilter !== 'All' ? '#0369a1' : '#0f172a',
+                padding: '6px 8px',
+                borderRadius: '7px',
+                fontSize: '11.5px',
+                fontWeight: '800',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="All">All Categories / Families</option>
+              {availableCategories.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 3. Load Capacity Filter */}
+          <div>
+            <label style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>
+              Load Capacity / Rating
+            </label>
+            <select
+              value={capacityFilter}
+              onChange={(e) => setCapacityFilter(e.target.value)}
+              style={{
+                width: '100%',
+                background: capacityFilter !== 'All' ? '#e0f2fe' : '#f8fafc',
+                border: capacityFilter !== 'All' ? '1.5px solid #0284c7' : '1.5px solid #cbd5e1',
+                color: capacityFilter !== 'All' ? '#0369a1' : '#0f172a',
+                padding: '6px 8px',
+                borderRadius: '7px',
+                fontSize: '11.5px',
+                fontWeight: '800',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="All">All Capacities</option>
+              {availableCapacities.map((cap) => (
+                <option key={cap} value={cap}>{cap}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 4. Size Filter */}
+          <div>
+            <label style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>
+              Size / Dimension (mm)
+            </label>
+            <select
+              value={sizeFilter}
+              onChange={(e) => setSizeFilter(e.target.value)}
+              style={{
+                width: '100%',
+                background: sizeFilter !== 'All' ? '#e0f2fe' : '#f8fafc',
+                border: sizeFilter !== 'All' ? '1.5px solid #0284c7' : '1.5px solid #cbd5e1',
+                color: sizeFilter !== 'All' ? '#0369a1' : '#0f172a',
+                padding: '6px 8px',
+                borderRadius: '7px',
+                fontSize: '11.5px',
+                fontWeight: '800',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="All">All Sizes</option>
+              {availableSizes.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 5. Production Status Filter */}
+          <div>
+            <label style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>
+              Work Order Status
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={{
+                width: '100%',
+                background: statusFilter !== 'All' ? '#e0f2fe' : '#f8fafc',
+                border: statusFilter !== 'All' ? '1.5px solid #0284c7' : '1.5px solid #cbd5e1',
+                color: statusFilter !== 'All' ? '#0369a1' : '#0f172a',
+                padding: '6px 8px',
+                borderRadius: '7px',
+                fontSize: '11.5px',
+                fontWeight: '800',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="All">All Statuses</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="READY_FOR_DISPATCH">Ready for Dispatch</option>
+              <option value="STARTED">Started / In Production</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Custom Date Pickers (if "custom" is selected) */}
+        {selectedMonth === 'custom' && (
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', background: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+            <span style={{ fontSize: '11px', fontWeight: '800', color: '#475569' }}>From:</span>
+            <input
+              type="date"
+              value={customStartDate}
+              onChange={(e) => setCustomStartDate(e.target.value)}
+              style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '11.5px' }}
+            />
+            <span style={{ fontSize: '11px', fontWeight: '800', color: '#475569' }}>To:</span>
+            <input
+              type="date"
+              value={customEndDate}
+              onChange={(e) => setCustomEndDate(e.target.value)}
+              style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '11.5px' }}
+            />
+            <button
+              onClick={loadProductionData}
+              style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}
+            >
+              Apply Custom Dates
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════
           EMPTY MONTH / NO PRODUCTION DATA STATE
       ══════════════════════════════════════════════════════════════════════ */}
       {(!report?.hasData || kpis.totalWorkOrders === 0) && !loading && (
@@ -920,71 +1238,26 @@ export const PlantHeadProductionAnalytics = () => {
               </div>
             </div>
 
-            {/* Card 5: MONTH & DYNAMIC FILTER BAR */}
+            {/* Card 5: WORK ORDERS & RUNS */}
             <div style={{
               background: '#ffffff',
               borderRadius: '12px',
-              padding: '12px 14px',
+              padding: '14px 16px',
               border: '1.5px solid #e2e8f0',
               borderLeft: '5px solid #f59e0b',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center'
+              boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontSize: '10px', fontWeight: '900', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  REPORT PERIOD &bull; FY 2026-27
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '10.5px', fontWeight: '900', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  WORK ORDERS &amp; RUNS
                 </span>
-                <Calendar size={14} color="#f59e0b" />
+                <Gauge size={16} color="#f59e0b" />
               </div>
-              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  style={{
-                    flex: 1,
-                    background: '#f8fafc',
-                    border: '1.5px solid #cbd5e1',
-                    padding: '6px 8px',
-                    borderRadius: '7px',
-                    fontSize: '12px',
-                    fontWeight: '800',
-                    color: '#0f172a',
-                    cursor: 'pointer',
-                    outline: 'none'
-                  }}
-                >
-                  <option value="2026-08">August 2026</option>
-                  <option value="2026-09">September 2026</option>
-                  <option value="2026-10">October 2026</option>
-                  <option value="2026-05">May 2026 (Empty)</option>
-                  <option value="all">All-Time Aggregate</option>
-                </select>
-
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  style={{
-                    background: '#f8fafc',
-                    border: '1.5px solid #cbd5e1',
-                    padding: '6px 8px',
-                    borderRadius: '7px',
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    color: '#0f172a',
-                    cursor: 'pointer',
-                    outline: 'none'
-                  }}
-                >
-                  <option value="All">All Statuses</option>
-                  <option value="COMPLETED">Completed</option>
-                  <option value="READY_FOR_DISPATCH">Ready Dispatch</option>
-                  <option value="STARTED">Started</option>
-                </select>
+              <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '4px 0 2px 0', letterSpacing: '-0.02em' }}>
+                {fmt(kpis.totalWorkOrders)} <span style={{ fontSize: '13px', fontWeight: '800', color: '#f59e0b' }}>WOs</span>
               </div>
-              <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px', fontWeight: '600' }}>
-                Live PostgreSQL Data &bull; IST Business Dates
+              <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>
+                {kpis.completionRate}% Completed &bull; {productWiseList.length} Active Categories
               </div>
             </div>
           </div>
@@ -997,7 +1270,7 @@ export const PlantHeadProductionAnalytics = () => {
             gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
             gap: '12px'
           }}>
-            {/* ── Table 1: Product-wise Production ── */}
+            {/* ── Table 1: Product-wise Production (with Category / Model toggle) ── */}
             <div style={{
               background: '#ffffff',
               borderRadius: '12px',
@@ -1007,35 +1280,89 @@ export const PlantHeadProductionAnalytics = () => {
               display: 'flex',
               flexDirection: 'column'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <h3 style={{ fontSize: '12.5px', fontWeight: '900', color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                  Product-wise Production
-                </h3>
-                <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: '800' }}>
-                  {productWiseList.length} Items
-                </span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '4px' }}>
+                <div>
+                  <h3 style={{ fontSize: '12.5px', fontWeight: '900', color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    {table1Mode === 'category' ? 'Product-wise Production' : 'Model-wise Production'}
+                  </h3>
+                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700' }}>
+                    {table1Mode === 'category' ? 'Aggregated by Category / Family' : 'Individual Product SKUs'}
+                  </span>
+                </div>
+
+                {/* Mode toggle */}
+                <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: '6px', padding: '2px', border: '1px solid #cbd5e1' }}>
+                  <button
+                    onClick={() => setTable1Mode('category')}
+                    style={{
+                      background: table1Mode === 'category' ? '#ffffff' : 'transparent',
+                      color: table1Mode === 'category' ? '#0284c7' : '#64748b',
+                      boxShadow: table1Mode === 'category' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '2px 7px',
+                      fontSize: '10px',
+                      fontWeight: '800',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Category
+                  </button>
+                  <button
+                    onClick={() => setTable1Mode('product')}
+                    style={{
+                      background: table1Mode === 'product' ? '#ffffff' : 'transparent',
+                      color: table1Mode === 'product' ? '#0284c7' : '#64748b',
+                      boxShadow: table1Mode === 'product' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '2px 7px',
+                      fontSize: '10px',
+                      fontWeight: '800',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Product
+                  </button>
+                </div>
               </div>
 
               <div style={{ overflowX: 'auto', flex: 1, maxHeight: '240px' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' }}>
                   <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
                     <tr style={{ borderBottom: '1.5px solid #cbd5e1', textAlign: 'left', color: '#475569', fontWeight: '800' }}>
-                      <th style={{ padding: '6px 8px' }}>Product</th>
+                      <th style={{ padding: '6px 8px' }}>{table1Mode === 'category' ? 'Category / Type' : 'Product Model'}</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'right' }}>Pcs</th>
                       <th style={{ padding: '6px 8px', textAlign: 'right' }}>Total Wt (KG)</th>
                       <th style={{ padding: '6px 8px', textAlign: 'right' }}>%</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {productWiseList.map((pt, idx) => (
+                    {(table1Mode === 'category' ? productWiseList : individualProductsList).map((item, idx) => (
                       <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
                         <td style={{ padding: '6px 8px', fontWeight: '800', color: '#0f172a' }}>
-                          {pt.name}
+                          {table1Mode === 'category' ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                              <span style={{ width: '8px', height: '8px', borderRadius: '2px', background: CHART_COLORS[idx % CHART_COLORS.length] }}></span>
+                              {item.name}
+                            </span>
+                          ) : (
+                            <div>
+                              <span style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '9px', fontWeight: '800', padding: '1px 4px', borderRadius: '3px', marginRight: '4px' }}>
+                                {item.category || item.type}
+                              </span>
+                              <span title={item.name}>{item.name}</span>
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '700', color: '#0f172a' }}>
+                          {fmt(item.pieces)}
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>
-                          {fmt(pt.weight, 2)}
+                          {fmt(item.weight, 2)}
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '700', color: '#334155' }}>
-                          {pt.weightShare.toFixed(1)}%
+                          {item.weightShare.toFixed(1)}%
                         </td>
                       </tr>
                     ))}
@@ -1043,6 +1370,9 @@ export const PlantHeadProductionAnalytics = () => {
                   <tfoot style={{ position: 'sticky', bottom: 0, background: '#f1f5f9', zIndex: 1 }}>
                     <tr style={{ fontWeight: '900', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a' }}>
                       <td style={{ padding: '6px 8px', color: '#0f172a' }}>Grand Total</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', color: '#0f172a' }}>
+                        {fmt(kpis.totalPieces)}
+                      </td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', color: '#0284c7', fontFamily: 'monospace' }}>
                         {fmt(kpis.totalWeight, 2)}
                       </td>
@@ -1475,6 +1805,24 @@ export const PlantHeadProductionAnalytics = () => {
                   {/* Product Details */}
                   <div style={{ padding: '10px 12px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div>
+                      {/* Prominent Category Badge on Product */}
+                      <div style={{ marginBottom: '5px' }}>
+                        <span style={{
+                          background: '#eff6ff',
+                          color: '#1d4ed8',
+                          border: '1px solid #bfdbfe',
+                          fontSize: '9.5px',
+                          fontWeight: '900',
+                          padding: '2px 7px',
+                          borderRadius: '4px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          display: 'inline-block'
+                        }}>
+                          Category: {prod.category || prod.type || 'FRP COVERS'}
+                        </span>
+                      </div>
+
                       <div style={{
                         fontSize: '11.5px',
                         fontWeight: '800',
@@ -1497,6 +1845,11 @@ export const PlantHeadProductionAnalytics = () => {
                         <span style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '9.5px', fontWeight: '800', padding: '1px 5px', borderRadius: '4px' }}>
                           {prod.capacity || 'EN 124'}
                         </span>
+                        {prod.sku && (
+                          <span style={{ background: '#f8fafc', color: '#64748b', fontSize: '9px', fontWeight: '700', padding: '1px 4px', borderRadius: '3px', border: '1px solid #e2e8f0' }}>
+                            {prod.sku}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -1717,6 +2070,7 @@ export const PlantHeadProductionAnalytics = () => {
                   <tr style={{ borderBottom: '2px solid #cbd5e1', textAlign: 'left', color: '#475569', fontWeight: '800' }}>
                     <th style={{ padding: '8px 10px' }}>Work Order</th>
                     <th style={{ padding: '8px 10px' }}>Customer</th>
+                    <th style={{ padding: '8px 10px' }}>Category</th>
                     <th style={{ padding: '8px 10px' }}>Product</th>
                     <th style={{ padding: '8px 10px' }}>Size</th>
                     <th style={{ padding: '8px 10px' }}>Capacity</th>
@@ -1746,6 +2100,20 @@ export const PlantHeadProductionAnalytics = () => {
                       </td>
                       <td style={{ padding: '8px 10px', fontWeight: '600', color: '#0f172a', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={wo.customer}>
                         {wo.customer}
+                      </td>
+                      <td style={{ padding: '8px 10px' }}>
+                        <span style={{
+                          background: '#eff6ff',
+                          color: '#1d4ed8',
+                          border: '1px solid #bfdbfe',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          fontSize: '10px',
+                          fontWeight: '800',
+                          textTransform: 'uppercase'
+                        }}>
+                          {wo.category || wo.type || 'FRP'}
+                        </span>
                       </td>
                       <td style={{ padding: '8px 10px', fontWeight: '600', color: '#0f172a', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={wo.product}>
                         {wo.product}

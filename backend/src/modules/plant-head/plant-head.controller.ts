@@ -176,6 +176,7 @@ export class PlantHeadController {
     @Query('customStart') customStart?: string,
     @Query('customEnd') customEnd?: string,
     @Query('productId') productId?: string,
+    @Query('category') category?: string,
     @Query('size') size?: string,
     @Query('capacity') capacity?: string,
     @Query('month') month?: string,
@@ -196,6 +197,7 @@ export class PlantHeadController {
       year,
       status,
       machineId,
+      category,
     );
   }
 

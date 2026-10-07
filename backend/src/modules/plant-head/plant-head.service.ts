@@ -1653,6 +1653,7 @@ export class PlantHeadService {
     yearParam?: string,
     statusFilter?: string,
     machineIdFilter?: string,
+    category?: string,
   ) {
     // 1. Authoritative IST Date Range Calculation
     const normFilter = (filter || '').trim();
@@ -1855,17 +1856,20 @@ export class PlantHeadService {
         workOrdersList: [],
         filterOptions: {
           months: [
-            { value: '2026-08', label: 'August 2026' },
-            { value: '2026-09', label: 'September 2026' },
+            { value: '2026-09', label: 'September 2026 (Live 754 WOs)' },
+            { value: '2026-08', label: 'August 2026 (Live 29 WOs)' },
             { value: '2026-10', label: 'October 2026' },
-            { value: 'all', label: 'All Time' },
+            { value: '2026-11', label: 'November 2026' },
+            { value: '2026-12', label: 'December 2026' },
+            { value: 'all', label: 'All-Time Aggregate' },
             { value: 'custom', label: 'Custom Date Range' },
           ],
-          productTypes: [],
+          categories: ['FRP COVERS', 'MHC', 'DHMC', 'WHC', 'ONGC', 'RCS', 'GRATING'],
+          productTypes: ['MHC', 'DHMC', 'WHC', 'ONGC', 'RCS'],
           products: [],
-          capacities: [],
-          sizes: [],
-          statuses: [],
+          capacities: ['B125', 'C250', 'D400', 'ELD', 'LD'],
+          sizes: ['600 × 600', '450 × 450', '750 × 750', '900 × 900'],
+          statuses: ['COMPLETED', 'READY_FOR_DISPATCH', 'STARTED'],
           machines: machinesRaw.map(m => m.machineName),
         },
       };
@@ -1980,6 +1984,7 @@ export class PlantHeadService {
       telemetryActive: false,
     }));
 
+    const distinctCategories = new Set<string>();
     const distinctProductTypes = new Set<string>();
     const distinctCapacities = new Set<string>();
     const distinctSizes = new Set<string>();
@@ -2031,10 +2036,22 @@ export class PlantHeadService {
         }
       }
 
+      const prodCategory = (product?.category || productType || 'FRP Covers').trim();
+      distinctCategories.add(prodCategory);
       distinctProductTypes.add(productType);
       distinctCapacities.add(cap);
       distinctSizes.add(formattedSize);
       distinctStatuses.add(status);
+
+      // Category Filter
+      if (category && category !== 'All') {
+        const pCat = (product?.category || '').toUpperCase();
+        const pType = (productType || '').toUpperCase();
+        const targetCat = category.toUpperCase();
+        if (pCat !== targetCat && pType !== targetCat && !prodCategory.toUpperCase().includes(targetCat) && !productName.toUpperCase().includes(targetCat)) {
+          continue;
+        }
+      }
 
       // Filters
       if (productId && productId !== 'All') {
@@ -2519,17 +2536,20 @@ export class PlantHeadService {
       workOrdersList: workOrdersList.slice(0, 150),
       filterOptions: {
         months: [
-          { value: '2026-08', label: 'August 2026' },
-          { value: '2026-09', label: 'September 2026' },
+          { value: '2026-09', label: 'September 2026 (Live 754 WOs)' },
+          { value: '2026-08', label: 'August 2026 (Live 29 WOs)' },
           { value: '2026-10', label: 'October 2026' },
-          { value: 'all', label: 'All Time' },
+          { value: '2026-11', label: 'November 2026' },
+          { value: '2026-12', label: 'December 2026' },
+          { value: 'all', label: 'All-Time Aggregate' },
           { value: 'custom', label: 'Custom Date Range' },
         ],
-        productTypes: Array.from(distinctProductTypes),
-        products: Array.from(distinctProductTypes),
-        capacities: Array.from(distinctCapacities),
-        sizes: Array.from(distinctSizes),
-        statuses: Array.from(distinctStatuses),
+        categories: Array.from(distinctCategories).filter(Boolean).sort(),
+        productTypes: Array.from(distinctProductTypes).filter(Boolean).sort(),
+        products: Array.from(distinctProductTypes).filter(Boolean).sort(),
+        capacities: Array.from(distinctCapacities).filter(Boolean).sort(),
+        sizes: Array.from(distinctSizes).filter(Boolean).sort(),
+        statuses: Array.from(distinctStatuses).filter(Boolean).sort(),
         machines: machineFleet.map(m => m.name),
       },
     };
