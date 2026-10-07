@@ -1137,8 +1137,20 @@ export const PlantHeadProductionAnalytics = () => {
               <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '4px 0 2px 0', letterSpacing: '-0.02em' }}>
                 {fmt(kpis.totalWeight, 2)} <span style={{ fontSize: '13px', fontWeight: '800', color: '#0284c7' }}>KG</span>
               </div>
-              <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>
-                {kpis.totalWeightTonnes} MT &bull; Avg {kpis.averageWeightPerPiece} kg/pc
+              <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: '4px', fontWeight: '800' }}>
+                  {fmt(kpis.totalPieces)} Pcs
+                </span>
+                <span>&bull;</span>
+                <span>{kpis.totalWeightTonnes} MT</span>
+                <span>&bull;</span>
+                <span>
+                  Avg {kpis.totalPieces > 0
+                    ? (kpis.totalWeight / kpis.totalPieces < 1
+                        ? (kpis.totalWeight / kpis.totalPieces).toFixed(2)
+                        : (kpis.totalWeight / kpis.totalPieces).toFixed(1))
+                    : 0} kg/pc
+                </span>
               </div>
             </div>
 
@@ -1382,6 +1394,7 @@ export const PlantHeadProductionAnalytics = () => {
                   <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
                     <tr style={{ borderBottom: '1.5px solid #cbd5e1', textAlign: 'left', color: '#475569', fontWeight: '800' }}>
                       <th style={{ padding: '6px 8px' }}>Size (mm)</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'right' }}>Pcs</th>
                       <th style={{ padding: '6px 8px', textAlign: 'right' }}>Total Wt (KG)</th>
                       <th style={{ padding: '6px 8px', textAlign: 'right' }}>%</th>
                     </tr>
@@ -1392,7 +1405,10 @@ export const PlantHeadProductionAnalytics = () => {
                         <td style={{ padding: '6px 8px', fontWeight: '700', color: sz.name === 'UNASSIGNED' ? '#e11d48' : '#0f172a' }}>
                           {sz.name}
                         </td>
-                        <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>
+                        <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>
+                          {fmt(sz.pieces)}
+                        </td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0f172a', fontFamily: 'monospace' }}>
                           {fmt(sz.weight, 2)}
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '700', color: '#334155' }}>
@@ -1404,6 +1420,9 @@ export const PlantHeadProductionAnalytics = () => {
                   <tfoot style={{ position: 'sticky', bottom: 0, background: '#f1f5f9', zIndex: 1 }}>
                     <tr style={{ fontWeight: '900', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a' }}>
                       <td style={{ padding: '6px 8px', color: '#0f172a' }}>Grand Total</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', color: '#0284c7' }}>
+                        {fmt(kpis.totalPieces)}
+                      </td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', color: '#0284c7', fontFamily: 'monospace' }}>
                         {fmt(kpis.totalWeight, 2)}
                       </td>
@@ -1440,6 +1459,7 @@ export const PlantHeadProductionAnalytics = () => {
                   <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
                     <tr style={{ borderBottom: '1.5px solid #cbd5e1', textAlign: 'left', color: '#475569', fontWeight: '800' }}>
                       <th style={{ padding: '6px 8px' }}>Load Capacity</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'right' }}>Pcs</th>
                       <th style={{ padding: '6px 8px', textAlign: 'right' }}>Total Wt (KG)</th>
                       <th style={{ padding: '6px 8px', textAlign: 'right' }}>%</th>
                     </tr>
@@ -1450,7 +1470,10 @@ export const PlantHeadProductionAnalytics = () => {
                         <td style={{ padding: '6px 8px', fontWeight: '700', color: cap.name === 'NOT CONFIGURED' ? '#e11d48' : '#0f172a' }}>
                           {cap.name}
                         </td>
-                        <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>
+                        <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>
+                          {fmt(cap.pieces)}
+                        </td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0f172a', fontFamily: 'monospace' }}>
                           {fmt(cap.weight, 2)}
                         </td>
                         <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '700', color: '#334155' }}>
@@ -1462,6 +1485,9 @@ export const PlantHeadProductionAnalytics = () => {
                   <tfoot style={{ position: 'sticky', bottom: 0, background: '#f1f5f9', zIndex: 1 }}>
                     <tr style={{ fontWeight: '900', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a' }}>
                       <td style={{ padding: '6px 8px', color: '#0f172a' }}>Grand Total</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', color: '#0284c7' }}>
+                        {fmt(kpis.totalPieces)}
+                      </td>
                       <td style={{ padding: '6px 8px', textAlign: 'right', color: '#0284c7', fontFamily: 'monospace' }}>
                         {fmt(kpis.totalWeight, 2)}
                       </td>

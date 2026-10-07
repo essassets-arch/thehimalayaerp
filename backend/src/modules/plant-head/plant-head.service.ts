@@ -2472,7 +2472,7 @@ export class PlantHeadService {
         totalCovers,
         totalFrames,
         totalPieces,
-        averageWeightPerPiece: totalPieces > 0 ? Math.round((totalWeight / totalPieces) * 10) / 10 : 0,
+        averageWeightPerPiece: totalPieces > 0 ? Math.round((totalWeight / totalPieces) * 100) / 100 : 0,
         totalWorkOrders: workOrders.length,
         completedWorkOrders: completedCount,
         activeWorkOrders: activeCount,
