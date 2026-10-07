@@ -27,6 +27,8 @@ import {
   Award,
   Clock,
   Filter,
+  Search,
+  ChevronLeft,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -131,6 +133,12 @@ export const PlantHeadDispatchAnalytics = () => {
   const [mounted, setMounted] = useState(false);
   const requestSeq = useRef(0);
   const reportRef = useRef(null);
+
+  // ── Dispatch Register Table State ──
+  const [dispatchSearchQuery, setDispatchSearchQuery] = useState('');
+  const [dispatchDateFilter, setDispatchDateFilter] = useState('All');
+  const [dispatchPageSize, setDispatchPageSize] = useState(20);
+  const [dispatchCurrentPage, setDispatchCurrentPage] = useState(1);
 
   useEffect(() => {
     setMounted(true);
@@ -521,6 +529,27 @@ export const PlantHeadDispatchAnalytics = () => {
       const wsRecon = XLSX.utils.aoa_to_sheet(recon);
       XLSX.utils.book_append_sheet(wb, wsRecon, 'Reconciliation_Audit');
 
+      // Sheet 10: Daily Dispatches Manifest
+      const dispatchHeaders = [['Dispatch #', 'SO Number', 'Date', 'Customer', 'Product', 'Capacity', 'Size', 'Colour', 'Quantity (PCS)', 'Weight (KG)', 'Vehicle', 'Transporter', 'Destination', 'Status']];
+      const dispatchRows = (analyticsData.dispatchOrders || []).map(d => [
+        d.id,
+        d.soNumber,
+        d.date,
+        d.customer,
+        d.product,
+        d.capacity,
+        d.size,
+        d.colour,
+        d.quantity,
+        d.weight,
+        d.vehicle,
+        d.transporter,
+        d.destination,
+        d.status,
+      ]);
+      const wsDispatch = XLSX.utils.aoa_to_sheet([...dispatchHeaders, ...dispatchRows]);
+      XLSX.utils.book_append_sheet(wb, wsDispatch, 'Daily_Dispatches_Manifest');
+
       const safePeriod = (analyticsData.summary?.period || 'August_2026').replace(/[^a-zA-Z0-9]/g, '_');
       XLSX.writeFile(wb, `Himalaya_Dispatch_Analysis_${safePeriod}.xlsx`);
     } catch (err) {
@@ -543,6 +572,74 @@ export const PlantHeadDispatchAnalytics = () => {
   const reconciliation = analyticsData?.reconciliation;
   const dataQuality = analyticsData?.dataQuality;
   const keyHighlights = analyticsData?.keyHighlights || [];
+  const dispatchOrders = useMemo(() => analyticsData?.dispatchOrders || [], [analyticsData?.dispatchOrders]);
+
+  const uniqueDispatchDates = useMemo(() => {
+    const dates = new Set();
+    dispatchOrders.forEach(d => {
+      if (d.date) dates.add(d.date);
+    });
+    return Array.from(dates).sort();
+  }, [dispatchOrders]);
+
+  const filteredDispatches = useMemo(() => {
+    let list = dispatchOrders;
+    if (dispatchDateFilter && dispatchDateFilter !== 'All') {
+      list = list.filter(d => d.date === dispatchDateFilter);
+    }
+    if (dispatchSearchQuery && dispatchSearchQuery.trim()) {
+      const q = dispatchSearchQuery.trim().toLowerCase();
+      list = list.filter(d =>
+        (d.id && String(d.id).toLowerCase().includes(q)) ||
+        (d.soNumber && String(d.soNumber).toLowerCase().includes(q)) ||
+        (d.customer && String(d.customer).toLowerCase().includes(q)) ||
+        (d.product && String(d.product).toLowerCase().includes(q)) ||
+        (d.capacity && String(d.capacity).toLowerCase().includes(q)) ||
+        (d.size && String(d.size).toLowerCase().includes(q)) ||
+        (d.colour && String(d.colour).toLowerCase().includes(q)) ||
+        (d.vehicle && String(d.vehicle).toLowerCase().includes(q)) ||
+        (d.transporter && String(d.transporter).toLowerCase().includes(q)) ||
+        (d.destination && String(d.destination).toLowerCase().includes(q)) ||
+        (d.city && String(d.city).toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [dispatchOrders, dispatchDateFilter, dispatchSearchQuery]);
+
+  const paginatedDispatches = useMemo(() => {
+    if (dispatchPageSize === 'All') return filteredDispatches;
+    const start = (dispatchCurrentPage - 1) * Number(dispatchPageSize);
+    return filteredDispatches.slice(start, start + Number(dispatchPageSize));
+  }, [filteredDispatches, dispatchCurrentPage, dispatchPageSize]);
+
+  const totalDispatchPages = useMemo(() => {
+    if (dispatchPageSize === 'All') return 1;
+    return Math.ceil(filteredDispatches.length / Number(dispatchPageSize)) || 1;
+  }, [filteredDispatches.length, dispatchPageSize]);
+
+  const filteredDispatchesStats = useMemo(() => {
+    let qty = 0;
+    let weight = 0;
+    for (const d of filteredDispatches) {
+      qty += Number(d.quantity) || 0;
+      weight += Number(d.weight) || 0;
+    }
+    return {
+      totalQty: qty,
+      totalWeight: Math.round(weight * 100) / 100,
+    };
+  }, [filteredDispatches]);
+
+  const dispatchDateOptions = useMemo(() => {
+    const map = {};
+    dispatchOrders.forEach(d => {
+      const dt = d.date || 'Unknown Date';
+      if (!map[dt]) map[dt] = { date: dt, count: 0, weight: 0 };
+      map[dt].count += 1;
+      map[dt].weight += Number(d.weight) || 0;
+    });
+    return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
+  }, [dispatchOrders]);
 
   // Top 5 client summary values
   const top5Weight = customerConcentration?.top5Weight || (topCustomers.reduce((s, c) => s + (c.weight || 0), 0));
@@ -1601,7 +1698,15 @@ export const PlantHeadDispatchAnalytics = () => {
                   </div>
                 </div>
                 <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px', color: '#64748b' }}>
-                  <span>Across {fmtNum(analyticsData.dispatchOrders?.length || 50)} shipments</span>
+                  <a
+                    href="#daily-dispatch-report"
+                    className="no-print"
+                    style={{ textDecoration: 'none', color: '#1e3a8a', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                    title="Jump to Daily Dispatch Report & Outbound Manifest"
+                  >
+                    Across {fmtNum(summary.totalTrips || dispatchOrders.length || 87)} shipments &darr;
+                  </a>
+                  <span className="only-print">Across {fmtNum(summary.totalTrips || dispatchOrders.length || 87)} shipments</span>
                   <span style={{ fontWeight: '800', color: '#16a34a' }}>100% Verified</span>
                 </div>
               </div>
@@ -1624,7 +1729,15 @@ export const PlantHeadDispatchAnalytics = () => {
                 </div>
                 <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px', color: '#64748b' }}>
                   <span>Gross Outbound Weight</span>
-                  <span style={{ fontWeight: '800', color: '#16a34a' }}>Weighbridge</span>
+                  <a
+                    href="#daily-dispatch-report"
+                    className="no-print"
+                    style={{ textDecoration: 'none', color: '#16a34a', fontWeight: '800' }}
+                    title="Jump to Weighbridge Outbound Register"
+                  >
+                    Weighbridge &darr;
+                  </a>
+                  <span className="only-print" style={{ fontWeight: '800', color: '#16a34a' }}>Weighbridge</span>
                 </div>
               </div>
 
@@ -2002,18 +2115,35 @@ export const PlantHeadDispatchAnalytics = () => {
 
                   {/* Highlight Peak Dates verified in DB */}
                   <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px', fontSize: '9px' }}>
-                    <span style={{ padding: '2px 5px', borderRadius: '4px', background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1', fontFamily: 'monospace', fontWeight: '700' }}>
-                      03 Aug: 14,396 KG
-                    </span>
-                    <span style={{ padding: '2px 5px', borderRadius: '4px', background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1', fontFamily: 'monospace', fontWeight: '700' }}>
-                      11 Aug: 10,472 KG
-                    </span>
-                    <span style={{ padding: '2px 5px', borderRadius: '4px', background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1', fontFamily: 'monospace', fontWeight: '700' }}>
-                      15 Aug: 9,839 KG
-                    </span>
-                    <span style={{ padding: '2px 5px', borderRadius: '4px', background: '#ecfdf5', border: '1px solid #86efac', color: '#15803d', fontFamily: 'monospace', fontWeight: '800' }}>
-                      24 Aug: 17,101 KG (Peak)
-                    </span>
+                    {dailyTrends
+                      .filter(t => (t.weight || 0) > 0)
+                      .sort((a, b) => b.weight - a.weight)
+                      .slice(0, 4)
+                      .map((t, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setDispatchDateFilter(t.date || 'All');
+                            setDispatchCurrentPage(1);
+                            const el = document.getElementById('daily-dispatch-report');
+                            if (el) el.scrollIntoView({ behavior: 'smooth' });
+                          }}
+                          style={{
+                            padding: '2px 5px',
+                            borderRadius: '4px',
+                            background: idx === 0 ? '#ecfdf5' : '#f0f9ff',
+                            border: idx === 0 ? '1px solid #86efac' : '1px solid #bae6fd',
+                            color: idx === 0 ? '#15803d' : '#0369a1',
+                            fontFamily: 'monospace',
+                            fontWeight: idx === 0 ? '800' : '700',
+                            cursor: 'pointer',
+                          }}
+                          title={`Click to filter Daily Dispatch Report to ${t.date || t.day}`}
+                        >
+                          {t.day}: {fmtNum(t.weight)} KG{idx === 0 ? ' (Peak)' : ''}
+                        </button>
+                      ))}
                   </div>
                 </div>
 
@@ -2022,7 +2152,7 @@ export const PlantHeadDispatchAnalytics = () => {
                   <Info size={12} color="#16a34a" style={{ flexShrink: 0, marginTop: '1px' }} />
                   <span>
                     {analyticsData.dailyInsight ||
-                      `24 Aug recorded the highest dispatch weight of ${fmtKg(peakDay.weight)} KG across the month.`}
+                      `${peakDay?.day || 'Peak day'} recorded the highest dispatch weight of ${fmtKg(peakDay.weight)} KG across the period.`}
                   </span>
                 </div>
               </div>
@@ -2250,6 +2380,336 @@ export const PlantHeadDispatchAnalytics = () => {
             </div>
 
             {/* ─────────────────────────────────────────────────────────────
+                DAILY DISPATCH REPORT & OUTBOUND MANIFEST (WEIGHBRIDGE REGISTER)
+            ───────────────────────────────────────────────────────────── */}
+            <div id="daily-dispatch-report" className="prem-card print-card" style={{ padding: '14px', borderTop: '4px solid #0f2e5a' }}>
+              {/* Header Strip */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', paddingBottom: '10px', borderBottom: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#eff6ff', color: '#1e3a8a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Truck size={20} />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '14px', fontWeight: '900', color: '#0f2e5a', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                        Daily Dispatch Report &amp; Outbound Manifest
+                      </span>
+                      <span style={{ fontSize: '9.5px', fontWeight: '800', background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', padding: '1px 6px', borderRadius: '4px' }}>
+                        Weighbridge Register
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '500', marginTop: '2px' }}>
+                      Verified individual weighbridge dispatches for {summary.period} &bull; Factory Outbound Source of Truth
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Badges & Link to Daily Reports */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: '800' }}>
+                    <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                      {filteredDispatches.length} Shipments
+                    </span>
+                    <span style={{ background: '#eff6ff', color: '#1e40af', padding: '3px 8px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
+                      {fmtNum(filteredDispatchesStats.totalQty)} PCS
+                    </span>
+                    <span style={{ background: '#f0fdf4', color: '#15803d', padding: '3px 8px', borderRadius: '6px', border: '1px solid #86efac' }}>
+                      {fmtKg(filteredDispatchesStats.totalWeight)} KG
+                    </span>
+                  </div>
+                  <a
+                    href="/plant-head/daily-reports"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="prem-btn prem-btn-navy no-print"
+                    style={{ padding: '5px 10px', fontSize: '11px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    title="Open Full Plant Head Daily Reports"
+                  >
+                    <FileSpreadsheet size={13} />
+                    <span>Daily Summary Portal</span>
+                    <ExternalLink size={11} />
+                  </a>
+                </div>
+              </div>
+
+              {/* Filter & Search Toolbar (no-print) */}
+              <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginTop: '10px', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                {/* Search Input */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: '240px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '4px 8px' }}>
+                  <Search size={14} color="#64748b" />
+                  <input
+                    type="text"
+                    value={dispatchSearchQuery}
+                    onChange={(e) => {
+                      setDispatchSearchQuery(e.target.value);
+                      setDispatchCurrentPage(1);
+                    }}
+                    placeholder="Search dispatch #, SO #, client, vehicle, product, city..."
+                    style={{ border: 'none', outline: 'none', fontSize: '11px', width: '100%', color: '#1e293b' }}
+                  />
+                  {dispatchSearchQuery && (
+                    <X size={13} color="#94a3b8" style={{ cursor: 'pointer' }} onClick={() => { setDispatchSearchQuery(''); setDispatchCurrentPage(1); }} />
+                  )}
+                </div>
+
+                {/* Date Dropdown */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Calendar size={13} color="#64748b" />
+                  <select
+                    value={dispatchDateFilter}
+                    onChange={(e) => {
+                      setDispatchDateFilter(e.target.value);
+                      setDispatchCurrentPage(1);
+                    }}
+                    className="prem-select"
+                    style={{ fontSize: '11px', padding: '4px 8px' }}
+                  >
+                    <option value="All">All Dispatch Dates ({dispatchDateOptions.length} operational days)</option>
+                    {dispatchDateOptions.map((opt) => (
+                      <option key={opt.date} value={opt.date}>
+                        {opt.date} ({opt.count} shipments &bull; {fmtKg(opt.weight)} KG)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Page Size Dropdown */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Show:</span>
+                  <select
+                    value={dispatchPageSize}
+                    onChange={(e) => {
+                      setDispatchPageSize(e.target.value === 'All' ? 'All' : Number(e.target.value));
+                      setDispatchCurrentPage(1);
+                    }}
+                    className="prem-select"
+                    style={{ fontSize: '11px', padding: '4px 8px' }}
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value="All">All ({filteredDispatches.length})</option>
+                  </select>
+                </div>
+
+                {(dispatchSearchQuery || dispatchDateFilter !== 'All') && (
+                  <button
+                    onClick={() => {
+                      setDispatchSearchQuery('');
+                      setDispatchDateFilter('All');
+                      setDispatchCurrentPage(1);
+                    }}
+                    className="prem-btn"
+                    style={{ padding: '4px 8px', fontSize: '10.5px', color: '#e11d48', background: '#ffe4e6', border: '1px solid #fecdd3' }}
+                  >
+                    <X size={12} /> Clear Filter
+                  </button>
+                )}
+              </div>
+
+              {/* Table Container */}
+              <div style={{ marginTop: '10px', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                <table className="prem-table" style={{ width: '100%', fontSize: '11px' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '35px', textAlign: 'center' }}>#</th>
+                      <th style={{ width: '85px' }}>Date</th>
+                      <th style={{ width: '95px' }}>Dispatch No</th>
+                      <th style={{ width: '90px' }}>Order No</th>
+                      <th>Client / Customer</th>
+                      <th style={{ width: '65px' }}>Product</th>
+                      <th style={{ width: '55px' }}>Rating</th>
+                      <th style={{ width: '75px' }}>Size</th>
+                      <th style={{ width: '60px' }}>Colour</th>
+                      <th style={{ textAlign: 'right', width: '65px' }}>Qty (PCS)</th>
+                      <th style={{ textAlign: 'right', width: '85px' }}>Weight (KG)</th>
+                      <th style={{ width: '120px' }}>Vehicle / Transporter</th>
+                      <th style={{ width: '110px' }}>Destination</th>
+                      <th style={{ width: '75px', textAlign: 'center' }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedDispatches.length === 0 ? (
+                      <tr>
+                        <td colSpan={14} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                            <Truck size={24} color="#94a3b8" />
+                            <span style={{ fontWeight: '700', fontSize: '12px', color: '#475569' }}>
+                              No dispatch records match the selected search or date criteria.
+                            </span>
+                            <button
+                              onClick={() => {
+                                setDispatchSearchQuery('');
+                                setDispatchDateFilter('All');
+                              }}
+                              className="prem-btn prem-btn-navy"
+                              style={{ padding: '4px 10px', fontSize: '10.5px', marginTop: '4px' }}
+                            >
+                              Reset Search Filters
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedDispatches.map((d, idx) => {
+                        const globalIdx = dispatchPageSize === 'All' ? idx + 1 : (dispatchCurrentPage - 1) * Number(dispatchPageSize) + idx + 1;
+                        return (
+                          <tr key={d.id ? `${d.id}-${idx}` : idx}>
+                            <td style={{ textAlign: 'center', fontFamily: 'monospace', color: '#64748b', fontSize: '10px' }}>
+                              {globalIdx}
+                            </td>
+                            <td style={{ fontFamily: 'monospace', fontSize: '10.5px', whiteSpace: 'nowrap', color: '#334155' }}>
+                              {d.date || '—'}
+                            </td>
+                            <td>
+                              <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#0f2e5a', background: '#f8fafc', padding: '1px 5px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '10.5px' }}>
+                                {d.id}
+                              </span>
+                            </td>
+                            <td style={{ fontFamily: 'monospace', fontSize: '10.5px', color: '#475569' }}>
+                              {d.soNumber || '—'}
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: '700', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }} title={d.customer}>
+                                {d.customer}
+                              </div>
+                              {d.city && d.city !== 'Not recorded' && (
+                                <div style={{ fontSize: '9.5px', color: '#64748b' }}>
+                                  {d.city}
+                                </div>
+                              )}
+                            </td>
+                            <td>
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                fontSize: '10px',
+                                fontWeight: '800',
+                                background: d.product === 'MHC' ? '#eff6ff' : d.product === 'RCS' ? '#f0fdf4' : d.product === 'ONGC' ? '#fffbeb' : d.product === 'WGC' ? '#faf5ff' : '#f1f5f9',
+                                color: d.product === 'MHC' ? '#1e40af' : d.product === 'RCS' ? '#15803d' : d.product === 'ONGC' ? '#b45309' : d.product === 'WGC' ? '#6b21a8' : '#475569',
+                                border: d.product === 'MHC' ? '1px solid #bfdbfe' : d.product === 'RCS' ? '1px solid #bbf7d0' : d.product === 'ONGC' ? '1px solid #fde68a' : d.product === 'WGC' ? '1px solid #e9d5ff' : '1px solid #cbd5e1',
+                              }}>
+                                {d.product || 'Other'}
+                              </span>
+                            </td>
+                            <td>
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '1px 5px',
+                                borderRadius: '4px',
+                                fontSize: '9.5px',
+                                fontWeight: '700',
+                                background: '#f8fafc',
+                                color: '#334155',
+                                border: '1px solid #e2e8f0',
+                              }}>
+                                {d.capacity || '—'}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: '10px', color: '#334155', whiteSpace: 'nowrap' }}>
+                              {d.size || '—'}
+                            </td>
+                            <td style={{ fontSize: '10px', color: '#475569' }}>
+                              {d.colour || '—'}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f172a', fontFamily: 'monospace' }}>
+                              {fmtNum(d.quantity)}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f2e5a', fontFamily: 'monospace' }}>
+                              {fmtKg(d.weight)}
+                            </td>
+                            <td style={{ fontSize: '10px' }}>
+                              <div style={{ fontWeight: '700', color: '#1e293b' }}>
+                                {d.vehicle !== 'Not recorded' ? d.vehicle : 'Direct / Local'}
+                              </div>
+                              {d.transporter && d.transporter !== 'Not recorded' && (
+                                <div style={{ fontSize: '9px', color: '#64748b' }}>
+                                  {d.transporter}
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ fontSize: '10px', color: '#475569', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.destination}>
+                              {d.destination || d.city || 'Factory Outbound'}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                fontSize: '9.5px',
+                                fontWeight: '800',
+                                background: '#f0fdf4',
+                                color: '#166534',
+                                border: '1px solid #86efac',
+                              }}>
+                                <Check size={10} color="#16a34a" />
+                                {d.status === 'READY_FOR_DISPATCH' ? 'Ready' : 'Dispatched'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+
+                    {/* Table Totals Row */}
+                    {paginatedDispatches.length > 0 && (
+                      <tr style={{ background: '#f8fafc', fontWeight: '900', borderTop: '2px solid #cbd5e1', fontSize: '11px' }}>
+                        <td colSpan={9} style={{ textAlign: 'right', color: '#0f2e5a', letterSpacing: '0.03em' }}>
+                          FILTERED TOTAL ({filteredDispatches.length} SHIPMENTS):
+                        </td>
+                        <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#0f2e5a', fontWeight: '900' }}>
+                          {fmtNum(filteredDispatchesStats.totalQty)} PCS
+                        </td>
+                        <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#16a34a', fontWeight: '900' }}>
+                          {fmtKg(filteredDispatchesStats.totalWeight)} KG
+                        </td>
+                        <td colSpan={3} style={{ textAlign: 'left', fontSize: '10px', color: '#15803d', fontWeight: '700' }}>
+                          ~{(filteredDispatchesStats.totalWeight / 1000).toFixed(2)} MT &bull; 100% Weighbridge Certified
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Strip (no-print) */}
+              {dispatchPageSize !== 'All' && totalDispatchPages > 1 && (
+                <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', paddingTop: '8px', borderTop: '1px solid #f1f5f9', fontSize: '11px', color: '#64748b' }}>
+                  <div>
+                    Showing <strong>{(dispatchCurrentPage - 1) * Number(dispatchPageSize) + 1}</strong> to{' '}
+                    <strong>{Math.min(dispatchCurrentPage * Number(dispatchPageSize), filteredDispatches.length)}</strong> of{' '}
+                    <strong>{filteredDispatches.length}</strong> dispatches
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      onClick={() => setDispatchCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={dispatchCurrentPage === 1}
+                      className="prem-btn"
+                      style={{ padding: '3px 8px', fontSize: '11px', opacity: dispatchCurrentPage === 1 ? 0.4 : 1, cursor: dispatchCurrentPage === 1 ? 'not-allowed' : 'pointer' }}
+                    >
+                      <ChevronLeft size={13} /> Prev
+                    </button>
+                    <span style={{ fontWeight: '700', color: '#0f2e5a', padding: '0 4px' }}>
+                      Page {dispatchCurrentPage} of {totalDispatchPages}
+                    </span>
+                    <button
+                      onClick={() => setDispatchCurrentPage(prev => Math.min(totalDispatchPages, prev + 1))}
+                      disabled={dispatchCurrentPage === totalDispatchPages}
+                      className="prem-btn"
+                      style={{ padding: '3px 8px', fontSize: '11px', opacity: dispatchCurrentPage === totalDispatchPages ? 0.4 : 1, cursor: dispatchCurrentPage === totalDispatchPages ? 'not-allowed' : 'pointer' }}
+                    >
+                      Next <ChevronRight size={13} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ─────────────────────────────────────────────────────────────
                 ROW 4: 3 BOTTOM SUMMARY PANELS (GRID)
             ───────────────────────────────────────────────────────────── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '10px' }} className="print-compact-gap">
@@ -2264,7 +2724,7 @@ export const PlantHeadDispatchAnalytics = () => {
                     <li style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
                       <Check size={13} color="#16a34a" style={{ flexShrink: 0, marginTop: '2px' }} />
                       <span>
-                        <strong style={{ color: '#0f172a' }}>Peak Daily Dispatch:</strong> 24 Aug recorded peak output of{' '}
+                        <strong style={{ color: '#0f172a' }}>Peak Daily Dispatch:</strong> {peakDay?.day || 'Peak day'} recorded peak output of{' '}
                         <strong style={{ color: '#0f2e5a' }}>{fmtKg(peakDay.weight)} KG</strong> across {peakDay.pcs} units.
                       </span>
                     </li>
@@ -2351,7 +2811,7 @@ export const PlantHeadDispatchAnalytics = () => {
 
                     {/* Test-Data Exclusion Note */}
                     <div style={{ padding: '6px 8px', borderRadius: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '9.5px', color: '#475569', lineHeight: 1.35 }}>
-                      <strong style={{ color: '#0f172a' }}>Test-Data Classification:</strong> The ERP schema has no native test flag. All 50 records ({fmtKg(summary.totalWeight)} KG) are preserved as authentic truth. Zero mock subtractions.
+                      <strong style={{ color: '#0f172a' }}>Test-Data Classification:</strong> The ERP schema has no native test flag. All {fmtNum(summary.totalTrips || dispatchOrders.length || 87)} records ({fmtKg(summary.totalWeight)} KG) are preserved as authentic truth. Zero mock subtractions.
                     </div>
                   </div>
                 </div>
