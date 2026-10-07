@@ -256,22 +256,20 @@ export const PlantHeadProductionAnalytics = () => {
   // ── Memoized Authoritative Aggregations ──
   const kpis = useMemo(() => {
     const raw = report?.kpis || {};
-    const isAll = selectedMonth === 'all';
-    const isOct = selectedMonth === '2026-10';
 
-    const totalCovers = Number(raw.totalCovers !== undefined && raw.totalCovers !== null ? raw.totalCovers : (isAll ? 22189 : (isOct ? 2975 : 0)));
-    const totalFrames = Number(raw.totalFrames !== undefined && raw.totalFrames !== null ? raw.totalFrames : (isAll ? 17843 : (isOct ? 2876 : 0)));
-    const totalPieces = Number(raw.totalPieces !== undefined && raw.totalPieces !== null ? raw.totalPieces : (totalCovers + totalFrames) || (isAll ? 40032 : (isOct ? 5851 : 0)));
-    const totalFinishedSets = Number(raw.totalFinishedSets !== undefined && raw.totalFinishedSets !== null ? raw.totalFinishedSets : (isAll ? 14642 : (isOct ? 1772 : 0)));
-    const totalLooseCovers = Number(raw.totalLooseCovers !== undefined && raw.totalLooseCovers !== null ? raw.totalLooseCovers : (isAll ? 5309 : (isOct ? 38 : 0)));
-    const totalLooseFrames = Number(raw.totalLooseFrames !== undefined && raw.totalLooseFrames !== null ? raw.totalLooseFrames : (isAll ? 1891 : (isOct ? 20 : 0)));
-    const totalLoosePieces = Number(raw.totalLoosePieces !== undefined && raw.totalLoosePieces !== null ? raw.totalLoosePieces : (totalLooseCovers + totalLooseFrames) || (isAll ? 7200 : (isOct ? 58 : 0)));
-    const totalWorkOrders = Number(raw.totalWorkOrders !== undefined && raw.totalWorkOrders !== null ? raw.totalWorkOrders : (isAll ? 982 : (isOct ? 215 : 0)));
-    const completedWorkOrders = Number(raw.completedWorkOrders !== undefined && raw.completedWorkOrders !== null ? raw.completedWorkOrders : (isAll ? 952 : (isOct ? 198 : 0)));
-    const pendingWorkOrders = Number(raw.pendingWorkOrders ?? raw.activeWorkOrders ?? (totalWorkOrders > completedWorkOrders ? totalWorkOrders - completedWorkOrders : 0) ?? (isAll ? 30 : (isOct ? 17 : 0)));
+    const totalCovers = Number(raw.totalCovers !== undefined && raw.totalCovers !== null ? raw.totalCovers : 0);
+    const totalFrames = Number(raw.totalFrames !== undefined && raw.totalFrames !== null ? raw.totalFrames : 0);
+    const totalPieces = Number(raw.totalPieces !== undefined && raw.totalPieces !== null ? raw.totalPieces : (totalCovers + totalFrames) || 0);
+    const totalFinishedSets = Number(raw.totalFinishedSets !== undefined && raw.totalFinishedSets !== null ? raw.totalFinishedSets : 0);
+    const totalLooseCovers = Number(raw.totalLooseCovers !== undefined && raw.totalLooseCovers !== null ? raw.totalLooseCovers : 0);
+    const totalLooseFrames = Number(raw.totalLooseFrames !== undefined && raw.totalLooseFrames !== null ? raw.totalLooseFrames : 0);
+    const totalLoosePieces = Number(raw.totalLoosePieces !== undefined && raw.totalLoosePieces !== null ? raw.totalLoosePieces : (totalLooseCovers + totalLooseFrames) || 0);
+    const totalWorkOrders = Number(raw.totalWorkOrders !== undefined && raw.totalWorkOrders !== null ? raw.totalWorkOrders : 0);
+    const completedWorkOrders = Number(raw.completedWorkOrders !== undefined && raw.completedWorkOrders !== null ? raw.completedWorkOrders : 0);
+    const pendingWorkOrders = Number(raw.pendingWorkOrders ?? raw.activeWorkOrders ?? (totalWorkOrders > completedWorkOrders ? totalWorkOrders - completedWorkOrders : 0) ?? 0);
     const completionRate = totalWorkOrders > 0
       ? (raw.completionRate !== undefined ? Number(raw.completionRate) : Math.round((completedWorkOrders / totalWorkOrders) * 1000) / 10)
-      : (isAll ? 96.9 : (isOct ? 92.1 : 100));
+      : 100;
 
     const totalWeight = Number(raw.totalWeight !== undefined && raw.totalWeight !== null && Number(raw.totalWeight) > 0
       ? raw.totalWeight
@@ -279,17 +277,17 @@ export const PlantHeadProductionAnalytics = () => {
         ? raw.effectiveWeight
         : (raw.totalScaleWeight && Number(raw.totalScaleWeight) > 0
           ? raw.totalScaleWeight
-          : (isAll ? 151909 : (isOct ? 151909 : 0)))));
+          : 0)));
 
     const totalScaleWeight = raw.totalScaleWeight !== null && raw.totalScaleWeight !== undefined && Number(raw.totalScaleWeight) > 0
       ? Number(raw.totalScaleWeight)
-      : (isAll ? 561976.1 : (isOct ? 151909 : totalWeight));
+      : totalWeight;
 
     const weightVariance = raw.weightVariance !== null && raw.weightVariance !== undefined
       ? Number(raw.weightVariance)
-      : (isAll ? 561976.1 : (totalScaleWeight > totalWeight ? totalScaleWeight - totalWeight : 0));
+      : (totalScaleWeight > totalWeight ? totalScaleWeight - totalWeight : 0);
 
-    const totalWeightTonnes = Number(raw.totalWeightTonnes || (isAll ? 561.98 : (totalScaleWeight > 0 ? Math.round((totalScaleWeight / 1000) * 100) / 100 : Math.round((totalWeight / 1000) * 100) / 100)));
+    const totalWeightTonnes = Number(raw.totalWeightTonnes || (totalScaleWeight > 0 ? Math.round((totalScaleWeight / 1000) * 100) / 100 : Math.round((totalWeight / 1000) * 100) / 100));
 
     return {
       totalWeight,
@@ -302,22 +300,22 @@ export const PlantHeadProductionAnalytics = () => {
       totalPieces,
       totalComponentPieces: Number(raw.totalComponentPieces || totalPieces),
       totalFinishedSets,
-      totalPlannedSets: Number(raw.totalPlannedSets || (totalFinishedSets + pendingWorkOrders * 10)),
+      totalPlannedSets: Number(raw.totalPlannedSets || totalFinishedSets),
       totalRemainingSets: Number(raw.totalRemainingSets || (pendingWorkOrders * 10)),
       totalLooseCovers,
       totalLooseFrames,
       totalLoosePieces,
       floorReconciledCount: Number(raw.floorReconciledCount || completedWorkOrders),
-      averageWeightPerPiece: Number(raw.averageWeightPerPiece || (isAll ? 14.0 : (totalPieces > 0 ? (totalScaleWeight || totalWeight) / totalPieces : 0))),
+      averageWeightPerPiece: Number(raw.averageWeightPerPiece || (totalPieces > 0 ? (totalScaleWeight || totalWeight) / totalPieces : 0)),
       totalWorkOrders,
       completedWorkOrders,
       pendingWorkOrders,
       activeWorkOrders: pendingWorkOrders,
       completionRate,
-      fpyRate: raw.fpyRate !== undefined && raw.fpyRate !== null ? Number(raw.fpyRate) : (isAll ? 99.8 : 100),
-      activeMachines: Number(raw.activeMachines || 6),
+      fpyRate: raw.fpyRate !== undefined && raw.fpyRate !== null ? Number(raw.fpyRate) : 100,
+      activeMachines: Number(raw.activeMachines || 0),
     };
-  }, [report?.kpis, selectedMonth]);
+  }, [report?.kpis]);
 
   const reconciliation = useMemo(() => {
     return report?.reconciliation || null;

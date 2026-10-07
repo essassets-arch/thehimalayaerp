@@ -1895,7 +1895,8 @@ export class PlantHeadService {
     // Ensures exactly 215 work orders, 198 completed (92.1%), 17 pending, 2975 covers, 2876 frames, 1772 sets, 58 loose parts
     // and seamlessly incorporates any floor shift reports submitted in PostgreSQL
     const isMockUnitTest = workOrders.length > 0 && workOrders.some(w => String(w.id || '').startsWith('wo-') || String(w.salesOrderItem?.product?.name || '').includes('HIMALAYA FRP MHC 600X600 LD BLACK'));
-    if (!isMockUnitTest && (monthKey === '2026-10' || normMonth === '2026-10' || normFilter === 'Live Operational' || normFilter === 'live' || normMonth === 'live') && workOrders.length < 215) {
+    // Demo/simulated baselines are only used when explicitly requested via filter ('Live Operational' / 'Mock')
+    if (!isMockUnitTest && (normFilter === 'Live Operational' || normFilter === 'live' || normMonth === 'live')) {
       return this.buildCertifiedOctoberProductionReport(
         companyId,
         normFilter,
@@ -1907,7 +1908,7 @@ export class PlantHeadService {
         dailyReports,
       );
     }
-    if (!isMockUnitTest && (isAllTime || monthKey === 'all' || normMonth === 'all' || normFilter === 'all' || normFilter === 'All Time' || normFilter === 'All-Time Aggregate' || normFilter === 'All-Time')) {
+    if (!isMockUnitTest && (normFilter === 'All-Time Mock' || normFilter === 'All-Time Baseline')) {
       return this.buildCertifiedAllTimeProductionReport(
         companyId,
         normFilter,

@@ -879,13 +879,13 @@ describe('Production Analytics - Rules 23–28 Comprehensive Verification Suite'
     const service = new PlantHeadService(mockPrisma as any, {} as any);
     const report = await service.getMonthlyProductionReport('tenant-1', undefined, undefined, undefined, undefined, undefined, undefined, '2026-10');
 
-    // Baseline (2975 covers, 2876 frames, 1772 sets, 38 loose covers, 20 loose frames) + Floor Report (55 covers, 52 frames, 50 sets, 5 loose covers, 2 loose frames)
-    expect(report.kpis.totalCovers).toBe(2975 + 55);
-    expect(report.kpis.totalFrames).toBe(2876 + 52);
-    expect(report.kpis.totalPieces).toBe(5851 + 107);
-    expect(report.kpis.totalFinishedSets).toBe(1772 + 50);
-    expect(report.kpis.totalLooseCovers).toBe(38 + 5);
-    expect(report.kpis.totalLooseFrames).toBe(20 + 2);
-    expect(report.kpis.totalLoosePieces).toBe(58 + 7);
+    // 100% Real Floor Daily Report (55 covers, 52 frames, 50 sets, 5 loose covers, 2 loose frames)
+    expect(report.kpis.totalCovers).toBe(55);
+    expect(report.kpis.totalFrames).toBe(52);
+    expect(report.kpis.totalPieces).toBe(107);
+    expect(report.kpis.totalFinishedSets).toBe(50);
+    expect(report.kpis.totalLooseCovers).toBe(5);
+    expect(report.kpis.totalLooseFrames).toBe(2);
+    expect(report.kpis.totalLoosePieces).toBe(7);
   });
 });
