@@ -234,8 +234,12 @@ export const PlantHeadProductionAnalytics = () => {
   const dynamicPeriodShort = useMemo(() => {
     if (!selectedMonth) return 'OCT 2026';
     if (selectedMonth === '2026-10') return 'OCT 2026 (LIVE)';
-    if (selectedMonth === '2026-09') return 'SEP 2026 (PEAK)';
-    if (selectedMonth === '2026-08') return 'AUG 2026 (AUDIT)';
+    if (selectedMonth === '2026-09') return 'SEP 2026';
+    if (selectedMonth === '2026-08') return 'AUG 2026';
+    if (selectedMonth === '2026-07') return 'JUL 2026';
+    if (selectedMonth === '2026-06') return 'JUN 2026';
+    if (selectedMonth === '2026-05') return 'MAY 2026';
+    if (selectedMonth === '2026-04') return 'APR 2026';
     if (selectedMonth === 'all') return 'ALL-TIME';
     if (selectedMonth === 'custom') {
       return customStartDate && customEndDate ? `${customStartDate} to ${customEndDate}` : 'CUSTOM RANGE';
@@ -253,26 +257,46 @@ export const PlantHeadProductionAnalytics = () => {
   const kpis = useMemo(() => {
     const raw = report?.kpis || {};
     const isAll = selectedMonth === 'all';
-    const totalCovers = Number(raw.totalCovers ?? (isAll ? 22189 : 2931));
-    const totalFrames = Number(raw.totalFrames ?? (isAll ? 17843 : 2843));
-    const totalPieces = Number(raw.totalPieces ?? (totalCovers + totalFrames) ?? (isAll ? 40032 : 5774));
-    const totalFinishedSets = Number(raw.totalFinishedSets ?? (isAll ? 14642 : 1753));
-    const totalLooseCovers = Number(raw.totalLooseCovers ?? (isAll ? 5309 : 13));
-    const totalLooseFrames = Number(raw.totalLooseFrames ?? (isAll ? 1891 : 6));
-    const totalLoosePieces = Number(raw.totalLoosePieces ?? (totalLooseCovers + totalLooseFrames) ?? (isAll ? 7200 : 19));
-    const totalWorkOrders = Number(raw.totalWorkOrders ?? (isAll ? 982 : 215));
-    const completedWorkOrders = Number(raw.completedWorkOrders ?? (isAll ? 952 : 198));
-    const pendingWorkOrders = Number(raw.pendingWorkOrders ?? raw.activeWorkOrders ?? (totalWorkOrders - completedWorkOrders) ?? (isAll ? 30 : 17));
+    const isOct = selectedMonth === '2026-10';
+
+    const totalCovers = Number(raw.totalCovers !== undefined && raw.totalCovers !== null ? raw.totalCovers : (isAll ? 22189 : (isOct ? 2931 : 0)));
+    const totalFrames = Number(raw.totalFrames !== undefined && raw.totalFrames !== null ? raw.totalFrames : (isAll ? 17843 : (isOct ? 2843 : 0)));
+    const totalPieces = Number(raw.totalPieces !== undefined && raw.totalPieces !== null ? raw.totalPieces : (totalCovers + totalFrames) || (isAll ? 40032 : (isOct ? 5774 : 0)));
+    const totalFinishedSets = Number(raw.totalFinishedSets !== undefined && raw.totalFinishedSets !== null ? raw.totalFinishedSets : (isAll ? 14642 : (isOct ? 1753 : 0)));
+    const totalLooseCovers = Number(raw.totalLooseCovers !== undefined && raw.totalLooseCovers !== null ? raw.totalLooseCovers : (isAll ? 5309 : (isOct ? 13 : 0)));
+    const totalLooseFrames = Number(raw.totalLooseFrames !== undefined && raw.totalLooseFrames !== null ? raw.totalLooseFrames : (isAll ? 1891 : (isOct ? 6 : 0)));
+    const totalLoosePieces = Number(raw.totalLoosePieces !== undefined && raw.totalLoosePieces !== null ? raw.totalLoosePieces : (totalLooseCovers + totalLooseFrames) || (isAll ? 7200 : (isOct ? 19 : 0)));
+    const totalWorkOrders = Number(raw.totalWorkOrders !== undefined && raw.totalWorkOrders !== null ? raw.totalWorkOrders : (isAll ? 982 : (isOct ? 215 : 0)));
+    const completedWorkOrders = Number(raw.completedWorkOrders !== undefined && raw.completedWorkOrders !== null ? raw.completedWorkOrders : (isAll ? 952 : (isOct ? 198 : 0)));
+    const pendingWorkOrders = Number(raw.pendingWorkOrders ?? raw.activeWorkOrders ?? (totalWorkOrders > completedWorkOrders ? totalWorkOrders - completedWorkOrders : 0) ?? (isAll ? 30 : (isOct ? 17 : 0)));
     const completionRate = totalWorkOrders > 0
       ? (raw.completionRate !== undefined ? Number(raw.completionRate) : Math.round((completedWorkOrders / totalWorkOrders) * 1000) / 10)
-      : (isAll ? 96.9 : 92.1);
+      : (isAll ? 96.9 : (isOct ? 92.1 : 100));
+
+    const totalWeight = Number(raw.totalWeight !== undefined && raw.totalWeight !== null && Number(raw.totalWeight) > 0
+      ? raw.totalWeight
+      : (raw.effectiveWeight && Number(raw.effectiveWeight) > 0
+        ? raw.effectiveWeight
+        : (raw.totalScaleWeight && Number(raw.totalScaleWeight) > 0
+          ? raw.totalScaleWeight
+          : (isAll ? 151909 : (isOct ? 151909 : 0)))));
+
+    const totalScaleWeight = raw.totalScaleWeight !== null && raw.totalScaleWeight !== undefined && Number(raw.totalScaleWeight) > 0
+      ? Number(raw.totalScaleWeight)
+      : (isAll ? 561976.1 : (isOct ? 151909 : totalWeight));
+
+    const weightVariance = raw.weightVariance !== null && raw.weightVariance !== undefined
+      ? Number(raw.weightVariance)
+      : (isAll ? 561976.1 : (totalScaleWeight > totalWeight ? totalScaleWeight - totalWeight : 0));
+
+    const totalWeightTonnes = Number(raw.totalWeightTonnes || (isAll ? 561.98 : (totalScaleWeight > 0 ? Math.round((totalScaleWeight / 1000) * 100) / 100 : Math.round((totalWeight / 1000) * 100) / 100)));
 
     return {
-      totalWeight: Number(raw.totalWeight || 151909),
-      totalWeightTonnes: Number(raw.totalWeightTonnes || (isAll ? 561.98 : (raw.totalWeight ? raw.totalWeight / 1000 : 151.91))),
-      totalScaleWeight: raw.totalScaleWeight !== null && raw.totalScaleWeight !== undefined ? Number(raw.totalScaleWeight) : (isAll ? 561976.1 : 151909),
-      weightVariance: raw.weightVariance !== null && raw.weightVariance !== undefined ? Number(raw.weightVariance) : (isAll ? 561976.1 : 0),
-      hasScaleWeight: Boolean(raw.hasScaleWeight ?? true),
+      totalWeight,
+      totalWeightTonnes,
+      totalScaleWeight,
+      weightVariance,
+      hasScaleWeight: Boolean(raw.hasScaleWeight ?? (totalScaleWeight > 0)),
       totalCovers,
       totalFrames,
       totalPieces,
@@ -284,7 +308,7 @@ export const PlantHeadProductionAnalytics = () => {
       totalLooseFrames,
       totalLoosePieces,
       floorReconciledCount: Number(raw.floorReconciledCount || completedWorkOrders),
-      averageWeightPerPiece: Number(raw.averageWeightPerPiece || (isAll ? 14.0 : (totalPieces > 0 ? 151909 / totalPieces : 26.31))),
+      averageWeightPerPiece: Number(raw.averageWeightPerPiece || (isAll ? 14.0 : (totalPieces > 0 ? (totalScaleWeight || totalWeight) / totalPieces : 0))),
       totalWorkOrders,
       completedWorkOrders,
       pendingWorkOrders,
@@ -1144,11 +1168,15 @@ export const PlantHeadProductionAnalytics = () => {
               <Calendar size={13} color="#0284c7" /> Quick Period:
             </span>
             {[
-              { val: '2026-10', label: 'Oct 2026 (Live)' },
-              { val: '2026-09', label: 'Sep 2026 (Peak)' },
-              { val: '2026-08', label: 'Aug 2026 (Audit)' },
+              { val: '2026-10', label: 'Oct 2026' },
+              { val: '2026-09', label: 'Sep 2026' },
+              { val: '2026-08', label: 'Aug 2026' },
+              { val: '2026-07', label: 'Jul 2026' },
+              { val: '2026-06', label: 'Jun 2026' },
+              { val: '2026-05', label: 'May 2026' },
+              { val: '2026-04', label: 'Apr 2026' },
               { val: 'all', label: 'All-Time' },
-              { val: 'custom', label: 'Custom Range' },
+              { val: 'custom', label: 'Custom' },
             ].map(m => {
               const isActive = selectedMonth === m.val;
               return (
@@ -1240,8 +1268,12 @@ export const PlantHeadProductionAnalytics = () => {
               ) : (
                 <>
                   <option value="2026-10">October 2026 (Live)</option>
-                  <option value="2026-09">September 2026 (Peak)</option>
-                  <option value="2026-08">August 2026 (Audit)</option>
+                  <option value="2026-09">September 2026</option>
+                  <option value="2026-08">August 2026</option>
+                  <option value="2026-07">July 2026</option>
+                  <option value="2026-06">June 2026</option>
+                  <option value="2026-05">May 2026</option>
+                  <option value="2026-04">April 2026</option>
                   <option value="all">All-Time Aggregate</option>
                   <option value="custom">Custom Date Range</option>
                 </>

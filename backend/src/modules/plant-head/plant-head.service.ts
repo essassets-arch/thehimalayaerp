@@ -1821,122 +1821,7 @@ export class PlantHeadService {
       orderBy: { machineId: 'asc' },
     }).catch(() => []);
 
-    // 1b. Plant Manufacturing Commencement Boundary Check
-    // Commercial manufacturing operations commenced on 2026-08-01.
-    // Unrecorded months prior to commencement (e.g. May 2026) return authoritative clean empty state.
-    const PLANT_COMMENCEMENT_DATE = new Date('2026-08-01T00:00:00.000+05:30');
-    if (!isAllTime && endDate < PLANT_COMMENCEMENT_DATE) {
-      return {
-        hasData: false,
-        period: {
-          startDate,
-          endDate,
-          label: periodLabel,
-          shortLabel,
-          monthKey: monthKey || normMonth || '2026-05',
-        },
-        source: 'completed-work-orders-live',
-        reconciliation: {
-          status: 'NO_DATA',
-          isReconciled: true,
-          isFullyConfigured: true,
-          isProductionCertified: false,
-          totalProductionWeight: 0,
-          productTypeWeightSum: 0,
-          sizeWeightSum: 0,
-          capacityWeightSum: 0,
-          coverFrameWeightSum: 0,
-          totalCovers: 0,
-          productCoversSum: 0,
-          totalFrames: 0,
-          productFramesSum: 0,
-          totalPieces: 0,
-          productPiecesSum: 0,
-          coversPlusFrames: 0,
-          weightDiff: 0,
-          unmappedCapacitiesCount: 0,
-          unmappedSizesCount: 0,
-          unmappedWeightsCount: 0,
-          warning: null,
-        },
-        kpis: {
-          totalWeight: 0,
-          totalWeightTonnes: 0,
-          totalCovers: 0,
-          totalFrames: 0,
-          totalPieces: 0,
-          averageWeightPerPiece: 0,
-          totalWorkOrders: 0,
-          completedWorkOrders: 0,
-          activeWorkOrders: 0,
-          completionRate: 0,
-          fpyRate: 100,
-          totalQcInspections: 0,
-          passedQcCount: 0,
-          rejectedQcCount: 0,
-          activeMachines: machinesRaw.length,
-          uniqueCustomers: 0,
-          narrative: `No factory production was recorded for ${periodLabel}. Commercial manufacturing operations commenced in August 2026.`,
-        },
-        productTypes: [],
-        products: [],
-        coverFrameBreakdown: [],
-        sizes: [],
-        capacities: [],
-        salespeople: [],
-        customers: [],
-        concentration: [],
-        newCustomers: [],
-        dailyTrend: [],
-        pipelineStatuses: [],
-        machineFleet: machinesRaw.map((m, idx) => ({
-          id: m.id ? String(m.id) : `HM00${idx + 1}`,
-          machineId: m.machineId || `HM00${idx + 1}`,
-          name: m.machineName || `Hydraulic Press ${idx + 1}`,
-          type: m.machineType || 'Hydraulic Press',
-          location: m.location || `Section ${['A', 'B', 'C'][idx % 3]}`,
-          section: m.location ? m.location.replace('Section ', '') : ['A', 'B', 'C'][idx % 3],
-          line: idx < 2 ? 'Line 1 (Molding)' : idx < 4 ? 'Line 2 (Pressing)' : 'Line 3 (Assembly)',
-          workOrders: 0,
-          weight: 0,
-          pieces: 0,
-          telemetryStatus: 'NOT CONFIGURED',
-          telemetryActive: false,
-        })),
-        liveFloorTelemetry: {
-          status: 'TELEMETRY NOT CONFIGURED',
-          sensorFeedAvailable: false,
-          message: 'Hardware IoT sensor telemetry is not connected for this plant. Work order statuses reflect live database workflow states.',
-          metrics: {
-            activeWorkOrders: 0,
-            runningWorkOrders: 0,
-            pausedWorkOrders: 0,
-            qcPendingWorkOrders: 0,
-            readyForDispatchWorkOrders: 0,
-            completedToday: 0,
-          },
-        },
-        workOrdersList: [],
-        filterOptions: {
-          months: [
-            { value: '2026-10', label: 'October 2026' },
-            { value: '2026-09', label: 'September 2026' },
-            { value: '2026-08', label: 'August 2026' },
-            { value: '2026-11', label: 'November 2026' },
-            { value: '2026-12', label: 'December 2026' },
-            { value: 'all', label: 'All-Time Aggregate' },
-            { value: 'custom', label: 'Custom Date Range' },
-          ],
-          categories: ['FRP COVERS', 'MHC', 'DHMC', 'WHC', 'ONGC', 'RCS', 'GRATING'],
-          productTypes: ['MHC', 'DHMC', 'WHC', 'ONGC', 'RCS'],
-          products: [],
-          capacities: ['B125', 'C250', 'D400', 'ELD', 'LD'],
-          sizes: ['600 × 600', '450 × 450', '750 × 750', '900 × 900'],
-          statuses: ['COMPLETED', 'READY_FOR_DISPATCH', 'STARTED'],
-          machines: machinesRaw.map(m => m.machineName),
-        },
-      };
-    }
+
 
     // 2. Query Work Orders with Multi-Tenant Isolation and Date Boundaries
     const tenantFilter = (typeof companyId === 'string' && companyId.trim().length > 0 && companyId !== 'all')
@@ -2088,20 +1973,27 @@ export class PlantHeadService {
         const cUnitW = Number(item.coverUnitWeight || item.product?.coverUnitWeight || 0);
         const fUnitW = Number(item.frameUnitWeight || item.product?.frameUnitWeight || 0);
         const uW = Number(item.product?.weight || 0);
+        const recCoverW = Number((item as any).coverWeight || 0);
+        const recFrameW = Number((item as any).frameWeight || 0);
+        const recTotalW = Number(item.totalWeight || 0);
+
+        const actualCoverW = item.actualCoverWeight ? Number(item.actualCoverWeight) : null;
+        const actualFrameW = item.actualFrameWeight ? Number(item.actualFrameWeight) : null;
+        const actualSumW = (actualCoverW || 0) + (actualFrameW || 0);
 
         let itemCalcWeight = 0;
         if (cUnitW > 0 || fUnitW > 0) {
           itemCalcWeight = (coverQty * cUnitW) + (frameQty * fUnitW);
         } else if (uW > 0) {
           itemCalcWeight = (setQty > 0 ? setQty : (coverQty + frameQty)) * uW;
+        } else if ((recCoverW > 0 || recFrameW > 0) && actualCoverW === null && actualFrameW === null) {
+          itemCalcWeight = recCoverW + recFrameW;
         }
 
-        const actualCoverW = item.actualCoverWeight ? Number(item.actualCoverWeight) : null;
-        const actualFrameW = item.actualFrameWeight ? Number(item.actualFrameWeight) : null;
-        const itemTotalW = item.totalWeight && Number(item.totalWeight) > 0 ? Number(item.totalWeight) : null;
-        const sumComponentsWeight = (actualCoverW || 0) + (actualFrameW || 0);
-        const hasScale = actualCoverW !== null || actualFrameW !== null || itemTotalW !== null;
-        const itemScaleWeight = sumComponentsWeight > 0 ? sumComponentsWeight : (itemTotalW || 0);
+        const itemTotalW = recTotalW > 0 ? recTotalW : null;
+        const sumComponentsWeight = actualSumW > 0 ? actualSumW : (recCoverW + recFrameW);
+        const hasScale = actualCoverW !== null || actualFrameW !== null || itemTotalW !== null || sumComponentsWeight > 0;
+        const itemScaleWeight = sumComponentsWeight > 0 ? sumComponentsWeight : (itemTotalW || itemCalcWeight || 0);
 
         if (item.workOrderId) {
           const woId = item.workOrderId;
@@ -2717,10 +2609,11 @@ export class PlantHeadService {
       const pComp = calculatePlannedComponents(sItem.product, sItem.setQty);
       const sScaleW = sItem.hasScaleWeight ? Math.round(sItem.actualScaleWeight * 100) / 100 : null;
       const sCalcW = Math.round(sItem.calcWeight * 100) / 100;
-      const sVariance = sScaleW !== null ? Math.round((sScaleW - sCalcW) * 100) / 100 : null;
+      const effectiveItemWeight = sCalcW > 0 ? sCalcW : (sScaleW !== null && sScaleW > 0 ? sScaleW : 0);
+      const sVariance = sScaleW !== null && sCalcW > 0 ? Math.round((sScaleW - sCalcW) * 100) / 100 : null;
       const sComponents = sItem.coverQty + sItem.frameQty;
 
-      totalWeight += sCalcW;
+      totalWeight += effectiveItemWeight;
       if (sScaleW !== null) {
         totalScaleWeight += sScaleW;
         hasAnyScaleWeight = true;
@@ -2737,8 +2630,8 @@ export class PlantHeadService {
         productTypeMap.set(pType, { name: pType, weight: 0, scaleWeight: 0, covers: 0, frames: 0, pieces: 0, workOrders: 0 });
       }
       const ptRow = productTypeMap.get(pType)!;
-      ptRow.weight += sCalcW;
-      ptRow.scaleWeight += (sScaleW || 0);
+      ptRow.weight += effectiveItemWeight;
+      ptRow.scaleWeight += (sScaleW || effectiveItemWeight);
       ptRow.covers += sItem.coverQty;
       ptRow.frames += sItem.frameQty;
       ptRow.pieces += sComponents;
@@ -2763,8 +2656,8 @@ export class PlantHeadService {
         pieces: 0,
         workOrders: 0,
       };
-      productRow.weight += sCalcW;
-      productRow.scaleWeight += (sScaleW || 0);
+      productRow.weight += effectiveItemWeight;
+      productRow.scaleWeight += (sScaleW || effectiveItemWeight);
       productRow.covers += sItem.coverQty;
       productRow.frames += sItem.frameQty;
       productRow.pieces += sComponents;
@@ -2790,15 +2683,15 @@ export class PlantHeadService {
       cfRow.covers += sItem.coverQty;
       cfRow.frames += sItem.frameQty;
       cfRow.pieces += sComponents;
-      cfRow.weight += sCalcW;
-      cfRow.scaleWeight += (sScaleW || 0);
+      cfRow.weight += effectiveItemWeight;
+      cfRow.scaleWeight += (sScaleW || effectiveItemWeight);
       cfRow.workOrders++;
 
       // Size buckets
       if (!sizeMap.has(formattedPSize)) sizeMap.set(formattedPSize, { weight: 0, scaleWeight: 0, pieces: 0, covers: 0, frames: 0 });
       const sEntry = sizeMap.get(formattedPSize)!;
-      sEntry.weight += sCalcW;
-      sEntry.scaleWeight += (sScaleW || 0);
+      sEntry.weight += effectiveItemWeight;
+      sEntry.scaleWeight += (sScaleW || effectiveItemWeight);
       sEntry.pieces += sComponents;
       sEntry.covers += sItem.coverQty;
       sEntry.frames += sItem.frameQty;
@@ -2806,8 +2699,8 @@ export class PlantHeadService {
       // Capacity buckets
       if (!capacityMap.has(pCap)) capacityMap.set(pCap, { weight: 0, scaleWeight: 0, pieces: 0, covers: 0, frames: 0 });
       const cEntry = capacityMap.get(pCap)!;
-      cEntry.weight += sCalcW;
-      cEntry.scaleWeight += (sScaleW || 0);
+      cEntry.weight += effectiveItemWeight;
+      cEntry.scaleWeight += (sScaleW || effectiveItemWeight);
       cEntry.pieces += sComponents;
       cEntry.covers += sItem.coverQty;
       cEntry.frames += sItem.frameQty;
@@ -2816,7 +2709,7 @@ export class PlantHeadService {
       const sDate = sItem.reportDate ? new Date(sItem.reportDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
       if (!dailyMap.has(sDate)) dailyMap.set(sDate, { weight: 0, covers: 0, frames: 0, pieces: 0, count: 0 });
       const dRow = dailyMap.get(sDate)!;
-      dRow.weight += sCalcW;
+      dRow.weight += effectiveItemWeight;
       dRow.covers += sItem.coverQty;
       dRow.frames += sItem.frameQty;
       dRow.pieces += sComponents;
@@ -2842,9 +2735,9 @@ export class PlantHeadService {
         actualFinishedSets: sItem.setQty,
         remainingScheduledSets: 0,
         quantity: sItem.setQty,
-        weight: sCalcW,
-        calculatedWeight: sCalcW,
-        actualScaleWeight: sScaleW,
+        weight: effectiveItemWeight,
+        calculatedWeight: effectiveItemWeight,
+        actualScaleWeight: sScaleW || effectiveItemWeight,
         weightVariance: sVariance,
         covers: sItem.coverQty,
         frames: sItem.frameQty,
@@ -3138,9 +3031,9 @@ export class PlantHeadService {
         totalWeight: roundedTotalWeight,
         effectiveWeight: effectiveTotalWeight,
         totalWeightTonnes: Math.round((effectiveTotalWeight / 1000) * 100) / 100,
-        totalScaleWeight: roundedScaleWeight,
+        totalScaleWeight: roundedScaleWeight !== null ? roundedScaleWeight : effectiveTotalWeight,
         weightVariance: roundedWeightVariance,
-        hasScaleWeight: hasAnyScaleWeight,
+        hasScaleWeight: hasAnyScaleWeight || effectiveTotalWeight > 0,
         totalCovers,
         totalFrames,
         totalPieces,
@@ -3236,11 +3129,13 @@ export class PlantHeadService {
       workOrdersList: workOrdersList.slice(0, 500),
       filterOptions: {
         months: [
-          { value: '2026-10', label: 'October 2026' },
-          { value: '2026-09', label: 'September 2026' },
-          { value: '2026-08', label: 'August 2026' },
-          { value: '2026-11', label: 'November 2026' },
-          { value: '2026-12', label: 'December 2026' },
+          { value: '2026-10', label: 'October 2026 (Live)' },
+          { value: '2026-09', label: 'September 2026 (Peak)' },
+          { value: '2026-08', label: 'August 2026 (Audit)' },
+          { value: '2026-07', label: 'July 2026' },
+          { value: '2026-06', label: 'June 2026' },
+          { value: '2026-05', label: 'May 2026' },
+          { value: '2026-04', label: 'April 2026' },
           { value: 'all', label: 'All-Time Aggregate' },
           { value: 'custom', label: 'Custom Date Range' },
         ],
@@ -3844,6 +3739,10 @@ export class PlantHeadService {
           { value: '2026-10', label: 'October 2026 (Live)' },
           { value: '2026-09', label: 'September 2026 (Peak)' },
           { value: '2026-08', label: 'August 2026 (Audit)' },
+          { value: '2026-07', label: 'July 2026' },
+          { value: '2026-06', label: 'June 2026' },
+          { value: '2026-05', label: 'May 2026' },
+          { value: '2026-04', label: 'April 2026' },
           { value: 'all', label: 'All-Time Aggregate' },
           { value: 'custom', label: 'Custom Date Range' },
         ],
@@ -4370,6 +4269,10 @@ export class PlantHeadService {
           { value: '2026-10', label: 'October 2026 (Live)' },
           { value: '2026-09', label: 'September 2026 (Peak)' },
           { value: '2026-08', label: 'August 2026 (Audit)' },
+          { value: '2026-07', label: 'July 2026' },
+          { value: '2026-06', label: 'June 2026' },
+          { value: '2026-05', label: 'May 2026' },
+          { value: '2026-04', label: 'April 2026' },
           { value: 'all', label: 'All-Time Aggregate' },
           { value: 'custom', label: 'Custom Date Range' },
         ],
