@@ -132,6 +132,8 @@ export const PlantHeadProductionAnalytics = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWorkOrderModal, setSelectedWorkOrderModal] = useState(null);
   const [showReconciliationDetails, setShowReconciliationDetails] = useState(false);
+  const [productShowcaseLimit, setProductShowcaseLimit] = useState(10);
+  const [productShowcaseSort, setProductShowcaseSort] = useState('consumption');
   const reportRef = useRef(null);
   const [downloadingImage, setDownloadingImage] = useState(false);
 
@@ -353,10 +355,21 @@ export const PlantHeadProductionAnalytics = () => {
   }, [report?.topSizes, sizeWiseList]);
 
   // 6. Our Products Showcase (Dynamic per month from Product Master)
+  const allManufacturedProducts = useMemo(() => {
+    const raw = [...(report?.productImages || report?.products || [])];
+    if (productShowcaseSort === 'consumption') {
+      return raw.sort((a, b) => (b.pieces - a.pieces) || ((b.effectiveWeight || b.weight || 0) - (a.effectiveWeight || a.weight || 0)));
+    } else {
+      return raw.sort((a, b) => ((b.effectiveWeight || b.weight || 0) - (a.effectiveWeight || a.weight || 0)) || (b.pieces - a.pieces));
+    }
+  }, [report?.productImages, report?.products, productShowcaseSort]);
+
   const productShowcaseList = useMemo(() => {
-    const raw = report?.productImages || report?.products || [];
-    return raw.slice(0, 10);
-  }, [report?.productImages, report?.products]);
+    if (productShowcaseLimit === 'all' || productShowcaseLimit === 0) {
+      return allManufacturedProducts;
+    }
+    return allManufacturedProducts.slice(0, Number(productShowcaseLimit));
+  }, [allManufacturedProducts, productShowcaseLimit]);
 
   // Work Orders List for Audit Schedule & Modal
   const workOrdersList = useMemo(() => {
@@ -2070,18 +2083,124 @@ export const PlantHeadProductionAnalytics = () => {
             border: '1.5px solid #e2e8f0',
             boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '12px',
+              marginBottom: '14px',
+              borderBottom: '1px solid #f1f5f9',
+              paddingBottom: '12px'
+            }}>
               <div>
-                <h3 style={{ fontSize: '13px', fontWeight: '900', color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Our Products &bull; Active Manufactured Specifications
-                </h3>
-                <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0 0' }}>
-                  Authentic products produced during {dynamicPeriodShort} &bull; Specifications sourced from Product Master
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h3 style={{ fontSize: '13px', fontWeight: '900', color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Top Manufactured Products &bull; Active Specifications
+                  </h3>
+                  <span style={{
+                    background: '#eff6ff',
+                    color: '#1d4ed8',
+                    border: '1px solid #bfdbfe',
+                    fontSize: '9.5px',
+                    fontWeight: '900',
+                    padding: '2px 8px',
+                    borderRadius: '12px'
+                  }}>
+                    Showing {productShowcaseList.length} of {allManufacturedProducts.length} Active
+                  </span>
+                </div>
+                <p style={{ fontSize: '11px', color: '#64748b', margin: '3px 0 0 0' }}>
+                  Sorted by {productShowcaseSort === 'consumption' ? 'Production Consumption & Output Volume (Pieces)' : 'Effective Weight (KG)'} &bull; Sourced from Product Master & Work Orders
                 </p>
               </div>
-              <span style={{ fontSize: '11px', fontWeight: '800', color: '#0284c7' }}>
-                {productShowcaseList.length} Products Active in {dynamicPeriodShort}
-              </span>
+
+              {/* Right Side Control Bar: Sort Toggle & Limit Selector */}
+              <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                {/* Sort Mode Pill Toggle */}
+                <div style={{
+                  display: 'flex',
+                  background: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '7px',
+                  padding: '2px'
+                }}>
+                  <button
+                    onClick={() => setProductShowcaseSort('consumption')}
+                    style={{
+                      background: productShowcaseSort === 'consumption' ? '#0284c7' : 'transparent',
+                      color: productShowcaseSort === 'consumption' ? '#ffffff' : '#64748b',
+                      border: 'none',
+                      padding: '4px 9px',
+                      borderRadius: '5px',
+                      fontSize: '10.5px',
+                      fontWeight: productShowcaseSort === 'consumption' ? '800' : '600',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Sort products by total pieces produced / plant consumption"
+                  >
+                    Consumption (Pieces)
+                  </button>
+                  <button
+                    onClick={() => setProductShowcaseSort('weight')}
+                    style={{
+                      background: productShowcaseSort === 'weight' ? '#0284c7' : 'transparent',
+                      color: productShowcaseSort === 'weight' ? '#ffffff' : '#64748b',
+                      border: 'none',
+                      padding: '4px 9px',
+                      borderRadius: '5px',
+                      fontSize: '10.5px',
+                      fontWeight: productShowcaseSort === 'weight' ? '800' : '600',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Sort products by total weight produced (KG)"
+                  >
+                    Weight (KG)
+                  </button>
+                </div>
+
+                {/* Limit Selector: Top 10, Top 20, Top 25, Top 50, All */}
+                <div style={{
+                  display: 'flex',
+                  background: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '7px',
+                  padding: '2px',
+                  gap: '2px'
+                }}>
+                  {[10, 20, 25, 50, 'all'].map(opt => {
+                    const isSelected = productShowcaseLimit === opt || (opt === 'all' && productShowcaseLimit === 'all');
+                    const label = opt === 'all' ? `All (${allManufacturedProducts.length})` : `Top ${opt}`;
+                    return (
+                      <button
+                        key={String(opt)}
+                        onClick={() => setProductShowcaseLimit(opt)}
+                        style={{
+                          background: isSelected ? '#0f172a' : 'transparent',
+                          color: isSelected ? '#ffffff' : '#475569',
+                          border: 'none',
+                          padding: '4px 8px',
+                          borderRadius: '5px',
+                          fontSize: '10.5px',
+                          fontWeight: isSelected ? '800' : '600',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             <div className="report-products-grid" style={{
@@ -2089,90 +2208,129 @@ export const PlantHeadProductionAnalytics = () => {
               gridTemplateColumns: 'repeat(auto-fill, minmax(185px, 1fr))',
               gap: '12px'
             }}>
-              {productShowcaseList.map((prod, idx) => (
-                <div
-                  key={prod.id || idx}
-                  style={{
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    background: '#ffffff',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden',
-                    transition: 'all 0.15s ease',
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.03)'
-                  }}
-                >
-                  {/* Master Photograph or Neutral Honest Placeholder */}
-                  <ProductImageCard product={prod} />
+              {productShowcaseList.map((prod, idx) => {
+                const rank = idx + 1;
+                const isTop3 = rank <= 3;
+                const rankBg = rank === 1 ? '#fef3c7' : rank === 2 ? '#f1f5f9' : rank === 3 ? '#ffedd5' : '#f8fafc';
+                const rankColor = rank === 1 ? '#b45309' : rank === 2 ? '#475569' : rank === 3 ? '#c2410c' : '#64748b';
+                const rankBorder = rank === 1 ? '#fde68a' : rank === 2 ? '#cbd5e1' : rank === 3 ? '#fed7aa' : '#e2e8f0';
 
-                  {/* Product Details */}
-                  <div style={{ padding: '10px 12px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <div>
-                      {/* Prominent Category Badge on Product */}
-                      <div style={{ marginBottom: '5px' }}>
-                        <span style={{
-                          background: '#eff6ff',
-                          color: '#1d4ed8',
-                          border: '1px solid #bfdbfe',
-                          fontSize: '9.5px',
-                          fontWeight: '900',
-                          padding: '2px 7px',
-                          borderRadius: '4px',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.04em',
-                          display: 'inline-block'
-                        }}>
-                          Category: {prod.category || prod.type || '-'}
-                        </span>
+                return (
+                  <div
+                    key={prod.id || prod.sku || idx}
+                    style={{
+                      border: isTop3 ? `1.5px solid ${rankBorder}` : '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      background: '#ffffff',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      overflow: 'hidden',
+                      position: 'relative',
+                      transition: 'all 0.15s ease',
+                      boxShadow: isTop3 ? '0 2px 8px rgba(0,0,0,0.06)' : '0 1px 4px rgba(0,0,0,0.03)'
+                    }}
+                  >
+                    {/* Rank Badge */}
+                    <div style={{
+                      position: 'absolute',
+                      top: '6px',
+                      left: '6px',
+                      zIndex: 2,
+                      background: rankBg,
+                      color: rankColor,
+                      border: `1px solid ${rankBorder}`,
+                      fontSize: '9.5px',
+                      fontWeight: '900',
+                      padding: '1px 6px',
+                      borderRadius: '4px',
+                      letterSpacing: '0.02em',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                    }}>
+                      #{rank}
+                    </div>
+
+                    {/* Master Photograph or Neutral Honest Placeholder */}
+                    <ProductImageCard product={prod} />
+
+                    {/* Product Details */}
+                    <div style={{ padding: '10px 12px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                      <div>
+                        {/* Prominent Category Badge on Product */}
+                        <div style={{ marginBottom: '5px' }}>
+                          <span style={{
+                            background: '#eff6ff',
+                            color: '#1d4ed8',
+                            border: '1px solid #bfdbfe',
+                            fontSize: '9.5px',
+                            fontWeight: '900',
+                            padding: '2px 7px',
+                            borderRadius: '4px',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                            display: 'inline-block'
+                          }}>
+                            Category: {prod.category || prod.type || '-'}
+                          </span>
+                        </div>
+
+                        <div style={{
+                          fontSize: '11.5px',
+                          fontWeight: '800',
+                          color: '#0f172a',
+                          lineHeight: 1.3,
+                          marginBottom: '4px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical'
+                        }} title={prod.name}>
+                          {prod.name}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                          <span style={{ background: '#f1f5f9', color: '#475569', fontSize: '9.5px', fontWeight: '800', padding: '1px 5px', borderRadius: '4px' }}>
+                            {prod.size || '-'}
+                          </span>
+                          <span style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '9.5px', fontWeight: '800', padding: '1px 5px', borderRadius: '4px' }}>
+                            {prod.capacity || '-'}
+                          </span>
+                          {prod.sku && (
+                            <span style={{ background: '#f8fafc', color: '#64748b', fontSize: '9px', fontWeight: '700', padding: '1px 4px', borderRadius: '3px', border: '1px solid #e2e8f0' }}>
+                              {prod.sku}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div style={{
-                        fontSize: '11.5px',
+                        borderTop: '1px solid #f1f5f9',
+                        paddingTop: '6px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: '11px',
                         fontWeight: '800',
-                        color: '#0f172a',
-                        lineHeight: 1.3,
-                        marginBottom: '4px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical'
-                      }} title={prod.name}>
-                        {prod.name}
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '6px' }}>
-                        <span style={{ background: '#f1f5f9', color: '#475569', fontSize: '9.5px', fontWeight: '800', padding: '1px 5px', borderRadius: '4px' }}>
-                          {prod.size || '-'}
+                        color: '#0284c7'
+                      }}>
+                        <span style={{ fontWeight: '900', color: '#0284c7' }}>
+                          {fmt(prod.pieces)} pcs
+                          {prod.share > 0 ? (
+                            <span style={{ fontSize: '9.5px', color: '#64748b', fontWeight: '700', marginLeft: '3px' }}>
+                              ({prod.share}%)
+                            </span>
+                          ) : null}
                         </span>
-                        <span style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '9.5px', fontWeight: '800', padding: '1px 5px', borderRadius: '4px' }}>
-                          {prod.capacity || '-'}
+                        <span style={{ color: (prod.effectiveWeight > 0 || prod.weight > 0 || prod.scaleWeight > 0) ? '#0f172a' : '#94a3b8', fontWeight: '700' }}>
+                          {prod.effectiveWeight > 0
+                            ? `${fmt(prod.effectiveWeight, 1)} kg`
+                            : (prod.weight > 0 ? `${fmt(prod.weight, 1)} kg` : (prod.scaleWeight > 0 ? `${fmt(prod.scaleWeight, 1)} kg` : '-'))}
                         </span>
-                        {prod.sku && (
-                          <span style={{ background: '#f8fafc', color: '#64748b', fontSize: '9px', fontWeight: '700', padding: '1px 4px', borderRadius: '3px', border: '1px solid #e2e8f0' }}>
-                            {prod.sku}
-                          </span>
-                        )}
                       </div>
-                    </div>
-
-                    <div style={{
-                      borderTop: '1px solid #f1f5f9',
-                      paddingTop: '6px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontSize: '11px',
-                      fontWeight: '800',
-                      color: '#0284c7'
-                    }}>
-                      <span>{fmt(prod.pieces)} pcs</span>
-                      <span>{prod.weight > 0 ? `${fmt(prod.weight, 1)} kg` : (prod.scaleWeight > 0 ? `${fmt(prod.scaleWeight, 1)} kg` : '')}</span>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
