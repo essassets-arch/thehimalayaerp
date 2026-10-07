@@ -150,6 +150,75 @@ function determineArea(deliveryAddress?: string, shippingAddress?: any, billingA
   return 'Other';
 }
 
+export interface PlannedComponentsCalculation {
+  plannedSets: number;
+  expectedCovers: number | null;
+  expectedFrames: number | null;
+  expectedComponentPieces: number | null;
+  coversPerSet: number | null;
+  framesPerSet: number | null;
+  compositionLabel: string;
+  configured: boolean;
+}
+
+/**
+ * Authoritative Planned Component Calculation Function (Rules 23 & 24).
+ *
+ * Rules:
+ * 1. Product Master (coversPerSet, framesPerSet) is the SOLE authority for planned composition.
+ * 2. Zero heuristics from product name, SKU, or category text (no DHMC -> 2C assumption).
+ * 3. If coversPerSet or framesPerSet is missing/null, expected components are NULL (unknown, never zero).
+ */
+export function calculatePlannedComponents(
+  product: any,
+  plannedSets: number
+): PlannedComponentsCalculation {
+  const sets = Number(plannedSets) || 0;
+  const rawC = product?.coversPerSet;
+  const rawF = product?.framesPerSet;
+
+  const hasConfig =
+    rawC !== null &&
+    rawC !== undefined &&
+    rawF !== null &&
+    rawF !== undefined &&
+    !isNaN(Number(rawC)) &&
+    !isNaN(Number(rawF));
+
+  if (!hasConfig) {
+    return {
+      plannedSets: sets,
+      expectedCovers: null,
+      expectedFrames: null,
+      expectedComponentPieces: null,
+      coversPerSet: null,
+      framesPerSet: null,
+      compositionLabel: 'COMPOSITION NOT CONFIGURED',
+      configured: false,
+    };
+  }
+
+  const coversPerSet = Number(rawC);
+  const framesPerSet = Number(rawF);
+  const expectedCovers = sets * coversPerSet;
+  const expectedFrames = sets * framesPerSet;
+
+  let compositionLabel = `${coversPerSet}C + ${framesPerSet}F`;
+  if (coversPerSet > 0 && framesPerSet === 0) compositionLabel = 'Cover Only';
+  if (coversPerSet === 0 && framesPerSet > 0) compositionLabel = 'Frame Only';
+
+  return {
+    plannedSets: sets,
+    expectedCovers,
+    expectedFrames,
+    expectedComponentPieces: expectedCovers + expectedFrames,
+    coversPerSet,
+    framesPerSet,
+    compositionLabel,
+    configured: true,
+  };
+}
+
 export interface ProductionWeightCalculation {
   quantity: number;
   covers: number;
@@ -165,25 +234,29 @@ export interface ProductionWeightCalculation {
 }
 
 /**
- * Authoritative Centralized Weight & Piece Calculation Function.
- *
- * Rules:
- * 1. Total Weight = (Covers × coverUnitWeight) + (Frames × frameUnitWeight)
- * 2. If cover/frame unit weights are not configured, uses product unit weight if present.
- * 3. Never invent or estimate weights from size/capacity heuristics (e.g., C250=55, B125=42).
- *    If weights are missing, flags hasConfiguredWeight = false and weight = 0.
+ * Authoritative Centralized Weight Calculation Function.
+ * Strictly responsible for weight accounting. Never estimates weights from size/capacity heuristics.
  */
-export function calculateProductionWeight(product: any, quantity: number): ProductionWeightCalculation {
+export function calculateProductionWeight(
+  product: any,
+  quantity: number,
+  coversCount?: number | null,
+  framesCount?: number | null,
+): ProductionWeightCalculation {
   const qty = Number(quantity) || 0;
-  const coversPerSet = Number(product?.coversPerSet || 1);
-  const framesPerSet = Number(product?.framesPerSet || 1);
-  const covers = qty * coversPerSet;
-  const frames = qty * framesPerSet;
-  const pieces = covers + frames;
-
   const coverUnitWeight = Number(product?.coverUnitWeight || 0);
   const frameUnitWeight = Number(product?.frameUnitWeight || 0);
   const unitWeight = Number(product?.weight || 0);
+
+  const covers =
+    coversCount !== undefined && coversCount !== null
+      ? Number(coversCount)
+      : qty * Number(product?.coversPerSet || 1);
+  const frames =
+    framesCount !== undefined && framesCount !== null
+      ? Number(framesCount)
+      : qty * Number(product?.framesPerSet || 1);
+  const pieces = covers + frames;
 
   let totalWeight = 0;
   let hasConfiguredWeight = false;
@@ -201,8 +274,14 @@ export function calculateProductionWeight(product: any, quantity: number): Produ
     covers,
     frames,
     pieces,
-    coversPerSet,
-    framesPerSet,
+    coversPerSet:
+      product?.coversPerSet !== null && product?.coversPerSet !== undefined
+        ? Number(product.coversPerSet)
+        : 1,
+    framesPerSet:
+      product?.framesPerSet !== null && product?.framesPerSet !== undefined
+        ? Number(product.framesPerSet)
+        : 1,
     coverUnitWeight,
     frameUnitWeight,
     unitWeight,
@@ -1927,17 +2006,174 @@ export class PlantHeadService {
       take: 5000,
     }).catch(() => []);
 
+    // 2b. Query Submitted/Approved Floor Daily Reports with Multi-Tenant Isolation (Rules 25 & 26)
+    const dailyReportWhere: any = {
+      status: { notIn: ['CANCELLED', 'REJECTED'] },
+    };
+    if (!isAllTime) {
+      dailyReportWhere.OR = [
+        { reportDate: { gte: startDate, lte: endDate } },
+        { createdAt: { gte: startDate, lte: endDate } },
+      ];
+    }
+    if (tenantFilter) {
+      dailyReportWhere.companyId = tenantFilter;
+    }
+
+    const dailyReports = await this.prisma.productionDailyReport.findMany({
+      where: dailyReportWhere,
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
+      orderBy: { reportDate: 'asc' },
+    }).catch(() => []);
+
+    // 2c. Group Floor Daily Reports by workOrderId for Cumulative Aggregation (Rule 26)
+    interface AggregatedDailyReportItem {
+      workOrderId?: string | null;
+      productId?: string | null;
+      product?: any;
+      customProductName?: string | null;
+      size?: string | null;
+      type?: string | null;
+      capacity?: string | null;
+      coverQty: number;
+      frameQty: number;
+      setQty: number;
+      extraCoverQty: number;
+      extraFrameQty: number;
+      coverUnitWeight: number;
+      frameUnitWeight: number;
+      calcWeight: number;
+      actualScaleWeight: number;
+      hasScaleWeight: boolean;
+      reportCount: number;
+      reportNos: string[];
+      reportDate?: Date | null;
+    }
+
+    const dailyItemsByWorkOrder = new Map<string, AggregatedDailyReportItem>();
+    const standaloneDailyItems: AggregatedDailyReportItem[] = [];
+
+    for (const report of dailyReports) {
+      for (const item of (report.items || [])) {
+        const coverQty = Number(item.coverQty || 0);
+        const frameQty = Number(item.frameQty || 0);
+        // Rule 27 / Locked implementation detail:
+        // For reconciliation, setQty should be treated as the authoritative completed-set quantity
+        // reported by the floor. Do not recalculate it from coverQty/frameQty during monthly aggregation.
+        const setQty = Number(item.setQty || 0);
+        const extraCoverQty = Number(item.extraCoverQty || 0);
+        const extraFrameQty = Number(item.extraFrameQty || 0);
+
+        const cUnitW = Number(item.coverUnitWeight || item.product?.coverUnitWeight || 0);
+        const fUnitW = Number(item.frameUnitWeight || item.product?.frameUnitWeight || 0);
+        const uW = Number(item.product?.weight || 0);
+
+        let itemCalcWeight = 0;
+        if (cUnitW > 0 || fUnitW > 0) {
+          itemCalcWeight = (coverQty * cUnitW) + (frameQty * fUnitW);
+        } else if (uW > 0) {
+          itemCalcWeight = (setQty > 0 ? setQty : (coverQty + frameQty)) * uW;
+        }
+
+        const actualCoverW = item.actualCoverWeight ? Number(item.actualCoverWeight) : null;
+        const actualFrameW = item.actualFrameWeight ? Number(item.actualFrameWeight) : null;
+        const hasScale = actualCoverW !== null || actualFrameW !== null;
+        const itemScaleWeight = (actualCoverW || 0) + (actualFrameW || 0);
+
+        if (item.workOrderId) {
+          const woId = item.workOrderId;
+          if (!dailyItemsByWorkOrder.has(woId)) {
+            dailyItemsByWorkOrder.set(woId, {
+              workOrderId: woId,
+              productId: item.productId,
+              product: item.product,
+              customProductName: item.customProductName,
+              size: item.size,
+              type: item.type,
+              capacity: item.capacity,
+              coverQty: 0,
+              frameQty: 0,
+              setQty: 0,
+              extraCoverQty: 0,
+              extraFrameQty: 0,
+              coverUnitWeight: cUnitW,
+              frameUnitWeight: fUnitW,
+              calcWeight: 0,
+              actualScaleWeight: 0,
+              hasScaleWeight: false,
+              reportCount: 0,
+              reportNos: [],
+              reportDate: report.reportDate,
+            });
+          }
+          const agg = dailyItemsByWorkOrder.get(woId)!;
+          agg.coverQty += coverQty;
+          agg.frameQty += frameQty;
+          agg.setQty += setQty;
+          agg.extraCoverQty += extraCoverQty;
+          agg.extraFrameQty += extraFrameQty;
+          agg.calcWeight += itemCalcWeight;
+          if (hasScale) {
+            agg.actualScaleWeight += itemScaleWeight;
+            agg.hasScaleWeight = true;
+          }
+          agg.reportCount++;
+          if (report.reportNo && !agg.reportNos.includes(report.reportNo)) {
+            agg.reportNos.push(report.reportNo);
+          }
+        } else {
+          standaloneDailyItems.push({
+            workOrderId: null,
+            productId: item.productId,
+            product: item.product,
+            customProductName: item.customProductName,
+            size: item.size,
+            type: item.type,
+            capacity: item.capacity,
+            coverQty,
+            frameQty,
+            setQty,
+            extraCoverQty,
+            extraFrameQty,
+            coverUnitWeight: cUnitW,
+            frameUnitWeight: fUnitW,
+            calcWeight: itemCalcWeight,
+            actualScaleWeight: itemScaleWeight,
+            hasScaleWeight: hasScale,
+            reportCount: 1,
+            reportNos: report.reportNo ? [report.reportNo] : [],
+            reportDate: report.reportDate,
+          });
+        }
+      }
+    }
+
     // 3. Process Work Orders & Aggregate Authoritative Telemetry
     let totalWeight = 0;
+    let totalScaleWeight = 0;
+    let hasAnyScaleWeight = false;
     let totalCovers = 0;
     let totalFrames = 0;
     let totalPieces = 0;
+    let totalLooseCovers = 0;
+    let totalLooseFrames = 0;
+    let totalFinishedSets = 0;
+    let totalPlannedSets = 0;
+    let totalRemainingSets = 0;
     let completedCount = 0;
     let activeCount = 0;
+    let floorReconciledCount = 0;
 
     let unmappedCapacitiesCount = 0;
     let unmappedSizesCount = 0;
     let unmappedWeightsCount = 0;
+    let unmappedCompositionCount = 0;
 
     const productTypeMap = new Map<string, {
       name: string;
@@ -2091,16 +2327,68 @@ export class PlantHeadService {
 
       const quantity = Number(wo.quantity || 0);
 
-      // 3d. Authoritative Centralized Weight & Piece Calculation (Zero heuristics)
-      const calc = calculateProductionWeight(product, quantity);
-      const covers = calc.covers;
-      const frames = calc.frames;
-      const pieces = calc.pieces;
-      const weight = calc.weight;
-      const coverUnitWeight = calc.coverUnitWeight;
-      const frameUnitWeight = calc.frameUnitWeight;
+      // 3d. Planned Composition via Product Master (Rules 23 & 24)
+      const plannedComp = calculatePlannedComponents(product, quantity);
 
-      if (!calc.hasConfiguredWeight) {
+      // 3e. Cumulative Floor Actual Reconciliation (Rules 25 & 26)
+      const hasDaily = dailyItemsByWorkOrder.has(wo.id);
+      const dailyAgg = hasDaily ? dailyItemsByWorkOrder.get(wo.id)! : null;
+
+      let source: 'RECONCILED' | 'DAILY_REPORT_PARTIAL' | 'WORK_ORDER' = 'WORK_ORDER';
+      let actualSets = 0;
+      let remainingScheduledSets = quantity;
+      let covers = 0;
+      let frames = 0;
+      let looseCovers = 0;
+      let looseFrames = 0;
+      let pieces = 0;
+      let weight = 0;
+      let actualScaleWeight: number | null = null;
+      let weightVariance: number | null = null;
+      let coverUnitWeight = Number(product?.coverUnitWeight || 0);
+      let frameUnitWeight = Number(product?.frameUnitWeight || 0);
+      let hasConfiguredWeight = false;
+
+      if (hasDaily && dailyAgg) {
+        // Authoritative physical quantities recorded by the floor
+        actualSets = dailyAgg.setQty;
+        covers = dailyAgg.coverQty;
+        frames = dailyAgg.frameQty;
+        looseCovers = dailyAgg.extraCoverQty;
+        looseFrames = dailyAgg.extraFrameQty;
+        pieces = covers + frames;
+
+        weight = Math.round(dailyAgg.calcWeight * 100) / 100;
+        if (dailyAgg.hasScaleWeight) {
+          actualScaleWeight = Math.round(dailyAgg.actualScaleWeight * 100) / 100;
+          weightVariance = Math.round((actualScaleWeight - weight) * 100) / 100;
+        }
+
+        remainingScheduledSets = Math.max(0, quantity - actualSets);
+        if (actualSets >= quantity && plannedComp.configured) {
+          source = 'RECONCILED';
+        } else {
+          source = 'DAILY_REPORT_PARTIAL';
+        }
+        hasConfiguredWeight = Boolean(product?.coverUnitWeight || product?.frameUnitWeight || product?.weight);
+        floorReconciledCount++;
+      } else {
+        // Scheduled Baseline (WorkOrder authority when no shift report logged)
+        source = 'WORK_ORDER';
+        actualSets = isCompleted ? quantity : 0;
+        remainingScheduledSets = isCompleted ? 0 : quantity;
+
+        const calc = calculateProductionWeight(product, quantity);
+        covers = calc.covers;
+        frames = calc.frames;
+        pieces = calc.pieces;
+        weight = calc.weight;
+        coverUnitWeight = calc.coverUnitWeight;
+        frameUnitWeight = calc.frameUnitWeight;
+        hasConfiguredWeight = calc.hasConfiguredWeight;
+      }
+
+      if (!hasConfiguredWeight) {
         unmappedWeightsCount++;
       }
       if (!product?.capacity || cap === 'NOT CONFIGURED') {
@@ -2109,11 +2397,23 @@ export class PlantHeadService {
       if (!product?.size || formattedSize === 'UNASSIGNED') {
         unmappedSizesCount++;
       }
+      if (!plannedComp.configured) {
+        unmappedCompositionCount++;
+      }
 
       totalWeight += weight;
       totalCovers += covers;
       totalFrames += frames;
       totalPieces += pieces;
+      totalLooseCovers += looseCovers;
+      totalLooseFrames += looseFrames;
+      totalFinishedSets += actualSets;
+      totalPlannedSets += quantity;
+      totalRemainingSets += remainingScheduledSets;
+      if (actualScaleWeight !== null) {
+        totalScaleWeight += actualScaleWeight;
+        hasAnyScaleWeight = true;
+      }
 
       if (isCompleted) completedCount++;
       else activeCount++;
@@ -2255,7 +2555,7 @@ export class PlantHeadService {
         }
       }
 
-      // Work Orders List for Master Table & Modal
+      // Work Orders List with Full Authoritative Row Data (Rules 23-28)
       workOrdersList.push({
         id: wo.id,
         workOrderNumber: wo.workOrderNumber,
@@ -2264,15 +2564,31 @@ export class PlantHeadService {
         customer: sourceOrder?.customer?.companyName || 'Production Stock',
         salesExecutive: executive,
         product: productName,
-        category: product?.category || 'FRP Covers',
+        category: prodCategory,
         type: productType,
         capacity: cap,
         size: formattedSize,
+        composition: plannedComp.compositionLabel,
+        compositionConfigured: plannedComp.configured,
+        coversPerSet: plannedComp.coversPerSet,
+        framesPerSet: plannedComp.framesPerSet,
+        plannedSets: quantity,
+        actualFinishedSets: actualSets,
+        remainingScheduledSets,
         quantity,
         weight: Math.round(weight * 100) / 100,
+        calculatedWeight: Math.round(weight * 100) / 100,
+        actualScaleWeight,
+        weightVariance,
         covers,
         frames,
+        looseCovers,
+        looseFrames,
         pieces,
+        totalComponents: pieces,
+        source, // 'RECONCILED' | 'DAILY_REPORT_PARTIAL' | 'WORK_ORDER'
+        dailyReportCount: dailyAgg ? dailyAgg.reportCount : 0,
+        dailyReportNos: dailyAgg ? dailyAgg.reportNos : [],
         status,
         productionStatus: wo.productionStatus || status,
         isCompleted,
@@ -2285,10 +2601,169 @@ export class PlantHeadService {
       });
     }
 
+    // 3f. Aggregate Standalone Floor Daily Report Items (Rule 28)
+    for (const sItem of standaloneDailyItems) {
+      const pName = sItem.product?.name || sItem.customProductName || 'Composite Component';
+      const pType = sItem.type || sItem.product?.type || 'MHC';
+      const pSize = sItem.size || sItem.product?.size || 'UNASSIGNED';
+      const formattedPSize = pSize.replace(/X/g, ' × ');
+      const pCap = sItem.capacity || sItem.product?.capacity || 'NOT CONFIGURED';
+      const pCat = (sItem.product?.category || pType || 'FRP Covers').trim();
+
+      // Check category filter
+      if (category && category !== 'All') {
+        const targetCat = category.toUpperCase();
+        if (pCat.toUpperCase() !== targetCat && pType.toUpperCase() !== targetCat && !pCat.toUpperCase().includes(targetCat)) {
+          continue;
+        }
+      }
+      if (productId && productId !== 'All') {
+        if (sItem.productId !== productId && pType !== productId && !pName.toLowerCase().includes(productId.toLowerCase())) {
+          continue;
+        }
+      }
+      if (size && size !== 'All') {
+        if (formattedPSize !== size && pSize !== size) continue;
+      }
+      if (capacity && capacity !== 'All') {
+        if (pCap !== capacity) continue;
+      }
+
+      const pComp = calculatePlannedComponents(sItem.product, sItem.setQty);
+      const sScaleW = sItem.hasScaleWeight ? Math.round(sItem.actualScaleWeight * 100) / 100 : null;
+      const sCalcW = Math.round(sItem.calcWeight * 100) / 100;
+      const sVariance = sScaleW !== null ? Math.round((sScaleW - sCalcW) * 100) / 100 : null;
+      const sComponents = sItem.coverQty + sItem.frameQty;
+
+      totalWeight += sCalcW;
+      if (sScaleW !== null) {
+        totalScaleWeight += sScaleW;
+        hasAnyScaleWeight = true;
+      }
+      totalCovers += sItem.coverQty;
+      totalFrames += sItem.frameQty;
+      totalPieces += sComponents;
+      totalLooseCovers += sItem.extraCoverQty;
+      totalLooseFrames += sItem.extraFrameQty;
+      totalFinishedSets += sItem.setQty;
+      completedCount++;
+
+      // Update product type map
+      if (!productTypeMap.has(pType)) {
+        productTypeMap.set(pType, { name: pType, weight: 0, covers: 0, frames: 0, pieces: 0, workOrders: 0 });
+      }
+      const ptRow = productTypeMap.get(pType)!;
+      ptRow.weight += sCalcW;
+      ptRow.covers += sItem.coverQty;
+      ptRow.frames += sItem.frameQty;
+      ptRow.pieces += sComponents;
+      ptRow.workOrders++;
+
+      // Detailed product map
+      const productRow = productDetailMap.get(pName) || {
+        id: sItem.productId || pName,
+        name: pName,
+        category: pCat,
+        type: pType,
+        capacity: pCap,
+        size: formattedPSize,
+        coverUnitWeight: sItem.coverUnitWeight,
+        frameUnitWeight: sItem.frameUnitWeight,
+        imageUrl: sItem.product?.imageUrl || null,
+        sku: sItem.product?.sku || null,
+        weight: 0,
+        covers: 0,
+        frames: 0,
+        pieces: 0,
+        workOrders: 0,
+      };
+      productRow.weight += sCalcW;
+      productRow.covers += sItem.coverQty;
+      productRow.frames += sItem.frameQty;
+      productRow.pieces += sComponents;
+      productRow.workOrders++;
+      productDetailMap.set(pName, productRow);
+
+      // Cover Frame map
+      if (!coverFrameMap.has(pName)) {
+        coverFrameMap.set(pName, {
+          product: pName,
+          type: pType,
+          size: formattedPSize,
+          capacity: pCap,
+          covers: 0,
+          frames: 0,
+          pieces: 0,
+          weight: 0,
+          workOrders: 0,
+        });
+      }
+      const cfRow = coverFrameMap.get(pName)!;
+      cfRow.covers += sItem.coverQty;
+      cfRow.frames += sItem.frameQty;
+      cfRow.pieces += sComponents;
+      cfRow.weight += sCalcW;
+      cfRow.workOrders++;
+
+      // Timeline map
+      const sDate = sItem.reportDate ? new Date(sItem.reportDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+      if (!dailyMap.has(sDate)) dailyMap.set(sDate, { weight: 0, covers: 0, frames: 0, pieces: 0, count: 0 });
+      const dRow = dailyMap.get(sDate)!;
+      dRow.weight += sCalcW;
+      dRow.covers += sItem.coverQty;
+      dRow.frames += sItem.frameQty;
+      dRow.pieces += sComponents;
+      dRow.count++;
+
+      workOrdersList.push({
+        id: `standalone-${sItem.reportNos.join('-')}-${sItem.productId || pName}`,
+        workOrderNumber: `FLOOR-${sItem.reportNos[0] || 'REPORT'}`,
+        planNumber: 'FLOOR-DIRECT',
+        orderNumber: 'FLOOR-STOCK',
+        customer: 'Plant Floor Production',
+        salesExecutive: 'Floor Supervisor',
+        product: pName,
+        category: pCat,
+        type: pType,
+        capacity: pCap,
+        size: formattedPSize,
+        composition: pComp.compositionLabel,
+        compositionConfigured: pComp.configured,
+        coversPerSet: pComp.coversPerSet,
+        framesPerSet: pComp.framesPerSet,
+        plannedSets: 0,
+        actualFinishedSets: sItem.setQty,
+        remainingScheduledSets: 0,
+        quantity: sItem.setQty,
+        weight: sCalcW,
+        calculatedWeight: sCalcW,
+        actualScaleWeight: sScaleW,
+        weightVariance: sVariance,
+        covers: sItem.coverQty,
+        frames: sItem.frameQty,
+        looseCovers: sItem.extraCoverQty,
+        looseFrames: sItem.extraFrameQty,
+        pieces: sComponents,
+        totalComponents: sComponents,
+        source: 'DAILY_REPORT_STANDALONE',
+        dailyReportCount: sItem.reportCount,
+        dailyReportNos: sItem.reportNos,
+        status: 'COMPLETED',
+        productionStatus: 'COMPLETED',
+        isCompleted: true,
+        stage: 'COMPLETED',
+        qcResult: 'PASS',
+        qcRemarks: null,
+        createdAt: sItem.reportDate || new Date(),
+        completedAt: sItem.reportDate || new Date(),
+        machine: 'UNASSIGNED',
+      });
+    }
+
     // 4. Quality & QC Inspection Stats
     const totalQcInspections = qcInspections.length || completedCount;
-    const passedQcCount = qcInspections.filter(q => q.status === 'APPROVED' || q.status === 'PASSED').length || completedCount;
-    const rejectedQcCount = qcInspections.filter(q => q.status === 'FAILED' || (q.status as any) === 'REJECTED').length;
+    const passedQcCount = (qcInspections as any[]).filter((q: any) => q?.status === 'APPROVED' || q?.status === 'PASSED').length || completedCount;
+    const rejectedQcCount = (qcInspections as any[]).filter((q: any) => q?.status === 'FAILED' || q?.status === 'REJECTED').length;
     const fpyRate = totalQcInspections > 0 ? Math.round((passedQcCount / totalQcInspections) * 1000) / 10 : 98.5;
 
     // 5. Customer & Retention Calculations
@@ -2359,6 +2834,11 @@ export class PlantHeadService {
     const roundedSumSizeWeight = Math.round(sumSizeWeight * 100) / 100;
     const roundedSumCapWeight = Math.round(sumCapWeight * 100) / 100;
 
+    const roundedScaleWeight = hasAnyScaleWeight ? Math.round(totalScaleWeight * 100) / 100 : null;
+    const roundedWeightVariance = roundedScaleWeight !== null
+      ? Math.round((roundedScaleWeight - roundedTotalWeight) * 100) / 100
+      : null;
+
     const weightDiff = Math.abs(roundedTotalWeight - roundedSumTypeWeight);
     const isWeightReconciled =
       Math.abs(roundedTotalWeight - roundedSumTypeWeight) < 0.1 &&
@@ -2368,7 +2848,7 @@ export class PlantHeadService {
     const isMathReconciled = isWeightReconciled && isPiecesReconciled;
 
     // Strict Master Data Configuration Integrity Check
-    const isFullyConfigured = unmappedCapacitiesCount === 0 && unmappedSizesCount === 0 && unmappedWeightsCount === 0;
+    const isFullyConfigured = unmappedCapacitiesCount === 0 && unmappedSizesCount === 0 && unmappedWeightsCount === 0 && unmappedCompositionCount === 0;
     const isProductionCertified = isMathReconciled && isFullyConfigured;
 
     const reconciliation = {
@@ -2380,12 +2860,14 @@ export class PlantHeadService {
       badgeText: isProductionCertified
         ? '100% RECONCILED LIVE DATABASE'
         : isMathReconciled
-          ? `DATA RECONCILIATION REQUIRED (${unmappedCapacitiesCount + unmappedSizesCount + unmappedWeightsCount} unconfigured)`
+          ? `DATA RECONCILIATION REQUIRED (${unmappedCapacitiesCount + unmappedSizesCount + unmappedWeightsCount + unmappedCompositionCount} unconfigured)`
           : 'RECONCILIATION VARIANCE',
       isReconciled: isMathReconciled,
       isFullyConfigured,
       isProductionCertified,
       totalProductionWeight: roundedTotalWeight,
+      totalScaleWeight: roundedScaleWeight,
+      weightVariance: roundedWeightVariance,
       productTypeWeightSum: roundedSumTypeWeight,
       sizeWeightSum: roundedSumSizeWeight,
       capacityWeightSum: roundedSumCapWeight,
@@ -2395,17 +2877,26 @@ export class PlantHeadService {
       totalFrames,
       productFramesSum: sumProductFrames,
       totalPieces,
+      totalComponentPieces: totalPieces,
       productPiecesSum: sumProductPieces,
+      totalFinishedSets,
+      totalPlannedSets,
+      totalRemainingSets,
+      totalLooseCovers,
+      totalLooseFrames,
+      totalLoosePieces: totalLooseCovers + totalLooseFrames,
+      floorReconciledCount,
       coversPlusFrames: totalCovers + totalFrames,
       weightDiff,
       unmappedCapacitiesCount,
       unmappedSizesCount,
       unmappedWeightsCount,
+      unmappedCompositionCount,
       warning: isProductionCertified
         ? null
         : !isMathReconciled
           ? `Reconciliation variance detected: Weight diff ${weightDiff.toFixed(2)} KG between dimension sums and production total.`
-          : `Data reconciliation required: ${unmappedCapacitiesCount} unmapped capacities, ${unmappedSizesCount} unmapped sizes, ${unmappedWeightsCount} unmapped weights require master product specification.`,
+          : `Data reconciliation required: ${unmappedCapacitiesCount} unmapped capacities, ${unmappedSizesCount} unmapped sizes, ${unmappedWeightsCount} unmapped weights, ${unmappedCompositionCount} unconfigured compositions require master product specification.`,
     };
 
     const rankedCustomers = [...customerMap.values()]
@@ -2472,7 +2963,7 @@ export class PlantHeadService {
     };
 
     return {
-      hasData: workOrders.length > 0,
+      hasData: workOrders.length > 0 || standaloneDailyItems.length > 0,
       period: {
         startDate,
         endDate,
@@ -2485,9 +2976,20 @@ export class PlantHeadService {
       kpis: {
         totalWeight: roundedTotalWeight,
         totalWeightTonnes: Math.round((totalWeight / 1000) * 100) / 100,
+        totalScaleWeight: roundedScaleWeight,
+        weightVariance: roundedWeightVariance,
+        hasScaleWeight: hasAnyScaleWeight,
         totalCovers,
         totalFrames,
         totalPieces,
+        totalComponentPieces: totalPieces,
+        totalFinishedSets,
+        totalPlannedSets,
+        totalRemainingSets,
+        totalLooseCovers,
+        totalLooseFrames,
+        totalLoosePieces: totalLooseCovers + totalLooseFrames,
+        floorReconciledCount,
         averageWeightPerPiece: totalPieces > 0 ? Math.round((totalWeight / totalPieces) * 100) / 100 : 0,
         totalWorkOrders: workOrders.length,
         completedWorkOrders: completedCount,
@@ -2550,7 +3052,7 @@ export class PlantHeadService {
       pipelineStatuses,
       machineFleet,
       liveFloorTelemetry,
-      workOrdersList: workOrdersList.slice(0, 150),
+      workOrdersList: workOrdersList.slice(0, 500),
       filterOptions: {
         months: [
           { value: '2026-09', label: 'September 2026 (Live 754 WOs)' },

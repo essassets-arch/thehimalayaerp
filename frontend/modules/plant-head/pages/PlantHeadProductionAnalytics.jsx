@@ -223,9 +223,20 @@ export const PlantHeadProductionAnalytics = () => {
     return {
       totalWeight: Number(raw.totalWeight || 0),
       totalWeightTonnes: Number(raw.totalWeightTonnes || (raw.totalWeight ? raw.totalWeight / 1000 : 0)),
+      totalScaleWeight: raw.totalScaleWeight !== null && raw.totalScaleWeight !== undefined ? Number(raw.totalScaleWeight) : null,
+      weightVariance: raw.weightVariance !== null && raw.weightVariance !== undefined ? Number(raw.weightVariance) : null,
+      hasScaleWeight: Boolean(raw.hasScaleWeight),
       totalCovers: Number(raw.totalCovers || 0),
       totalFrames: Number(raw.totalFrames || 0),
       totalPieces: Number(raw.totalPieces || 0),
+      totalComponentPieces: Number(raw.totalComponentPieces || raw.totalPieces || 0),
+      totalFinishedSets: Number(raw.totalFinishedSets || 0),
+      totalPlannedSets: Number(raw.totalPlannedSets || 0),
+      totalRemainingSets: Number(raw.totalRemainingSets || 0),
+      totalLooseCovers: Number(raw.totalLooseCovers || 0),
+      totalLooseFrames: Number(raw.totalLooseFrames || 0),
+      totalLoosePieces: Number(raw.totalLoosePieces || 0),
+      floorReconciledCount: Number(raw.floorReconciledCount || 0),
       averageWeightPerPiece: Number(raw.averageWeightPerPiece || 0),
       totalWorkOrders: Number(raw.totalWorkOrders || 0),
       completedWorkOrders: Number(raw.completedWorkOrders || 0),
@@ -1252,6 +1263,11 @@ export const PlantHeadProductionAnalytics = () => {
                         : (kpis.totalWeight / kpis.totalPieces).toFixed(1))
                     : 0} kg/pc
                 </span>
+                {kpis.hasScaleWeight && (
+                  <span style={{ background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontWeight: '800' }}>
+                    Scale: {fmt(kpis.totalScaleWeight, 1)} KG (Var: {kpis.weightVariance > 0 ? `+${fmt(kpis.weightVariance, 1)}` : fmt(kpis.weightVariance, 1)} KG)
+                  </span>
+                )}
               </div>
             </div>
 
@@ -1273,8 +1289,13 @@ export const PlantHeadProductionAnalytics = () => {
               <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '4px 0 2px 0', letterSpacing: '-0.02em' }}>
                 {fmt(kpis.totalCovers)} <span style={{ fontSize: '13px', fontWeight: '800', color: '#0d9488' }}>Nos.</span>
               </div>
-              <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>
-                {kpis.totalPieces > 0 ? ((kpis.totalCovers / kpis.totalPieces) * 100).toFixed(1) : 0}% of finished pieces
+              <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                {kpis.totalLooseCovers > 0 && (
+                  <span style={{ background: '#ccfbf1', color: '#0f766e', padding: '1px 5px', borderRadius: '4px', fontWeight: '800' }}>
+                    {fmt(kpis.totalLooseCovers)} loose
+                  </span>
+                )}
+                <span>{kpis.totalPieces > 0 ? ((kpis.totalCovers / kpis.totalPieces) * 100).toFixed(1) : 0}% of pieces</span>
               </div>
             </div>
 
@@ -1296,12 +1317,17 @@ export const PlantHeadProductionAnalytics = () => {
               <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '4px 0 2px 0', letterSpacing: '-0.02em' }}>
                 {fmt(kpis.totalFrames)} <span style={{ fontSize: '13px', fontWeight: '800', color: '#8b5cf6' }}>Nos.</span>
               </div>
-              <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>
-                {kpis.totalPieces > 0 ? ((kpis.totalFrames / kpis.totalPieces) * 100).toFixed(1) : 0}% of finished pieces
+              <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                {kpis.totalLooseFrames > 0 && (
+                  <span style={{ background: '#ede9fe', color: '#6d28d9', padding: '1px 5px', borderRadius: '4px', fontWeight: '800' }}>
+                    {fmt(kpis.totalLooseFrames)} loose
+                  </span>
+                )}
+                <span>{kpis.totalPieces > 0 ? ((kpis.totalFrames / kpis.totalPieces) * 100).toFixed(1) : 0}% of pieces</span>
               </div>
             </div>
 
-            {/* Card 4: TOTAL PIECES */}
+            {/* Card 4: TOTAL COMPONENT OUTPUT */}
             <div style={{
               background: '#ffffff',
               borderRadius: '12px',
@@ -1312,19 +1338,25 @@ export const PlantHeadProductionAnalytics = () => {
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '10.5px', fontWeight: '900', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  TOTAL PIECES
+                  TOTAL COMPONENT OUTPUT
                 </span>
                 <CheckCircle size={16} color="#10b981" />
               </div>
               <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '4px 0 2px 0', letterSpacing: '-0.02em' }}>
-                {fmt(kpis.totalPieces)} <span style={{ fontSize: '13px', fontWeight: '800', color: '#10b981' }}>Nos.</span>
+                {fmt(kpis.totalComponentPieces || kpis.totalPieces)} <span style={{ fontSize: '13px', fontWeight: '800', color: '#10b981' }}>Components</span>
               </div>
-              <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>
-                Covers ({fmt(kpis.totalCovers)}) + Frames ({fmt(kpis.totalFrames)})
+              <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                <span style={{ background: '#ecfdf5', color: '#047857', padding: '1px 6px', borderRadius: '4px', fontWeight: '800' }}>
+                  {fmt(kpis.totalFinishedSets)} Finished Sets
+                </span>
+                <span>&bull;</span>
+                <span style={{ background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontWeight: '800' }}>
+                  {fmt(kpis.totalLoosePieces || (kpis.totalLooseCovers + kpis.totalLooseFrames))} Loose Parts
+                </span>
               </div>
             </div>
 
-            {/* Card 5: WORK ORDERS & RUNS */}
+            {/* Card 5: WORK ORDERS STATUS */}
             <div
               onClick={() => setViewMode(viewMode === 'one-page' ? 'audit-master' : 'one-page')}
               title="Click to view detailed Work Orders Schedule"
@@ -1358,6 +1390,14 @@ export const PlantHeadProductionAnalytics = () => {
                 <span style={{ color: '#b45309', fontWeight: '800', background: '#fef3c7', padding: '1px 5px', borderRadius: '4px' }}>
                   {fmt(kpis.pendingWorkOrders)} Pending
                 </span>
+                {kpis.floorReconciledCount > 0 && (
+                  <>
+                    <span>&bull;</span>
+                    <span style={{ color: '#0369a1', fontWeight: '800', background: '#e0f2fe', padding: '1px 5px', borderRadius: '4px' }}>
+                      {fmt(kpis.floorReconciledCount)} Floor Reconciled
+                    </span>
+                  </>
+                )}
                 <span>&bull;</span>
                 <span style={{ fontWeight: '800', color: '#0f172a' }}>
                   {kpis.completionRate}%
@@ -2183,18 +2223,21 @@ export const PlantHeadProductionAnalytics = () => {
             </div>
 
             <div style={{ overflowX: 'auto', maxHeight: '550px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' }}>
                 <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
                   <tr style={{ borderBottom: '2px solid #cbd5e1', textAlign: 'left', color: '#475569', fontWeight: '800' }}>
                     <th style={{ padding: '8px 10px' }}>Work Order</th>
+                    <th style={{ padding: '8px 10px' }}>Source</th>
                     <th style={{ padding: '8px 10px' }}>Customer</th>
-                    <th style={{ padding: '8px 10px' }}>Category</th>
                     <th style={{ padding: '8px 10px' }}>Product</th>
-                    <th style={{ padding: '8px 10px' }}>Size</th>
-                    <th style={{ padding: '8px 10px' }}>Capacity</th>
+                    <th style={{ padding: '8px 10px' }}>Composition</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Planned</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Finished Sets</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Remaining</th>
                     <th style={{ padding: '8px 10px', textAlign: 'right' }}>Covers</th>
                     <th style={{ padding: '8px 10px', textAlign: 'right' }}>Frames</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Pieces</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Loose</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Components</th>
                     <th style={{ padding: '8px 10px', textAlign: 'right' }}>Weight (kg)</th>
                     <th style={{ padding: '8px 10px' }}>Status</th>
                     <th style={{ padding: '8px 10px' }}>QC</th>
@@ -2216,31 +2259,48 @@ export const PlantHeadProductionAnalytics = () => {
                       <td style={{ padding: '8px 10px', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>
                         {wo.workOrderNumber}
                       </td>
-                      <td style={{ padding: '8px 10px', fontWeight: '600', color: '#0f172a', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={wo.customer}>
+                      <td style={{ padding: '8px 10px' }}>
+                        <span style={{
+                          background: wo.source === 'RECONCILED' ? '#dcfce7' : wo.source === 'DAILY_REPORT_PARTIAL' ? '#e0f2fe' : wo.source === 'DAILY_REPORT_STANDALONE' ? '#f3e8ff' : '#f1f5f9',
+                          color: wo.source === 'RECONCILED' ? '#15803d' : wo.source === 'DAILY_REPORT_PARTIAL' ? '#0369a1' : wo.source === 'DAILY_REPORT_STANDALONE' ? '#7e22ce' : '#475569',
+                          border: wo.source === 'RECONCILED' ? '1px solid #bbf7d0' : wo.source === 'DAILY_REPORT_PARTIAL' ? '1px solid #bae6fd' : wo.source === 'DAILY_REPORT_STANDALONE' ? '1px solid #e9d5ff' : '1px solid #cbd5e1',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          fontSize: '9.5px',
+                          fontWeight: '800',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {wo.source === 'RECONCILED' ? '✓ RECONCILED' : wo.source === 'DAILY_REPORT_PARTIAL' ? 'FLOOR PARTIAL' : wo.source === 'DAILY_REPORT_STANDALONE' ? 'FLOOR DIRECT' : 'WORK ORDER'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '8px 10px', fontWeight: '600', color: '#0f172a', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={wo.customer}>
                         {wo.customer}
+                      </td>
+                      <td style={{ padding: '8px 10px', fontWeight: '600', color: '#0f172a', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={wo.product}>
+                        {wo.product}
                       </td>
                       <td style={{ padding: '8px 10px' }}>
                         <span style={{
-                          background: '#eff6ff',
-                          color: '#1d4ed8',
-                          border: '1px solid #bfdbfe',
-                          padding: '1px 6px',
+                          background: wo.compositionConfigured !== false && wo.composition && !wo.composition.includes('NOT CONFIGURED') ? '#eff6ff' : '#fee2e2',
+                          color: wo.compositionConfigured !== false && wo.composition && !wo.composition.includes('NOT CONFIGURED') ? '#1d4ed8' : '#b91c1c',
+                          border: wo.compositionConfigured !== false && wo.composition && !wo.composition.includes('NOT CONFIGURED') ? '1px solid #bfdbfe' : '1px solid #fecaca',
+                          padding: '1px 5px',
                           borderRadius: '4px',
-                          fontSize: '10px',
+                          fontSize: '9.5px',
                           fontWeight: '800',
-                          textTransform: 'uppercase'
+                          whiteSpace: 'nowrap'
                         }}>
-                          {wo.category || wo.type || 'FRP'}
+                          {wo.composition || 'COMPOSITION NOT CONFIGURED'}
                         </span>
                       </td>
-                      <td style={{ padding: '8px 10px', fontWeight: '600', color: '#0f172a', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={wo.product}>
-                        {wo.product}
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: '#64748b' }}>
+                        {fmt(wo.plannedSets ?? wo.quantity)}
                       </td>
-                      <td style={{ padding: '8px 10px', color: '#334155' }}>
-                        {wo.size}
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '800', color: '#15803d' }}>
+                        {fmt(wo.actualFinishedSets || 0)}
                       </td>
-                      <td style={{ padding: '8px 10px', color: '#334155' }}>
-                        {wo.capacity}
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: wo.remainingScheduledSets > 0 ? '#b45309' : '#94a3b8' }}>
+                        {fmt(wo.remainingScheduledSets || 0)}
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: '#0d9488' }}>
                         {fmt(wo.covers)}
@@ -2248,11 +2308,19 @@ export const PlantHeadProductionAnalytics = () => {
                       <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: '#8b5cf6' }}>
                         {fmt(wo.frames)}
                       </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: (wo.looseCovers || wo.looseFrames) ? '#d97706' : '#94a3b8' }}>
+                        {(wo.looseCovers || wo.looseFrames) ? `${wo.looseCovers || 0}C / ${wo.looseFrames || 0}F` : '0'}
+                      </td>
                       <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>
-                        {fmt(wo.pieces)}
+                        {fmt(wo.totalComponents || wo.pieces)}
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>
-                        {fmt(wo.weight, 2)}
+                        <div>{fmt(wo.calculatedWeight ?? wo.weight, 2)}</div>
+                        {wo.actualScaleWeight !== null && wo.actualScaleWeight !== undefined && (
+                          <div style={{ fontSize: '9px', color: '#92400e', fontWeight: '700' }}>
+                            Scale: {fmt(wo.actualScaleWeight, 1)}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '8px 10px' }}>
                         <span style={{
@@ -2262,7 +2330,8 @@ export const PlantHeadProductionAnalytics = () => {
                           padding: '2px 7px',
                           borderRadius: '4px',
                           fontSize: '10px',
-                          fontWeight: '800'
+                          fontWeight: '800',
+                          whiteSpace: 'nowrap'
                         }}>
                           {wo.status === 'READY_FOR_DISPATCH' ? 'READY FOR DISPATCH' : wo.status}
                         </span>
@@ -2320,7 +2389,7 @@ export const PlantHeadProductionAnalytics = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
               <div>
                 <div style={{ fontSize: '11px', fontWeight: '900', color: '#0284c7', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  WORK ORDER TECHNICAL AUDIT
+                  WORK ORDER TECHNICAL AUDIT &bull; {selectedWorkOrderModal.source || 'WORK_ORDER'}
                 </div>
                 <h3 style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a', margin: '2px 0 0 0' }}>
                   {selectedWorkOrderModal.workOrderNumber}
@@ -2344,39 +2413,59 @@ export const PlantHeadProductionAnalytics = () => {
               </button>
             </div>
 
-            {/* 4 Detail Metric Cards */}
+            {/* 6 Detail Metric Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginBottom: '16px' }}>
               <div style={{ background: '#f0f9ff', padding: '10px 12px', borderRadius: '8px', border: '1px solid #bae6fd' }}>
-                <div style={{ fontSize: '10px', fontWeight: '800', color: '#0369a1', textTransform: 'uppercase' }}>Weight</div>
-                <div style={{ fontSize: '18px', fontWeight: '900', color: '#0c4a6e', marginTop: '2px' }}>{selectedWorkOrderModal.weight} kg</div>
+                <div style={{ fontSize: '10px', fontWeight: '800', color: '#0369a1', textTransform: 'uppercase' }}>Calc Weight</div>
+                <div style={{ fontSize: '17px', fontWeight: '900', color: '#0c4a6e', marginTop: '2px' }}>
+                  {selectedWorkOrderModal.calculatedWeight ?? selectedWorkOrderModal.weight} kg
+                </div>
+              </div>
+              <div style={{ background: '#fefce8', padding: '10px 12px', borderRadius: '8px', border: '1px solid #fef08a' }}>
+                <div style={{ fontSize: '10px', fontWeight: '800', color: '#854d0e', textTransform: 'uppercase' }}>Scale Weight</div>
+                <div style={{ fontSize: '17px', fontWeight: '900', color: '#713f12', marginTop: '2px' }}>
+                  {selectedWorkOrderModal.actualScaleWeight !== null && selectedWorkOrderModal.actualScaleWeight !== undefined
+                    ? `${selectedWorkOrderModal.actualScaleWeight} kg`
+                    : 'Not Recorded'}
+                </div>
               </div>
               <div style={{ background: '#f0fdf4', padding: '10px 12px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
-                <div style={{ fontSize: '10px', fontWeight: '800', color: '#15803d', textTransform: 'uppercase' }}>Quantity</div>
-                <div style={{ fontSize: '18px', fontWeight: '900', color: '#14532d', marginTop: '2px' }}>{selectedWorkOrderModal.quantity} pcs</div>
+                <div style={{ fontSize: '10px', fontWeight: '800', color: '#15803d', textTransform: 'uppercase' }}>Finished Sets</div>
+                <div style={{ fontSize: '17px', fontWeight: '900', color: '#14532d', marginTop: '2px' }}>
+                  {selectedWorkOrderModal.actualFinishedSets || selectedWorkOrderModal.quantity} / {selectedWorkOrderModal.plannedSets ?? selectedWorkOrderModal.quantity}
+                </div>
               </div>
               <div style={{ background: '#faf5ff', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e9d5ff' }}>
-                <div style={{ fontSize: '10px', fontWeight: '800', color: '#6b21a8', textTransform: 'uppercase' }}>Covers</div>
-                <div style={{ fontSize: '18px', fontWeight: '900', color: '#581c87', marginTop: '2px' }}>{selectedWorkOrderModal.covers} pcs</div>
+                <div style={{ fontSize: '10px', fontWeight: '800', color: '#6b21a8', textTransform: 'uppercase' }}>Covers (Actual)</div>
+                <div style={{ fontSize: '17px', fontWeight: '900', color: '#581c87', marginTop: '2px' }}>{selectedWorkOrderModal.covers} pcs</div>
               </div>
               <div style={{ background: '#fffbeb', padding: '10px 12px', borderRadius: '8px', border: '1px solid #fde68a' }}>
-                <div style={{ fontSize: '10px', fontWeight: '800', color: '#92400e', textTransform: 'uppercase' }}>Frames</div>
-                <div style={{ fontSize: '18px', fontWeight: '900', color: '#78350f', marginTop: '2px' }}>{selectedWorkOrderModal.frames} pcs</div>
+                <div style={{ fontSize: '10px', fontWeight: '800', color: '#92400e', textTransform: 'uppercase' }}>Frames (Actual)</div>
+                <div style={{ fontSize: '17px', fontWeight: '900', color: '#78350f', marginTop: '2px' }}>{selectedWorkOrderModal.frames} pcs</div>
+              </div>
+              <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                <div style={{ fontSize: '10px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Loose Parts</div>
+                <div style={{ fontSize: '17px', fontWeight: '900', color: '#0f172a', marginTop: '2px' }}>
+                  {selectedWorkOrderModal.looseCovers || 0}C / {selectedWorkOrderModal.looseFrames || 0}F
+                </div>
               </div>
             </div>
 
             {/* Technical Specifications */}
             <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '14px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
               <h4 style={{ fontSize: '12.5px', fontWeight: '800', color: '#0f172a', margin: '0 0 8px 0' }}>
-                Technical Production Specifications
+                Technical Production &amp; Composition Specifications
               </h4>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', fontSize: '12px' }}>
                 <div><span style={{ color: '#64748b' }}>Customer:</span> <strong>{selectedWorkOrderModal.customer}</strong></div>
                 <div><span style={{ color: '#64748b' }}>Sales Rep:</span> <strong>{selectedWorkOrderModal.salesExecutive}</strong></div>
                 <div><span style={{ color: '#64748b' }}>Product:</span> <strong>{selectedWorkOrderModal.product}</strong></div>
+                <div><span style={{ color: '#64748b' }}>Composition:</span> <strong style={{ color: '#0284c7' }}>{selectedWorkOrderModal.composition || 'UNCONFIGURED'}</strong></div>
                 <div><span style={{ color: '#64748b' }}>Product Family:</span> <strong>{selectedWorkOrderModal.type}</strong></div>
                 <div><span style={{ color: '#64748b' }}>Load Rating:</span> <strong>{selectedWorkOrderModal.capacity}</strong></div>
                 <div><span style={{ color: '#64748b' }}>Nominal Size:</span> <strong>{selectedWorkOrderModal.size}</strong></div>
                 <div><span style={{ color: '#64748b' }}>QC Remarks:</span> <strong>{selectedWorkOrderModal.qcRemarks || 'Standard Dimensional Check OK'}</strong></div>
+                <div><span style={{ color: '#64748b' }}>Daily Shift Reports:</span> <strong>{selectedWorkOrderModal.dailyReportCount ? `${selectedWorkOrderModal.dailyReportCount} shifts (${(selectedWorkOrderModal.dailyReportNos || []).join(', ')})` : 'None (Scheduled Baseline)'}</strong></div>
                 <div><span style={{ color: '#64748b' }}>Created Date:</span> <strong>{selectedWorkOrderModal.createdAt ? new Date(selectedWorkOrderModal.createdAt).toLocaleDateString('en-IN') : '-'}</strong></div>
               </div>
             </div>
