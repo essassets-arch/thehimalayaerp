@@ -846,17 +846,20 @@ const hardwareItemsRaw = [
   { srNo: 136, itemName: 'GREY GLOVES', code: 'HCPPL136', unit: 'PCS', balance: 0, category: 'Hardware', minStock: 10 },
 ];
 
-const hardwareProducts: ProductSeedData[] = hardwareItemsRaw.map(item => ({
-  name: item.itemName,
-  brand: 'HIMALAYA',
-  category: item.category,
-  subCategory: item.category,
-  sku: item.code,
-  unit: item.unit,
-  unitPrice: 0,
-  minimumStock: item.minStock,
-  description: `${item.itemName} (${item.code})`,
-}));
+const hardwareProducts: ProductSeedData[] = hardwareItemsRaw.map(item => {
+  const isConsumable = item.category === 'Raw Material';
+  return {
+    name: item.itemName,
+    brand: 'HIMALAYA',
+    category: isConsumable ? 'Hardware Consumable' : item.category,
+    subCategory: isConsumable ? 'Hardware Consumable' : item.category,
+    sku: item.code,
+    unit: item.unit,
+    unitPrice: 0,
+    minimumStock: item.minStock,
+    description: `${item.itemName} (${item.code})`,
+  };
+});
 
 // Combine all products (230 seedbackup + 136 hardware = 366 items total)
 let allProducts: ProductSeedData[] = [
@@ -3260,7 +3263,18 @@ const masterRawMaterialsSeedData = [
   }
 ];
 
-async function seedMasterRawMaterials(prisma: PrismaClient, companyId: string) {
+async function seedMasterRawMaterials(prisma: PrismaClient, passedCompanyId: string) {
+  // Always lock to active production company 88c57ebc-b3b7-49e3-8d5d-6321a0e89015 if present
+  const activeCompany = await prisma.company.findFirst({
+    where: {
+      OR: [
+        { id: '88c57ebc-b3b7-49e3-8d5d-6321a0e89015' },
+        { publicId: 'HIMALAYA-BROWSER-TEST' },
+      ],
+    },
+  });
+  const companyId = activeCompany ? activeCompany.id : passedCompanyId;
+
   // Ensure warehouse exists
   let warehouse = await prisma.warehouse.findFirst({
     where: { companyId },
@@ -3546,13 +3560,26 @@ async function main() {
 
   // ── 3. Company ──────────────────────────────────────────────────────────────
   console.log('🏢 Seeding company...');
-  const company = await prisma.company.upsert({
-    where: { publicId: 'COMP-000001' },
-    update: {},
-    create: { publicId: 'COMP-000001', name: 'Himalaya Wellness Pvt. Ltd.' },
+  let company = await prisma.company.findFirst({
+    where: {
+      OR: [
+        { id: '88c57ebc-b3b7-49e3-8d5d-6321a0e89015' },
+        { publicId: 'HIMALAYA-BROWSER-TEST' },
+        { publicId: 'COMP-000001' },
+      ],
+    },
   });
+  if (!company) {
+    company = await prisma.company.create({
+      data: {
+        id: '88c57ebc-b3b7-49e3-8d5d-6321a0e89015',
+        publicId: 'HIMALAYA-BROWSER-TEST',
+        name: 'Himalaya Poly Plast Pvt. Ltd.',
+      },
+    });
+  }
 
-  // Seed 212 HM Raw Materials
+  // Seed 217 HM Raw Materials
   await seedMasterRawMaterials(prisma, company.id);
 
   // ── 4. Assign all permissions to SUPER_ADMIN and ADMIN ─────────────────────

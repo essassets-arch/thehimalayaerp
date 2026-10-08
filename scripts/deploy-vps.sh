@@ -79,7 +79,7 @@ docker exec -i "$POSTGRES_CONTAINER" psql -U "${POSTGRES_USER:-himalaya_erp_user
 echo ""
 echo "⚙️ Step 4c: Running Prisma database migrations..."
 docker compose run --rm migrate
-docker exec -i "$POSTGRES_CONTAINER" psql -U "${POSTGRES_USER:-himalaya_erp_user}" -d "${POSTGRES_DB:-himalaya_erp}" -c "UPDATE \"RawMaterial\" SET \"companyId\" = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015' WHERE \"companyId\" != '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';" 2>/dev/null || true
+docker exec -i "$POSTGRES_CONTAINER" psql -U "${POSTGRES_USER:-himalaya_erp_user}" -d "${POSTGRES_DB:-himalaya_erp}" -c "UPDATE \"RawMaterial\" SET \"companyId\" = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015' WHERE \"companyId\" != '88c57ebc-b3b7-49e3-8d5d-6321a0e89015' OR \"companyId\" IS NULL; DELETE FROM \"RawMaterial\" WHERE \"sku\" LIKE 'HCPPL%' AND \"sku\" NOT LIKE 'HM%';" 2>/dev/null || true
 echo " ✅ Database migrations completed."
 
 echo ""

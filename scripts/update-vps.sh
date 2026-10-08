@@ -32,6 +32,7 @@ echo "⚙️ Step 3: Executing database migrations..."
 POSTGRES_CONTAINER=$(docker ps --format '{{.Names}}' 2>/dev/null | grep -E 'himalaya-postgres|postgres' | head -n 1 || echo "himalaya-postgres")
 docker exec -i "$POSTGRES_CONTAINER" psql -U "${POSTGRES_USER:-himalaya_erp_user}" -d "${POSTGRES_DB:-himalaya_erp}" -c "DELETE FROM _prisma_migrations WHERE finished_at IS NULL OR rolled_back_at IS NOT NULL;" 2>/dev/null || true
 docker compose run --rm migrate
+docker exec -i "$POSTGRES_CONTAINER" psql -U "${POSTGRES_USER:-himalaya_erp_user}" -d "${POSTGRES_DB:-himalaya_erp}" -c "UPDATE \"RawMaterial\" SET \"companyId\" = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015' WHERE \"companyId\" != '88c57ebc-b3b7-49e3-8d5d-6321a0e89015' OR \"companyId\" IS NULL; DELETE FROM \"RawMaterial\" WHERE \"sku\" LIKE 'HCPPL%' AND \"sku\" NOT LIKE 'HM%';" 2>/dev/null || true
 
 echo ""
 echo "🚀 Step 4: Restarting application services..."
