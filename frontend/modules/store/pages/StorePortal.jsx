@@ -465,7 +465,7 @@ function PaginationControl({
   onPageChange,
   onPageSizeChange,
   themeColor = '#2F4375',
-  pageSizeOptions = [25, 50, 100, 200]
+  pageSizeOptions = [25, 50, 100, 200, 250, 500]
 }) {
   if (!totalItems || totalItems === 0) return null;
 
@@ -665,7 +665,7 @@ export default function StorePortal() {
 
   // Pagination states
   const [rawInvPage, setRawInvPage] = useState(1);
-  const [rawInvPageSize, setRawInvPageSize] = useState(25);
+  const [rawInvPageSize, setRawInvPageSize] = useState(250);
   const [issuedHistoryPage, setIssuedHistoryPage] = useState(1);
   const [issuedHistoryPageSize, setIssuedHistoryPageSize] = useState(25);
   const [lowStockPage, setLowStockPage] = useState(1);
@@ -2221,6 +2221,7 @@ export default function StorePortal() {
           onPageChange={setRawInvPage}
           onPageSizeChange={setRawInvPageSize}
           themeColor="#0f766e"
+          pageSizeOptions={[25, 50, 100, 200, 250, 500]}
         />
 
         {/* MODAL: Add Stock */}
