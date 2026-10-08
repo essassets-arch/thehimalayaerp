@@ -2280,18 +2280,32 @@ export class PlantHeadService {
         floorReconciledCount++;
       } else {
         // Scheduled Baseline (WorkOrder authority when no shift report logged)
+        // If daily floor shift reports exist for this period, they are the authoritative
+        // actual production. Unreported work orders remain planned/scheduled and do not fabricate components.
         source = 'WORK_ORDER';
-        actualSets = isCompleted ? quantity : 0;
-        remainingScheduledSets = isCompleted ? 0 : quantity;
+        if (dailyReports.length > 0) {
+          actualSets = 0;
+          remainingScheduledSets = quantity;
+          covers = 0;
+          frames = 0;
+          pieces = 0;
+          weight = 0;
+          coverUnitWeight = Number(product?.coverUnitWeight || 0);
+          frameUnitWeight = Number(product?.frameUnitWeight || 0);
+          hasConfiguredWeight = Boolean(product?.coverUnitWeight || product?.frameUnitWeight || product?.weight);
+        } else {
+          actualSets = isCompleted ? quantity : 0;
+          remainingScheduledSets = isCompleted ? 0 : quantity;
 
-        const calc = calculateProductionWeight(product, quantity);
-        covers = calc.covers;
-        frames = calc.frames;
-        pieces = calc.pieces;
-        weight = calc.weight;
-        coverUnitWeight = calc.coverUnitWeight;
-        frameUnitWeight = calc.frameUnitWeight;
-        hasConfiguredWeight = calc.hasConfiguredWeight;
+          const calc = calculateProductionWeight(product, quantity);
+          covers = calc.covers;
+          frames = calc.frames;
+          pieces = calc.pieces;
+          weight = calc.weight;
+          coverUnitWeight = calc.coverUnitWeight;
+          frameUnitWeight = calc.frameUnitWeight;
+          hasConfiguredWeight = calc.hasConfiguredWeight;
+        }
       }
 
       if (!hasConfiguredWeight) {
