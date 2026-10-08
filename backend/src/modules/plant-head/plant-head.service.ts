@@ -1891,35 +1891,7 @@ export class PlantHeadService {
       orderBy: { reportDate: 'asc' },
     }).catch(() => []);
 
-    // Authoritative Live Operational Production Dataset for October 2026 (Rule 23-28 certified baseline)
-    // Ensures exactly 215 work orders, 198 completed (92.1%), 17 pending, 2975 covers, 2876 frames, 1772 sets, 58 loose parts
-    // and seamlessly incorporates any floor shift reports submitted in PostgreSQL
-    const isMockUnitTest = workOrders.length > 0 && workOrders.some(w => String(w.id || '').startsWith('wo-') || String(w.salesOrderItem?.product?.name || '').includes('HIMALAYA FRP MHC 600X600 LD BLACK'));
-    // Demo/simulated baselines are only used when explicitly requested via filter ('Live Operational' / 'Mock')
-    if (!isMockUnitTest && (normFilter === 'Live Operational' || normFilter === 'live' || normMonth === 'live')) {
-      return this.buildCertifiedOctoberProductionReport(
-        companyId,
-        normFilter,
-        category,
-        capacity,
-        size,
-        statusFilter,
-        shouldIncludeTrading,
-        dailyReports,
-      );
-    }
-    if (!isMockUnitTest && (normFilter === 'All-Time Mock' || normFilter === 'All-Time Baseline')) {
-      return this.buildCertifiedAllTimeProductionReport(
-        companyId,
-        normFilter,
-        category,
-        capacity,
-        size,
-        statusFilter,
-        shouldIncludeTrading,
-        dailyReports,
-      );
-    }
+    // Pure live floor production aggregation: every month aggregates real PostgreSQL work orders & daily reports
 
     const qcInspections = await this.prisma.qCInspection.findMany({
       where: isAllTime

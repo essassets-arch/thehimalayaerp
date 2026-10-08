@@ -15,13 +15,17 @@ echo "======================================================================"
 BRANCH="${1:-main}"
 
 echo "📥 Step 1: Fetching latest code for branch: ${BRANCH}..."
-git fetch origin
+git fetch origin "${BRANCH}"
 git checkout "${BRANCH}"
-git pull --ff-only origin "${BRANCH}"
+if ! git pull --ff-only origin "${BRANCH}" 2>/dev/null; then
+    echo "⚠️ Notice: Fast-forward not possible, cleanly resetting local tracking to origin/${BRANCH}..."
+    git reset --hard origin/"${BRANCH}"
+fi
 
 echo ""
 echo "📦 Step 2: Rebuilding images..."
-docker compose build
+docker compose build --no-cache backend
+docker compose build frontend
 
 echo ""
 echo "⚙️ Step 3: Executing database migrations..."
@@ -31,7 +35,7 @@ docker compose run --rm migrate
 
 echo ""
 echo "🚀 Step 4: Restarting application services..."
-docker compose up -d postgres backend frontend reverse-proxy
+docker compose up -d --force-recreate backend frontend reverse-proxy
 
 echo ""
 echo "======================================================================"
