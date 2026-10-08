@@ -3055,19 +3055,21 @@ export class PlantHeadService {
         floorReconciledCount,
         standaloneRunsCount: standaloneDailyItems.length,
         averageWeightPerPiece: totalPieces > 0 ? Math.round((effectiveTotalWeight / totalPieces) * 100) / 100 : 0,
-        totalWorkOrders: targetWorkOrders.length,
-        completedWorkOrders: completedCount,
-        pendingWorkOrders: activeCount,
-        activeWorkOrders: activeCount,
-        completionRate: targetWorkOrders.length > 0 ? Math.round((completedCount / targetWorkOrders.length) * 1000) / 10 : 0,
+        totalWorkOrders: targetWorkOrders.length > 0 ? targetWorkOrders.length : dailyReports.length,
+        completedWorkOrders: targetWorkOrders.length > 0 ? completedCount : dailyReports.length,
+        pendingWorkOrders: targetWorkOrders.length > 0 ? activeCount : 0,
+        activeWorkOrders: targetWorkOrders.length > 0 ? activeCount : 0,
+        completionRate: targetWorkOrders.length > 0
+          ? Math.round((completedCount / targetWorkOrders.length) * 1000) / 10
+          : (dailyReports.length > 0 ? 100 : 0),
         fpyRate,
         totalQcInspections,
         passedQcCount,
         rejectedQcCount,
         activeMachines: machineFleet.length,
         uniqueCustomers: customerMap.size,
-        narrative: targetWorkOrders.length > 0
-          ? `During ${periodLabel}, Himalaya manufactured ${Math.round((effectiveTotalWeight / 1000) * 10) / 10} tonnes (${Math.round(effectiveTotalWeight).toLocaleString()} kg${roundedTotalWeight === 0 && (roundedScaleWeight || 0) > 0 ? ' floor scale measured' : ''}) of composite components comprising ${totalCovers.toLocaleString()} covers and ${totalFrames.toLocaleString()} frames across ${targetWorkOrders.length} work orders.`
+        narrative: (targetWorkOrders.length > 0 || dailyReports.length > 0)
+          ? `During ${periodLabel}, Himalaya manufactured ${Math.round((effectiveTotalWeight / 1000) * 10) / 10} tonnes (${Math.round(effectiveTotalWeight).toLocaleString()} kg${roundedTotalWeight === 0 && (roundedScaleWeight || 0) > 0 ? ' floor scale measured' : ''}) of composite components comprising ${totalCovers.toLocaleString()} covers and ${totalFrames.toLocaleString()} frames across ${targetWorkOrders.length > 0 ? targetWorkOrders.length : dailyReports.length} ${targetWorkOrders.length > 0 ? 'work orders' : 'floor shift production reports'}.`
           : `No production records found for ${periodLabel}.`,
       },
       productTypes: productTypesList,
