@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { backendFetch } from '../../../lib/backendFetch';
 import Swal from 'sweetalert2';
@@ -72,6 +72,21 @@ export default function DailyReportHistoryView({
   const [summaryStats, setSummaryStats] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) {
+        setExportMenuOpen(false);
+      }
+    };
+    if (exportMenuOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [exportMenuOpen]);
 
   // Available months list for monthly dropdown
   const availableMonths = useMemo(() => {
@@ -310,15 +325,17 @@ export default function DailyReportHistoryView({
       ].join(',');
     });
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...csvRows].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = [headers.join(','), ...csvRows].join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', url);
     const cleanNo = (report.reportNo || report.id || 'Report').replace(/[^a-zA-Z0-9_-]/g, '_');
     link.setAttribute('download', `Daily_Report_${cleanNo}_Items.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const fetchAllFilteredReports = async () => {
@@ -360,7 +377,7 @@ export default function DailyReportHistoryView({
         Swal.fire({
           icon: 'info',
           title: 'No Data to Export',
-          text: 'There are no daily production reports matching current filters.',
+          text: `There are no daily ${isDispatch ? 'dispatch' : 'production'} reports matching current filters.`,
           confirmButtonColor: '#0284c7'
         });
         return;
@@ -377,6 +394,18 @@ export default function DailyReportHistoryView({
       }
 
       const prefix = isDispatch ? 'Daily_Dispatch_Report_History' : 'Daily_Production_Report_History';
+
+      const triggerDownload = (contentStr, fileName) => {
+        const blob = new Blob(['\uFEFF' + contentStr], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      };
 
       if (format === 'summary') {
         // SUMMARY REGISTER (1 row per report, matching history table)
@@ -452,14 +481,201 @@ export default function DailyReportHistoryView({
           '""'
         ].join(',');
 
-        csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...csvRows, totalRow].join('\n');
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement('a');
-        link.setAttribute('href', encodedUri);
-        link.setAttribute('download', `${prefix}_${filterLabel}_Summary_Register.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        csvContent = [headers.join(','), ...csvRows, totalRow].join('\n');
+        triggerDownload(csvContent, `${prefix}_${filterLabel}_Summary_Register.csv`);
+
+      } else if (format === 'product') {
+        // PRODUCT-WISE CONSOLIDATED SUMMARY (Grouped by Product Name)
+        const productMap = new Map();
+
+        allReports.forEach(r => {
+          if (r.items && r.items.length > 0) {
+            r.items.forEach(item => {
+              const prodName = (item.product?.name || item.customProductName || 'Unspecified Product').trim();
+              const groupKey = prodName.toLowerCase();
+
+              const sku = (item.product?.sku || item.product?.code || '').trim();
+              const size = (item.size || item.product?.size || '').trim();
+              const type = (item.type || item.product?.type || '').trim();
+              const capacity = (item.capacity || item.product?.capacity || '').trim();
+
+              const coverQty = Number(item.coverQty || 0);
+              const coverWt = Number(item.actualCoverWeight || item.coverWeight || 0);
+              const frameQty = Number(item.frameQty || 0);
+              const frameWt = Number(item.actualFrameWeight || item.frameWeight || 0);
+              const totalWt = Number(item.totalWeight || 0);
+              const setQty = Number(item.setQty || 0);
+              const extraCover = Number(item.extraCoverQty || 0);
+              const extraFrame = Number(item.extraFrameQty || 0);
+
+              if (!productMap.has(groupKey)) {
+                productMap.set(groupKey, {
+                  name: prodName,
+                  skus: new Set(sku ? [sku] : []),
+                  sizes: new Set(size ? [size] : []),
+                  types: new Set(type ? [type] : []),
+                  capacities: new Set(capacity ? [capacity] : []),
+                  entriesCount: 1,
+                  setQty: setQty,
+                  coverQty: coverQty,
+                  coverWeight: coverWt,
+                  frameQty: frameQty,
+                  frameWeight: frameWt,
+                  extraCoverQty: extraCover,
+                  extraFrameQty: extraFrame,
+                  totalWeight: totalWt
+                });
+              } else {
+                const prod = productMap.get(groupKey);
+                if (sku) prod.skus.add(sku);
+                if (size) prod.sizes.add(size);
+                if (type) prod.types.add(type);
+                if (capacity) prod.capacities.add(capacity);
+                prod.entriesCount += 1;
+                prod.setQty += setQty;
+                prod.coverQty += coverQty;
+                prod.coverWeight += coverWt;
+                prod.frameQty += frameQty;
+                prod.frameWeight += frameWt;
+                prod.extraCoverQty += extraCover;
+                prod.extraFrameQty += extraFrame;
+                prod.totalWeight += totalWt;
+              }
+            });
+          } else {
+            // General record without line items
+            const groupKey = '__uncategorized__';
+            const covers = Number(r.totalCovers || 0);
+            const frames = Number(r.totalFrames || 0);
+            const sets = Number(r.totalSets || 0);
+            const w = Number(r.totalWeight || 0);
+
+            if (!productMap.has(groupKey)) {
+              productMap.set(groupKey, {
+                name: 'General / Uncategorized Reports',
+                skus: new Set(['—']),
+                sizes: new Set(['—']),
+                types: new Set(['—']),
+                capacities: new Set(['—']),
+                entriesCount: 1,
+                setQty: sets,
+                coverQty: covers,
+                coverWeight: Number(r.totalCoverWeight || 0),
+                frameQty: frames,
+                frameWeight: Number(r.totalFrameWeight || 0),
+                extraCoverQty: 0,
+                extraFrameQty: 0,
+                totalWeight: w
+              });
+            } else {
+              const prod = productMap.get(groupKey);
+              prod.entriesCount += 1;
+              prod.setQty += sets;
+              prod.coverQty += covers;
+              prod.coverWeight += Number(r.totalCoverWeight || 0);
+              prod.frameQty += frames;
+              prod.frameWeight += Number(r.totalFrameWeight || 0);
+              prod.totalWeight += w;
+            }
+          }
+        });
+
+        // Convert to list & sort descending by total weight (tonnage)
+        const productList = Array.from(productMap.values()).sort((a, b) => b.totalWeight - a.totalWeight);
+
+        let grandEntries = 0;
+        let grandSets = 0;
+        let grandCovers = 0;
+        let grandCoverWeight = 0;
+        let grandFrames = 0;
+        let grandFrameWeight = 0;
+        let grandExtraCovers = 0;
+        let grandExtraFrames = 0;
+        let grandTotalWeight = 0;
+
+        productList.forEach(p => {
+          grandEntries += p.entriesCount;
+          grandSets += p.setQty;
+          grandCovers += p.coverQty;
+          grandCoverWeight += p.coverWeight;
+          grandFrames += p.frameQty;
+          grandFrameWeight += p.frameWeight;
+          grandExtraCovers += p.extraCoverQty;
+          grandExtraFrames += p.extraFrameQty;
+          grandTotalWeight += p.totalWeight;
+        });
+
+        const headers = [
+          'Sr',
+          'Product Name',
+          'Product SKU / Code',
+          'Size',
+          'Type',
+          'Capacity',
+          'Report Entries Count',
+          isDispatch ? 'Total Sets Dispatched' : 'Total Sets Produced',
+          isDispatch ? 'Total Covers Dispatched' : 'Total Covers Produced',
+          'Cover Weight (kg)',
+          isDispatch ? 'Total Frames Dispatched' : 'Total Frames Produced',
+          'Frame Weight (kg)',
+          'Extra Covers',
+          'Extra Frames',
+          'Total Weight (kg)',
+          'Total Weight (MT)',
+          isDispatch ? 'Share of Dispatch (%)' : 'Share of Production (%)'
+        ];
+
+        const csvRows = productList.map((prod, idx) => {
+          const skuStr = Array.from(prod.skus).join(' / ') || '—';
+          const sizeStr = Array.from(prod.sizes).join(' / ') || '—';
+          const typeStr = Array.from(prod.types).join(' / ') || '—';
+          const capStr = Array.from(prod.capacities).join(' / ') || '—';
+          const wMT = (prod.totalWeight / 1000).toFixed(3);
+          const sharePct = grandTotalWeight > 0 ? ((prod.totalWeight / grandTotalWeight) * 100).toFixed(2) + '%' : '0.00%';
+
+          return [
+            idx + 1,
+            `"${String(prod.name).replace(/"/g, '""')}"`,
+            `"${String(skuStr).replace(/"/g, '""')}"`,
+            `"${String(sizeStr).replace(/"/g, '""')}"`,
+            `"${String(typeStr).replace(/"/g, '""')}"`,
+            `"${String(capStr).replace(/"/g, '""')}"`,
+            prod.entriesCount,
+            prod.setQty,
+            prod.coverQty,
+            prod.coverWeight.toFixed(2),
+            prod.frameQty,
+            prod.frameWeight.toFixed(2),
+            prod.extraCoverQty,
+            prod.extraFrameQty,
+            prod.totalWeight.toFixed(2),
+            wMT,
+            `"${sharePct}"`
+          ].join(',');
+        });
+
+        const totalRow = [
+          '"GRAND TOTAL"',
+          `"Total Products: ${productList.length}"`,
+          '""',
+          '""',
+          '""',
+          '""',
+          grandEntries,
+          grandSets,
+          grandCovers,
+          grandCoverWeight.toFixed(2),
+          grandFrames,
+          grandFrameWeight.toFixed(2),
+          grandExtraCovers,
+          grandExtraFrames,
+          grandTotalWeight.toFixed(2),
+          (grandTotalWeight / 1000).toFixed(3),
+          '"100.00%"'
+        ].join(',');
+
+        csvContent = [headers.join(','), ...csvRows, totalRow].join('\n');
+        triggerDownload(csvContent, `${prefix}_${filterLabel}_Product_Wise_Summary.csv`);
 
       } else {
         // DETAILED LINE ITEMS BREAKDOWN
@@ -607,20 +823,21 @@ export default function DailyReportHistoryView({
           '""'
         ].join(',');
 
-        csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...csvRows, totalRow].join('\n');
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement('a');
-        link.setAttribute('href', encodedUri);
-        link.setAttribute('download', `${prefix}_${filterLabel}_Detailed_Items.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        csvContent = [headers.join(','), ...csvRows, totalRow].join('\n');
+        triggerDownload(csvContent, `${prefix}_${filterLabel}_Detailed_Items.csv`);
       }
+
+      const formatTitle =
+        format === 'summary'
+          ? 'Summary Register'
+          : format === 'product'
+            ? 'Product-Wise Summary'
+            : 'Detailed Items';
 
       Swal.fire({
         icon: 'success',
         title: 'Export Complete',
-        text: `Exported ${allReports.length} reports successfully (${format === 'summary' ? 'Summary Register' : 'Detailed Items'}).`,
+        text: `Exported ${allReports.length} reports successfully (${formatTitle}).`,
         timer: 2500,
         showConfirmButton: false,
         toast: true,
@@ -921,7 +1138,7 @@ export default function DailyReportHistoryView({
           </button>
 
           {/* Export CSV Split Dropdown */}
-          <div style={{ position: 'relative' }}>
+          <div ref={exportMenuRef} style={{ position: 'relative' }}>
             <div style={{
               display: 'inline-flex',
               alignItems: 'stretch',
@@ -986,7 +1203,7 @@ export default function DailyReportHistoryView({
                   borderRadius: '12px',
                   boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.18)',
                   padding: '8px',
-                  minWidth: '280px',
+                  minWidth: '320px',
                   zIndex: 100
                 }}
               >
@@ -1018,6 +1235,32 @@ export default function DailyReportHistoryView({
 
                 <button
                   type="button"
+                  onClick={() => { setExportMenuOpen(false); handleExportCSV('product'); }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '3px'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#eff6ff'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                >
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: '#0284c7' }}>
+                    🏷️ Product-Wise Summary CSV (By Product Name)
+                  </span>
+                  <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+                    Total Sets, Covers, Frames & Weight grouped by Product Name
+                  </span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => { setExportMenuOpen(false); handleExportCSV('detailed'); }}
                   style={{
                     width: '100%',
@@ -1044,6 +1287,32 @@ export default function DailyReportHistoryView({
               </div>
             )}
           </div>
+
+          {/* 1-Click Direct Product-Wise CSV Button */}
+          <button
+            type="button"
+            onClick={() => handleExportCSV('product')}
+            disabled={isExporting}
+            title="Download Product-Wise Consolidated Summary CSV (Grouped by Product Name)"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '9px 14px',
+              borderRadius: '10px',
+              border: '1px solid #0284c7',
+              background: 'rgba(2, 132, 199, 0.08)',
+              color: '#0284c7',
+              fontSize: '13px',
+              fontWeight: '800',
+              cursor: isExporting ? 'wait' : 'pointer',
+              boxShadow: '0 2px 4px rgba(2, 132, 199, 0.1)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Download size={15} className={isExporting ? 'spin' : ''} />
+            Product-Wise CSV
+          </button>
 
           {!isReadOnly && (onNewReport || roleMode === 'PRODUCTION' || roleMode === 'DISPATCH') && (
             <button
