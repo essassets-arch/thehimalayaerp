@@ -199,7 +199,7 @@ export class DispatchDailyReportService {
     query: QueryDispatchDailyReportDto,
   ) {
     const page = Math.max(1, Number(query.page || 1));
-    const limit = Math.max(1, Math.min(100, Number(query.limit || 20)));
+    const limit = Math.max(1, Math.min(5000, Number(query.limit || 20)));
     const skip = (page - 1) * limit;
 
     const where: Prisma.DispatchDailyReportWhereInput = {
@@ -225,7 +225,11 @@ export class DispatchDailyReportService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    if (query.preset) {
+    if (query.month && /^\d{4}-\d{2}$/.test(query.month)) {
+      const [year, m] = query.month.split('-').map(Number);
+      start = new Date(year, m - 1, 1);
+      end = new Date(year, m, 0, 23, 59, 59, 999);
+    } else if (query.preset) {
       const presetLower = query.preset.toLowerCase();
       if (presetLower === 'today') {
         start = new Date(today);
@@ -248,6 +252,17 @@ export class DispatchDailyReportService {
         end = new Date(
           today.getFullYear(),
           today.getMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999,
+        );
+      } else if (presetLower === 'last month' || presetLower === 'last_month') {
+        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        end = new Date(
+          today.getFullYear(),
+          today.getMonth(),
           0,
           23,
           59,
@@ -328,7 +343,7 @@ export class DispatchDailyReportService {
       }
     }
 
-    const [total, items] = await Promise.all([
+    const [total, items, aggregateStats] = await Promise.all([
       this.prisma.dispatchDailyReport.count({ where }),
       this.prisma.dispatchDailyReport.findMany({
         where,
@@ -357,6 +372,15 @@ export class DispatchDailyReportService {
           _count: { select: { items: true } },
         },
       }),
+      this.prisma.dispatchDailyReport.aggregate({
+        where,
+        _sum: {
+          totalCovers: true,
+          totalFrames: true,
+          totalSets: true,
+          totalWeight: true,
+        },
+      }),
     ]);
 
     return {
@@ -364,6 +388,13 @@ export class DispatchDailyReportService {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+      summary: {
+        totalReports: total,
+        totalCovers: Number(aggregateStats._sum.totalCovers || 0),
+        totalFrames: Number(aggregateStats._sum.totalFrames || 0),
+        totalSets: Number(aggregateStats._sum.totalSets || 0),
+        totalWeight: Number(aggregateStats._sum.totalWeight || 0),
+      },
       items: items.map((r) => ({
         ...r,
         rowCount: r._count.items,

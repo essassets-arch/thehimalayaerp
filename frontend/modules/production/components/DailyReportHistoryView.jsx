@@ -62,12 +62,84 @@ export default function DailyReportHistoryView({
 
   // Filters
   const [preset, setPreset] = useState('All');
+  const [selectedMonth, setSelectedMonth] = useState('All');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [shiftFilter, setShiftFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  const [summaryStats, setSummaryStats] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+
+  // Available months list for monthly dropdown
+  const availableMonths = useMemo(() => {
+    const list = [];
+    const now = new Date();
+    for (let i = 0; i < 18; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const val = `${yyyy}-${mm}`;
+      const monthName = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      list.push({
+        value: val,
+        label: i === 0 ? `${monthName} (Live)` : monthName
+      });
+    }
+    return list;
+  }, []);
+
+  const handleMonthSelect = (val) => {
+    setSelectedMonth(val);
+    setPage(1);
+
+    if (val === 'All') {
+      setPreset('All');
+      setStartDate('');
+      setEndDate('');
+    } else if (val === 'custom') {
+      setPreset('Custom');
+    } else {
+      const [y, m] = val.split('-').map(Number);
+      const start = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      const end = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      setStartDate(start);
+      setEndDate(end);
+      setPreset('Monthly');
+    }
+  };
+
+  const handleSelectPreset = (p) => {
+    setPreset(p);
+    setPage(1);
+
+    const now = new Date();
+    if (p === 'All') {
+      setSelectedMonth('All');
+      setStartDate('');
+      setEndDate('');
+    } else if (p === 'This Month') {
+      const val = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      setSelectedMonth(val);
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      setStartDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`);
+      setEndDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`);
+    } else if (p === 'Last Month') {
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const val = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+      setSelectedMonth(val);
+      const lastDay = new Date(prev.getFullYear(), prev.getMonth() + 1, 0).getDate();
+      setStartDate(`${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}-01`);
+      setEndDate(`${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`);
+    } else {
+      setSelectedMonth('All');
+      setStartDate('');
+      setEndDate('');
+    }
+  };
 
   useEffect(() => {
     const handleResize = () => {
@@ -85,7 +157,8 @@ export default function DailyReportHistoryView({
       params.set('page', String(page));
       params.set('limit', String(limit));
 
-      if (preset !== 'All') params.set('preset', preset);
+      if (preset !== 'All' && preset !== 'Monthly' && preset !== 'Custom') params.set('preset', preset);
+      if (selectedMonth && selectedMonth !== 'All' && selectedMonth !== 'custom') params.set('month', selectedMonth);
       if (startDate) params.set('startDate', startDate);
       if (endDate) params.set('endDate', endDate);
       if (shiftFilter !== 'All') params.set('shift', shiftFilter);
@@ -97,6 +170,11 @@ export default function DailyReportHistoryView({
         setReports(res.items || []);
         setTotal(res.total || 0);
         setTotalPages(res.totalPages || 1);
+        if (res.summary) {
+          setSummaryStats(res.summary);
+        } else {
+          setSummaryStats(null);
+        }
       }
     } catch (err) {
       console.error('[DailyReportHistory] Error loading history:', err);
@@ -104,11 +182,57 @@ export default function DailyReportHistoryView({
     } finally {
       setLoading(false);
     }
-  }, [baseApiUrl, page, limit, preset, startDate, endDate, shiftFilter, statusFilter, searchQuery]);
+  }, [baseApiUrl, page, limit, preset, selectedMonth, startDate, endDate, shiftFilter, statusFilter, searchQuery]);
+
+  const fetchRollupStats = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (preset !== 'All' && preset !== 'Monthly' && preset !== 'Custom') params.set('preset', preset);
+      if (selectedMonth && selectedMonth !== 'All' && selectedMonth !== 'custom') params.set('month', selectedMonth);
+      if (startDate) params.set('startDate', startDate);
+      if (endDate) params.set('endDate', endDate);
+      if (shiftFilter !== 'All') params.set('shift', shiftFilter);
+      if (statusFilter !== 'All') params.set('status', statusFilter);
+      if (searchQuery.trim()) params.set('search', searchQuery.trim());
+      params.set('limit', '100');
+
+      let covers = 0, frames = 0, sets = 0, weight = 0;
+      let curPage = 1, maxPages = 1;
+
+      while (curPage <= maxPages && curPage <= 15) {
+        params.set('page', String(curPage));
+        const res = await backendFetch(`${baseApiUrl}?${params.toString()}`, { cacheTtlMs: 30000 });
+        if (!res || !res.items) break;
+        res.items.forEach(r => {
+          covers += Number(r.totalCovers || 0);
+          frames += Number(r.totalFrames || 0);
+          sets += Number(r.totalSets || 0);
+          weight += Number(r.totalWeight || 0);
+        });
+        maxPages = res.totalPages || 1;
+        curPage++;
+      }
+
+      setSummaryStats({
+        totalCovers: covers,
+        totalFrames: frames,
+        totalSets: sets,
+        totalWeight: weight
+      });
+    } catch (e) {
+      console.warn('[DailyReportHistory] Error fetching rollup:', e);
+    }
+  }, [baseApiUrl, preset, selectedMonth, startDate, endDate, shiftFilter, statusFilter, searchQuery]);
 
   useEffect(() => {
     fetchHistory();
   }, [fetchHistory]);
+
+  useEffect(() => {
+    if (!summaryStats && total > reports.length && !loading) {
+      fetchRollupStats();
+    }
+  }, [summaryStats, total, reports.length, loading, fetchRollupStats]);
 
   const openReportModal = async (reportId) => {
     try {
@@ -197,124 +321,336 @@ export default function DailyReportHistoryView({
     document.body.removeChild(link);
   };
 
-  const handleExportCSV = () => {
-    if (!reports || reports.length === 0) {
-      Swal.fire({
-        icon: 'info',
-        title: 'No Data to Export',
-        text: 'There are no daily production reports to export.',
-        confirmButtonColor: '#0284c7'
-      });
-      return;
-    }
+  const fetchAllFilteredReports = async () => {
+    const params = new URLSearchParams();
+    if (preset !== 'All' && preset !== 'Monthly' && preset !== 'Custom') params.set('preset', preset);
+    if (selectedMonth && selectedMonth !== 'All' && selectedMonth !== 'custom') params.set('month', selectedMonth);
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    if (shiftFilter !== 'All') params.set('shift', shiftFilter);
+    if (statusFilter !== 'All') params.set('status', statusFilter);
+    if (searchQuery.trim()) params.set('search', searchQuery.trim());
+    params.set('limit', '100');
 
-    const headers = [
-      'Report No',
-      'Date',
-      'Shift',
-      'Supervisor',
-      'Status',
-      'Sr',
-      'Product *',
-      'Size',
-      'Type',
-      'Capacity',
-      'Cover',
-      'Cover Wt (kg)',
-      'Frame',
-      'Frame Wt (kg)',
-      'Total Wt (kg)',
-      'Set',
-      'Extra Cover',
-      'Extra Frame',
-      'Remarks'
-    ];
+    let allItems = [];
+    let curPage = 1;
+    let maxPages = 1;
 
-    const csvRows = [];
-    reports.forEach((r) => {
-      const repNo = r.reportNo || r.id || '';
-      const repDate = r.reportDate ? new Date(r.reportDate).toLocaleDateString('en-GB') : '';
-      const repShift = r.shift || '';
-      const repSup = r.shiftSupervisorName || r.supervisorName || '';
-      const repStatus = r.status || 'DRAFT';
+    do {
+      params.set('page', String(curPage));
+      const res = await backendFetch(`${baseApiUrl}?${params.toString()}`, { cacheTtlMs: 0 });
+      if (res && res.items && res.items.length > 0) {
+        allItems = allItems.concat(res.items);
+        maxPages = res.totalPages || 1;
+      } else {
+        break;
+      }
+      curPage++;
+    } while (curPage <= maxPages);
 
-      if (r.items && r.items.length > 0) {
-        r.items.forEach((item, idx) => {
-          const srNo = item.srNo || idx + 1;
-          const prodName = item.product?.name || item.customProductName || '';
-          const size = item.size || item.product?.size || '';
-          const type = item.type || item.product?.type || '';
-          const capacity = item.capacity || item.product?.capacity || '';
-          const coverQty = Number(item.coverQty || 0);
-          const coverWt = Number(item.actualCoverWeight || item.coverWeight || 0).toFixed(2);
-          const frameQty = Number(item.frameQty || 0);
-          const frameWt = Number(item.actualFrameWeight || item.frameWeight || 0).toFixed(2);
-          const totalWt = Number(item.totalWeight || 0).toFixed(2);
-          const setQty = Number(item.setQty || 0);
-          const extraCover = Number(item.extraCoverQty || 0);
-          const extraFrame = Number(item.extraFrameQty || 0);
-          const remarks = item.remarks || r.remarks || '';
+    return allItems;
+  };
 
-          csvRows.push([
+  const handleExportCSV = async (format = 'summary') => {
+    try {
+      setIsExporting(true);
+      const allReports = await fetchAllFilteredReports();
+
+      if (!allReports || allReports.length === 0) {
+        Swal.fire({
+          icon: 'info',
+          title: 'No Data to Export',
+          text: 'There are no daily production reports matching current filters.',
+          confirmButtonColor: '#0284c7'
+        });
+        return;
+      }
+
+      let csvContent = '';
+      let filterLabel = 'All';
+      if (selectedMonth && selectedMonth !== 'All' && selectedMonth !== 'custom') {
+        filterLabel = selectedMonth;
+      } else if (startDate && endDate) {
+        filterLabel = `${startDate}_to_${endDate}`;
+      } else if (preset && preset !== 'All') {
+        filterLabel = preset.replace(/\s+/g, '_');
+      }
+
+      const prefix = isDispatch ? 'Daily_Dispatch_Report_History' : 'Daily_Production_Report_History';
+
+      if (format === 'summary') {
+        // SUMMARY REGISTER (1 row per report, matching history table)
+        const headers = [
+          'Report No',
+          'Date',
+          'Shift',
+          isDispatch ? 'Executive' : 'Supervisor',
+          'Rows',
+          isDispatch ? 'Covers Dispatched' : 'Covers Produced',
+          isDispatch ? 'Frames Dispatched' : 'Frames Produced',
+          'Sets',
+          'Total Weight (kg)',
+          'Total Weight (MT)',
+          'Created By',
+          'Status',
+          'Remarks'
+        ];
+
+        let totRows = 0, totCovers = 0, totFrames = 0, totSets = 0, totWeight = 0;
+
+        const csvRows = allReports.map(r => {
+          const repNo = r.reportNo || r.id || '';
+          const repDate = r.reportDate ? r.reportDate.split('T')[0] : '';
+          const repShift = r.shift || '';
+          const repSup = isDispatch ? (r.dispatchExecutive || r.supervisorName || '') : (r.shiftSupervisorName || r.supervisorName || '');
+          const rowCount = r.rowCount || (r.items ? r.items.length : 0);
+          const covers = Number(r.totalCovers || 0);
+          const frames = Number(r.totalFrames || 0);
+          const sets = Number(r.totalSets || 0);
+          const w = Number(r.totalWeight || 0);
+          const wMT = (w / 1000).toFixed(3);
+          const createdBy = r.createdBy?.name || r.creatorName || '';
+          const status = r.status || 'DRAFT';
+          const remarks = r.remarks || '';
+
+          totRows += rowCount;
+          totCovers += covers;
+          totFrames += frames;
+          totSets += sets;
+          totWeight += w;
+
+          return [
             `"${String(repNo).replace(/"/g, '""')}"`,
             `"${String(repDate).replace(/"/g, '""')}"`,
             `"${String(repShift).replace(/"/g, '""')}"`,
             `"${String(repSup).replace(/"/g, '""')}"`,
-            `"${String(repStatus).replace(/"/g, '""')}"`,
-            srNo,
-            `"${String(prodName).replace(/"/g, '""')}"`,
-            `"${String(size).replace(/"/g, '""')}"`,
-            `"${String(type).replace(/"/g, '""')}"`,
-            `"${String(capacity).replace(/"/g, '""')}"`,
-            coverQty,
-            coverWt,
-            frameQty,
-            frameWt,
-            totalWt,
-            setQty,
-            extraCover,
-            extraFrame,
+            rowCount,
+            covers,
+            frames,
+            sets,
+            w.toFixed(2),
+            wMT,
+            `"${String(createdBy).replace(/"/g, '""')}"`,
+            `"${String(status).replace(/"/g, '""')}"`,
             `"${String(remarks).replace(/"/g, '""')}"`
-          ].join(','));
+          ].join(',');
         });
-      } else {
-        const w = Number(r.totalWeight || 0);
-        csvRows.push([
-          `"${String(repNo).replace(/"/g, '""')}"`,
-          `"${String(repDate).replace(/"/g, '""')}"`,
-          `"${String(repShift).replace(/"/g, '""')}"`,
-          `"${String(repSup).replace(/"/g, '""')}"`,
-          `"${String(repStatus).replace(/"/g, '""')}"`,
-          1,
-          'Summary',
-          '—',
-          '—',
-          '—',
-          r.totalCovers || 0,
-          Number(r.totalCoverWeight || 0).toFixed(2),
-          r.totalFrames || 0,
-          Number(r.totalFrameWeight || 0).toFixed(2),
-          w.toFixed(2),
-          r.totalSets || 0,
-          0,
-          0,
-          `"${String(r.remarks || '').replace(/"/g, '""')}"`
-        ].join(','));
-      }
-    });
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...csvRows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Daily_Production_Report_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+        const totalRow = [
+          '"GRAND TOTAL"',
+          '""',
+          '""',
+          '""',
+          totRows,
+          totCovers,
+          totFrames,
+          totSets,
+          totWeight.toFixed(2),
+          (totWeight / 1000).toFixed(3),
+          '""',
+          '""',
+          '""'
+        ].join(',');
+
+        csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...csvRows, totalRow].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `${prefix}_${filterLabel}_Summary_Register.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+      } else {
+        // DETAILED LINE ITEMS BREAKDOWN
+        const headers = [
+          'Report No',
+          'Date',
+          'Shift',
+          isDispatch ? 'Executive' : 'Supervisor',
+          'Status',
+          'Created By',
+          'Sr',
+          'Product Name',
+          'Product SKU',
+          'Size',
+          'Type',
+          'Capacity',
+          'Cover Qty',
+          'Cover Wt (kg)',
+          'Frame Qty',
+          'Frame Wt (kg)',
+          'Total Wt (kg)',
+          'Set',
+          'Extra Cover',
+          'Extra Frame',
+          'Remarks'
+        ];
+
+        const csvRows = [];
+        let grandCoverQty = 0, grandCoverWt = 0, grandFrameQty = 0, grandFrameWt = 0, grandTotWt = 0, grandSets = 0;
+
+        allReports.forEach(r => {
+          const repNo = r.reportNo || r.id || '';
+          const repDate = r.reportDate ? r.reportDate.split('T')[0] : '';
+          const repShift = r.shift || '';
+          const repSup = isDispatch ? (r.dispatchExecutive || r.supervisorName || '') : (r.shiftSupervisorName || r.supervisorName || '');
+          const repStatus = r.status || 'DRAFT';
+          const repCreatedBy = r.createdBy?.name || r.creatorName || '';
+
+          if (r.items && r.items.length > 0) {
+            r.items.forEach((item, idx) => {
+              const srNo = item.srNo || idx + 1;
+              const prodName = item.product?.name || item.customProductName || '';
+              const prodSku = item.product?.sku || '';
+              const size = item.size || item.product?.size || '';
+              const type = item.type || item.product?.type || '';
+              const capacity = item.capacity || item.product?.capacity || '';
+              const coverQty = Number(item.coverQty || 0);
+              const coverWt = Number(item.actualCoverWeight || item.coverWeight || 0);
+              const frameQty = Number(item.frameQty || 0);
+              const frameWt = Number(item.actualFrameWeight || item.frameWeight || 0);
+              const totalWt = Number(item.totalWeight || 0);
+              const setQty = Number(item.setQty || 0);
+              const extraCover = Number(item.extraCoverQty || 0);
+              const extraFrame = Number(item.extraFrameQty || 0);
+              const remarks = item.remarks || r.remarks || '';
+
+              grandCoverQty += coverQty;
+              grandCoverWt += coverWt;
+              grandFrameQty += frameQty;
+              grandFrameWt += frameWt;
+              grandTotWt += totalWt;
+              grandSets += setQty;
+
+              csvRows.push([
+                `"${String(repNo).replace(/"/g, '""')}"`,
+                `"${String(repDate).replace(/"/g, '""')}"`,
+                `"${String(repShift).replace(/"/g, '""')}"`,
+                `"${String(repSup).replace(/"/g, '""')}"`,
+                `"${String(repStatus).replace(/"/g, '""')}"`,
+                `"${String(repCreatedBy).replace(/"/g, '""')}"`,
+                srNo,
+                `"${String(prodName).replace(/"/g, '""')}"`,
+                `"${String(prodSku).replace(/"/g, '""')}"`,
+                `"${String(size).replace(/"/g, '""')}"`,
+                `"${String(type).replace(/"/g, '""')}"`,
+                `"${String(capacity).replace(/"/g, '""')}"`,
+                coverQty,
+                coverWt.toFixed(2),
+                frameQty,
+                frameWt.toFixed(2),
+                totalWt.toFixed(2),
+                setQty,
+                extraCover,
+                extraFrame,
+                `"${String(remarks).replace(/"/g, '""')}"`
+              ].join(','));
+            });
+          } else {
+            const w = Number(r.totalWeight || 0);
+            const covers = Number(r.totalCovers || 0);
+            const frames = Number(r.totalFrames || 0);
+            const sets = Number(r.totalSets || 0);
+            grandCoverQty += covers;
+            grandFrameQty += frames;
+            grandTotWt += w;
+            grandSets += sets;
+
+            csvRows.push([
+              `"${String(repNo).replace(/"/g, '""')}"`,
+              `"${String(repDate).replace(/"/g, '""')}"`,
+              `"${String(repShift).replace(/"/g, '""')}"`,
+              `"${String(repSup).replace(/"/g, '""')}"`,
+              `"${String(repStatus).replace(/"/g, '""')}"`,
+              `"${String(repCreatedBy).replace(/"/g, '""')}"`,
+              1,
+              'Summary Record',
+              '—',
+              '—',
+              '—',
+              '—',
+              covers,
+              Number(r.totalCoverWeight || 0).toFixed(2),
+              frames,
+              Number(r.totalFrameWeight || 0).toFixed(2),
+              w.toFixed(2),
+              sets,
+              0,
+              0,
+              `"${String(r.remarks || '').replace(/"/g, '""')}"`
+            ].join(','));
+          }
+        });
+
+        const totalRow = [
+          '"GRAND TOTAL"',
+          '""',
+          '""',
+          '""',
+          '""',
+          '""',
+          '""',
+          '""',
+          '""',
+          '""',
+          '""',
+          '""',
+          grandCoverQty,
+          grandCoverWt.toFixed(2),
+          grandFrameQty,
+          grandFrameWt.toFixed(2),
+          grandTotWt.toFixed(2),
+          grandSets,
+          '""',
+          '""',
+          '""'
+        ].join(',');
+
+        csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...csvRows, totalRow].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `${prefix}_${filterLabel}_Detailed_Items.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Export Complete',
+        text: `Exported ${allReports.length} reports successfully (${format === 'summary' ? 'Summary Register' : 'Detailed Items'}).`,
+        timer: 2500,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end'
+      });
+    } catch (err) {
+      console.error('[DailyReportHistory] Export CSV Error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Export Failed',
+        text: err.message || 'Unable to generate CSV export'
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
-  // Aggregate stats across current page/view
+  // Aggregate stats across entire filtered dataset
   const historyStats = useMemo(() => {
+    if (summaryStats) {
+      const w = Number(summaryStats.totalWeight || 0);
+      return {
+        covers: Number(summaryStats.totalCovers || 0),
+        frames: Number(summaryStats.totalFrames || 0),
+        sets: Number(summaryStats.totalSets || 0),
+        weight: Math.round(w * 100) / 100,
+        weightMT: (w / 1000).toFixed(2)
+      };
+    }
+
     let covers = 0;
     let frames = 0;
     let sets = 0;
@@ -334,7 +670,7 @@ export default function DailyReportHistoryView({
       weight: Math.round(weight * 100) / 100,
       weightMT: (weight / 1000).toFixed(2)
     };
-  }, [reports]);
+  }, [reports, summaryStats]);
 
   const handleReopenReport = async (reportId) => {
     const confirm = await Swal.fire({
@@ -584,26 +920,130 @@ export default function DailyReportHistoryView({
             <RefreshCw size={15} /> Refresh
           </button>
 
-          <button
-            type="button"
-            onClick={handleExportCSV}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '9px 16px',
+          {/* Export CSV Split Dropdown */}
+          <div style={{ position: 'relative' }}>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'stretch',
               borderRadius: '10px',
+              overflow: 'hidden',
               border: '1px solid #10b981',
-              background: 'rgba(16, 185, 129, 0.08)',
-              color: '#059669',
-              fontSize: '13px',
-              fontWeight: '800',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <Download size={15} /> Export CSV
-          </button>
+              boxShadow: '0 2px 4px rgba(16, 185, 129, 0.1)'
+            }}>
+              <button
+                type="button"
+                onClick={() => handleExportCSV('summary')}
+                disabled={isExporting}
+                title="Download Daily Production Report History CSV (Summary Register matching table)"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '9px 14px',
+                  border: 'none',
+                  borderRight: '1px solid rgba(16, 185, 129, 0.3)',
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  color: '#059669',
+                  fontSize: '13px',
+                  fontWeight: '800',
+                  cursor: isExporting ? 'wait' : 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Download size={15} className={isExporting ? 'spin' : ''} />
+                {isExporting ? 'Exporting...' : 'Export CSV'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setExportMenuOpen(prev => !prev)}
+                disabled={isExporting}
+                title="Choose CSV Export Format"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '9px 10px',
+                  border: 'none',
+                  background: 'rgba(16, 185, 129, 0.14)',
+                  color: '#059669',
+                  fontSize: '11px',
+                  fontWeight: '900',
+                  cursor: isExporting ? 'wait' : 'pointer'
+                }}
+              >
+                ▼
+              </button>
+            </div>
+
+            {exportMenuOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: 'calc(100% + 6px)',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '12px',
+                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.18)',
+                  padding: '8px',
+                  minWidth: '280px',
+                  zIndex: 100
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => { setExportMenuOpen(false); handleExportCSV('summary'); }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '3px'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                >
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>
+                    📊 History Summary CSV (Table Register)
+                  </span>
+                  <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+                    1 row per report with Total Covers, Frames, Sets & Weight
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setExportMenuOpen(false); handleExportCSV('detailed'); }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '3px'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                >
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>
+                    📦 Detailed Items CSV (Line Items Breakdown)
+                  </span>
+                  <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+                    All products produced across reports with sizes & actual weights
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
 
           {!isReadOnly && (onNewReport || roleMode === 'PRODUCTION' || roleMode === 'DISPATCH') && (
             <button
@@ -690,31 +1130,59 @@ export default function DailyReportHistoryView({
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', width: '100%', minWidth: 0 }}>
           {/* Preset Buttons */}
           <div className="erp-tab-scroll-bar" style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '10px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0, width: isMobile ? '100%' : 'auto' }}>
-            {['All', 'Today', 'Yesterday', 'This Week', 'This Month'].map(p => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => {
-                  setPreset(p);
-                  setPage(1);
-                }}
-                style={{
-                  flex: isMobile ? '1 1 auto' : 'none',
-                  whiteSpace: 'nowrap',
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: preset === p ? '#ffffff' : 'transparent',
-                  color: preset === p ? '#0f172a' : '#64748b',
-                  fontSize: '12px',
-                  fontWeight: preset === p ? '800' : '600',
-                  cursor: 'pointer',
-                  boxShadow: preset === p ? '0 2px 4px rgba(0,0,0,0.05)' : 'none'
-                }}
-              >
-                {p}
-              </button>
-            ))}
+            {['All', 'This Month', 'Last Month', 'This Week', 'Today', 'Yesterday'].map(p => {
+              const isSelected = preset === p && (p !== 'This Month' && p !== 'Last Month' || selectedMonth !== 'All');
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => handleSelectPreset(p)}
+                  style={{
+                    flex: isMobile ? '1 1 auto' : 'none',
+                    whiteSpace: 'nowrap',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: isSelected ? '#ffffff' : 'transparent',
+                    color: isSelected ? '#0f172a' : '#64748b',
+                    fontSize: '12px',
+                    fontWeight: isSelected ? '800' : '600',
+                    cursor: 'pointer',
+                    boxShadow: isSelected ? '0 2px 4px rgba(0,0,0,0.05)' : 'none'
+                  }}
+                >
+                  {p}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Month Filter Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: isMobile ? '100%' : 'auto', flex: isMobile ? '1 1 100%' : 'none' }}>
+            <select
+              value={selectedMonth}
+              onChange={(e) => handleMonthSelect(e.target.value)}
+              className="form-select"
+              style={{
+                margin: 0,
+                fontSize: '13px',
+                fontWeight: selectedMonth !== 'All' ? '800' : '600',
+                borderColor: selectedMonth !== 'All' ? '#0284c7' : 'var(--color-border, #cbd5e1)',
+                background: selectedMonth !== 'All' ? 'rgba(2, 132, 199, 0.05)' : 'var(--color-bg-card, #ffffff)',
+                color: selectedMonth !== 'All' ? '#0369a1' : 'var(--color-text-primary, #0f172a)',
+                minWidth: '160px',
+                flex: isMobile ? 1 : 'none'
+              }}
+              title="Filter Daily Reports by Month"
+            >
+              <option value="All">📅 All Months</option>
+              {availableMonths.map(m => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+              <option value="custom">📅 Custom Date Range...</option>
+            </select>
           </div>
 
           <div style={{ display: 'flex', gap: '8px', width: isMobile ? '100%' : 'auto', flex: isMobile ? '1 1 100%' : 'none' }}>
@@ -760,29 +1228,54 @@ export default function DailyReportHistoryView({
           </div>
         </div>
 
-        {/* Custom Date Range if preset is All */}
-        {preset === 'All' && (
-          <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row', gap: '8px', fontSize: '12px', width: '100%' }}>
-            <span style={{ fontWeight: '700', color: '#64748b' }}>Custom Range:</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: isMobile ? '100%' : 'auto', flex: 1 }}>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
-                className="form-input"
-                style={{ margin: 0, flex: 1, minWidth: 0, fontSize: '12px' }}
-              />
-              <span style={{ color: '#94a3b8' }}>to</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
-                className="form-input"
-                style={{ margin: 0, flex: 1, minWidth: 0, fontSize: '12px' }}
-              />
-            </div>
+        {/* Date Range Selector Row */}
+        <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row', gap: '8px', fontSize: '12px', width: '100%', flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: '700', color: '#64748b' }}>
+            {selectedMonth !== 'All' && selectedMonth !== 'custom' ? `Active Period (${selectedMonth}):` : 'Custom Range:'}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: isMobile ? '100%' : 'auto', flex: 1 }}>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => { setStartDate(e.target.value); setSelectedMonth('custom'); setPreset('Custom'); setPage(1); }}
+              className="form-input"
+              style={{ margin: 0, flex: 1, minWidth: 0, fontSize: '12px' }}
+            />
+            <span style={{ color: '#94a3b8' }}>to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => { setEndDate(e.target.value); setSelectedMonth('custom'); setPreset('Custom'); setPage(1); }}
+              className="form-input"
+              style={{ margin: 0, flex: 1, minWidth: 0, fontSize: '12px' }}
+            />
+            {(startDate || endDate || selectedMonth !== 'All') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedMonth('All');
+                  setPreset('All');
+                  setStartDate('');
+                  setEndDate('');
+                  setPage(1);
+                }}
+                style={{
+                  padding: '5px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  color: '#64748b',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Clear Filter
+              </button>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* HISTORY TABLE & MOBILE CARDS */}

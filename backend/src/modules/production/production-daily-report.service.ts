@@ -214,7 +214,7 @@ export class ProductionDailyReportService {
    */
   async listReports(companyId: string, query: QueryDailyReportDto) {
     const page = Math.max(1, Number(query.page || 1));
-    const limit = Math.max(1, Math.min(100, Number(query.limit || 20)));
+    const limit = Math.max(1, Math.min(5000, Number(query.limit || 20)));
     const skip = (page - 1) * limit;
 
     const where: Prisma.ProductionDailyReportWhereInput = {
@@ -240,7 +240,11 @@ export class ProductionDailyReportService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    if (query.preset && query.preset.toLowerCase() !== 'all') {
+    if (query.month && /^\d{4}-\d{2}$/.test(query.month)) {
+      const [year, m] = query.month.split('-').map(Number);
+      start = new Date(year, m - 1, 1);
+      end = new Date(year, m, 0, 23, 59, 59, 999);
+    } else if (query.preset && query.preset.toLowerCase() !== 'all') {
       const presetLower = query.preset.toLowerCase();
       if (presetLower === 'today') {
         start = new Date(today);
@@ -263,6 +267,17 @@ export class ProductionDailyReportService {
         end = new Date(
           today.getFullYear(),
           today.getMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999,
+        );
+      } else if (presetLower === 'last month' || presetLower === 'last_month') {
+        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        end = new Date(
+          today.getFullYear(),
+          today.getMonth(),
           0,
           23,
           59,
@@ -344,7 +359,7 @@ export class ProductionDailyReportService {
       }
     }
 
-    const [total, items] = await Promise.all([
+    const [total, items, aggregateStats] = await Promise.all([
       this.prisma.productionDailyReport.count({ where }),
       this.prisma.productionDailyReport.findMany({
         where,
@@ -374,6 +389,15 @@ export class ProductionDailyReportService {
           _count: { select: { items: true } },
         },
       }),
+      this.prisma.productionDailyReport.aggregate({
+        where,
+        _sum: {
+          totalCovers: true,
+          totalFrames: true,
+          totalSets: true,
+          totalWeight: true,
+        },
+      }),
     ]);
 
     return {
@@ -381,6 +405,13 @@ export class ProductionDailyReportService {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+      summary: {
+        totalReports: total,
+        totalCovers: Number(aggregateStats._sum.totalCovers || 0),
+        totalFrames: Number(aggregateStats._sum.totalFrames || 0),
+        totalSets: Number(aggregateStats._sum.totalSets || 0),
+        totalWeight: Number(aggregateStats._sum.totalWeight || 0),
+      },
       items: items.map((r) => ({
         ...r,
         rowCount: r._count.items,

@@ -176,6 +176,10 @@ export class QueryDispatchDailyReportDto {
 
   @IsOptional()
   @IsString()
+  month?: string;
+
+  @IsOptional()
+  @IsString()
   startDate?: string;
 
   @IsOptional()

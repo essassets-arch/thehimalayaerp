@@ -186,6 +186,10 @@ export class QueryDailyReportDto {
 
   @IsOptional()
   @IsString()
+  month?: string;
+
+  @IsOptional()
+  @IsString()
   preset?: string;
 
   @IsOptional()
