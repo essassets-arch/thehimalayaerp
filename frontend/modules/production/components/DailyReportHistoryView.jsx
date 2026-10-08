@@ -368,7 +368,7 @@ export default function DailyReportHistoryView({
     return allItems;
   };
 
-  const handleExportCSV = async (format = 'summary') => {
+  const handleExportCSV = async (format = 'detailed') => {
     try {
       setIsExporting(true);
       const allReports = await fetchAllFilteredReports();
@@ -485,10 +485,13 @@ export default function DailyReportHistoryView({
         triggerDownload(csvContent, `${prefix}_${filterLabel}_Summary_Register.csv`);
 
       } else if (format === 'product') {
-        // PRODUCT-WISE CONSOLIDATED SUMMARY (Grouped by Product Name)
+        // PRODUCT-WISE CONSOLIDATED SUMMARY (Grouped by Product Name with Report Dates & Numbers)
         const productMap = new Map();
 
         allReports.forEach(r => {
+          const repDate = r.reportDate ? r.reportDate.split('T')[0] : '';
+          const repNo = r.reportNo || r.id || '';
+
           if (r.items && r.items.length > 0) {
             r.items.forEach(item => {
               const prodName = (item.product?.name || item.customProductName || 'Unspecified Product').trim();
@@ -515,6 +518,8 @@ export default function DailyReportHistoryView({
                   sizes: new Set(size ? [size] : []),
                   types: new Set(type ? [type] : []),
                   capacities: new Set(capacity ? [capacity] : []),
+                  dates: new Set(repDate ? [repDate] : []),
+                  reportNos: new Set(repNo ? [repNo] : []),
                   entriesCount: 1,
                   setQty: setQty,
                   coverQty: coverQty,
@@ -531,6 +536,8 @@ export default function DailyReportHistoryView({
                 if (size) prod.sizes.add(size);
                 if (type) prod.types.add(type);
                 if (capacity) prod.capacities.add(capacity);
+                if (repDate) prod.dates.add(repDate);
+                if (repNo) prod.reportNos.add(repNo);
                 prod.entriesCount += 1;
                 prod.setQty += setQty;
                 prod.coverQty += coverQty;
@@ -557,6 +564,8 @@ export default function DailyReportHistoryView({
                 sizes: new Set(['—']),
                 types: new Set(['—']),
                 capacities: new Set(['—']),
+                dates: new Set(repDate ? [repDate] : []),
+                reportNos: new Set(repNo ? [repNo] : []),
                 entriesCount: 1,
                 setQty: sets,
                 coverQty: covers,
@@ -569,6 +578,8 @@ export default function DailyReportHistoryView({
               });
             } else {
               const prod = productMap.get(groupKey);
+              if (repDate) prod.dates.add(repDate);
+              if (repNo) prod.reportNos.add(repNo);
               prod.entriesCount += 1;
               prod.setQty += sets;
               prod.coverQty += covers;
@@ -612,6 +623,9 @@ export default function DailyReportHistoryView({
           'Size',
           'Type',
           'Capacity',
+          'Report Dates Logged',
+          'Latest Report Date',
+          'Report Numbers',
           'Report Entries Count',
           isDispatch ? 'Total Sets Dispatched' : 'Total Sets Produced',
           isDispatch ? 'Total Covers Dispatched' : 'Total Covers Produced',
@@ -630,6 +644,10 @@ export default function DailyReportHistoryView({
           const sizeStr = Array.from(prod.sizes).join(' / ') || '—';
           const typeStr = Array.from(prod.types).join(' / ') || '—';
           const capStr = Array.from(prod.capacities).join(' / ') || '—';
+          const datesArr = Array.from(prod.dates).sort();
+          const datesStr = datesArr.join(', ') || '—';
+          const latestDate = datesArr.length > 0 ? datesArr[datesArr.length - 1] : '—';
+          const reportNosStr = Array.from(prod.reportNos).join(', ') || '—';
           const wMT = (prod.totalWeight / 1000).toFixed(3);
           const sharePct = grandTotalWeight > 0 ? ((prod.totalWeight / grandTotalWeight) * 100).toFixed(2) + '%' : '0.00%';
 
@@ -640,6 +658,9 @@ export default function DailyReportHistoryView({
             `"${String(sizeStr).replace(/"/g, '""')}"`,
             `"${String(typeStr).replace(/"/g, '""')}"`,
             `"${String(capStr).replace(/"/g, '""')}"`,
+            `"${String(datesStr).replace(/"/g, '""')}"`,
+            `"${String(latestDate).replace(/"/g, '""')}"`,
+            `"${String(reportNosStr).replace(/"/g, '""')}"`,
             prod.entriesCount,
             prod.setQty,
             prod.coverQty,
@@ -661,6 +682,9 @@ export default function DailyReportHistoryView({
           '""',
           '""',
           '""',
+          `"${filterLabel}"`,
+          '""',
+          `"Total Reports: ${allReports.length}"`,
           grandEntries,
           grandSets,
           grandCovers,
@@ -678,28 +702,28 @@ export default function DailyReportHistoryView({
         triggerDownload(csvContent, `${prefix}_${filterLabel}_Product_Wise_Summary.csv`);
 
       } else {
-        // DETAILED LINE ITEMS BREAKDOWN
+        // DETAILED DAILY REPORT & PRODUCT BREAKDOWN (Shows Date, Report No & Product Name for every line item)
         const headers = [
-          'Report No',
           'Date',
-          'Shift',
-          isDispatch ? 'Executive' : 'Supervisor',
-          'Status',
-          'Created By',
-          'Sr',
+          'Report No',
           'Product Name',
-          'Product SKU',
+          'Product SKU / Code',
           'Size',
           'Type',
           'Capacity',
-          'Cover Qty',
+          'Shift',
+          isDispatch ? 'Executive' : 'Supervisor',
+          isDispatch ? 'Sets Dispatched' : 'Sets Produced',
+          isDispatch ? 'Covers Dispatched' : 'Covers Produced',
           'Cover Wt (kg)',
-          'Frame Qty',
+          isDispatch ? 'Frames Dispatched' : 'Frames Produced',
           'Frame Wt (kg)',
+          'Extra Covers',
+          'Extra Frames',
           'Total Wt (kg)',
-          'Set',
-          'Extra Cover',
-          'Extra Frame',
+          'Total Wt (MT)',
+          'Status',
+          'Created By',
           'Remarks'
         ];
 
@@ -716,9 +740,8 @@ export default function DailyReportHistoryView({
 
           if (r.items && r.items.length > 0) {
             r.items.forEach((item, idx) => {
-              const srNo = item.srNo || idx + 1;
               const prodName = item.product?.name || item.customProductName || '';
-              const prodSku = item.product?.sku || '';
+              const prodSku = item.product?.sku || item.product?.code || '';
               const size = item.size || item.product?.size || '';
               const type = item.type || item.product?.type || '';
               const capacity = item.capacity || item.product?.capacity || '';
@@ -740,26 +763,26 @@ export default function DailyReportHistoryView({
               grandSets += setQty;
 
               csvRows.push([
-                `"${String(repNo).replace(/"/g, '""')}"`,
                 `"${String(repDate).replace(/"/g, '""')}"`,
-                `"${String(repShift).replace(/"/g, '""')}"`,
-                `"${String(repSup).replace(/"/g, '""')}"`,
-                `"${String(repStatus).replace(/"/g, '""')}"`,
-                `"${String(repCreatedBy).replace(/"/g, '""')}"`,
-                srNo,
+                `"${String(repNo).replace(/"/g, '""')}"`,
                 `"${String(prodName).replace(/"/g, '""')}"`,
                 `"${String(prodSku).replace(/"/g, '""')}"`,
                 `"${String(size).replace(/"/g, '""')}"`,
                 `"${String(type).replace(/"/g, '""')}"`,
                 `"${String(capacity).replace(/"/g, '""')}"`,
+                `"${String(repShift).replace(/"/g, '""')}"`,
+                `"${String(repSup).replace(/"/g, '""')}"`,
+                setQty,
                 coverQty,
                 coverWt.toFixed(2),
                 frameQty,
                 frameWt.toFixed(2),
-                totalWt.toFixed(2),
-                setQty,
                 extraCover,
                 extraFrame,
+                totalWt.toFixed(2),
+                (totalWt / 1000).toFixed(3),
+                `"${String(repStatus).replace(/"/g, '""')}"`,
+                `"${String(repCreatedBy).replace(/"/g, '""')}"`,
                 `"${String(remarks).replace(/"/g, '""')}"`
               ].join(','));
             });
@@ -774,26 +797,26 @@ export default function DailyReportHistoryView({
             grandSets += sets;
 
             csvRows.push([
-              `"${String(repNo).replace(/"/g, '""')}"`,
               `"${String(repDate).replace(/"/g, '""')}"`,
+              `"${String(repNo).replace(/"/g, '""')}"`,
+              '"General Daily Record"',
+              '"—"',
+              '"—"',
+              '"—"',
+              '"—"',
               `"${String(repShift).replace(/"/g, '""')}"`,
               `"${String(repSup).replace(/"/g, '""')}"`,
-              `"${String(repStatus).replace(/"/g, '""')}"`,
-              `"${String(repCreatedBy).replace(/"/g, '""')}"`,
-              1,
-              'Summary Record',
-              '—',
-              '—',
-              '—',
-              '—',
+              sets,
               covers,
               Number(r.totalCoverWeight || 0).toFixed(2),
               frames,
               Number(r.totalFrameWeight || 0).toFixed(2),
+              0,
+              0,
               w.toFixed(2),
-              sets,
-              0,
-              0,
+              (w / 1000).toFixed(3),
+              `"${String(repStatus).replace(/"/g, '""')}"`,
+              `"${String(repCreatedBy).replace(/"/g, '""')}"`,
               `"${String(r.remarks || '').replace(/"/g, '""')}"`
             ].join(','));
           }
@@ -801,30 +824,30 @@ export default function DailyReportHistoryView({
 
         const totalRow = [
           '"GRAND TOTAL"',
+          `"Total Reports: ${allReports.length}"`,
+          `"Total Line Items: ${csvRows.length}"`,
           '""',
           '""',
           '""',
           '""',
           '""',
           '""',
-          '""',
-          '""',
-          '""',
-          '""',
-          '""',
+          grandSets,
           grandCoverQty,
           grandCoverWt.toFixed(2),
           grandFrameQty,
           grandFrameWt.toFixed(2),
+          grandExtraCovers,
+          grandExtraFrames,
           grandTotWt.toFixed(2),
-          grandSets,
+          (grandTotWt / 1000).toFixed(3),
           '""',
           '""',
           '""'
         ].join(',');
 
         csvContent = [headers.join(','), ...csvRows, totalRow].join('\n');
-        triggerDownload(csvContent, `${prefix}_${filterLabel}_Detailed_Items.csv`);
+        triggerDownload(csvContent, `${prefix}_${filterLabel}_Report_and_Product_Details.csv`);
       }
 
       const formatTitle =
@@ -832,7 +855,7 @@ export default function DailyReportHistoryView({
           ? 'Summary Register'
           : format === 'product'
             ? 'Product-Wise Summary'
-            : 'Detailed Items';
+            : 'Report & Product Details';
 
       Swal.fire({
         icon: 'success',
@@ -1149,9 +1172,9 @@ export default function DailyReportHistoryView({
             }}>
               <button
                 type="button"
-                onClick={() => handleExportCSV('summary')}
+                onClick={() => handleExportCSV('detailed')}
                 disabled={isExporting}
-                title="Download Daily Production Report History CSV (Summary Register matching table)"
+                title="Download Daily Production Report History CSV (Shows Date, Report No & Product Details for every entry)"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -1209,7 +1232,7 @@ export default function DailyReportHistoryView({
               >
                 <button
                   type="button"
-                  onClick={() => { setExportMenuOpen(false); handleExportCSV('summary'); }}
+                  onClick={() => { setExportMenuOpen(false); handleExportCSV('detailed'); }}
                   style={{
                     width: '100%',
                     textAlign: 'left',
@@ -1226,10 +1249,10 @@ export default function DailyReportHistoryView({
                   onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
                 >
                   <span style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>
-                    📊 History Summary CSV (Table Register)
+                    📋 Daily Report & Product CSV (Date + Report No + Product)
                   </span>
                   <span style={{ fontSize: '11.5px', color: '#64748b' }}>
-                    1 row per report with Total Covers, Frames, Sets & Weight
+                    Every line item showing Report Date, Report No, Product Name, Quantities & Weights
                   </span>
                 </button>
 
@@ -1255,13 +1278,13 @@ export default function DailyReportHistoryView({
                     🏷️ Product-Wise Summary CSV (By Product Name)
                   </span>
                   <span style={{ fontSize: '11.5px', color: '#64748b' }}>
-                    Total Sets, Covers, Frames & Weight grouped by Product Name
+                    Consolidated totals per product, including all report dates & numbers
                   </span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => { setExportMenuOpen(false); handleExportCSV('detailed'); }}
+                  onClick={() => { setExportMenuOpen(false); handleExportCSV('summary'); }}
                   style={{
                     width: '100%',
                     textAlign: 'left',
@@ -1278,10 +1301,10 @@ export default function DailyReportHistoryView({
                   onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
                 >
                   <span style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>
-                    📦 Detailed Items CSV (Line Items Breakdown)
+                    📊 History Summary CSV (Reports Only)
                   </span>
                   <span style={{ fontSize: '11.5px', color: '#64748b' }}>
-                    All products produced across reports with sizes & actual weights
+                    1 row per report with Total Covers, Frames, Sets & Weight (no products)
                   </span>
                 </button>
               </div>
@@ -1293,7 +1316,7 @@ export default function DailyReportHistoryView({
             type="button"
             onClick={() => handleExportCSV('product')}
             disabled={isExporting}
-            title="Download Product-Wise Consolidated Summary CSV (Grouped by Product Name)"
+            title="Download Product-Wise Summary CSV with Dates & Product Totals"
             style={{
               display: 'flex',
               alignItems: 'center',
