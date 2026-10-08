@@ -53,8 +53,9 @@ describe('Dispatch analytics aggregation', () => {
     expect(result.summary.totalTrips).toBe(2);
     expect(result.products.find(p => p.product === 'MHC')?.quantity).toBe(2);
     expect(result.products.find(p => p.product === 'RCS')?.quantity).toBe(8);
-    expect(result.products.find(p => p.product === 'Industrial tank')?.quantity).toBe(3);
-    expect(result.products.find(p => p.product === 'Mixed / unallocated')?.weight).toBe(100);
+    expect(result.products.find(p => p.product === 'MHC')?.weight).toBe(20);
+    expect(result.products.find(p => p.product === 'RCS')?.weight).toBe(80);
+    expect(result.products.find(p => p.product === 'Industrial tank')?.weight).toBe(100);
     expect(result.dispatchOrders[0].vehicle).toBe('Not recorded');
     expect(result.kpis.deliverySLA).toBe('Not available');
     for (const [query] of findMany.mock.calls) expect(query.where.salesOrder.customer.companyId).toBe('tenant');

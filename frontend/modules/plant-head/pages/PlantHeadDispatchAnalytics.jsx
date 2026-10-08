@@ -75,6 +75,8 @@ const PRODUCT_COLORS = {
   'ONGC': '#10b981',    // Emerald
   'WGC': '#f59e0b',     // Amber
   'D MHC': '#8b5cf6',   // Violet
+  'FRP MOULDED GRATING': '#06b6d4', // Cyan
+  'COVER BLOCK': '#64748b', // Slate
   'Other / Unmapped': '#94a3b8',
 };
 
@@ -88,6 +90,8 @@ const CAPACITY_COLORS = {
   '3T': '#ec4899',
   'E600': '#3b82f6',
   'F900': '#ef4444',
+  'Civil Accessory': '#64748b',
+  'Standard Duty': '#0284c7',
   'Other / Unmapped': '#94a3b8',
 };
 
@@ -97,7 +101,7 @@ const SPEC_COLOUR_MAP = {
   'Black': '#1e293b',
   'P.Green': '#15803d',
   'Red': '#ef4444',
-  'White': '#e2e8f0',
+  'White': '#cbd5e1',
   'Ivory': '#fef08a',
   'Other / Unmapped': '#cbd5e1',
 };

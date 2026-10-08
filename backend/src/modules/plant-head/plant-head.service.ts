@@ -15,6 +15,7 @@ import {
   standardizeCapacity,
   standardizeSize,
   standardizeColour,
+  getNominalUnitWeight,
 } from './dispatch-analytics-period';
 import {
   Injectable,
@@ -5647,25 +5648,37 @@ export class PlantHeadService {
         const specs = (itemObj.specifications || {}) as Record<string, any>;
         const rawName = itemObj.product?.name || itemObj.productNameSnapshot || '';
         const prod = standardizeProduct(specs.product, rawName);
-        if (prod && prod !== 'Mixed / unallocated' && prod !== 'Not recorded') distinctProducts.add(prod);
+        if (prod && prod !== 'Mixed / unallocated' && prod !== 'Not recorded' && prod !== 'Other / Unmapped') distinctProducts.add(prod);
 
-        const cap = standardizeCapacity(specs.capacity || rawName);
-        if (cap && cap !== 'Mixed / unallocated' && cap !== 'Not recorded') distinctCapacities.add(cap);
+        const cap = standardizeCapacity(specs.capacity || rawName, rawName);
+        if (cap && cap !== 'Mixed / unallocated' && cap !== 'Not recorded' && cap !== 'Other / Unmapped') distinctCapacities.add(cap);
 
-        const size = standardizeSize(specs.size || rawName);
-        const colour = standardizeColour(specs.colour || specs.color);
+        const size = standardizeSize(specs.size || rawName, rawName);
+        const colour = standardizeColour(specs.colour || specs.color, rawName);
         const itQty = Number(it.quantity) || 0;
-        return { prod, cap, size, colour, itQty };
+        const nominalUnitW = getNominalUnitWeight(rawName, prod, cap, size);
+        const nominalTotalW = nominalUnitW * itQty;
+        return { prod, cap, size, colour, itQty, rawName, nominalUnitW, nominalTotalW };
       });
 
-      const primaryProd = (new Set(itemSpecs.map(it => it.prod)).size > 1 ? 'Mixed / unallocated' : itemSpecs[0]?.prod) || 'Not recorded';
-      const primaryCap = (new Set(itemSpecs.map(it => it.cap)).size > 1 ? 'Mixed / unallocated' : itemSpecs[0]?.cap) || 'Not recorded';
-      const primarySize = (new Set(itemSpecs.map(it => it.size)).size > 1 ? 'Mixed / unallocated' : itemSpecs[0]?.size) || 'Not recorded';
-      const primaryColour = (new Set(itemSpecs.map(it => it.colour)).size > 1 ? 'Mixed / unallocated' : itemSpecs[0]?.colour) || 'Not recorded';
-
-      if (primaryCap && primaryCap !== 'Mixed / unallocated' && primaryCap !== 'Not recorded') {
-        distinctCapacities.add(primaryCap);
-      }
+      // Allocate dispatch weighbridge weight proportionally across items
+      const totalNominalW = itemSpecs.reduce((sum: number, it: any) => sum + it.nominalTotalW, 0);
+      const allocatedItems = itemSpecs.map((it: any) => {
+        let itemWeight = 0;
+        if (itemSpecs.length === 1) {
+          itemWeight = dWeight;
+        } else if (totalNominalW > 0) {
+          itemWeight = (it.nominalTotalW / totalNominalW) * dWeight;
+        } else if (dPcs > 0) {
+          itemWeight = (it.itQty / dPcs) * dWeight;
+        } else {
+          itemWeight = dWeight / (itemSpecs.length || 1);
+        }
+        return {
+          ...it,
+          allocatedWeight: itemWeight,
+        };
+      });
 
       // ── Apply User Filters ──
       if (areaFilter && areaFilter !== 'All') {
@@ -5683,12 +5696,12 @@ export class PlantHeadService {
       }
 
       if (productFilter && productFilter !== 'All') {
-        const hasProd = itemSpecs.some((it: any) => it.prod.toLowerCase() === productFilter.toLowerCase()) || primaryProd.toLowerCase() === productFilter.toLowerCase();
+        const hasProd = allocatedItems.some((it: any) => it.prod.toLowerCase() === productFilter.toLowerCase());
         if (!hasProd) continue;
       }
 
       if (capacityFilter && capacityFilter !== 'All') {
-        const hasCap = itemSpecs.some((it: any) => it.cap.toLowerCase() === capacityFilter.toLowerCase()) || primaryCap.toLowerCase() === capacityFilter.toLowerCase();
+        const hasCap = allocatedItems.some((it: any) => it.cap.toLowerCase() === capacityFilter.toLowerCase());
         if (!hasCap) continue;
       }
 
@@ -5739,17 +5752,16 @@ export class PlantHeadService {
       if (d.vehicleNumber) transporterMap[tName].vehicles.add(d.vehicleNumber);
       if (loc.locality) transporterMap[tName].routes.add(`${loc.locality} (${loc.city})`);
 
-      // Dispatches store total weight, not measured line weights
-      for (const it of itemSpecs) {
+      // Item-level Aggregation across all dimensions
+      for (const it of allocatedItems) {
         if (!prodMap[it.prod]) prodMap[it.prod] = { qty: 0, weight: 0 };
         prodMap[it.prod].qty += it.itQty;
-      }
-      if (!prodMap[primaryProd]) prodMap[primaryProd] = { qty: 0, weight: 0 };
-      prodMap[primaryProd].weight += dWeight;
+        prodMap[it.prod].weight += it.allocatedWeight;
 
-      capMap[primaryCap] = (capMap[primaryCap] || 0) + dWeight;
-      sizeMap[primarySize] = (sizeMap[primarySize] || 0) + dWeight;
-      colMap[primaryColour] = (colMap[primaryColour] || 0) + dWeight;
+        capMap[it.cap] = (capMap[it.cap] || 0) + it.allocatedWeight;
+        sizeMap[it.size] = (sizeMap[it.size] || 0) + it.allocatedWeight;
+        colMap[it.colour] = (colMap[it.colour] || 0) + it.allocatedWeight;
+      }
 
       // Sales Reps Aggregation
       if (!salesMap[sRef]) salesMap[sRef] = { weight: 0, qty: 0 };
@@ -5757,12 +5769,11 @@ export class PlantHeadService {
       salesMap[sRef].qty += dPcs;
 
       if (!salesProdMap[sRef]) salesProdMap[sRef] = {};
-      if (!salesProdMap[sRef][primaryProd]) salesProdMap[sRef][primaryProd] = { qty: 0, weight: 0 };
-      for (const it of itemSpecs) {
+      for (const it of allocatedItems) {
         if (!salesProdMap[sRef][it.prod]) salesProdMap[sRef][it.prod] = { qty: 0, weight: 0 };
         salesProdMap[sRef][it.prod].qty += it.itQty;
+        salesProdMap[sRef][it.prod].weight += it.allocatedWeight;
       }
-      salesProdMap[sRef][primaryProd].weight += dWeight;
 
       // Area Map (Localities + PIN) Aggregation
       if (!areaMap[locKey]) {
@@ -5810,25 +5821,22 @@ export class PlantHeadService {
       areaMap[locKey].topCustomers[cName].qty += dPcs;
 
       // Products for this locality
-      if (!areaMap[locKey].products[primaryProd]) areaMap[locKey].products[primaryProd] = { weight: 0, qty: 0 };
-      areaMap[locKey].products[primaryProd].weight += dWeight;
-      for (const it of itemSpecs) {
+      for (const it of allocatedItems) {
         if (!areaMap[locKey].products[it.prod]) areaMap[locKey].products[it.prod] = { qty: 0, weight: 0 };
         areaMap[locKey].products[it.prod].qty += it.itQty;
-        const key = ({ MHC: 'mhc', RCS: 'rcs', ONGC: 'ongc', WGC: 'wgc', 'D MHC': 'dmhc' } as Record<string, string>)[it.prod];
-        if (key) (areaMap[locKey] as any)[key + 'Qty'] += it.itQty;
-      }
+        areaMap[locKey].products[it.prod].weight += it.allocatedWeight;
 
-      // Product cross-matrix accumulation
-      if (primaryProd === 'MHC') { areaMap[locKey].mhcWeight += dWeight; }
-      else if (primaryProd === 'RCS') { areaMap[locKey].rcsWeight += dWeight; }
-      else if (primaryProd === 'ONGC') { areaMap[locKey].ongcWeight += dWeight; }
-      else if (primaryProd === 'WGC') { areaMap[locKey].wgcWeight += dWeight; }
-      else if (primaryProd === 'D MHC') { areaMap[locKey].dmhcWeight += dWeight; }
+        const key = ({ MHC: 'mhc', RCS: 'rcs', ONGC: 'ongc', WGC: 'wgc', 'D MHC': 'dmhc' } as Record<string, string>)[it.prod];
+        if (key) {
+          (areaMap[locKey] as any)[key + 'Qty'] += it.itQty;
+          (areaMap[locKey] as any)[key + 'Weight'] += it.allocatedWeight;
+        }
+      }
 
       if (!areaMap[locKey].salespeople[sRef]) areaMap[locKey].salespeople[sRef] = { weight: 0, qty: 0 };
       areaMap[locKey].salespeople[sRef].weight += dWeight;
       areaMap[locKey].salespeople[sRef].qty += dPcs;
+
       // Sales rep cross-matrix accumulation
       const sRefLower = sRef.toLowerCase();
       if (sRefLower.includes('mth')) { areaMap[locKey].mthQty += dPcs; areaMap[locKey].mthWeight += dWeight; }
@@ -5840,7 +5848,6 @@ export class PlantHeadService {
       else if (sRefLower.includes('gn')) { areaMap[locKey].gnQty += dPcs; areaMap[locKey].gnWeight += dWeight; }
       else if (sRefLower.includes('mk')) { areaMap[locKey].mkQty += dPcs; areaMap[locKey].mkWeight += dWeight; }
 
-
       // Macro-Zone Aggregation
       const zName = loc.zone;
       if (!zoneMap[zName]) zoneMap[zName] = { qty: 0, weight: 0, customers: new Set(), localities: new Set() };
@@ -5849,15 +5856,36 @@ export class PlantHeadService {
       zoneMap[zName].customers.add(cName);
       zoneMap[zName].localities.add(loc.locality);
 
-      // Orders Manifest Item
+      // Orders Manifest Item formatting (eliminates Mixed / unallocated)
+      const distinctProds = Array.from(new Set(allocatedItems.map((it: any) => it.prod).filter(Boolean)));
+      const distinctCaps = Array.from(new Set(allocatedItems.map((it: any) => it.cap).filter(Boolean)));
+      const distinctSizes = Array.from(new Set(allocatedItems.map((it: any) => it.size).filter(Boolean)));
+      const distinctColours = Array.from(new Set(allocatedItems.map((it: any) => it.colour).filter(Boolean)));
+
+      const displayProd = distinctProds.length === 1
+        ? distinctProds[0]
+        : (distinctProds.length > 2 ? `${distinctProds.slice(0, 2).join(', ')} (+${distinctProds.length - 2})` : distinctProds.join(', '));
+
+      const displayCap = distinctCaps.length === 1
+        ? distinctCaps[0]
+        : distinctCaps.join(', ');
+
+      const displaySize = distinctSizes.length === 1
+        ? distinctSizes[0]
+        : (distinctSizes.length > 2 ? `${distinctSizes.slice(0, 2).join(', ')} (+${distinctSizes.length - 2})` : distinctSizes.join(', '));
+
+      const displayColour = distinctColours.length === 1
+        ? distinctColours[0]
+        : distinctColours.join(', ');
+
       allFilteredDispatches.push({
         id: d.dispatchNo || d.id?.substring(0, 8),
         soNumber: d.salesOrder?.orderNumber || 'SO-PENDING',
         customer: cName,
-        product: primaryProd,
-        size: primarySize,
-        capacity: primaryCap,
-        colour: primaryColour,
+        product: displayProd,
+        size: displaySize,
+        capacity: displayCap,
+        colour: displayColour,
         quantity: dPcs,
         weight: dWeight,
         destination: d.deliveryAddress || `${loc.locality}, ${loc.city}`,
@@ -5888,7 +5916,10 @@ export class PlantHeadService {
           product === 'MHC' ? 'Manhole Covers' :
           product === 'RCS' ? 'Recessed Covers & Frames' :
           product === 'ONGC' ? 'ONGC Specification Covers' :
-          product === 'WGC' ? 'Water Gully Covers' : product === 'D MHC' ? 'Double Manhole Covers' : product,
+          product === 'WGC' ? 'Water Gully Covers' :
+          product === 'D MHC' ? 'Double Manhole Covers' :
+          product === 'FRP MOULDED GRATING' ? 'FRP Moulded Grating' :
+          product === 'COVER BLOCK' ? 'Cover Blocks & Spacers' : product,
         quantity: val.qty,
         weight: Math.round(val.weight * 100) / 100,
         share: totalWeight > 0 ? Math.round((val.weight / totalWeight) * 1000) / 10 : 0,
@@ -5913,7 +5944,9 @@ export class PlantHeadService {
           capacity === 'ELD' ? 'Extra Light Duty' :
           capacity === 'E600' ? 'Super Heavy Duty E600 (60T)' :
           capacity === '3T' ? '3 Tonne Load Class' :
-          capacity === 'F900' ? 'Airport / High Impact (90T)' : `${capacity} Load Class`,
+          capacity === 'F900' ? 'Airport / High Impact (90T)' :
+          capacity === 'Civil Accessory' ? 'Civil Construction Accessories' :
+          capacity === 'Standard Duty' ? 'Standard Load Class' : `${capacity} Load Class`,
       }))
       .sort((a, b) => b.weight - a.weight);
 
@@ -6523,16 +6556,35 @@ export class PlantHeadService {
       salesMap[sRef].weight += (dWeight || 0);
       salesMap[sRef].qty += dPcs;
 
+      const totalNominal = items.reduce((sum, it) => {
+        const spec = (it.salesOrderItem?.specifications || {}) as Record<string, any>;
+        const pName = it.salesOrderItem?.product?.name || (it.salesOrderItem as any)?.productNameSnapshot || '';
+        const prod = standardizeProduct(spec.product, pName);
+        const cap = standardizeCapacity(spec.capacity || pName, pName);
+        const sz = standardizeSize(spec.size || pName, pName);
+        const q = Number(it.quantity) || 0;
+        return sum + (getNominalUnitWeight(pName, prod, cap, sz) * q);
+      }, 0);
+
       for (const it of items) {
         const q = Number(it.quantity) || 0;
-        const weightShare = dPcs > 0 && dWeight ? (dWeight * (q / dPcs)) : 0;
         const spec = (it.salesOrderItem?.specifications || {}) as Record<string, any>;
-        const pName = it.salesOrderItem?.product?.name || '';
+        const pName = it.salesOrderItem?.product?.name || (it.salesOrderItem as any)?.productNameSnapshot || '';
 
         const prod = standardizeProduct(spec.product, pName);
-        const cap = standardizeCapacity(spec.capacity || pName);
-        const sz = standardizeSize(spec.size || pName);
-        const col = standardizeColour(spec.colour || spec.color);
+        const cap = standardizeCapacity(spec.capacity || pName, pName);
+        const sz = standardizeSize(spec.size || pName, pName);
+        const col = standardizeColour(spec.colour || spec.color, pName);
+
+        const nominalW = getNominalUnitWeight(pName, prod, cap, sz);
+        let weightShare = 0;
+        if (items.length === 1) {
+          weightShare = dWeight || 0;
+        } else if (totalNominal > 0 && dWeight) {
+          weightShare = (dWeight * (nominalW * q) / totalNominal);
+        } else if (dPcs > 0 && dWeight) {
+          weightShare = (dWeight * (q / dPcs));
+        }
 
         if (!prodMap[prod]) prodMap[prod] = { qty: 0, weight: 0 };
         prodMap[prod].qty += q;
