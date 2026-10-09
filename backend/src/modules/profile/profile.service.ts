@@ -17,15 +17,15 @@ export class ProfileService {
       throw new NotFoundException('User not found');
     }
 
-    const employee = await this.prisma.employee.findFirst({
-      where: {
-        userId,
-        companyId,
-      },
-      include: {
-        department: true,
-      },
-    });
+    const employee =
+      (await this.prisma.employee.findFirst({
+        where: { userId },
+        include: { department: true },
+      })) ||
+      (await this.prisma.employee.findFirst({
+        where: { workEmail: user.email },
+        include: { department: true },
+      }));
 
     return {
       success: true,

@@ -11,6 +11,7 @@ export const KNOWN_USER_PASSWORDS: Record<string, string> = {
   'plant.head@himalayaerp.com': 'admin123',
   'backoffice@himalayaerp.com': 'Himalaya@2026',
   'abbas.b@himalayaerp.com': 'dataAnalyst#2101',
+  'abbas.baman@himalayaerp.com': 'dataAnalyst#2101',
   'supersales1@himalayaerp.com': 'supersales123',
   'supersales2@himalayaerp.com': 'supersales124',
   'sales1@himalayaerp.com': 'Himalaya@2026',
@@ -65,6 +66,17 @@ export class UsersService {
       clean === 'planthead@thehimalaya.cloud'
     ) {
       candidates.push('plant.head@himalayaerp.com', 'plant.head@himalayaerp.test');
+    }
+    if (
+      clean === 'abbas.baman@himalayaerp.com' ||
+      clean === 'abbas.b@himalayaerp.com' ||
+      clean === 'abbas.baman' ||
+      clean === 'abbas.b' ||
+      clean === 'abbas' ||
+      clean === 'abbas.baman@thehimalaya.cloud' ||
+      clean === 'abbas.b@thehimalaya.cloud'
+    ) {
+      candidates.push('abbas.baman@himalayaerp.com', 'abbas.b@himalayaerp.com');
     }
     if (clean.endsWith('@thehimalaya.cloud')) {
       candidates.push(clean.replace('@thehimalaya.cloud', '@himalayaerp.com'));

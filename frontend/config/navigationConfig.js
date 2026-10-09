@@ -367,6 +367,7 @@ export const navigationConfig = {
     { id: 'outstanding', label: 'Outstanding', icon: DollarSign, path: '/back-office/outstanding' },
     { id: 'hcppl-sheet', label: 'HCPPL Sheet', icon: FileSpreadsheet, path: '/back-office/hcppl-ar' },
     { id: 'appl-sheet', label: 'APPL Sheet', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/profile' },
   ],
   'BACK_OFFICE': [
     { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
@@ -376,6 +377,7 @@ export const navigationConfig = {
     { id: 'outstanding', label: 'Outstanding', icon: DollarSign, path: '/back-office/outstanding' },
     { id: 'hcppl-sheet', label: 'HCPPL Sheet', icon: FileSpreadsheet, path: '/back-office/hcppl-ar' },
     { id: 'appl-sheet', label: 'APPL Sheet', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/profile' },
   ],
   'back-office': [
     { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
@@ -385,6 +387,7 @@ export const navigationConfig = {
     { id: 'outstanding', label: 'Outstanding', icon: DollarSign, path: '/back-office/outstanding' },
     { id: 'hcppl-sheet', label: 'HCPPL Sheet', icon: FileSpreadsheet, path: '/back-office/hcppl-ar' },
     { id: 'appl-sheet', label: 'APPL Sheet', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/profile' },
   ],
   'Back Office / Admin': [
     { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
@@ -394,6 +397,7 @@ export const navigationConfig = {
     { id: 'outstanding', label: 'Outstanding', icon: DollarSign, path: '/back-office/outstanding' },
     { id: 'hcppl-sheet', label: 'HCPPL Sheet', icon: FileSpreadsheet, path: '/back-office/hcppl-ar' },
     { id: 'appl-sheet', label: 'APPL Sheet', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/profile' },
   ],
 
   'Admin': [

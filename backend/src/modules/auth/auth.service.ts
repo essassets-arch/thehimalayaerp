@@ -121,6 +121,8 @@ export class AuthService {
     if (
       !isMatch &&
       (user.email === 'backoffice@himalayaerp.com' ||
+        user.email === 'abbas.baman@himalayaerp.com' ||
+        user.email === 'abbas.b@himalayaerp.com' ||
         roleCode === 'BACK_OFFICE' ||
         roleName.toLowerCase().includes('back office') ||
         roleName.toLowerCase().includes('backoffice'))

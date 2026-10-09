@@ -626,6 +626,48 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => {
+                    setEmail('backoffice@himalayaerp.com');
+                    setPassword('Himalaya@2026');
+                    setError('');
+                  }}
+                  style={{
+                    background: '#F1F5F9',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '6px',
+                    padding: '4px 10px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#1E293B',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s ease'
+                  }}
+                >
+                  Back Office
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('abbas.baman@himalayaerp.com');
+                    setPassword('dataAnalyst#2101');
+                    setError('');
+                  }}
+                  style={{
+                    background: '#F1F5F9',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '6px',
+                    padding: '4px 10px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#1E293B',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s ease'
+                  }}
+                >
+                  Abbas Baman
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     setEmail('plant.head@himalayaerp.com');
                     setPassword('admin123');
                     setError('');
