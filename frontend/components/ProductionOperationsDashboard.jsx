@@ -593,10 +593,6 @@ export default function ProductionOperationsDashboard({
             <span className="pod-meta-label">Weights Authority:</span>
             <span className="pod-meta-val">Product Master Composition</span>
           </div>
-          <div className="pod-live-badge">
-            <span className="pod-live-dot" />
-            <span>Authoritative Live Telemetry</span>
-          </div>
         </div>
       </div>
 
@@ -1153,25 +1149,7 @@ export default function ProductionOperationsDashboard({
         </div>
       </div>
 
-      {/* ─── 6. TECHNICAL FOOTER ─── */}
-      <footer className="pod-footer">
-        <div className="pod-footer-left">
-          <span>Himalaya FRP & Construction Products</span>
-          <span>•</span>
-          <span>Manufacturing Excellence | Quality Products | Stronger Infrastructure</span>
-        </div>
-        <div className="pod-footer-right">
-          <span>Database: PostgreSQL</span>
-          <span>•</span>
-          <span>ORM: Prisma</span>
-          <span>•</span>
-          <span>Backend: NestJS</span>
-          <span>•</span>
-          <span>Frontend: Next.js</span>
-          <span>•</span>
-          <span>Data: Live Database Engine</span>
-        </div>
-      </footer>
+
 
       {/* ─── 7. MODALS ─── */}
 
