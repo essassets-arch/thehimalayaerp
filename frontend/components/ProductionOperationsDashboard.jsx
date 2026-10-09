@@ -898,75 +898,7 @@ export default function ProductionOperationsDashboard({
         </div>
       </div>
 
-      {/* ─── 4. QUALITY & SCRAP DIAGNOSTICS ─── */}
-      <div className="pod-diagnostics-card">
-        <h2 className="pod-panel-title">Quality & Scrap Diagnostics</h2>
 
-        <div className="pod-diagnostics-grid">
-          {/* 4.1 First Pass Yield Donut */}
-          <div className="pod-fpy-donut-col">
-            <div className="pod-fpy-donut-wrap">
-              <svg width="86" height="86" viewBox="0 0 86 86" style={{ transform: 'rotate(-90deg)' }}>
-                <circle cx="43" cy="43" r="34" stroke="#fee2e2" strokeWidth="8" fill="none" />
-                <circle
-                  cx="43"
-                  cy="43"
-                  r="34"
-                  stroke="#16a34a"
-                  strokeWidth="8"
-                  fill="none"
-                  strokeDasharray={2 * Math.PI * 34}
-                  strokeDashoffset={(2 * Math.PI * 34) * (1 - diagnostics.firstPassYield.passRatePct / 100)}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="pod-fpy-center">
-                <span className="pod-fpy-center-val">{diagnostics.firstPassYield.passRatePct}%</span>
-                <span className="pod-fpy-center-label">Pass Rate</span>
-              </div>
-            </div>
-
-            <div className="pod-fpy-legend">
-              <div className="pod-fpy-legend-item">
-                <span className="pod-fpy-dot passed" />
-                <span>Passed: {diagnostics.firstPassYield.passedUnits.toLocaleString()} ({diagnostics.firstPassYield.passedPct}%)</span>
-              </div>
-              <div className="pod-fpy-legend-item">
-                <span className="pod-fpy-dot failed" />
-                <span>Failed: {diagnostics.firstPassYield.failedUnits} ({diagnostics.firstPassYield.failedPct}%)</span>
-              </div>
-            </div>
-          </div>
-
-          {/* 4.2 Load Test Distribution */}
-          <div className="pod-bars-col">
-            <span className="pod-bars-title">Load Test Distribution</span>
-            {diagnostics.loadTestDistribution.map((item) => (
-              <div key={item.rating} className="pod-bar-row">
-                <span className="pod-bar-label">{item.rating}</span>
-                <div className="pod-bar-track">
-                  <div className="pod-bar-fill" style={{ width: `${item.percentage}%`, backgroundColor: '#2563eb' }} />
-                </div>
-                <span className="pod-bar-val">{item.percentage}%</span>
-              </div>
-            ))}
-          </div>
-
-          {/* 4.3 Top Defect Pareto */}
-          <div className="pod-bars-col">
-            <span className="pod-bars-title">Top Defect Pareto</span>
-            {diagnostics.topDefectPareto.map((item) => (
-              <div key={item.category} className="pod-bar-row">
-                <span className="pod-bar-label">{item.category}</span>
-                <div className="pod-bar-track">
-                  <div className="pod-bar-fill" style={{ width: `${item.percentage}%`, backgroundColor: item.color }} />
-                </div>
-                <span className="pod-bar-val">{item.percentage}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
       {/* ─── 5. ROW 4: ACTIVE WORK ORDERS & QUICK ACTIONS ─── */}
       <div className="pod-bottom-grid">
@@ -1075,74 +1007,7 @@ export default function ProductionOperationsDashboard({
           </div>
         </div>
 
-        {/* Right: Quick Actions Panel */}
-        <div className="pod-actions-panel">
-          <h2 className="pod-panel-title">Quick Actions</h2>
 
-          <div className="pod-actions-list">
-            {/* 1. Start Run */}
-            <button
-              type="button"
-              className="pod-action-card-btn green"
-              onClick={() => setModalType('start')}
-            >
-              <div className="pod-action-icon">
-                <Play size={15} />
-              </div>
-              <div className="pod-action-text">
-                <span className="pod-action-title">Start Run</span>
-                <span className="pod-action-desc">Assign machine & begin job</span>
-              </div>
-            </button>
-
-            {/* 2. Log Shift DPR */}
-            <button
-              type="button"
-              className="pod-action-card-btn blue"
-              onClick={() => setModalType('shift')}
-            >
-              <div className="pod-action-icon">
-                <FileText size={15} />
-              </div>
-              <div className="pod-action-text">
-                <span className="pod-action-title">Log Shift DPR</span>
-                <span className="pod-action-desc">Submit shift count & weights</span>
-              </div>
-            </button>
-
-            {/* 3. Finish Run ➔ QC */}
-            <button
-              type="button"
-              className="pod-action-card-btn orange"
-              onClick={() => setModalType('finish_qc')}
-            >
-              <div className="pod-action-icon">
-                <ArrowRight size={15} />
-              </div>
-              <div className="pod-action-text">
-                <span className="pod-action-title">Finish Run ➔ QC</span>
-                <span className="pod-action-desc">Move to testing queue</span>
-              </div>
-            </button>
-
-            {/* 4. Pass / Fail QC */}
-            <button
-              type="button"
-              className="pod-action-card-btn purple"
-              onClick={() => setModalType('qc_pass_fail')}
-            >
-              <div className="pod-action-icon">
-                <ShieldCheck size={15} />
-              </div>
-              <div className="pod-action-text">
-                <span className="pod-action-title">Pass / Fail QC</span>
-                <span className="pod-action-desc">Log test certificate / rework</span>
-              </div>
-            </button>
-
-
-          </div>
-        </div>
       </div>
 
 
