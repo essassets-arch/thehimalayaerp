@@ -1140,20 +1140,7 @@ export default function ProductionOperationsDashboard({
               </div>
             </button>
 
-            {/* 5. Handover to Dispatch */}
-            <button
-              type="button"
-              className="pod-action-card-btn teal"
-              onClick={() => setModalType('dispatch')}
-            >
-              <div className="pod-action-icon">
-                <Truck size={15} />
-              </div>
-              <div className="pod-action-text">
-                <span className="pod-action-title">Handover to Dispatch</span>
-                <span className="pod-action-desc">Transfer to finished goods</span>
-              </div>
-            </button>
+
           </div>
         </div>
       </div>
