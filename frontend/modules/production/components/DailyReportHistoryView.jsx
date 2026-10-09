@@ -729,6 +729,7 @@ export default function DailyReportHistoryView({
 
         const csvRows = [];
         let grandCoverQty = 0, grandCoverWt = 0, grandFrameQty = 0, grandFrameWt = 0, grandTotWt = 0, grandSets = 0;
+        let grandExtraCovers = 0, grandExtraFrames = 0;
 
         allReports.forEach(r => {
           const repNo = r.reportNo || r.id || '';
@@ -759,6 +760,8 @@ export default function DailyReportHistoryView({
               grandCoverWt += coverWt;
               grandFrameQty += frameQty;
               grandFrameWt += frameWt;
+              grandExtraCovers += extraCover;
+              grandExtraFrames += extraFrame;
               grandTotWt += totalWt;
               grandSets += setQty;
 
