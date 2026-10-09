@@ -1067,11 +1067,11 @@ export default function ProductionOperationsDashboard({
         </div>
 
         {/* Right Column: Hydraulic Press Fleet Grid */}
-        <div className="pod-panel">
+        <div className="pod-panel pod-fleet-panel">
           <div className="pod-panel-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="pod-fleet-header-title-box">
               <h2 className="pod-panel-title">Hydraulic Press Fleet</h2>
-              <span style={{ fontSize: '10px', padding: '2px 6px', background: '#f1f5f9', color: '#64748b', borderRadius: '4px', fontWeight: 600 }}>
+              <span className="pod-fleet-iot-badge">
                 WO Execution Logs (IoT Offline)
               </span>
             </div>
@@ -1094,28 +1094,45 @@ export default function ProductionOperationsDashboard({
               const strokeOffset = circumference - (machine.oee / 100) * circumference;
               const strokeColor =
                 machine.oee >= 80 ? '#16a34a' : machine.oee >= 60 ? '#2563eb' : machine.oee > 0 ? '#d97706' : '#94a3b8';
+              const activeWoText = machine.activeWo || '—';
+              const hasWo = activeWoText !== '—';
 
               return (
-                <div key={machine.machineId} className="pod-machine-card">
+                <div 
+                  key={machine.machineId} 
+                  className={`pod-machine-card ${statusClass}`}
+                  title={`${machine.machineId} (${machine.capacity} Hydraulic Press) — ${machine.status}\nWO: ${activeWoText}${machine.product && machine.product !== '—' ? ` | ${machine.product}` : ''}\nShift ${machine.shift} • Operator: ${machine.operator}\nRuntime: ${machine.runtimeHours} | Idle: ${machine.idleHours}\nOEE: ${machine.oee}%`}
+                >
                   <div className="pod-machine-info">
                     <div className="pod-machine-header-row">
                       <span className="pod-machine-id">{machine.machineId}</span>
                       <span className={`pod-machine-status-badge ${statusClass}`}>{machine.status}</span>
                     </div>
                     <span className="pod-machine-capacity">{machine.capacity} Hydraulic Press</span>
-                    <span className="pod-machine-wo">
-                      WO: {machine.activeWo} {machine.product !== '—' ? `| ${machine.product}` : ''}
+                    <span 
+                      className="pod-machine-wo"
+                      title={hasWo ? `Work Order: ${activeWoText}${machine.product !== '—' ? ` | ${machine.product}` : ''}` : 'No active work order'}
+                    >
+                      <strong className="pod-wo-tag">WO:</strong> {activeWoText} {machine.product !== '—' ? `| ${machine.product}` : ''}
                     </span>
-                    <span className="pod-machine-meta">
+                    <span 
+                      className="pod-machine-meta"
+                      title={`Shift ${machine.shift} • Operator: ${machine.operator}`}
+                    >
                       Shift {machine.shift} • Operator: {machine.operator}
                     </span>
-                    <span className="pod-machine-runtime">
-                      Runtime {machine.runtimeHours} | Idle {machine.idleHours}
-                    </span>
+                    <div className="pod-machine-runtime-row">
+                      <span className="pod-runtime-chip run" title={`Runtime: ${machine.runtimeHours}`}>
+                        <span className="pod-chip-dot green" /> {machine.runtimeHours}
+                      </span>
+                      <span className="pod-runtime-chip idle" title={`Idle Time: ${machine.idleHours}`}>
+                        <span className="pod-chip-dot amber" /> Idle {machine.idleHours}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Circular OEE Gauge */}
-                  <div className="pod-machine-gauge">
+                  <div className="pod-machine-gauge" title={`OEE: ${machine.oee}%`}>
                     <svg className="pod-gauge-svg" width="48" height="48" viewBox="0 0 48 48">
                       <circle className="pod-gauge-bg" cx="24" cy="24" r={radius} strokeWidth="4" fill="none" />
                       <circle

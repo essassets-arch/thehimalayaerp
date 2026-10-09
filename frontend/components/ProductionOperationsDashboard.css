@@ -399,6 +399,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
 }
 
 .pod-panel-header {
@@ -406,7 +407,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  flex-wrap: wrap;
 }
+
 
 .pod-panel-title {
   margin: 0;
@@ -606,22 +609,67 @@
   background: #f8fafc;
 }
 
-/* ─── HYDRAULIC PRESS FLEET GRID ─── */
-.pod-fleet-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+/* ─── HYDRAULIC PRESS FLEET GRID & RESPONSIVE CARDS ─── */
+.pod-fleet-panel {
+  min-width: 0;
+  overflow: hidden;
 }
 
-@media (max-width: 900px) {
+.pod-fleet-header-title-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pod-fleet-iot-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Base grid on Desktop (> 1280px): Inside the 42% column, 2 columns give optimal ~240-340px width per card */
+.pod-fleet-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+/* Very large widescreen monitors (> 1800px) */
+@media (min-width: 1800px) {
   .pod-fleet-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
   }
 }
 
-@media (max-width: 500px) {
+/* Medium / Laptop screens (861px - 1280px): .pod-row-two-col collapses to 1 column full width, so 3 columns fit nicely */
+@media (max-width: 1280px) and (min-width: 861px) {
+  .pod-fleet-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
+/* Tablet screens (581px - 860px) */
+@media (max-width: 860px) {
+  .pod-fleet-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
+
+/* Mobile screens (<= 580px) */
+@media (max-width: 580px) {
   .pod-fleet-grid {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
 }
 
@@ -633,89 +681,161 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  transition: all 0.15s ease;
+  gap: 10px;
+  min-width: 0;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .pod-machine-card:hover {
   border-color: #cbd5e1;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
 }
 
 .pod-machine-info {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2.5px;
   flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .pod-machine-header-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   flex-wrap: wrap;
+  margin-bottom: 1px;
 }
 
 .pod-machine-id {
   font-size: 13px;
   font-weight: 700;
   color: #0f172a;
+  letter-spacing: -0.01em;
 }
 
 .pod-machine-status-badge {
   padding: 2px 7px;
   border-radius: 999px;
-  font-size: 9px;
+  font-size: 9.5px;
   font-weight: 700;
   text-transform: capitalize;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .pod-machine-status-badge.running {
   background: #dcfce7;
   color: #15803d;
+  border: 1px solid #bbf7d0;
 }
 
 .pod-machine-status-badge.idle {
   background: #fef3c7;
   color: #b45309;
+  border: 1px solid #fde68a;
 }
 
 .pod-machine-status-badge.mold-changeover {
   background: #dbeafe;
   color: #1d4ed8;
+  border: 1px solid #bfdbfe;
 }
 
 .pod-machine-status-badge.maintenance {
   background: #fee2e2;
   color: #b91c1c;
+  border: 1px solid #fecaca;
 }
 
 .pod-machine-capacity {
   font-size: 11px;
   color: #64748b;
-  font-weight: 500;
-}
-
-.pod-machine-wo {
-  font-size: 10px;
-  color: #334155;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.pod-machine-wo {
+  font-size: 10.5px;
+  color: #1e293b;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.pod-wo-tag {
+  color: #2563eb;
+  font-weight: 700;
+}
+
 .pod-machine-meta {
   font-size: 10px;
   color: #64748b;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
 }
 
-.pod-machine-runtime {
-  font-size: 10px;
+.pod-machine-runtime-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+}
+
+.pod-runtime-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 1.5px 6px;
+  border-radius: 4px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.pod-runtime-chip.run {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.pod-runtime-chip.idle {
+  background: #f8fafc;
   color: #475569;
-  font-weight: 500;
+  border: 1px solid #e2e8f0;
+}
+
+.pod-chip-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.pod-chip-dot.green {
+  background: #16a34a;
+}
+
+.pod-chip-dot.amber {
+  background: #f59e0b;
+}
+
+.pod-chip-dot.gray {
+  background: #94a3b8;
 }
 
 .pod-machine-gauge {
@@ -723,10 +843,14 @@
   width: 48px;
   height: 48px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .pod-gauge-svg {
   transform: rotate(-90deg);
+  display: block;
 }
 
 .pod-gauge-bg {
@@ -746,21 +870,25 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  pointer-events: none;
 }
 
 .pod-gauge-pct {
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 10.5px;
+  font-weight: 800;
   color: #0f172a;
   line-height: 1;
 }
 
 .pod-gauge-label {
-  font-size: 7px;
-  font-weight: 600;
+  font-size: 7.5px;
+  font-weight: 700;
   color: #64748b;
   text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-top: 1px;
 }
+
 
 /* ─── 4. QUALITY & SCRAP DIAGNOSTICS CARD ─── */
 .pod-diagnostics-card {
