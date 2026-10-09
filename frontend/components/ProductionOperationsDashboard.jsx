@@ -960,21 +960,6 @@ export default function ProductionOperationsDashboard({
               </div>
             ))}
           </div>
-
-          {/* 4.4 Scrap Financial Impact */}
-          <div className="pod-scrap-impact-col">
-            <span className="pod-bars-title">Scrap Financial Impact</span>
-            <div className="pod-scrap-impact-main">
-              <div className="pod-rupee-circle">₹</div>
-              <div className="pod-scrap-amount">
-                <span className="pod-scrap-inr">₹ {diagnostics.scrapFinancialImpact.totalCostInr.toLocaleString()}</span>
-                <div className="pod-scrap-meta">
-                  Scrap weight: {diagnostics.scrapFinancialImpact.scrapWeightKg.toLocaleString()} kg<br />
-                  Raw material cost: ₹ {diagnostics.scrapFinancialImpact.ratePerKg}/kg
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 

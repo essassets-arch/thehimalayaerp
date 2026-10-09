@@ -769,8 +769,8 @@
 
 .pod-diagnostics-grid {
   display: grid;
-  grid-template-columns: 200px 1fr 1fr 220px;
-  gap: 20px;
+  grid-template-columns: 240px 1fr 1fr;
+  gap: 28px;
   align-items: center;
 }
 
