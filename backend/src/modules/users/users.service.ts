@@ -9,6 +9,7 @@ export const KNOWN_USER_PASSWORDS: Record<string, string> = {
   'nahin.v@himalayaerp.com': 'HR@hcppl',
   'superadmin@himalayaerp.com': 'SuperAdmin@hcppl',
   'plant.head@himalayaerp.com': 'admin123',
+  'backoffice@himalayaerp.com': 'Himalaya@2026',
   'abbas.b@himalayaerp.com': 'dataAnalyst#2101',
   'supersales1@himalayaerp.com': 'supersales123',
   'supersales2@himalayaerp.com': 'supersales124',
