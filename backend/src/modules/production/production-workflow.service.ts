@@ -2000,6 +2000,79 @@ export class ProductionWorkflowService {
     const activeFloorPressesCount = hydraulicPressFleet.filter(m => m.status !== 'Maintenance').length;
     const avgOee = 84.7;
 
+    let dynamicPlanAchievement = {
+      percentage: 96.8,
+      targetLabel: 'Target: 95%+',
+      trend: '▲ 4.2% vs. last month',
+      trendType: 'positive',
+      targetQty: 15000,
+      achievedQty: 14520,
+      hasTarget: false,
+      period: 'Monthly',
+    };
+
+    try {
+      const activeTarget = await this.prisma.productionTarget.findFirst({
+        where: { status: 'ACTIVE' },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (activeTarget && activeTarget.quantityTarget > 0) {
+        const completedWOs = await this.prisma.workOrder.findMany({
+          where: {
+            status: {
+              in: [
+                'COMPLETED',
+                'QC_APPROVED',
+                'READY_FOR_DISPATCH',
+                'DISPATCHED',
+                'CLOSED',
+              ],
+            },
+            OR: [
+              {
+                completedAt: {
+                  gte: activeTarget.startDate,
+                  lte: activeTarget.endDate,
+                },
+              },
+              {
+                AND: [
+                  { completedAt: null },
+                  {
+                    updatedAt: {
+                      gte: activeTarget.startDate,
+                      lte: activeTarget.endDate,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          select: { quantity: true },
+        });
+
+        const achievedUnits = completedWOs.reduce(
+          (sum, wo) => sum + Number(wo.quantity || 0),
+          0,
+        );
+        const targetUnits = activeTarget.quantityTarget;
+        const pct = Number(((achievedUnits / targetUnits) * 100).toFixed(1));
+        const diff = Number((pct - 95.0).toFixed(1));
+
+        dynamicPlanAchievement = {
+          percentage: pct,
+          targetLabel: `Target: 95%+ • ${targetUnits.toLocaleString('en-IN')} Sets`,
+          trend: diff >= 0 ? `▲ ${diff}% vs. plan` : `▼ ${Math.abs(diff)}% vs. plan`,
+          trendType: diff >= 0 ? 'positive' : 'negative',
+          targetQty: targetUnits,
+          achievedQty: achievedUnits,
+          hasTarget: true,
+          period: activeTarget.targetPeriod,
+        };
+      }
+    } catch {}
+
     const executiveKpis = {
       totalProduction: {
         valueMt: headlineTotalProductionMt,
@@ -2008,12 +2081,7 @@ export class ProductionWorkflowService {
         trend: '▲ 12.4% vs. last month',
         trendType: 'positive',
       },
-      planAchievement: {
-        percentage: 96.8,
-        targetLabel: 'Target: 95%+',
-        trend: '▲ 4.2% vs. last month',
-        trendType: 'positive',
-      },
+      planAchievement: dynamicPlanAchievement,
       oee: {
         percentage: avgOee,
         targetLabel: 'Target: 82%+',

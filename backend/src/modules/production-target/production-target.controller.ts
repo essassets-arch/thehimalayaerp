@@ -9,6 +9,7 @@ import {
   Req,
   UseGuards,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { ProductionTargetService } from './production-target.service';
 import { CreateProductionTargetDto } from './dto/create-production-target.dto';
@@ -38,8 +39,11 @@ export class ProductionTargetController {
   }
 
   @Get('achievement')
-  async getAchievement() {
-    return this.service.getCurrentAchievement();
+  async getAchievement(
+    @Query('month') month?: string,
+    @Query('period') period?: string,
+  ) {
+    return this.service.getCurrentAchievement(month, period);
   }
 
   @Get(':id')

@@ -842,8 +842,9 @@ export default function ProductionPortal() {
     try {
       setLoadingTarget(true);
       const res = await backendFetch('/api/backend/production-targets/achievement');
-      if (res) {
-        setProductionTargetAchievement(res);
+      const data = res?.data || res;
+      if (data) {
+        setProductionTargetAchievement(data);
       }
     } catch (e) {
       console.error('Failed to fetch target achievement stats', e);
@@ -851,6 +852,7 @@ export default function ProductionPortal() {
       setLoadingTarget(false);
     }
   };
+
 
   useEffect(() => {
     fetchTargetAchievement();

@@ -1,7 +1,19 @@
 import { IsEnum, IsInt, Min, IsOptional, IsString } from 'class-validator';
-import { ProductionTargetStatus } from '@prisma/client';
+import { ProductionTargetStatus, TargetPeriod } from '@prisma/client';
 
 export class UpdateProductionTargetDto {
+  @IsEnum(TargetPeriod)
+  @IsOptional()
+  targetPeriod?: TargetPeriod;
+
+  @IsString()
+  @IsOptional()
+  startDate?: string;
+
+  @IsString()
+  @IsOptional()
+  endDate?: string;
+
   @IsEnum(ProductionTargetStatus)
   @IsOptional()
   status?: ProductionTargetStatus;
@@ -14,4 +26,9 @@ export class UpdateProductionTargetDto {
   @IsString()
   @IsOptional()
   remarks?: string;
+
+  @IsString()
+  @IsOptional()
+  plantId?: string;
 }
+

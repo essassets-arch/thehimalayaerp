@@ -39,11 +39,24 @@ export default function ProductionOperationsDashboard({
   workOrders = [],
   orders = [],
   machines = [],
-  onSelectOrderDetails
+  onSelectOrderDetails,
+  productionTargetAchievement = null,
+  loadingTarget = false,
+  derivedStats,
+  initialShiftEntries,
+  initialScrapEntries,
+  onCompleteRework
 }) {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [targetAchievement, setTargetAchievement] = useState(productionTargetAchievement);
+
+  useEffect(() => {
+    if (productionTargetAchievement) {
+      setTargetAchievement(productionTargetAchievement);
+    }
+  }, [productionTargetAchievement]);
 
   // Filters
   const [timeFilter, setTimeFilter] = useState('month'); // 'day' | 'week' | 'month' | 'all'
@@ -108,15 +121,22 @@ export default function ProductionOperationsDashboard({
     setTimeout(() => setToastMessage(null), 3800);
   };
 
-  // Fetch Dashboard Telemetry
+  // Fetch Dashboard Telemetry & Live Super Admin Production Target
   const fetchDashboardData = async (showLoadingState = true) => {
     if (showLoadingState) setLoading(true);
     setRefreshing(true);
     try {
-      const res = await backendFetch(`/production-workflow/dashboard?period=${timeFilter}&shift=${shiftFilter}&machine=${machineFilter}&month=${selectedMonth}`);
+      const [res, targetRes] = await Promise.all([
+        backendFetch(`/production-workflow/dashboard?period=${timeFilter}&shift=${shiftFilter}&machine=${machineFilter}&month=${selectedMonth}`).catch(() => null),
+        backendFetch(`/api/backend/production-targets/achievement?month=${selectedMonth}&period=${timeFilter}`).catch(() => null)
+      ]);
       const data = res?.data || res;
       if (data && typeof data === 'object') {
         setDashboardData(data);
+      }
+      const tData = targetRes?.data || targetRes;
+      if (tData && (tData.hasTarget || tData.achievement !== undefined || tData.target > 0)) {
+        setTargetAchievement(tData);
       }
     } catch (err) {
       console.warn('Backend fetch failed, using authoritative reference baseline:', err);
@@ -129,6 +149,7 @@ export default function ProductionOperationsDashboard({
   useEffect(() => {
     fetchDashboardData(true);
   }, [timeFilter, shiftFilter, machineFilter, selectedMonth]);
+
 
   // Month name helper
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -301,16 +322,63 @@ export default function ProductionOperationsDashboard({
 
   // Authoritative Data Resolvers
   const rawKpis = dashboardData?.executiveKpis;
+
+  const targetSource = useMemo(() => {
+    if (targetAchievement && (targetAchievement.hasTarget || targetAchievement.target > 0 || targetAchievement.quantityTarget > 0)) {
+      return targetAchievement;
+    }
+    if (rawKpis?.planAchievement && (rawKpis.planAchievement.hasTarget || rawKpis.planAchievement.targetQty > 0)) {
+      return rawKpis.planAchievement;
+    }
+    return null;
+  }, [targetAchievement, rawKpis?.planAchievement]);
+
+  const planAchievementKpi = useMemo(() => {
+    if (targetSource) {
+      const pct = Number(targetSource.percentage ?? targetSource.achievement ?? 96.8);
+      const targetQty = Number(targetSource.target ?? targetSource.quantityTarget ?? targetSource.targetQty ?? 0);
+      const achievedQty = Number(targetSource.achieved ?? targetSource.achievedQty ?? 0);
+      const periodName = targetSource.period || 'Monthly';
+
+      const targetLabel = targetSource.targetLabel || (
+        targetQty > 0
+          ? `Target: 95%+ • ${targetQty.toLocaleString('en-IN')} Sets`
+          : 'Target: 95%+'
+      );
+
+      const trend = targetSource.trend || (
+        pct >= 95
+          ? `▲ ${(pct - 95).toFixed(1)}% vs. plan`
+          : `▼ ${(95 - pct).toFixed(1)}% vs. plan`
+      );
+
+      const trendType = targetSource.trendType || (pct >= 95 ? 'positive' : 'negative');
+
+      return {
+        percentage: pct,
+        targetLabel,
+        trend,
+        trendType,
+        targetQty,
+        achievedQty,
+        period: periodName,
+        hasTarget: true
+      };
+    }
+    return rawKpis?.planAchievement || periodData.planAchievement;
+  }, [targetSource, rawKpis?.planAchievement, periodData.planAchievement]);
+
   const kpis = {
     totalProduction: (rawKpis?.totalProduction?.valueMt && Number(rawKpis.totalProduction.valueMt) > (timeFilter === 'day' ? 5 : 100))
       ? rawKpis.totalProduction
       : periodData.totalProduction,
-    planAchievement: rawKpis?.planAchievement || periodData.planAchievement,
+    planAchievement: planAchievementKpi,
     oee: rawKpis?.oee || periodData.oee,
     activeFloorRuns: { activeCount: 4, totalAvailable: 6, subtitle: 'of 6 presses running', note: 'Balanced load' },
     firstPassYield: { percentage: 98.9, targetLabel: 'Target: 98.5%+', trend: '▲ 0.5% vs. last month', trendType: 'positive' },
     dispatchBacklog: rawKpis?.dispatchBacklog || periodData.dispatchBacklog
   };
+
 
   const pipeline = (Array.isArray(dashboardData?.manufacturingPipeline) && dashboardData.manufacturingPipeline.length > 0 && timeFilter === 'month')
     ? dashboardData.manufacturingPipeline
@@ -792,7 +860,10 @@ export default function ProductionOperationsDashboard({
         </div>
 
         {/* KPI 2: Plan Achievement */}
-        <div className="pod-kpi-card">
+        <div 
+          className="pod-kpi-card"
+          title={kpis.planAchievement.hasTarget && kpis.planAchievement.targetQty ? `Super Admin Target: ${Number(kpis.planAchievement.targetQty).toLocaleString('en-IN')} Units (${kpis.planAchievement.period || 'Monthly'}) | Achieved: ${Number(kpis.planAchievement.achievedQty || 0).toLocaleString('en-IN')} Units (${kpis.planAchievement.percentage}%)` : 'Super Admin Production Target Adherence'}
+        >
           <div className="pod-kpi-top">
             <div className="pod-kpi-icon-box green">
               <Target size={18} />
@@ -801,10 +872,15 @@ export default function ProductionOperationsDashboard({
           </div>
           <div className="pod-kpi-main">
             <span className="pod-kpi-value">{kpis.planAchievement.percentage}%</span>
-            <span className="pod-kpi-subtitle">{kpis.planAchievement.targetLabel}</span>
+            <span className="pod-kpi-subtitle" title={kpis.planAchievement.targetQty ? `${Number(kpis.planAchievement.achievedQty || 0).toLocaleString('en-IN')} / ${Number(kpis.planAchievement.targetQty).toLocaleString('en-IN')} Units Achieved` : undefined}>
+              {kpis.planAchievement.targetLabel}
+            </span>
           </div>
-          <span className="pod-kpi-trend positive">{kpis.planAchievement.trend}</span>
+          <span className={`pod-kpi-trend ${kpis.planAchievement.trendType || 'positive'}`}>
+            {kpis.planAchievement.trend}
+          </span>
         </div>
+
 
         {/* KPI 3: Overall Equipment Effectiveness */}
         <div className="pod-kpi-card">
