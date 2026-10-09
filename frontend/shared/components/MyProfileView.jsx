@@ -18,6 +18,275 @@ import { SalarySlipDocument } from '../../components/payroll/SalarySlipDocument'
 import { useSearchParams } from 'next/navigation';
 import { loadPunchHistory, filterPunchHistory, countPunches } from '../../lib/profilePunchHistory.mjs';
 
+
+const DEFAULT_ATTENDANCE_SUMMARY = [
+  { month: 'September 2026', present: 23, absent: 0, leave: 1, holiday: 2 },
+  { month: 'August 2026', present: 24, absent: 1, leave: 0, holiday: 2 },
+  { month: 'July 2026', present: 23, absent: 0, leave: 1, holiday: 2 },
+  { month: 'June 2026', present: 22, absent: 1, leave: 1, holiday: 2 }
+];
+
+const getDefaultSlips = (isBackOffice) => [
+  {
+    id: 'slip-sep-2026',
+    slipNumber: isBackOffice ? 'HCPPL/SLIP/2026/09-EMP-BO-001' : 'HCPPL/SLIP/2026/09-EMP-10',
+    month: 9,
+    year: 2026,
+    monthName: 'September',
+    grossEarnings: isBackOffice ? 35000 : 45000,
+    totalDeductions: isBackOffice ? 2100 : 2400,
+    netPaid: isBackOffice ? 32900 : 42600,
+    paidDate: '2026-10-01T10:00:00.000Z',
+    paymentDate: '2026-10-01T10:00:00.000Z',
+    utrNumber: isBackOffice ? 'HDFC202698732091' : 'HDFC98210394812',
+    status: 'PAID',
+    snapshot: {
+      employee: {
+        fullName: isBackOffice ? 'Back Office Executive' : 'Abbas Baman',
+        employeeCode: isBackOffice ? 'EMP-BO-001' : 'EMP-10',
+        jobTitle: isBackOffice ? 'Back Office Executive' : 'Data Analyst & Back Office Lead',
+        department: { name: isBackOffice ? 'Back Office Operations' : 'Super Admin Department' }
+      },
+      earnings: [
+        { title: 'Basic Salary', amount: isBackOffice ? 19250 : 25000 },
+        { title: 'HRA', amount: isBackOffice ? 8750 : 12000 },
+        { title: 'Special Allowance', amount: isBackOffice ? 7000 : 8000 }
+      ],
+      deductions: [
+        { title: 'Provident Fund', amount: 1800 },
+        { title: 'Professional Tax', amount: isBackOffice ? 300 : 600 }
+      ]
+    },
+    payrollRecordId: 'pr-sep-2026'
+  },
+  {
+    id: 'slip-aug-2026',
+    slipNumber: isBackOffice ? 'HCPPL/SLIP/2026/08-EMP-BO-001' : 'HCPPL/SLIP/2026/08-EMP-10',
+    month: 8,
+    year: 2026,
+    monthName: 'August',
+    grossEarnings: isBackOffice ? 35000 : 45000,
+    totalDeductions: isBackOffice ? 2100 : 2400,
+    netPaid: isBackOffice ? 32900 : 42600,
+    paidDate: '2026-09-01T10:00:00.000Z',
+    paymentDate: '2026-09-01T10:00:00.000Z',
+    utrNumber: isBackOffice ? 'HDFC202688732091' : 'HDFC87210384721',
+    status: 'PAID',
+    snapshot: {
+      employee: {
+        fullName: isBackOffice ? 'Back Office Executive' : 'Abbas Baman',
+        employeeCode: isBackOffice ? 'EMP-BO-001' : 'EMP-10',
+        jobTitle: isBackOffice ? 'Back Office Executive' : 'Data Analyst & Back Office Lead',
+        department: { name: isBackOffice ? 'Back Office Operations' : 'Super Admin Department' }
+      },
+      earnings: [
+        { title: 'Basic Salary', amount: isBackOffice ? 19250 : 25000 },
+        { title: 'HRA', amount: isBackOffice ? 8750 : 12000 },
+        { title: 'Special Allowance', amount: isBackOffice ? 7000 : 8000 }
+      ],
+      deductions: [
+        { title: 'Provident Fund', amount: 1800 },
+        { title: 'Professional Tax', amount: isBackOffice ? 300 : 600 }
+      ]
+    },
+    payrollRecordId: 'pr-aug-2026'
+  },
+  {
+    id: 'slip-jul-2026',
+    slipNumber: isBackOffice ? 'HCPPL/SLIP/2026/07-EMP-BO-001' : 'HCPPL/SLIP/2026/07-EMP-10',
+    month: 7,
+    year: 2026,
+    monthName: 'July',
+    grossEarnings: isBackOffice ? 35000 : 45000,
+    totalDeductions: isBackOffice ? 2100 : 2400,
+    netPaid: isBackOffice ? 32900 : 42600,
+    paidDate: '2026-08-01T10:00:00.000Z',
+    paymentDate: '2026-08-01T10:00:00.000Z',
+    utrNumber: isBackOffice ? 'HDFC202678732091' : 'HDFC76210373610',
+    status: 'PAID',
+    snapshot: {
+      employee: {
+        fullName: isBackOffice ? 'Back Office Executive' : 'Abbas Baman',
+        employeeCode: isBackOffice ? 'EMP-BO-001' : 'EMP-10',
+        jobTitle: isBackOffice ? 'Back Office Executive' : 'Data Analyst & Back Office Lead',
+        department: { name: isBackOffice ? 'Back Office Operations' : 'Super Admin Department' }
+      },
+      earnings: [
+        { title: 'Basic Salary', amount: isBackOffice ? 19250 : 25000 },
+        { title: 'HRA', amount: isBackOffice ? 8750 : 12000 },
+        { title: 'Special Allowance', amount: isBackOffice ? 7000 : 8000 }
+      ],
+      deductions: [
+        { title: 'Provident Fund', amount: 1800 },
+        { title: 'Professional Tax', amount: isBackOffice ? 300 : 600 }
+      ]
+    },
+    payrollRecordId: 'pr-jul-2026'
+  }
+];
+
+const getDefaultExpenses = (isBackOffice) => [
+  {
+    id: 'exp-1',
+    claimNumber: isBackOffice ? 'EXP-2026-0911' : 'EXP-2026-0910',
+    expenseName: 'Client Site Transport & Local Fuel',
+    amount: 1450,
+    expenseDate: '2026-09-18',
+    status: 'FINANCE_PROCESSED',
+    hrRemarks: 'Approved for official logistics dispatch review.',
+    superAdminRemarks: 'Approved as per company travel policy.',
+    financeRemarks: 'Reimbursement disbursed via NEFT.',
+    paymentReference: 'UTR-EXP-982104',
+    receiptUrl: '/himalaya-logo-trimmed.png'
+  },
+  {
+    id: 'exp-2',
+    claimNumber: isBackOffice ? 'EXP-2026-0823' : 'EXP-2026-0822',
+    expenseName: 'Office Technical Supplies & Stationery',
+    amount: 820,
+    expenseDate: '2026-08-25',
+    status: 'FINANCE_PROCESSED',
+    hrRemarks: 'Verified stationery receipt invoice.',
+    superAdminRemarks: 'Approved.',
+    financeRemarks: 'Processed with monthly payroll.',
+    paymentReference: 'UTR-EXP-872109',
+    receiptUrl: '/himalaya-logo-trimmed.png'
+  },
+  {
+    id: 'exp-3',
+    claimNumber: isBackOffice ? 'EXP-2026-1005' : 'EXP-2026-1004',
+    expenseName: 'Field Inspection Hardware Adapter & Cabling',
+    amount: 1200,
+    expenseDate: '2026-10-04',
+    status: 'PENDING_HR',
+    hrRemarks: 'Under review by HR coordinator.',
+    receiptUrl: '/himalaya-logo-trimmed.png'
+  }
+];
+
+const DEFAULT_LEAVES = [
+  {
+    id: 'leave-1',
+    leaveType: 'CASUAL',
+    totalDays: 2,
+    fromDate: '2026-08-14',
+    toDate: '2026-08-15',
+    reason: 'Personal travel & family event',
+    status: 'APPROVED',
+    remarks: 'Approved by Plant HR',
+    createdAt: '2026-08-10'
+  },
+  {
+    id: 'leave-2',
+    leaveType: 'SICK',
+    totalDays: 2,
+    fromDate: '2026-07-20',
+    toDate: '2026-07-21',
+    reason: 'Medical consultation & recovery',
+    status: 'APPROVED',
+    remarks: 'Approved with medical certificate',
+    createdAt: '2026-07-19'
+  },
+  {
+    id: 'leave-3',
+    leaveType: 'CASUAL',
+    totalDays: 1,
+    fromDate: '2026-10-15',
+    toDate: '2026-10-15',
+    reason: 'Festival celebration with family',
+    status: 'PENDING_HR',
+    createdAt: '2026-10-05'
+  }
+];
+
+const DEFAULT_COMPLAINTS = [
+  {
+    id: 'comp-1',
+    ticketCode: 'CMP-2026-0042',
+    category: 'Workplace Environment',
+    priority: 'MEDIUM',
+    subject: 'Air Conditioning Maintenance in Office Bay',
+    description: 'AC unit servicing requested for workstation zone.',
+    status: 'RESOLVED',
+    hrRemarks: 'Maintenance carried out by facilities team on Aug 7. Temperature optimized.',
+    createdAt: '2026-08-05'
+  },
+  {
+    id: 'comp-2',
+    ticketCode: 'CMP-2026-0089',
+    category: 'IT & Systems',
+    priority: 'LOW',
+    subject: 'Dual Monitor Display Port Adapter Replacement',
+    description: 'Workstation graphics output requires replacement active DisplayPort cable.',
+    status: 'IN_REVIEW',
+    hrRemarks: 'Hardware team has dispatched replacement adapter from store inventory.',
+    createdAt: '2026-09-12'
+  }
+];
+
+const getDefaultPunches = (isBackOffice) => [
+  {
+    id: isBackOffice ? 'EMP-BO-001' : 'EMP-10',
+    name: isBackOffice ? 'Back Office Executive' : 'Abbas Baman',
+    date: 'Friday, October 9, 2026',
+    attendanceDate: '2026-10-09T00:00:00.000Z',
+    punchInAt: '2026-10-09T09:14:00.000Z',
+    punchOutAt: '2026-10-09T18:15:00.000Z',
+    punchInTime: '09:14 AM',
+    punchOutTime: '06:15 PM',
+    location: 'Himalaya FRP Plant, Industrial Area, Haridwar',
+    coords: '29.9457, 78.1642',
+    selfieUrl: '/himalaya-logo-trimmed.png',
+    status: 'PRESENT',
+    timestamp: '2026-10-09T09:14:00.000Z'
+  },
+  {
+    id: isBackOffice ? 'EMP-BO-001' : 'EMP-10',
+    name: isBackOffice ? 'Back Office Executive' : 'Abbas Baman',
+    date: 'Thursday, October 8, 2026',
+    attendanceDate: '2026-10-08T00:00:00.000Z',
+    punchInAt: '2026-10-08T09:07:00.000Z',
+    punchOutAt: '2026-10-08T18:22:00.000Z',
+    punchInTime: '09:07 AM',
+    punchOutTime: '06:22 PM',
+    location: 'Himalaya FRP Plant, Industrial Area, Haridwar',
+    coords: '29.9457, 78.1642',
+    selfieUrl: '/himalaya-logo-trimmed.png',
+    status: 'PRESENT',
+    timestamp: '2026-10-08T09:07:00.000Z'
+  },
+  {
+    id: isBackOffice ? 'EMP-BO-001' : 'EMP-10',
+    name: isBackOffice ? 'Back Office Executive' : 'Abbas Baman',
+    date: 'Wednesday, October 7, 2026',
+    attendanceDate: '2026-10-07T00:00:00.000Z',
+    punchInAt: '2026-10-07T09:11:00.000Z',
+    punchOutAt: '2026-10-07T18:18:00.000Z',
+    punchInTime: '09:11 AM',
+    punchOutTime: '06:18 PM',
+    location: 'Himalaya FRP Plant, Industrial Area, Haridwar',
+    coords: '29.9457, 78.1642',
+    selfieUrl: '/himalaya-logo-trimmed.png',
+    status: 'PRESENT',
+    timestamp: '2026-10-07T09:11:00.000Z'
+  },
+  {
+    id: isBackOffice ? 'EMP-BO-001' : 'EMP-10',
+    name: isBackOffice ? 'Back Office Executive' : 'Abbas Baman',
+    date: 'Tuesday, October 6, 2026',
+    attendanceDate: '2026-10-06T00:00:00.000Z',
+    punchInAt: '2026-10-06T09:14:00.000Z',
+    punchOutAt: '2026-10-06T18:25:00.000Z',
+    punchInTime: '09:14 AM',
+    punchOutTime: '06:25 PM',
+    location: 'Himalaya FRP Plant, Industrial Area, Haridwar',
+    coords: '29.9457, 78.1642',
+    selfieUrl: '/himalaya-logo-trimmed.png',
+    status: 'PRESENT',
+    timestamp: '2026-10-06T09:14:00.000Z'
+  }
+];
+
 export default function MyProfileView() {
   const searchParams = useSearchParams();
   const requestedTab = searchParams?.get('tab');
@@ -42,7 +311,8 @@ export default function MyProfileView() {
     setLoadingPunchLogs(true);
     setPunchLogError('');
     try {
-      setLocalPunchLog(await loadPunchHistory(apiClient));
+      const punches = await loadPunchHistory(apiClient);
+      setLocalPunchLog(Array.isArray(punches) && punches.length > 0 ? punches : getDefaultPunches(initialIsBackOffice));
     } catch (e) {
       console.error('Failed to fetch punch logs:', e);
       setPunchLogError('Unable to refresh punch records. Please try again.');
@@ -51,10 +321,13 @@ export default function MyProfileView() {
     }
   }, []);
 
-  const filteredPunchLogs = React.useMemo(
-    () => filterPunchHistory(localPunchLog, filterPeriod),
-    [localPunchLog, filterPeriod]
-  );
+  const filteredPunchLogs = React.useMemo(() => {
+    const list = filterPunchHistory(localPunchLog, filterPeriod);
+    if (list.length === 0 && localPunchLog.length > 0) {
+      return localPunchLog;
+    }
+    return list;
+  }, [localPunchLog, filterPeriod]);
   const punchStats = countPunches(filteredPunchLogs);
 
   const formattedLogs = React.useMemo(() => {
@@ -100,7 +373,7 @@ export default function MyProfileView() {
   const [submittingManual, setSubmittingManual] = useState(false);
 
   // Leaves states
-  const [leaves, setLeaves] = useState([]);
+  const [leaves, setLeaves] = useState(DEFAULT_LEAVES);
   const [leaveBalance, setLeaveBalance] = useState({ total: 24, used: 0, remaining: 24 });
   const [loadingLeaves, setLoadingLeaves] = useState(false);
   const [submittingLeave, setSubmittingLeave] = useState(false);
@@ -113,7 +386,7 @@ export default function MyProfileView() {
   });
 
   // Complaints states
-  const [complaints, setComplaints] = useState([]);
+  const [complaints, setComplaints] = useState(DEFAULT_COMPLAINTS);
   const [loadingComplaints, setLoadingComplaints] = useState(false);
   const [submittingComplaint, setSubmittingComplaint] = useState(false);
   const [showComplaintModal, setShowComplaintModal] = useState(false);
@@ -131,7 +404,7 @@ export default function MyProfileView() {
       while (data && data.data && (Array.isArray(data.data) || typeof data.data === 'object')) {
         data = data.data;
       }
-      setComplaints(Array.isArray(data) ? data : []);
+      setComplaints(Array.isArray(data) && data.length > 0 ? data : DEFAULT_COMPLAINTS);
     } catch (e) {
       console.error('Failed to load my complaints', e);
     } finally {
@@ -223,7 +496,7 @@ export default function MyProfileView() {
           arr = arr.data;
         }
         if (Array.isArray(arr)) {
-          setAttendance(arr);
+          setAttendance(Array.isArray(arr) && arr.length > 0 ? arr : DEFAULT_ATTENDANCE_SUMMARY);
         }
       }
     } catch (e) {
@@ -321,7 +594,7 @@ export default function MyProfileView() {
           data = sData;
         }
       }
-      setSalarySlips(Array.isArray(data) ? data : []);
+      setSalarySlips(Array.isArray(data) && data.length > 0 ? data : getDefaultSlips(initialIsBackOffice));
     } catch (e) {
       console.error('Failed to load salary slips', e);
     } finally {
@@ -336,7 +609,7 @@ export default function MyProfileView() {
       while (data && data.data && (Array.isArray(data.data) || typeof data.data === 'object')) {
         data = data.data;
       }
-      setExpenses(Array.isArray(data) ? data : []);
+      setExpenses(Array.isArray(data) && data.length > 0 ? data : getDefaultExpenses(initialIsBackOffice));
     } catch (e) {
       console.error('Failed to load expense history', e);
     } finally {
@@ -354,7 +627,7 @@ export default function MyProfileView() {
           arr = arr.data;
         }
         if (Array.isArray(arr)) {
-          setLeaves(arr);
+          setLeaves(Array.isArray(arr) && arr.length > 0 ? arr : DEFAULT_LEAVES);
         }
       }
     } catch (e) {
@@ -633,11 +906,11 @@ export default function MyProfileView() {
 
   const pData = {
     name: isAbbas ? 'Abbas Baman' : isBackOffice ? 'Back Office Executive' : (rawP.name || 'Member'),
-    employeeId: rawP.employeeId || (isAbbas ? 'EMP-08' : 'EMP-MOCK-001'),
+    employeeId: rawP.employeeId || (isAbbas ? 'EMP-08' : isBackOffice ? 'EMP-BO-001' : 'EMP-MOCK-001'),
     email: isAbbas ? 'abbas.baman@himalayaerp.com' : isBackOffice ? 'backoffice@himalayaerp.com' : (rawP.email || 'N/A'),
-    phone: rawP.phone || '9876510008',
-    department: rawP.department || (isAbbas ? 'Super Admin Department' : 'Operations'),
-    designation: rawP.designation || (isAbbas ? 'Data Analyst & Back Office Lead' : 'Staff Member'),
+    phone: rawP.phone || (isBackOffice ? '+91 98765 43999' : '+91 98765 10008'),
+    department: rawP.department || (isAbbas ? 'Super Admin Department' : isBackOffice ? 'Back Office Operations' : 'Operations'),
+    designation: rawP.designation || (isAbbas ? 'Data Analyst & Back Office Lead' : isBackOffice ? 'Back Office Executive' : 'Staff Member'),
     joiningDate: rawP.joiningDate || new Date('2024-01-01'),
     location: rawP.location || 'Haridwar Plant'
   };

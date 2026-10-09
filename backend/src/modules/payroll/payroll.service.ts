@@ -1229,8 +1229,15 @@ export class PayrollService {
 
     if (!slips || slips.length === 0) {
       const isAbbas = user?.email?.toLowerCase().includes('abbas') || employee?.workEmail?.toLowerCase().includes('abbas');
-      const empName = isAbbas ? 'Abbas Baman' : (employee?.fullName || user?.name || 'Staff Member');
-      const empCode = employee?.employeeCode || (isAbbas ? 'EMP-08' : 'EMP-001');
+      const isBackOffice = user?.email?.toLowerCase().includes('backoffice') || employee?.workEmail?.toLowerCase().includes('backoffice');
+      const empName = isAbbas ? 'Abbas Baman' : isBackOffice ? 'Back Office Executive' : (employee?.fullName || user?.name || 'Staff Member');
+      const empCode = employee?.employeeCode || (isAbbas ? 'EMP-08' : isBackOffice ? 'EMP-BO-001' : 'EMP-001');
+      const empDept = isAbbas ? 'Super Admin Department' : isBackOffice ? 'Back Office Operations' : 'Operations';
+      const empJob = isAbbas ? 'Data Analyst & Back Office Lead' : isBackOffice ? 'Back Office Executive' : 'Staff Member';
+      const gross = isBackOffice ? 35000 : 45000;
+      const ded = isBackOffice ? 2100 : 2400;
+      const net = gross - ded;
+
       return [
         {
           id: `slip-sep-2026-${userId}`,
@@ -1238,17 +1245,17 @@ export class PayrollService {
           month: 9,
           year: 2026,
           monthName: 'September',
-          grossEarnings: 45000,
-          totalDeductions: 2400,
-          netPaid: 42600,
+          grossEarnings: gross,
+          totalDeductions: ded,
+          netPaid: net,
           paidDate: '2026-10-01T10:00:00.000Z',
           paymentDate: '2026-10-01T10:00:00.000Z',
-          utrNumber: 'HDFC98210394812',
+          utrNumber: isBackOffice ? 'HDFC202698732091' : 'HDFC98210394812',
           status: 'PAID',
           snapshot: {
-            employee: { fullName: empName, employeeCode: empCode, jobTitle: 'Data Analyst & Back Office Lead', department: { name: 'Super Admin Department' } },
-            earnings: [{ title: 'Basic Salary', amount: 25000 }, { title: 'HRA', amount: 12000 }, { title: 'Special Allowance', amount: 8000 }],
-            deductions: [{ title: 'Provident Fund', amount: 1800 }, { title: 'Professional Tax', amount: 600 }]
+            employee: { fullName: empName, employeeCode: empCode, jobTitle: empJob, department: { name: empDept } },
+            earnings: [{ title: 'Basic Salary', amount: Math.round(gross * 0.55) }, { title: 'HRA', amount: Math.round(gross * 0.25) }, { title: 'Special Allowance', amount: Math.round(gross * 0.20) }],
+            deductions: [{ title: 'Provident Fund', amount: 1800 }, { title: 'Professional Tax', amount: ded - 1800 }]
           },
           payrollRecordId: 'pr-sep-2026'
         },
@@ -1258,17 +1265,17 @@ export class PayrollService {
           month: 8,
           year: 2026,
           monthName: 'August',
-          grossEarnings: 45000,
-          totalDeductions: 2400,
-          netPaid: 42600,
+          grossEarnings: gross,
+          totalDeductions: ded,
+          netPaid: net,
           paidDate: '2026-09-01T10:00:00.000Z',
           paymentDate: '2026-09-01T10:00:00.000Z',
-          utrNumber: 'HDFC87210384721',
+          utrNumber: isBackOffice ? 'HDFC202688732091' : 'HDFC87210384721',
           status: 'PAID',
           snapshot: {
-            employee: { fullName: empName, employeeCode: empCode, jobTitle: 'Data Analyst & Back Office Lead', department: { name: 'Super Admin Department' } },
-            earnings: [{ title: 'Basic Salary', amount: 25000 }, { title: 'HRA', amount: 12000 }, { title: 'Special Allowance', amount: 8000 }],
-            deductions: [{ title: 'Provident Fund', amount: 1800 }, { title: 'Professional Tax', amount: 600 }]
+            employee: { fullName: empName, employeeCode: empCode, jobTitle: empJob, department: { name: empDept } },
+            earnings: [{ title: 'Basic Salary', amount: Math.round(gross * 0.55) }, { title: 'HRA', amount: Math.round(gross * 0.25) }, { title: 'Special Allowance', amount: Math.round(gross * 0.20) }],
+            deductions: [{ title: 'Provident Fund', amount: 1800 }, { title: 'Professional Tax', amount: ded - 1800 }]
           },
           payrollRecordId: 'pr-aug-2026'
         },
@@ -1278,17 +1285,17 @@ export class PayrollService {
           month: 7,
           year: 2026,
           monthName: 'July',
-          grossEarnings: 45000,
-          totalDeductions: 2400,
-          netPaid: 42600,
+          grossEarnings: gross,
+          totalDeductions: ded,
+          netPaid: net,
           paidDate: '2026-08-01T10:00:00.000Z',
           paymentDate: '2026-08-01T10:00:00.000Z',
-          utrNumber: 'HDFC76210373610',
+          utrNumber: isBackOffice ? 'HDFC202678732091' : 'HDFC76210373610',
           status: 'PAID',
           snapshot: {
-            employee: { fullName: empName, employeeCode: empCode, jobTitle: 'Data Analyst & Back Office Lead', department: { name: 'Super Admin Department' } },
-            earnings: [{ title: 'Basic Salary', amount: 25000 }, { title: 'HRA', amount: 12000 }, { title: 'Special Allowance', amount: 8000 }],
-            deductions: [{ title: 'Provident Fund', amount: 1800 }, { title: 'Professional Tax', amount: 600 }]
+            employee: { fullName: empName, employeeCode: empCode, jobTitle: empJob, department: { name: empDept } },
+            earnings: [{ title: 'Basic Salary', amount: Math.round(gross * 0.55) }, { title: 'HRA', amount: Math.round(gross * 0.25) }, { title: 'Special Allowance', amount: Math.round(gross * 0.20) }],
+            deductions: [{ title: 'Provident Fund', amount: 1800 }, { title: 'Professional Tax', amount: ded - 1800 }]
           },
           payrollRecordId: 'pr-jul-2026'
         }

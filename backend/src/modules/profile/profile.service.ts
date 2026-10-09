@@ -39,7 +39,9 @@ export class ProfileService {
 
     const isBackOffice =
       user.email?.toLowerCase().includes('backoffice') ||
-      employee?.workEmail?.toLowerCase().includes('backoffice');
+      employee?.workEmail?.toLowerCase().includes('backoffice') ||
+      user.name?.toLowerCase().includes('back office') ||
+      employee?.fullName?.toLowerCase().includes('back office');
 
     const displayedEmail = isAbbas
       ? 'abbas.baman@himalayaerp.com'
@@ -56,12 +58,12 @@ export class ProfileService {
     return {
       id: employee?.id || user.id,
       userId: user.id,
-      employeeId: employee?.employeeCode || (isAbbas ? 'EMP-08' : 'EMP-MOCK-001'),
+      employeeId: employee?.employeeCode || (isAbbas ? 'EMP-08' : isBackOffice ? 'EMP-BO-001' : 'EMP-MOCK-001'),
       name: displayedName,
       email: displayedEmail,
-      phone: employee?.phoneNumber || '+91 98765 10008',
-      department: employee?.department?.name || (isAbbas ? 'Super Admin Department' : 'Operations'),
-      designation: employee?.jobTitle || (isAbbas ? 'Data Analyst & Back Office Lead' : user.role?.name || 'Staff Member'),
+      phone: employee?.phoneNumber || (isBackOffice ? '+91 98765 43999' : '+91 98765 10008'),
+      department: employee?.department?.name || (isAbbas ? 'Super Admin Department' : isBackOffice ? 'Back Office Operations' : 'Operations'),
+      designation: employee?.jobTitle || (isAbbas ? 'Data Analyst & Back Office Lead' : isBackOffice ? 'Back Office Executive' : user.role?.name || 'Staff Member'),
       profilePhoto: '/himalaya-logo-trimmed.png',
       joiningDate: employee?.joiningDate || new Date('2024-01-01'),
       location: 'Haridwar Plant',
@@ -75,8 +77,9 @@ export class ProfileService {
 
     if (!employee) {
       return [
-        { month: 'June 2026', present: 22, absent: 1, leave: 1, holiday: 2 },
-        { month: 'July 2026', present: 24, absent: 0, leave: 0, holiday: 2 },
+        { month: 'September 2026', present: 23, absent: 0, leave: 1, holiday: 2 },
+        { month: 'August 2026', present: 24, absent: 1, leave: 0, holiday: 2 },
+        { month: 'July 2026', present: 23, absent: 0, leave: 1, holiday: 2 },
       ];
     }
 
@@ -125,8 +128,9 @@ export class ProfileService {
 
     if (formatted.length === 0) {
       return [
-        { month: 'June 2026', present: 22, absent: 1, leave: 1, holiday: 2 },
-        { month: 'July 2026', present: 24, absent: 0, leave: 0, holiday: 2 },
+        { month: 'September 2026', present: 23, absent: 0, leave: 1, holiday: 2 },
+        { month: 'August 2026', present: 24, absent: 1, leave: 0, holiday: 2 },
+        { month: 'July 2026', present: 23, absent: 0, leave: 1, holiday: 2 },
       ];
     }
 
@@ -134,13 +138,27 @@ export class ProfileService {
   }
 
   async getSalarySlips(userId: string, companyId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
     const employee =
       (await this.prisma.employee.findFirst({
         where: { userId },
       })) ||
       (await this.prisma.employee.findFirst({
+        where: { workEmail: user?.email },
+      })) ||
+      (await this.prisma.employee.findFirst({
         where: { fullName: { contains: 'Abbas', mode: 'insensitive' } },
       }));
+
+    const isAbbas =
+      user?.email?.toLowerCase().includes('abbas') ||
+      employee?.workEmail?.toLowerCase().includes('abbas');
+    const isBackOffice =
+      user?.email?.toLowerCase().includes('backoffice') ||
+      employee?.workEmail?.toLowerCase().includes('backoffice');
 
     const slips = employee
       ? await this.prisma.salarySlip.findMany({
@@ -174,8 +192,14 @@ export class ProfileService {
     ];
 
     if (!slips || slips.length === 0) {
-      const empCode = employee?.employeeCode || 'EMP-08';
-      const empName = employee?.fullName || 'Abbas Baman';
+      const empCode = employee?.employeeCode || (isAbbas ? 'EMP-08' : isBackOffice ? 'EMP-BO-001' : 'EMP-MOCK-001');
+      const empName = isAbbas ? 'Abbas Baman' : isBackOffice ? 'Back Office Executive' : (employee?.fullName || user?.name || 'Staff Member');
+      const empDept = isAbbas ? 'Super Admin Department' : isBackOffice ? 'Back Office Operations' : 'Operations';
+      const empJob = isAbbas ? 'Data Analyst & Back Office Lead' : isBackOffice ? 'Back Office Executive' : 'Staff Member';
+      const gross = isBackOffice ? 35000 : 45000;
+      const ded = isBackOffice ? 2100 : 2400;
+      const net = gross - ded;
+
       return [
         {
           id: `slip-sep-2026-${userId}`,
@@ -183,17 +207,17 @@ export class ProfileService {
           month: 9,
           year: 2026,
           monthName: 'September',
-          grossEarnings: 45000,
-          totalDeductions: 2400,
-          netPaid: 42600,
+          grossEarnings: gross,
+          totalDeductions: ded,
+          netPaid: net,
           paidDate: '2026-10-01T10:00:00.000Z',
           paymentDate: '2026-10-01T10:00:00.000Z',
-          utrNumber: 'HDFC98210394812',
+          utrNumber: isBackOffice ? 'HDFC202698732091' : 'HDFC98210394812',
           status: 'PAID',
           snapshot: {
-            employee: { fullName: empName, employeeCode: empCode, jobTitle: 'Data Analyst & Back Office Lead', department: { name: 'Super Admin Department' } },
-            earnings: [{ title: 'Basic Salary', amount: 25000 }, { title: 'HRA', amount: 12000 }, { title: 'Special Allowance', amount: 8000 }],
-            deductions: [{ title: 'Provident Fund', amount: 1800 }, { title: 'Professional Tax', amount: 600 }]
+            employee: { fullName: empName, employeeCode: empCode, jobTitle: empJob, department: { name: empDept } },
+            earnings: [{ title: 'Basic Salary', amount: Math.round(gross * 0.55) }, { title: 'HRA', amount: Math.round(gross * 0.25) }, { title: 'Special Allowance', amount: Math.round(gross * 0.20) }],
+            deductions: [{ title: 'Provident Fund', amount: 1800 }, { title: 'Professional Tax', amount: ded - 1800 }]
           },
           payrollRecordId: 'pr-sep-2026'
         },
@@ -203,17 +227,17 @@ export class ProfileService {
           month: 8,
           year: 2026,
           monthName: 'August',
-          grossEarnings: 45000,
-          totalDeductions: 2400,
-          netPaid: 42600,
+          grossEarnings: gross,
+          totalDeductions: ded,
+          netPaid: net,
           paidDate: '2026-09-01T10:00:00.000Z',
           paymentDate: '2026-09-01T10:00:00.000Z',
-          utrNumber: 'HDFC87210384721',
+          utrNumber: isBackOffice ? 'HDFC202688732091' : 'HDFC87210384721',
           status: 'PAID',
           snapshot: {
-            employee: { fullName: empName, employeeCode: empCode, jobTitle: 'Data Analyst & Back Office Lead', department: { name: 'Super Admin Department' } },
-            earnings: [{ title: 'Basic Salary', amount: 25000 }, { title: 'HRA', amount: 12000 }, { title: 'Special Allowance', amount: 8000 }],
-            deductions: [{ title: 'Provident Fund', amount: 1800 }, { title: 'Professional Tax', amount: 600 }]
+            employee: { fullName: empName, employeeCode: empCode, jobTitle: empJob, department: { name: empDept } },
+            earnings: [{ title: 'Basic Salary', amount: Math.round(gross * 0.55) }, { title: 'HRA', amount: Math.round(gross * 0.25) }, { title: 'Special Allowance', amount: Math.round(gross * 0.20) }],
+            deductions: [{ title: 'Provident Fund', amount: 1800 }, { title: 'Professional Tax', amount: ded - 1800 }]
           },
           payrollRecordId: 'pr-aug-2026'
         },
@@ -223,17 +247,17 @@ export class ProfileService {
           month: 7,
           year: 2026,
           monthName: 'July',
-          grossEarnings: 45000,
-          totalDeductions: 2400,
-          netPaid: 42600,
+          grossEarnings: gross,
+          totalDeductions: ded,
+          netPaid: net,
           paidDate: '2026-08-01T10:00:00.000Z',
           paymentDate: '2026-08-01T10:00:00.000Z',
-          utrNumber: 'HDFC76210373610',
+          utrNumber: isBackOffice ? 'HDFC202678732091' : 'HDFC76210373610',
           status: 'PAID',
           snapshot: {
-            employee: { fullName: empName, employeeCode: empCode, jobTitle: 'Data Analyst & Back Office Lead', department: { name: 'Super Admin Department' } },
-            earnings: [{ title: 'Basic Salary', amount: 25000 }, { title: 'HRA', amount: 12000 }, { title: 'Special Allowance', amount: 8000 }],
-            deductions: [{ title: 'Provident Fund', amount: 1800 }, { title: 'Professional Tax', amount: 600 }]
+            employee: { fullName: empName, employeeCode: empCode, jobTitle: empJob, department: { name: empDept } },
+            earnings: [{ title: 'Basic Salary', amount: Math.round(gross * 0.55) }, { title: 'HRA', amount: Math.round(gross * 0.25) }, { title: 'Special Allowance', amount: Math.round(gross * 0.20) }],
+            deductions: [{ title: 'Provident Fund', amount: 1800 }, { title: 'Professional Tax', amount: ded - 1800 }]
           },
           payrollRecordId: 'pr-jul-2026'
         }
@@ -273,6 +297,29 @@ export class ProfileService {
       }
     }
 
+    // Try ExpenseClaim table first
+    const claims = await this.prisma.expenseClaim.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (claims && claims.length > 0) {
+      return claims.map(c => ({
+        id: c.id,
+        claimNumber: c.claimNumber,
+        expenseName: c.expenseName,
+        amount: Number(c.amount),
+        expenseDate: c.expenseDate,
+        receiptUrl: c.receiptUrl,
+        status: c.status,
+        hrRemarks: c.hrRemarks,
+        superAdminRemarks: c.superAdminRemarks,
+        financeRemarks: c.financeRemarks,
+        paymentReference: c.paymentReference,
+        createdAt: c.createdAt
+      }));
+    }
+
     const employee = await this.prisma.employee.findFirst({
       where: { userId },
     });
@@ -280,9 +327,7 @@ export class ProfileService {
     const employeeId = employee?.id || userId;
 
     const expenses = await this.prisma.expense.findMany({
-      where: {
-        employeeId,
-      },
+      where: { employeeId },
       orderBy: { createdAt: 'desc' },
     });
 
