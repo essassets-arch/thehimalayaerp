@@ -1898,7 +1898,12 @@ export default function MyProfileView() {
                         <div style={{ marginTop: '2px', display: 'flex', justifyContent: 'flex-start' }}>
                           <button
                             type="button"
-                            onClick={() => setPreviewReceiptModal(exp.receiptUrl.startsWith('data:') ? exp.receiptUrl : `/api/backend/expenses/${exp.id || exp.claimNumber}/receipt`)}
+                            onClick={() => {
+                              const target = exp.receiptUrl && (exp.receiptUrl.startsWith('http') || exp.receiptUrl.startsWith('/') || exp.receiptUrl.startsWith('data:'))
+                                ? exp.receiptUrl
+                                : `/api/backend/expenses/${exp.id || exp.claimNumber}/receipt`;
+                              setPreviewReceiptModal(target);
+                            }}
                             style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '11.5px', fontWeight: '700', cursor: 'pointer', padding: '4px 10px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           >
                             👁️ View Receipt Bill
