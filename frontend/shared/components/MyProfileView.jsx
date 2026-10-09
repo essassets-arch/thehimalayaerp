@@ -1000,9 +1000,31 @@ export default function MyProfileView() {
       </div>
 
       {/* 2. Navigation Tabs */}
-      <div className="hr-tabs-wrapper">
+      <div 
+        className="hr-tabs-wrapper"
+        data-testid="profile-tabs-wrapper"
+        style={{
+          width: '100%',
+          display: 'block',
+          visibility: 'visible',
+          opacity: 1,
+          margin: '2px 0 6px 0',
+          position: 'relative',
+          zIndex: 10
+        }}
+      >
         <div 
-          className="hr-tabs profile-tabs-nav erp-tab-scroll-bar" 
+          className="hr-tabs profile-tabs-nav erp-tab-scroll-bar"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            width: '100%',
+            overflowX: 'auto',
+            padding: '4px 2px 10px 2px',
+            visibility: 'visible',
+            opacity: 1
+          }} 
           onWheel={(e) => {
             if (e.deltaY !== 0) {
               e.currentTarget.scrollLeft += e.deltaY * 0.8;
@@ -1043,11 +1065,30 @@ export default function MyProfileView() {
             return (
               <button
                 key={tab.key}
+                type="button"
+                data-testid={`profile-tab-${tab.key}`}
                 onClick={() => setActiveTab(tab.key)}
                 className={`hr-tab profile-tab-btn ${isActive ? 'active' : ''}`}
-                style={{ whiteSpace: 'nowrap', flexShrink: 0, userSelect: 'none' }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 18px',
+                  borderRadius: '10px',
+                  fontSize: '13.5px',
+                  fontWeight: isActive ? '700' : '600',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  userSelect: 'none',
+                  cursor: 'pointer',
+                  border: isActive ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+                  background: isActive ? '#0284c7' : '#ffffff',
+                  color: isActive ? '#ffffff' : '#475569',
+                  boxShadow: isActive ? '0 4px 12px rgba(2, 132, 199, 0.25)' : '0 1px 3px rgba(0,0,0,0.05)',
+                  transition: 'all 0.15s ease'
+                }}
               >
-                <TabIcon size={16} />
+                <TabIcon size={16} color={isActive ? '#ffffff' : '#64748b'} />
                 <span>{tab.label}</span>
               </button>
             );
