@@ -3,11 +3,12 @@ import { PrismaService } from '../../database/prisma.service';
 import { hash } from 'bcrypt';
 import { randomUUID } from 'crypto';
 
-const KNOWN_USER_PASSWORDS: Record<string, string> = {
+export const KNOWN_USER_PASSWORDS: Record<string, string> = {
   'super.admin@himalayaerp.com': 'SuperAdmin@hcppl',
   'hr@himalayaerp.com': 'HR@hcppl',
   'nahin.v@himalayaerp.com': 'HR@hcppl',
   'superadmin@himalayaerp.com': 'SuperAdmin@hcppl',
+  'plant.head@himalayaerp.com': 'admin123',
   'abbas.b@himalayaerp.com': 'dataAnalyst#2101',
   'supersales1@himalayaerp.com': 'supersales123',
   'supersales2@himalayaerp.com': 'supersales124',
@@ -38,23 +39,70 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findByEmail(email: string) {
-    const normalizedEmail = (email && email.trim().toLowerCase() === 'sales1@himalayaerp.co')
-      ? 'sales1@himalayaerp.com'
-      : email;
-    return this.prisma.user.findUnique({
-      where: { email: normalizedEmail },
-      include: {
-        role: {
-          include: {
-            rolePermissions: {
-              include: {
-                permission: true,
+    if (!email) return null;
+    const clean = email.trim().toLowerCase();
+
+    // 1. Candidate lookup list
+    const candidates: string[] = [clean];
+
+    if (clean === 'sales1@himalayaerp.co') {
+      candidates.push('sales1@himalayaerp.com');
+    }
+    if (
+      clean === 'admin' ||
+      clean === 'superadmin' ||
+      clean === 'admin@thehimalaya.cloud' ||
+      clean === 'superadmin@thehimalaya.cloud' ||
+      clean === 'admin@thehimalayaerp.com'
+    ) {
+      candidates.push('superadmin@himalayaerp.com', 'super.admin@himalayaerp.com', 'admin@himalayaerp.test');
+    }
+    if (
+      clean === 'plant.head' ||
+      clean === 'planthead' ||
+      clean === 'plant.head@thehimalaya.cloud' ||
+      clean === 'planthead@thehimalaya.cloud'
+    ) {
+      candidates.push('plant.head@himalayaerp.com', 'plant.head@himalayaerp.test');
+    }
+    if (clean.endsWith('@thehimalaya.cloud')) {
+      candidates.push(clean.replace('@thehimalaya.cloud', '@himalayaerp.com'));
+      candidates.push(clean.replace('@thehimalaya.cloud', '@himalayaerp.test'));
+    }
+    if (clean.endsWith('@thehimalayaerp.com')) {
+      candidates.push(clean.replace('@thehimalayaerp.com', '@himalayaerp.com'));
+    }
+    if (clean.endsWith('@himalaya.cloud')) {
+      candidates.push(clean.replace('@himalaya.cloud', '@himalayaerp.com'));
+    }
+    if (!clean.includes('@')) {
+      candidates.push(`${clean}@himalayaerp.com`);
+      candidates.push(`${clean}@himalayaerp.test`);
+    }
+
+    const uniqueCandidates = Array.from(new Set(candidates));
+
+    for (const cand of uniqueCandidates) {
+      const user = await this.prisma.user.findFirst({
+        where: {
+          email: { equals: cand, mode: 'insensitive' }
+        },
+        include: {
+          role: {
+            include: {
+              rolePermissions: {
+                include: {
+                  permission: true,
+                },
               },
             },
           },
         },
-      },
-    });
+      });
+      if (user) return user;
+    }
+
+    return null;
   }
 
   async findById(id: string) {

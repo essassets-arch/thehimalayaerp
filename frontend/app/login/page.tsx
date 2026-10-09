@@ -556,7 +556,7 @@ export default function LoginPage() {
                     id="login-email"
                     data-testid="login-email"
                     className="login-input"
-                    placeholder="admin@thehimalaya.cloud"
+                    placeholder="plant.head@himalayaerp.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={loading}
@@ -618,6 +618,55 @@ export default function LoginPage() {
                 {loading ? 'Authenticating…' : 'Sign In'}
               </button>
             </form>
+
+            {/* Quick Fill Demo Roles */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+              <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>Quick Fill Access:</span>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('plant.head@himalayaerp.com');
+                    setPassword('admin123');
+                    setError('');
+                  }}
+                  style={{
+                    background: '#F1F5F9',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '6px',
+                    padding: '4px 10px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#1E293B',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s ease'
+                  }}
+                >
+                  Plant Head
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('superadmin@himalayaerp.com');
+                    setPassword('admin123');
+                    setError('');
+                  }}
+                  style={{
+                    background: '#F1F5F9',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '6px',
+                    padding: '4px 10px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#1E293B',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s ease'
+                  }}
+                >
+                  Super Admin
+                </button>
+              </div>
+            </div>
 
             <div style={{ textAlign: 'center', fontSize: '11px', color: '#94A3B8', marginTop: '2px' }}>
               🔒 Protected by Himalayan Role-Based Access Control
