@@ -19,7 +19,12 @@ import { useSearchParams } from 'next/navigation';
 import { loadPunchHistory, filterPunchHistory, countPunches } from '../../lib/profilePunchHistory.mjs';
 
 
-const DEFAULT_ATTENDANCE_SUMMARY = [
+const getDefaultAttendance = (isBackOffice) => isBackOffice ? [
+  { month: 'September 2026', present: 24, absent: 0, leave: 1, holiday: 2 },
+  { month: 'August 2026', present: 23, absent: 1, leave: 0, holiday: 2 },
+  { month: 'July 2026', present: 24, absent: 0, leave: 1, holiday: 2 },
+  { month: 'June 2026', present: 23, absent: 1, leave: 0, holiday: 2 }
+] : [
   { month: 'September 2026', present: 23, absent: 0, leave: 1, holiday: 2 },
   { month: 'August 2026', present: 24, absent: 1, leave: 0, holiday: 2 },
   { month: 'July 2026', present: 23, absent: 0, leave: 1, holiday: 2 },
@@ -28,8 +33,8 @@ const DEFAULT_ATTENDANCE_SUMMARY = [
 
 const getDefaultSlips = (isBackOffice) => [
   {
-    id: 'slip-sep-2026',
-    slipNumber: isBackOffice ? 'HCPPL/SLIP/2026/09-EMP-BO-001' : 'HCPPL/SLIP/2026/09-EMP-10',
+    id: isBackOffice ? 'slip-sep-2026-bo' : 'slip-sep-2026-abb',
+    slipNumber: isBackOffice ? 'HCPPL/SLIP/2026/09-EMP-BO-001' : 'HCPPL/SLIP/2026/09-EMP-8',
     month: 9,
     year: 2026,
     monthName: 'September',
@@ -43,7 +48,7 @@ const getDefaultSlips = (isBackOffice) => [
     snapshot: {
       employee: {
         fullName: isBackOffice ? 'Back Office Executive' : 'Abbas Baman',
-        employeeCode: isBackOffice ? 'EMP-BO-001' : 'EMP-10',
+        employeeCode: isBackOffice ? 'EMP-BO-001' : 'EMP-8',
         jobTitle: isBackOffice ? 'Back Office Executive' : 'Data Analyst & Back Office Lead',
         department: { name: isBackOffice ? 'Back Office Operations' : 'Super Admin Department' }
       },
@@ -60,8 +65,8 @@ const getDefaultSlips = (isBackOffice) => [
     payrollRecordId: 'pr-sep-2026'
   },
   {
-    id: 'slip-aug-2026',
-    slipNumber: isBackOffice ? 'HCPPL/SLIP/2026/08-EMP-BO-001' : 'HCPPL/SLIP/2026/08-EMP-10',
+    id: isBackOffice ? 'slip-aug-2026-bo' : 'slip-aug-2026-abb',
+    slipNumber: isBackOffice ? 'HCPPL/SLIP/2026/08-EMP-BO-001' : 'HCPPL/SLIP/2026/08-EMP-8',
     month: 8,
     year: 2026,
     monthName: 'August',
@@ -75,7 +80,7 @@ const getDefaultSlips = (isBackOffice) => [
     snapshot: {
       employee: {
         fullName: isBackOffice ? 'Back Office Executive' : 'Abbas Baman',
-        employeeCode: isBackOffice ? 'EMP-BO-001' : 'EMP-10',
+        employeeCode: isBackOffice ? 'EMP-BO-001' : 'EMP-8',
         jobTitle: isBackOffice ? 'Back Office Executive' : 'Data Analyst & Back Office Lead',
         department: { name: isBackOffice ? 'Back Office Operations' : 'Super Admin Department' }
       },
@@ -92,8 +97,8 @@ const getDefaultSlips = (isBackOffice) => [
     payrollRecordId: 'pr-aug-2026'
   },
   {
-    id: 'slip-jul-2026',
-    slipNumber: isBackOffice ? 'HCPPL/SLIP/2026/07-EMP-BO-001' : 'HCPPL/SLIP/2026/07-EMP-10',
+    id: isBackOffice ? 'slip-jul-2026-bo' : 'slip-jul-2026-abb',
+    slipNumber: isBackOffice ? 'HCPPL/SLIP/2026/07-EMP-BO-001' : 'HCPPL/SLIP/2026/07-EMP-8',
     month: 7,
     year: 2026,
     monthName: 'July',
@@ -107,7 +112,7 @@ const getDefaultSlips = (isBackOffice) => [
     snapshot: {
       employee: {
         fullName: isBackOffice ? 'Back Office Executive' : 'Abbas Baman',
-        employeeCode: isBackOffice ? 'EMP-BO-001' : 'EMP-10',
+        employeeCode: isBackOffice ? 'EMP-BO-001' : 'EMP-8',
         jobTitle: isBackOffice ? 'Back Office Executive' : 'Data Analyst & Back Office Lead',
         department: { name: isBackOffice ? 'Back Office Operations' : 'Super Admin Department' }
       },
@@ -125,10 +130,10 @@ const getDefaultSlips = (isBackOffice) => [
   }
 ];
 
-const getDefaultExpenses = (isBackOffice) => [
+const getDefaultExpenses = (isBackOffice) => isBackOffice ? [
   {
-    id: 'exp-1',
-    claimNumber: isBackOffice ? 'EXP-2026-0911' : 'EXP-2026-0910',
+    id: 'exp-bo-1',
+    claimNumber: 'EXP-2026-0911',
     expenseName: 'Client Site Transport & Local Fuel',
     amount: 1450,
     expenseDate: '2026-09-18',
@@ -140,8 +145,8 @@ const getDefaultExpenses = (isBackOffice) => [
     receiptUrl: '/himalaya-logo-trimmed.png'
   },
   {
-    id: 'exp-2',
-    claimNumber: isBackOffice ? 'EXP-2026-0823' : 'EXP-2026-0822',
+    id: 'exp-bo-2',
+    claimNumber: 'EXP-2026-0823',
     expenseName: 'Office Technical Supplies & Stationery',
     amount: 820,
     expenseDate: '2026-08-25',
@@ -153,8 +158,45 @@ const getDefaultExpenses = (isBackOffice) => [
     receiptUrl: '/himalaya-logo-trimmed.png'
   },
   {
-    id: 'exp-3',
-    claimNumber: isBackOffice ? 'EXP-2026-1005' : 'EXP-2026-1004',
+    id: 'exp-bo-3',
+    claimNumber: 'EXP-2026-1005',
+    expenseName: 'Field Inspection Hardware Adapter & Cabling',
+    amount: 1200,
+    expenseDate: '2026-10-04',
+    status: 'PENDING_HR',
+    hrRemarks: 'Under review by HR coordinator.',
+    receiptUrl: '/himalaya-logo-trimmed.png'
+  }
+] : [
+  {
+    id: 'exp-abb-1',
+    claimNumber: 'EXP-2026-0910',
+    expenseName: 'Client Site Transport & Local Fuel',
+    amount: 1450,
+    expenseDate: '2026-09-18',
+    status: 'FINANCE_PROCESSED',
+    hrRemarks: 'Approved for official logistics dispatch review.',
+    superAdminRemarks: 'Approved as per company travel policy.',
+    financeRemarks: 'Reimbursement disbursed via NEFT.',
+    paymentReference: 'UTR-EXP-982104',
+    receiptUrl: '/himalaya-logo-trimmed.png'
+  },
+  {
+    id: 'exp-abb-2',
+    claimNumber: 'EXP-2026-0822',
+    expenseName: 'Office Technical Supplies & Stationery',
+    amount: 820,
+    expenseDate: '2026-08-25',
+    status: 'FINANCE_PROCESSED',
+    hrRemarks: 'Verified stationery receipt invoice.',
+    superAdminRemarks: 'Approved.',
+    financeRemarks: 'Processed with monthly payroll.',
+    paymentReference: 'UTR-EXP-872109',
+    receiptUrl: '/himalaya-logo-trimmed.png'
+  },
+  {
+    id: 'exp-abb-3',
+    claimNumber: 'EXP-2026-1004',
     expenseName: 'Field Inspection Hardware Adapter & Cabling',
     amount: 1200,
     expenseDate: '2026-10-04',
@@ -164,9 +206,42 @@ const getDefaultExpenses = (isBackOffice) => [
   }
 ];
 
-const DEFAULT_LEAVES = [
+const getDefaultLeaves = (isBackOffice) => isBackOffice ? [
   {
-    id: 'leave-1',
+    id: 'leave-bo-1',
+    leaveType: 'CASUAL',
+    totalDays: 2,
+    fromDate: '2026-09-08',
+    toDate: '2026-09-09',
+    reason: 'Family function in Roorkee',
+    status: 'APPROVED',
+    remarks: 'Approved by Back Office Operations Lead',
+    createdAt: '2026-09-04'
+  },
+  {
+    id: 'leave-bo-2',
+    leaveType: 'SICK',
+    totalDays: 2,
+    fromDate: '2026-08-11',
+    toDate: '2026-08-12',
+    reason: 'Viral fever recovery',
+    status: 'APPROVED',
+    remarks: 'Approved with prescription',
+    createdAt: '2026-08-10'
+  },
+  {
+    id: 'leave-bo-3',
+    leaveType: 'CASUAL',
+    totalDays: 1,
+    fromDate: '2026-10-18',
+    toDate: '2026-10-18',
+    reason: 'Personal banking & documentation',
+    status: 'PENDING_HR',
+    createdAt: '2026-10-06'
+  }
+] : [
+  {
+    id: 'leave-abb-1',
     leaveType: 'CASUAL',
     totalDays: 2,
     fromDate: '2026-08-14',
@@ -177,7 +252,7 @@ const DEFAULT_LEAVES = [
     createdAt: '2026-08-10'
   },
   {
-    id: 'leave-2',
+    id: 'leave-abb-2',
     leaveType: 'SICK',
     totalDays: 2,
     fromDate: '2026-07-20',
@@ -188,7 +263,7 @@ const DEFAULT_LEAVES = [
     createdAt: '2026-07-19'
   },
   {
-    id: 'leave-3',
+    id: 'leave-abb-3',
     leaveType: 'CASUAL',
     totalDays: 1,
     fromDate: '2026-10-15',
@@ -199,9 +274,32 @@ const DEFAULT_LEAVES = [
   }
 ];
 
-const DEFAULT_COMPLAINTS = [
+const getDefaultComplaints = (isBackOffice) => isBackOffice ? [
   {
-    id: 'comp-1',
+    id: 'comp-bo-1',
+    ticketCode: 'CMP-2026-0104',
+    category: 'Logistics & Systems',
+    priority: 'HIGH',
+    subject: 'Thermal Shipping Label Printer Roller Jam',
+    description: 'Label printer in dispatch bay requires roller cleaning/service.',
+    status: 'RESOLVED',
+    hrRemarks: 'IT facility tech replaced roller assembly on Sep 14.',
+    createdAt: '2026-09-12'
+  },
+  {
+    id: 'comp-bo-2',
+    ticketCode: 'CMP-2026-0158',
+    category: 'Office Supplies',
+    priority: 'MEDIUM',
+    subject: 'Back Office Barcode Scanner USB Cable Loose',
+    description: 'Secondary handheld scanner port has intermittent disconnect.',
+    status: 'IN_REVIEW',
+    hrRemarks: 'Spare scanner issued from warehouse stock.',
+    createdAt: '2026-09-28'
+  }
+] : [
+  {
+    id: 'comp-abb-1',
     ticketCode: 'CMP-2026-0042',
     category: 'Workplace Environment',
     priority: 'MEDIUM',
@@ -212,7 +310,7 @@ const DEFAULT_COMPLAINTS = [
     createdAt: '2026-08-05'
   },
   {
-    id: 'comp-2',
+    id: 'comp-abb-2',
     ticketCode: 'CMP-2026-0089',
     category: 'IT & Systems',
     priority: 'LOW',
@@ -225,44 +323,47 @@ const DEFAULT_COMPLAINTS = [
 ];
 
 const getDefaultPunches = (isBackOffice) => {
-  const empId = isBackOffice ? 'EMP-BO-001' : 'EMP-10';
+  const empId = isBackOffice ? 'EMP-BO-001' : 'EMP-8';
   const empName = isBackOffice ? 'Back Office Executive' : 'Abbas Baman';
+  const plantLocation = isBackOffice
+    ? 'Himalaya FRP Plant, Industrial Area, Haridwar (Terminal BO-1)'
+    : 'Himalaya FRP Plant, Industrial Area, Haridwar (Super Admin Bay)';
   const list = [];
 
   // 1. Today: Oct 9, 2026 (punch in only -> active)
   list.push({
-    id: 'att-2026-10-09',
+    id: isBackOffice ? 'att-2026-10-09-bo' : 'att-2026-10-09-abb',
     empId,
     name: empName,
     date: 'Friday, October 9, 2026',
     attendanceDate: '2026-10-09T00:00:00.000Z',
-    punchInAt: '2026-10-09T09:14:00.000Z',
+    punchInAt: isBackOffice ? '2026-10-09T09:02:00.000Z' : '2026-10-09T09:14:00.000Z',
     punchOutAt: null,
-    punchInTime: '09:14 AM',
+    punchInTime: isBackOffice ? '09:02 AM' : '09:14 AM',
     punchOutTime: '—',
-    location: 'Himalaya FRP Plant, Industrial Area, Haridwar',
+    location: plantLocation,
     coords: '29.9457, 78.1642',
     selfieUrl: '/himalaya-logo-trimmed.png',
     status: 'PRESENT',
-    timestamp: '2026-10-09T09:14:00.000Z'
+    timestamp: isBackOffice ? '2026-10-09T09:02:00.000Z' : '2026-10-09T09:14:00.000Z'
   });
 
   // 2. Yesterday: Oct 8, 2026 (punch in only)
   list.push({
-    id: 'att-2026-10-08',
+    id: isBackOffice ? 'att-2026-10-08-bo' : 'att-2026-10-08-abb',
     empId,
     name: empName,
     date: 'Thursday, October 8, 2026',
     attendanceDate: '2026-10-08T00:00:00.000Z',
-    punchInAt: '2026-10-08T09:07:00.000Z',
+    punchInAt: isBackOffice ? '2026-10-08T08:58:00.000Z' : '2026-10-08T09:07:00.000Z',
     punchOutAt: null,
-    punchInTime: '09:07 AM',
+    punchInTime: isBackOffice ? '08:58 AM' : '09:07 AM',
     punchOutTime: '—',
-    location: 'Himalaya FRP Plant, Industrial Area, Haridwar',
+    location: plantLocation,
     coords: '29.9457, 78.1642',
     selfieUrl: '/himalaya-logo-trimmed.png',
     status: 'PRESENT',
-    timestamp: '2026-10-08T09:07:00.000Z'
+    timestamp: isBackOffice ? '2026-10-08T08:58:00.000Z' : '2026-10-08T09:07:00.000Z'
   });
 
   // 3. Exactly 22 completed days with BOTH punch in and punch out (22 + 22 = 44 punches)
@@ -338,7 +439,7 @@ export default function MyProfileView() {
     } catch (_) {}
   }
 
-  const [attendance, setAttendance] = useState(DEFAULT_ATTENDANCE_SUMMARY);
+  const [attendance, setAttendance] = useState(() => getDefaultAttendance(initialIsBackOffice));
   const [salarySlips, setSalarySlips] = useState(() => getDefaultSlips(initialIsBackOffice));
   const [viewingSlip, setViewingSlip] = useState(null);
   const [expenses, setExpenses] = useState(() => getDefaultExpenses(initialIsBackOffice));
@@ -348,6 +449,19 @@ export default function MyProfileView() {
   const [filterPeriod, setFilterPeriod] = useState('today');
   const [loadingPunchLogs, setLoadingPunchLogs] = useState(false);
   const [punchLogError, setPunchLogError] = useState('');
+
+  // Dynamically synchronize isolated defaults when profile loads
+  useEffect(() => {
+    if (profile) {
+      const isBO = profile.email?.toLowerCase().includes('backoffice') || profile.name?.toLowerCase().includes('back office');
+      setSalarySlips(prev => (!prev || prev.length === 0 || (prev[0]?.id && String(prev[0].id).startsWith('slip-')) ? getDefaultSlips(isBO) : prev));
+      setExpenses(prev => (!prev || prev.length === 0 || (prev[0]?.id && String(prev[0].id).startsWith('exp-')) ? getDefaultExpenses(isBO) : prev));
+      setLeaves(prev => (!prev || prev.length === 0 || (prev[0]?.id && String(prev[0].id).startsWith('leave-')) ? getDefaultLeaves(isBO) : prev));
+      setComplaints(prev => (!prev || prev.length === 0 || (prev[0]?.id && String(prev[0].id).startsWith('comp-')) ? getDefaultComplaints(isBO) : prev));
+      setLocalPunchLog(prev => (!prev || prev.length === 0 || (prev[0]?.id && String(prev[0].id).startsWith('att-')) ? getDefaultPunches(isBO) : prev));
+      setAttendance(prev => (!prev || prev.length === 0 ? getDefaultAttendance(isBO) : prev));
+    }
+  }, [profile]);
 
   const fetchPunchLogsFromDB = useCallback(async () => {
     setLoadingPunchLogs(true);
@@ -378,8 +492,8 @@ export default function MyProfileView() {
 
   const formattedLogs = React.useMemo(() => {
     return filteredPunchLogs.map(item => ({
-      id: profile?.employee?.employeeCode || profile?.employeeId || 'EMP-MOCK-001',
-      name: profile?.name || 'Employee',
+      id: profile?.employee?.employeeCode || profile?.employeeId || (initialIsBackOffice ? 'EMP-BO-001' : 'EMP-8'),
+      name: profile?.name || (initialIsBackOffice ? 'Back Office Executive' : 'Abbas Baman'),
       date: item.date,
       punchIn: item.punchInTime || '—',
       punchOut: item.punchOutTime || '—',
@@ -390,7 +504,7 @@ export default function MyProfileView() {
       timestamp: item.timestamp
     }));
 
-  }, [filteredPunchLogs, profile]);
+  }, [filteredPunchLogs, profile, initialIsBackOffice]);
 
   useEffect(() => {
     if (profile) {
@@ -419,7 +533,7 @@ export default function MyProfileView() {
   const [submittingManual, setSubmittingManual] = useState(false);
 
   // Leaves states
-  const [leaves, setLeaves] = useState(DEFAULT_LEAVES);
+  const [leaves, setLeaves] = useState(() => getDefaultLeaves(initialIsBackOffice));
   const [leaveBalance, setLeaveBalance] = useState({ total: 24, used: 0, remaining: 24 });
   const [loadingLeaves, setLoadingLeaves] = useState(false);
   const [submittingLeave, setSubmittingLeave] = useState(false);
@@ -432,7 +546,7 @@ export default function MyProfileView() {
   });
 
   // Complaints states
-  const [complaints, setComplaints] = useState(DEFAULT_COMPLAINTS);
+  const [complaints, setComplaints] = useState(() => getDefaultComplaints(initialIsBackOffice));
   const [loadingComplaints, setLoadingComplaints] = useState(false);
   const [submittingComplaint, setSubmittingComplaint] = useState(false);
   const [showComplaintModal, setShowComplaintModal] = useState(false);
@@ -450,7 +564,7 @@ export default function MyProfileView() {
       while (data && data.data && (Array.isArray(data.data) || typeof data.data === 'object')) {
         data = data.data;
       }
-      setComplaints(Array.isArray(data) && data.length > 0 ? data : DEFAULT_COMPLAINTS);
+      setComplaints(Array.isArray(data) && data.length > 0 ? data : getDefaultComplaints(initialIsBackOffice));
     } catch (e) {
       console.error('Failed to load my complaints', e);
     } finally {
@@ -542,7 +656,7 @@ export default function MyProfileView() {
           arr = arr.data;
         }
         if (Array.isArray(arr)) {
-          setAttendance(Array.isArray(arr) && arr.length > 0 ? arr : DEFAULT_ATTENDANCE_SUMMARY);
+          setAttendance(Array.isArray(arr) && arr.length > 0 ? arr : getDefaultAttendance(initialIsBackOffice));
         }
       }
     } catch (e) {
@@ -550,7 +664,7 @@ export default function MyProfileView() {
     } finally {
       setLoadingAttendance(false);
     }
-  }, []);
+  }, [initialIsBackOffice]);
 
   const fetchManualRequests = useCallback(async () => {
     try {
@@ -646,7 +760,7 @@ export default function MyProfileView() {
     } finally {
       setLoadingSalary(false);
     }
-  }, []);
+  }, [initialIsBackOffice]);
 
   const fetchExpenses = useCallback(async () => {
     try {
@@ -661,7 +775,7 @@ export default function MyProfileView() {
     } finally {
       setLoadingExpenses(false);
     }
-  }, []);
+  }, [initialIsBackOffice]);
 
   const fetchLeaves = useCallback(async () => {
     try {
@@ -673,7 +787,7 @@ export default function MyProfileView() {
           arr = arr.data;
         }
         if (Array.isArray(arr)) {
-          setLeaves(Array.isArray(arr) && arr.length > 0 ? arr : DEFAULT_LEAVES);
+          setLeaves(Array.isArray(arr) && arr.length > 0 ? arr : getDefaultLeaves(initialIsBackOffice));
         }
       }
     } catch (e) {
@@ -681,7 +795,7 @@ export default function MyProfileView() {
     } finally {
       setLoadingLeaves(false);
     }
-  }, []);
+  }, [initialIsBackOffice]);
 
   const fetchLeaveBalance = useCallback(async () => {
     try {
@@ -952,7 +1066,7 @@ export default function MyProfileView() {
 
   const pData = {
     name: isAbbas ? 'Abbas Baman' : isBackOffice ? 'Back Office Executive' : (rawP.name || 'Member'),
-    employeeId: rawP.employeeId || (isAbbas ? 'EMP-08' : isBackOffice ? 'EMP-BO-001' : 'EMP-MOCK-001'),
+    employeeId: rawP.employeeId || (isAbbas ? 'EMP-8' : isBackOffice ? 'EMP-BO-001' : 'EMP-MOCK-001'),
     email: isAbbas ? 'abbas.baman@himalayaerp.com' : isBackOffice ? 'backoffice@himalayaerp.com' : (rawP.email || 'N/A'),
     phone: rawP.phone || (isBackOffice ? '+91 98765 43999' : '+91 98765 10008'),
     department: rawP.department || (isAbbas ? 'Super Admin Department' : isBackOffice ? 'Back Office Operations' : 'Operations'),
@@ -962,7 +1076,7 @@ export default function MyProfileView() {
   };
 
   return (
-    <div className="hr-page my-profile-root" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', maxWidth: '100%', overflowX: 'hidden', paddingBottom: '32px', boxSizing: 'border-box' }}>
+    <div className="hr-page my-profile-root" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%', maxWidth: '100%', overflowX: 'hidden', paddingBottom: '32px', boxSizing: 'border-box' }}>
       
       {/* ── Official Salary Slip Modal ── */}
       {viewingSlip && (
@@ -973,9 +1087,19 @@ export default function MyProfileView() {
         />
       )}
       
-      {/* 1. Header Profile Info Card */}
-      <div className="app-card profile-header-card profile-header" style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', width: '100%', boxSizing: 'border-box' }}>
-        
+      {/* 1. Header Profile Info Card (Proper Visual Section Isolation) */}
+      <div 
+        className="app-card profile-header-card profile-header" 
+        style={{ 
+          background: '#ffffff', 
+          borderRadius: '16px', 
+          border: '1px solid #e2e8f0', 
+          boxShadow: '0 4px 14px rgba(0,0,0,0.03)', 
+          padding: '24px 28px',
+          width: '100%', 
+          boxSizing: 'border-box' 
+        }}
+      >
         {/* Avatar Area */}
         <div className="profile-header-avatar" style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid #0284c7', flexShrink: 0 }}>
           <User size={36} style={{ color: '#0284c7' }} />
@@ -999,109 +1123,121 @@ export default function MyProfileView() {
         </div>
       </div>
 
-      {/* 2. Navigation Tabs */}
+      {/* 2. Navigation Tabs (Dedicated Isolation Card Container) */}
       <div 
-        className="hr-tabs-wrapper"
-        data-testid="profile-tabs-wrapper"
+        className="profile-nav-card"
         style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.03)',
+          padding: '8px 12px',
           width: '100%',
-          minHeight: '52px',
-          height: 'auto',
-          overflow: 'visible',
-          display: 'block',
-          visibility: 'visible',
-          opacity: 1,
-          margin: '2px 0 8px 0',
-          position: 'relative',
-          zIndex: 10
+          boxSizing: 'border-box'
         }}
       >
         <div 
-          className="hr-tabs profile-tabs-nav erp-tab-scroll-bar"
+          className="hr-tabs-wrapper"
+          data-testid="profile-tabs-wrapper"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
             width: '100%',
             minHeight: '48px',
-            overflowX: 'auto',
-            overflowY: 'visible',
-            padding: '4px 2px 10px 2px',
+            height: 'auto',
+            overflow: 'visible',
+            display: 'block',
             visibility: 'visible',
-            opacity: 1
-          }} 
-          onWheel={(e) => {
-            if (e.deltaY !== 0) {
-              e.currentTarget.scrollLeft += e.deltaY * 0.8;
-            }
-          }}
-          onMouseDown={(e) => {
-            const el = e.currentTarget;
-            el.dataset.isDown = 'true';
-            el.dataset.startX = String(e.pageX - el.offsetLeft);
-            el.dataset.scrollLeft = String(el.scrollLeft);
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.dataset.isDown = 'false';
-          }}
-          onMouseUp={(e) => {
-            e.currentTarget.dataset.isDown = 'false';
-          }}
-          onMouseMove={(e) => {
-            const el = e.currentTarget;
-            if (el.dataset.isDown !== 'true') return;
-            e.preventDefault();
-            const x = e.pageX - el.offsetLeft;
-            const startX = Number(el.dataset.startX || 0);
-            const scrollLeft = Number(el.dataset.scrollLeft || 0);
-            const walk = (x - startX) * 1.5;
-            el.scrollLeft = scrollLeft - walk;
+            opacity: 1,
+            position: 'relative',
+            zIndex: 10
           }}
         >
-          {[
-            { key: 'attendance', label: 'Attendance Records', icon: CalendarDays },
-            { key: 'salary', label: 'Salary Slips', icon: FileText },
-            { key: 'expenses', label: 'Expense Center', icon: CreditCard },
-            { key: 'leaves', label: 'Leave Management', icon: Calendar },
-            { key: 'complaints', label: 'Complaint Center', icon: ShieldAlert }
-          ].map(tab => {
-            const isActive = activeTab === tab.key;
-            const TabIcon = tab.icon;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                data-testid={`profile-tab-${tab.key}`}
-                onClick={() => setActiveTab(tab.key)}
-                className={`hr-tab profile-tab-btn ${isActive ? 'active' : ''}`}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '9px 18px',
-                  borderRadius: '10px',
-                  fontSize: '13.5px',
-                  fontWeight: isActive ? '700' : '600',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                  userSelect: 'none',
-                  cursor: 'pointer',
-                  border: isActive ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
-                  background: isActive ? '#0284c7' : '#ffffff',
-                  color: isActive ? '#ffffff' : '#475569',
-                  boxShadow: isActive ? '0 4px 12px rgba(2, 132, 199, 0.25)' : '0 1px 3px rgba(0,0,0,0.05)',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <TabIcon size={16} color={isActive ? '#ffffff' : '#64748b'} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+          <div 
+            className="hr-tabs profile-tabs-nav erp-tab-scroll-bar"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              width: '100%',
+              minHeight: '44px',
+              overflowX: 'auto',
+              overflowY: 'visible',
+              padding: '2px 2px 4px 2px',
+              visibility: 'visible',
+              opacity: 1
+            }} 
+            onWheel={(e) => {
+              if (e.deltaY !== 0) {
+                e.currentTarget.scrollLeft += e.deltaY * 0.8;
+              }
+            }}
+            onMouseDown={(e) => {
+              const el = e.currentTarget;
+              el.dataset.isDown = 'true';
+              el.dataset.startX = String(e.pageX - el.offsetLeft);
+              el.dataset.scrollLeft = String(el.scrollLeft);
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.dataset.isDown = 'false';
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.dataset.isDown = 'false';
+            }}
+            onMouseMove={(e) => {
+              const el = e.currentTarget;
+              if (el.dataset.isDown !== 'true') return;
+              e.preventDefault();
+              const x = e.pageX - el.offsetLeft;
+              const startX = Number(el.dataset.startX || 0);
+              const scrollLeft = Number(el.dataset.scrollLeft || 0);
+              const walk = (x - startX) * 1.5;
+              el.scrollLeft = scrollLeft - walk;
+            }}
+          >
+            {[
+              { key: 'attendance', label: 'Attendance Records', icon: CalendarDays },
+              { key: 'salary', label: 'Salary Slips', icon: FileText },
+              { key: 'expenses', label: 'Expense Center', icon: CreditCard },
+              { key: 'leaves', label: 'Leave Management', icon: Calendar },
+              { key: 'complaints', label: 'Complaint Center', icon: ShieldAlert }
+            ].map(tab => {
+              const isActive = activeTab === tab.key;
+              const TabIcon = tab.icon;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  data-testid={`profile-tab-${tab.key}`}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`hr-tab profile-tab-btn ${isActive ? 'active' : ''}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '9px 18px',
+                    borderRadius: '10px',
+                    fontSize: '13.5px',
+                    fontWeight: isActive ? '700' : '600',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    userSelect: 'none',
+                    cursor: 'pointer',
+                    border: isActive ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
+                    background: isActive ? '#0284c7' : '#f8fafc',
+                    color: isActive ? '#ffffff' : '#475569',
+                    boxShadow: isActive ? '0 4px 12px rgba(2, 132, 199, 0.25)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <TabIcon size={16} color={isActive ? '#ffffff' : '#64748b'} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* 3. Dynamic Tabs Content Viewports */}
+      {/* 3. Dynamic Tabs Content Viewports (Dedicated Content Card Section) */}
       <main className="hr-content" style={{ width: '100%', maxWidth: '100%' }}>
         
         {/* Attendance Tab */}
