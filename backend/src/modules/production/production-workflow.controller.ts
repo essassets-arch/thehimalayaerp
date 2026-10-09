@@ -96,6 +96,12 @@ export class ProductionWorkflowController {
     return this.workflowService.getGlobalSummaryReport(query);
   }
 
+  @Get('production-workflow/dashboard')
+  @RequirePermissions('production.floor.read', 'production.qc.read')
+  async getDashboardWorkflowAlias(@Query() query: any) {
+    return this.workflowService.getGlobalSummaryReport(query);
+  }
+
   @RequirePermissions('production.productionworkflow.read')
   @Get('production/reports/summary')
   async getReportsSummary(@Query() query: any) {
@@ -481,9 +487,9 @@ export class ProductionWorkflowController {
 
   @Post('production/send-to-dispatch')
   @RequirePermissions(
-    'production.floor.read',
-    'production.qc.read',
-    'production.productionworkflow.read',
+    'production.dispatch.create',
+    'logistics.dispatches.create',
+    'production.workorder.dispatch',
   )
   async sendToDispatch(@Body() body: any, @Req() req: any) {
     const ids = Array.isArray(body?.workOrderIds)
@@ -491,17 +497,44 @@ export class ProductionWorkflowController {
       : body?.id
       ? [body.id]
       : [];
-    return this.workflowService.sendToDispatch(ids, req.user?.sub || 'system');
+    return this.workflowService.sendToDispatch(
+      ids,
+      req.user?.sub || 'system',
+      req.user?.companyId,
+    );
+  }
+
+  @Post('production-workflow/send-to-dispatch')
+  @RequirePermissions(
+    'production.dispatch.create',
+    'logistics.dispatches.create',
+    'production.workorder.dispatch',
+  )
+  async sendToDispatchAlias(@Body() body: any, @Req() req: any) {
+    const ids = Array.isArray(body?.workOrderIds)
+      ? body.workOrderIds
+      : body?.id
+      ? [body.id]
+      : [];
+    return this.workflowService.sendToDispatch(
+      ids,
+      req.user?.sub || 'system',
+      req.user?.companyId,
+    );
   }
 
   @Post('production/:id/send-to-dispatch')
   @RequirePermissions(
-    'production.floor.read',
-    'production.qc.read',
-    'production.productionworkflow.read',
+    'production.dispatch.create',
+    'logistics.dispatches.create',
+    'production.workorder.dispatch',
   )
   async sendSingleToDispatch(@Param('id') id: string, @Req() req: any) {
-    return this.workflowService.sendToDispatch([id], req.user?.sub || 'system');
+    return this.workflowService.sendToDispatch(
+      [id],
+      req.user?.sub || 'system',
+      req.user?.companyId,
+    );
   }
 
   // ==========================================
