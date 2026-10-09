@@ -844,6 +844,24 @@ export default function OrdersView({
     );
   };
 
+  const resolveOrderProjectName = (o) => {
+    if (!o) return '—';
+    const projName =
+      o.projectName ||
+      o.project_name ||
+      o.project ||
+      o.lead?.projectName ||
+      o.quotation?.lead?.projectName ||
+      o.sourceQuotation?.lead?.projectName ||
+      o.quotation?.projectName ||
+      o.sourceQuotation?.projectName;
+
+    if (projName && String(projName).trim() && String(projName).trim() !== '—') {
+      return String(projName).trim();
+    }
+    return resolveOrderCustomerName(o);
+  };
+
   const formatOrderDate = (o) => {
     if (!o) return '—';
     const raw =
@@ -1289,7 +1307,7 @@ export default function OrdersView({
               {filter === 'Delivered' ? (
                 <>
                   <th className={styles.orderIdCol}>Order No</th>
-                  <th className={styles.customerCol}>Customer</th>
+                  <th className={styles.customerCol}>Project Name *</th>
                   <th style={{ minWidth: '120px' }}>Delivery Date</th>
                   <th className={styles.valueCol} style={{ textAlign: 'right' }}>Order Value</th>
                   <th className={styles.valueCol} style={{ textAlign: 'right' }}>Paid Amount</th>
@@ -1301,7 +1319,7 @@ export default function OrdersView({
               ) : filter === 'Lost' ? (
                 <>
                   <th className={styles.orderIdCol}>Order</th>
-                  <th className={styles.customerCol}>Customer</th>
+                  <th className={styles.customerCol}>Project Name *</th>
                   <th>Sales Person</th>
                   <th className={styles.valueCol} style={{ textAlign: 'right' }}>Order Value</th>
                   <th className={styles.valueCol} style={{ textAlign: 'right', color: '#dc2626' }}>Lost Value</th>
@@ -1313,7 +1331,7 @@ export default function OrdersView({
               ) : (
                 <>
                   <th className={styles.orderIdCol}>Order ID</th>
-                  <th className={styles.customerCol}>Customer</th>
+                  <th className={styles.customerCol}>Project Name *</th>
                   <th className={styles.productsCol}>Products / Items</th>
                   <th style={{ minWidth: '120px' }}>Size</th>
                   {!isProductionUser && <th className={styles.valueCol}>Total Value</th>}
@@ -1367,7 +1385,7 @@ export default function OrdersView({
                           )}
                         </div>
                       </td>
-                      <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: 700 }}>{resolveOrderCustomerName(o)}</td>
+                      <td data-label="Project Name *" className={styles.customerCol} style={{ fontWeight: 700 }}>{resolveOrderProjectName(o)}</td>
                       <td data-label="Sales Person" style={{ color: '#475569', fontSize: '13px' }}>{salesPerson}</td>
                       <td data-label="Order Value" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800 }}>{formatINR(total)}</td>
                       <td data-label="Lost Value" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800, color: '#dc2626' }}>{formatINR(lostVal)}</td>
@@ -1457,7 +1475,7 @@ export default function OrdersView({
                           {formatOrderDate(o)}
                         </div>
                       </td>
-                      <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: 700 }}>{resolveOrderCustomerName(o)}</td>
+                      <td data-label="Project Name *" className={styles.customerCol} style={{ fontWeight: 700 }}>{resolveOrderProjectName(o)}</td>
                       <td data-label="Delivery Date">{deliveryDate}</td>
                       <td data-label="Order Value" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800 }}>
                         {formatINR(total)}
@@ -1632,8 +1650,8 @@ export default function OrdersView({
                         {formatOrderDate(o)}
                       </div>
                     </td>
-                    <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: '600' }}>
-                      {resolveOrderCustomerName(o)}
+                    <td data-label="Project Name *" className={styles.customerCol} style={{ fontWeight: '600' }}>
+                      {resolveOrderProjectName(o)}
                     </td>
                     <td data-label="Products / Items" className={styles.productsCol}>
                       {renderOrderProducts(o)}
@@ -1922,8 +1940,8 @@ export default function OrdersView({
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px' }}>
                     <div>
-                      <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Customer</div>
-                      <div style={{ fontWeight: '700', color: '#1e293b' }}>{resolveOrderCustomerName(o)}</div>
+                      <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Project Name *</div>
+                      <div style={{ fontWeight: '700', color: '#1e293b' }}>{resolveOrderProjectName(o)}</div>
                     </div>
                     <div>
                       <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Salesperson</div>
@@ -2026,8 +2044,8 @@ export default function OrdersView({
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
-                    <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Customer</div>
-                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#374151' }}>{o.customerName || o.customer?.name || o.customer?.companyName || '—'}</div>
+                    <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Project Name *</div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#374151' }}>{resolveOrderProjectName(o)}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Order Date</div>

@@ -31,6 +31,10 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     backendPath = backendPath.replace('/backend/backend/', '/backend/');
   }
 
+  if (backendPath.startsWith('/api/')) {
+    backendPath = backendPath.replace(/^\/api\//, '/');
+  }
+
   if (backendPath.startsWith('/backend/sales-targets')) {
     backendPath = backendPath.replace('/backend/sales-targets', '/sales-targets');
   } else if (backendPath.startsWith('/backend/production-targets')) {

@@ -112,7 +112,7 @@ export default function ProductionOperationsDashboard({
     if (showLoadingState) setLoading(true);
     setRefreshing(true);
     try {
-      const res = await backendFetch(`/api/production-workflow/dashboard?period=${timeFilter}`);
+      const res = await backendFetch(`/production-workflow/dashboard?period=${timeFilter}&shift=${shiftFilter}&machine=${machineFilter}`);
       const data = res?.data || res;
       if (data && typeof data === 'object') {
         setDashboardData(data);
@@ -127,7 +127,7 @@ export default function ProductionOperationsDashboard({
 
   useEffect(() => {
     fetchDashboardData(true);
-  }, [timeFilter]);
+  }, [timeFilter, shiftFilter, machineFilter]);
 
   // Authoritative Data Resolvers
   const kpis = dashboardData?.executiveKpis || {
@@ -350,6 +350,14 @@ export default function ProductionOperationsDashboard({
     }
 
     return source.filter((item) => {
+      if (shiftFilter !== 'ALL') {
+        const sm = String(item.shiftMachine || '');
+        if (!sm.startsWith(shiftFilter) && !sm.includes(`Shift ${shiftFilter}`)) return false;
+      }
+      if (machineFilter !== 'ALL') {
+        const sm = String(item.shiftMachine || '');
+        if (!sm.includes(machineFilter)) return false;
+      }
       if (activeStageFilter !== 'ALL') {
         if (activeStageFilter === 'incoming' && item.stage !== 'INCOMING') return false;
         if (activeStageFilter === 'floorRuns' && item.stage !== 'FLOOR') return false;
@@ -369,7 +377,7 @@ export default function ProductionOperationsDashboard({
       }
       return true;
     });
-  }, [refWorkOrders, workOrders, showAllLiveOrders, activeStageFilter, searchQuery]);
+  }, [refWorkOrders, workOrders, showAllLiveOrders, activeStageFilter, searchQuery, shiftFilter, machineFilter]);
 
   // Operational Action Handlers
   const handleStartRun = async (e) => {
@@ -396,7 +404,7 @@ export default function ProductionOperationsDashboard({
     e.preventDefault();
     setSubmitting(true);
     try {
-      await backendFetch('/api/backend/production/shift-entries', {
+      await backendFetch('/production/shift-entries', {
         method: 'POST',
         body: {
           workOrderId: shiftForm.workOrderId,
