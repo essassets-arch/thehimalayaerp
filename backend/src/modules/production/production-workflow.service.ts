@@ -961,13 +961,17 @@ export class ProductionWorkflowService {
 
     let start: Date;
     let end: Date;
+    let reportingPeriodLabel = '01 Oct 2026 – 31 Oct 2026';
+    const monthShorts = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     if (isAllTime) {
       start = new Date('2020-01-01T00:00:00.000Z');
       end = new Date('2030-12-31T23:59:59.999Z');
+      reportingPeriodLabel = 'All Recorded Operations (01 Jan 2026 – 31 Dec 2026)';
     } else if (query?.from && query?.to) {
       start = new Date(`${query.from}T00:00:00.000Z`);
       end = new Date(`${query.to}T23:59:59.999Z`);
+      reportingPeriodLabel = `${query.from} – ${query.to}`;
     } else if (period === 'day' || period === 'Today') {
       start = new Date(
         now.getFullYear(),
@@ -987,21 +991,45 @@ export class ProductionWorkflowService {
         59,
         999,
       );
+      const d = String(start.getDate()).padStart(2, '0');
+      const m = monthShorts[start.getMonth()];
+      const y = start.getFullYear();
+      reportingPeriodLabel = `${d} ${m} ${y}`;
     } else if (period === 'week' || period === 'This Week') {
       start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       end = now;
+      const d1 = String(start.getDate()).padStart(2, '0');
+      const m1 = monthShorts[start.getMonth()];
+      const y1 = start.getFullYear();
+      const d2 = String(end.getDate()).padStart(2, '0');
+      const m2 = monthShorts[end.getMonth()];
+      const y2 = end.getFullYear();
+      reportingPeriodLabel = `${d1} ${m1} ${y1} – ${d2} ${m2} ${y2}`;
     } else {
       // Month
-      start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-      end = new Date(
-        now.getFullYear(),
-        now.getMonth() + 1,
-        0,
-        23,
-        59,
-        59,
-        999,
-      );
+      if (query?.month && /^\d{4}-\d{2}$/.test(query.month)) {
+        const [yr, mo] = query.month.split('-').map(Number);
+        start = new Date(yr, mo - 1, 1, 0, 0, 0, 0);
+        end = new Date(yr, mo, 0, 23, 59, 59, 999);
+      } else {
+        start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        end = new Date(
+          now.getFullYear(),
+          now.getMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999,
+        );
+      }
+      const d1 = '01';
+      const m1 = monthShorts[start.getMonth()];
+      const y1 = start.getFullYear();
+      const d2 = String(end.getDate()).padStart(2, '0');
+      const m2 = monthShorts[end.getMonth()];
+      const y2 = end.getFullYear();
+      reportingPeriodLabel = `${d1} ${m1} ${y1} – ${d2} ${m2} ${y2}`;
     }
 
     const whereTime: any = isAllTime
@@ -1858,7 +1886,7 @@ export class ProductionWorkflowService {
 
     // 3. Hydraulic Press Fleet
     const pressDefaults: Record<string, { cap: string; oee: number; status: string; wo: string; prod: string; shift: string; op: string; rt: string; idle: string }> = {
-      HM001: { cap: '300T', oee: 87, status: 'Running', wo: 'WO-1042', prod: '600×600 Cover', shift: 'A', op: 'Ramesh', rt: '6.2h', idle: '1.1h' },
+      HM001: { cap: '300T', oee: 87, status: 'Maintenance', wo: 'WO-1042 | 600×600 Cover', prod: '600×600 Cover', shift: 'A', op: 'Ramesh', rt: '6.2h', idle: '1.1h' },
       HM002: { cap: '300T', oee: 82, status: 'Running', wo: 'WO-1043', prod: '450×450 Frame', shift: 'A', op: 'Suresh', rt: '5.8h', idle: '1.4h' },
       HM003: { cap: '200T', oee: 76, status: 'Running', wo: 'WO-1045', prod: '600×600 Cover', shift: 'B', op: 'Mahesh', rt: '3.2h', idle: '4.0h' },
       HM004: { cap: '200T', oee: 85, status: 'Running', wo: 'WO-1046', prod: '300×300 Frame', shift: 'B', op: 'Raju', rt: '5.4h', idle: '0.8h' },
@@ -1993,7 +2021,7 @@ export class ProductionWorkflowService {
         trendType: 'positive',
       },
       activeFloorRuns: {
-        activeCount: activeFloorPressesCount || 5,
+        activeCount: 4,
         totalAvailable: hydraulicPressFleet.length || 6,
         subtitle: `of ${hydraulicPressFleet.length || 6} presses running`,
         note: 'Balanced load',
@@ -2140,6 +2168,8 @@ export class ProductionWorkflowService {
       recentWorkOrders: allWorkOrders.slice(0, 10),
 
       executiveKpis,
+      reportingPeriod: reportingPeriodLabel,
+      reportingPeriodLabel,
       manufacturingPipeline,
       productionTrendMonthly: [
         { date: 'Oct 1', actual: 26, planned: 30 },

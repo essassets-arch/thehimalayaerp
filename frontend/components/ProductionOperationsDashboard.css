@@ -119,6 +119,13 @@
   border-color: #94a3b8;
 }
 
+.pod-month-select {
+  font-weight: 600;
+  color: #0f172a;
+  background-color: #ffffff;
+  border-color: #94a3b8;
+}
+
 .pod-period-bar {
   display: flex;
   align-items: center;
