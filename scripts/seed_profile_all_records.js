@@ -85,25 +85,39 @@ async function main() {
     const userId = u.user.id;
     console.log(`\nSeeding records for ${u.empName} (${u.user.email})...`);
 
-    // 2. Attendance Records & Biometric Punches
-    const octDates = [
-      { day: 1, inH: 9, inM: 12, outH: 18, outM: 15 },
-      { day: 2, inH: 9, inM: 10, outH: 18, outM: 20 },
-      { day: 3, inH: 9, inM: 15, outH: 18, outM: 0 },
-      { day: 4, inH: 9, inM: 5,  outH: 18, outM: 30 },
-      { day: 5, inH: 9, inM: 8,  outH: 18, outM: 10 },
-      { day: 6, inH: 9, inM: 14, outH: 18, outM: 25 },
-      { day: 7, inH: 9, inM: 11, outH: 18, outM: 18 },
-      { day: 8, inH: 9, inM: 7,  outH: 18, outM: 22 },
-      { day: 9, inH: 9, inM: 14, outH: 18, outM: 15 } // today
+    // 2. Attendance Records & Biometric Punches (Exact 24 attendance days = 24 punch ins + 22 punch outs = 46 punches)
+    const attDays = [
+      { dateStr: '2026-10-09', inH: 9, inM: 14, inTime: '09:14 AM', outH: null, outM: null, outTime: null }, // today (active punch in)
+      { dateStr: '2026-10-08', inH: 9, inM: 7,  inTime: '09:07 AM', outH: null, outM: null, outTime: null }, // yesterday (punch in only)
+      { dateStr: '2026-10-07', inH: 9, inM: 11, inTime: '09:11 AM', outH: 18, outM: 18, outTime: '06:18 PM' },
+      { dateStr: '2026-10-06', inH: 9, inM: 14, inTime: '09:14 AM', outH: 18, outM: 25, outTime: '06:25 PM' },
+      { dateStr: '2026-10-05', inH: 9, inM: 8,  inTime: '09:08 AM', outH: 18, outM: 10, outTime: '06:10 PM' },
+      { dateStr: '2026-10-03', inH: 9, inM: 15, inTime: '09:15 AM', outH: 18, outM: 5,  outTime: '06:05 PM' },
+      { dateStr: '2026-10-02', inH: 9, inM: 10, inTime: '09:10 AM', outH: 18, outM: 20, outTime: '06:20 PM' },
+      { dateStr: '2026-10-01', inH: 9, inM: 12, inTime: '09:12 AM', outH: 18, outM: 15, outTime: '06:15 PM' },
+      { dateStr: '2026-09-30', inH: 9, inM: 10, inTime: '09:10 AM', outH: 18, outM: 20, outTime: '06:20 PM' },
+      { dateStr: '2026-09-29', inH: 9, inM: 5,  inTime: '09:05 AM', outH: 18, outM: 15, outTime: '06:15 PM' },
+      { dateStr: '2026-09-28', inH: 9, inM: 12, inTime: '09:12 AM', outH: 18, outM: 18, outTime: '06:18 PM' },
+      { dateStr: '2026-09-26', inH: 9, inM: 15, inTime: '09:15 AM', outH: 18, outM: 10, outTime: '06:10 PM' },
+      { dateStr: '2026-09-25', inH: 9, inM: 8,  inTime: '09:08 AM', outH: 18, outM: 25, outTime: '06:25 PM' },
+      { dateStr: '2026-09-24', inH: 9, inM: 11, inTime: '09:11 AM', outH: 18, outM: 14, outTime: '06:14 PM' },
+      { dateStr: '2026-09-23', inH: 9, inM: 7,  inTime: '09:07 AM', outH: 18, outM: 20, outTime: '06:20 PM' },
+      { dateStr: '2026-09-22', inH: 9, inM: 14, inTime: '09:14 AM', outH: 18, outM: 15, outTime: '06:15 PM' },
+      { dateStr: '2026-09-21', inH: 9, inM: 9,  inTime: '09:09 AM', outH: 18, outM: 12, outTime: '06:12 PM' },
+      { dateStr: '2026-09-19', inH: 9, inM: 16, inTime: '09:16 AM', outH: 18, outM: 15, outTime: '06:15 PM' },
+      { dateStr: '2026-09-18', inH: 9, inM: 10, inTime: '09:10 AM', outH: 18, outM: 22, outTime: '06:22 PM' },
+      { dateStr: '2026-09-17', inH: 9, inM: 8,  inTime: '09:08 AM', outH: 18, outM: 19, outTime: '06:19 PM' },
+      { dateStr: '2026-09-16', inH: 9, inM: 12, inTime: '09:12 AM', outH: 18, outM: 25, outTime: '06:25 PM' },
+      { dateStr: '2026-09-15', inH: 9, inM: 6,  inTime: '09:06 AM', outH: 18, outM: 10, outTime: '06:10 PM' },
+      { dateStr: '2026-09-14', inH: 9, inM: 11, inTime: '09:11 AM', outH: 18, outM: 18, outTime: '06:18 PM' },
+      { dateStr: '2026-09-12', inH: 9, inM: 15, inTime: '09:15 AM', outH: 18, outM: 20, outTime: '06:20 PM' }
     ];
 
-    for (const d of octDates) {
-      const dateStr = `2026-10-${String(d.day).padStart(2, '0')}`;
-      const attDate = new Date(`${dateStr}T00:00:00.000Z`);
-      const punchInAt = new Date(`${dateStr}T${String(d.inH).padStart(2, '0')}:${String(d.inM).padStart(2, '0')}:00.000Z`);
-      const punchOutAt = new Date(`${dateStr}T${String(d.outH).padStart(2, '0')}:${String(d.outM).padStart(2, '0')}:00.000Z`);
-      const workedSeconds = (d.outH * 3600 + d.outM * 60) - (d.inH * 3600 + d.inM * 60);
+    for (const d of attDays) {
+      const attDate = new Date(`${d.dateStr}T00:00:00.000Z`);
+      const punchInAt = new Date(`${d.dateStr}T${String(d.inH).padStart(2, '0')}:${String(d.inM).padStart(2, '0')}:00.000Z`);
+      const punchOutAt = d.outH != null ? new Date(`${d.dateStr}T${String(d.outH).padStart(2, '0')}:${String(d.outM).padStart(2, '0')}:00.000Z`) : null;
+      const workedSeconds = punchOutAt ? ((d.outH * 3600 + d.outM * 60) - (d.inH * 3600 + d.inM * 60)) : 0;
 
       const existingAtt = await prisma.attendance.findFirst({
         where: { employeeId, attendanceDate: attDate }
@@ -122,12 +136,12 @@ async function main() {
             punchInLongitude: 78.1642,
             punchInAddress: 'Himalaya FRP Plant, Industrial Area, Haridwar',
             punchInAccuracy: 12.5,
-            punchOutLatitude: 29.9457,
-            punchOutLongitude: 78.1642,
-            punchOutAddress: 'Himalaya FRP Plant, Industrial Area, Haridwar',
-            punchOutAccuracy: 14.2,
+            punchOutLatitude: punchOutAt ? 29.9457 : null,
+            punchOutLongitude: punchOutAt ? 78.1642 : null,
+            punchOutAddress: punchOutAt ? 'Himalaya FRP Plant, Industrial Area, Haridwar' : null,
+            punchOutAccuracy: punchOutAt ? 14.2 : null,
             punchInSelfieUrl: '/himalaya-logo-trimmed.png',
-            punchOutSelfieUrl: '/himalaya-logo-trimmed.png',
+            punchOutSelfieUrl: punchOutAt ? '/himalaya-logo-trimmed.png' : null,
             workedSeconds,
             workedMinutes: Math.floor(workedSeconds / 60),
             status: 'PRESENT'
@@ -137,36 +151,39 @@ async function main() {
 
       // Also create biometric punch in AttendancePunch table
       const punchExists = await prisma.attendancePunch.findFirst({
-        where: { empId: u.empCode, date: dateStr }
+        where: { empId: u.empCode, date: d.dateStr }
       });
       if (!punchExists) {
+        const punchesToCreate = [
+          {
+            empId: u.empCode,
+            empName: u.empName,
+            type: 'PUNCH_IN',
+            time: d.inTime,
+            date: d.dateStr,
+            location: 'Haridwar Plant Gate 1',
+            coords: '29.9457, 78.1642',
+            selfieUrl: '/himalaya-logo-trimmed.png',
+            isRealPunch: true,
+            timestamp: punchInAt
+          }
+        ];
+        if (punchOutAt && d.outTime) {
+          punchesToCreate.push({
+            empId: u.empCode,
+            empName: u.empName,
+            type: 'PUNCH_OUT',
+            time: d.outTime,
+            date: d.dateStr,
+            location: 'Haridwar Plant Gate 1',
+            coords: '29.9457, 78.1642',
+            selfieUrl: '/himalaya-logo-trimmed.png',
+            isRealPunch: true,
+            timestamp: punchOutAt
+          });
+        }
         await prisma.attendancePunch.createMany({
-          data: [
-            {
-              empId: u.empCode,
-              empName: u.empName,
-              type: 'PUNCH_IN',
-              time: `${String(d.inH).padStart(2, '0')}:${String(d.inM).padStart(2, '0')} AM`,
-              date: dateStr,
-              location: 'Haridwar Plant Gate 1',
-              coords: '29.9457, 78.1642',
-              selfieUrl: '/himalaya-logo-trimmed.png',
-              isRealPunch: true,
-              timestamp: punchInAt
-            },
-            {
-              empId: u.empCode,
-              empName: u.empName,
-              type: 'PUNCH_OUT',
-              time: `${String(d.outH - 12).padStart(2, '0')}:${String(d.outM).padStart(2, '0')} PM`,
-              date: dateStr,
-              location: 'Haridwar Plant Gate 1',
-              coords: '29.9457, 78.1642',
-              selfieUrl: '/himalaya-logo-trimmed.png',
-              isRealPunch: true,
-              timestamp: punchOutAt
-            }
-          ]
+          data: punchesToCreate
         });
       }
     }
