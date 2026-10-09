@@ -1005,10 +1005,13 @@ export default function MyProfileView() {
         data-testid="profile-tabs-wrapper"
         style={{
           width: '100%',
+          minHeight: '52px',
+          height: 'auto',
+          overflow: 'visible',
           display: 'block',
           visibility: 'visible',
           opacity: 1,
-          margin: '2px 0 6px 0',
+          margin: '2px 0 8px 0',
           position: 'relative',
           zIndex: 10
         }}
@@ -1020,7 +1023,9 @@ export default function MyProfileView() {
             alignItems: 'center',
             gap: '8px',
             width: '100%',
+            minHeight: '48px',
             overflowX: 'auto',
+            overflowY: 'visible',
             padding: '4px 2px 10px 2px',
             visibility: 'visible',
             opacity: 1
