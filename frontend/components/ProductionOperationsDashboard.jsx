@@ -369,43 +369,64 @@ export default function ProductionOperationsDashboard({
   }, [targetSource, rawKpis?.planAchievement, periodData.planAchievement]);
 
   const kpis = {
-    totalProduction: (rawKpis?.totalProduction?.valueMt && Number(rawKpis.totalProduction.valueMt) > (timeFilter === 'day' ? 5 : 100))
-      ? rawKpis.totalProduction
-      : periodData.totalProduction,
+    totalProduction: rawKpis?.totalProduction || periodData.totalProduction,
     planAchievement: planAchievementKpi,
     oee: rawKpis?.oee || periodData.oee,
-    activeFloorRuns: { activeCount: 4, totalAvailable: 6, subtitle: 'of 6 presses running', note: 'Balanced load' },
-    firstPassYield: { percentage: 98.9, targetLabel: 'Target: 98.5%+', trend: '▲ 0.5% vs. last month', trendType: 'positive' },
+    activeFloorRuns: rawKpis?.activeFloorRuns || {
+      activeCount: dashboardData?.summary?.inProgress || 0,
+      totalAvailable: dashboardData?.hydraulicPressFleet?.length || 6,
+      subtitle: `${dashboardData?.summary?.machinesRunning || 0} of ${dashboardData?.hydraulicPressFleet?.length || 6} presses running`,
+      note: 'Live line status'
+    },
+    firstPassYield: rawKpis?.firstPassYield || {
+      percentage: dashboardData?.summary?.firstPassYield || 100,
+      targetLabel: 'Target: 98.5%+',
+      trend: 'Live QC rate',
+      trendType: 'positive'
+    },
     dispatchBacklog: rawKpis?.dispatchBacklog || periodData.dispatchBacklog
   };
 
 
-  const pipeline = (Array.isArray(dashboardData?.manufacturingPipeline) && dashboardData.manufacturingPipeline.length > 0 && timeFilter === 'month')
+  const pipeline = (Array.isArray(dashboardData?.manufacturingPipeline) && dashboardData.manufacturingPipeline.length > 0)
     ? dashboardData.manufacturingPipeline
     : periodData.pipeline;
 
-  const pressFleet = [
-    { machineId: 'HM001', capacity: '300T', machineName: '300T Hydraulic Press', status: 'Maintenance', activeWo: 'WO-1042', product: '600×600 Cover', shift: 'A', operator: 'Ramesh', runtimeHours: '6.2h', idleHours: '1.1h', oee: 87 },
-    { machineId: 'HM002', capacity: '300T', machineName: '300T Hydraulic Press', status: 'Running', activeWo: 'WO-1043', product: '450×450 Frame', shift: 'A', operator: 'Suresh', runtimeHours: '5.8h', idleHours: '1.4h', oee: 82 },
-    { machineId: 'HM003', capacity: '200T', machineName: '200T Hydraulic Press', status: 'Running', activeWo: 'WO-1045', product: '600×600 Cover', shift: 'B', operator: 'Mahesh', runtimeHours: '3.2h', idleHours: '4.0h', oee: 76 },
-    { machineId: 'HM004', capacity: '200T', machineName: '200T Hydraulic Press', status: 'Running', activeWo: 'WO-1046', product: '300×300 Frame', shift: 'B', operator: 'Raju', runtimeHours: '5.4h', idleHours: '0.8h', oee: 85 },
-    { machineId: 'HM005', capacity: '500T', machineName: '500T Hydraulic Press', status: 'Running', activeWo: 'WO-1047', product: '1000×1000 Cover', shift: 'C', operator: 'Sameer', runtimeHours: '0.5h', idleHours: '2.8h', oee: 68 },
-    { machineId: 'HM006', capacity: '500T', machineName: '500T Hydraulic Press', status: 'Maintenance', activeWo: '—', product: '—', shift: 'C', operator: '—', runtimeHours: '0h', idleHours: '8.0h', oee: 0 }
-  ];
+  const pressFleet = (Array.isArray(dashboardData?.hydraulicPressFleet) && dashboardData.hydraulicPressFleet.length > 0)
+    ? dashboardData.hydraulicPressFleet
+    : (Array.isArray(dashboardData?.machineFleet) && dashboardData.machineFleet.length > 0)
+      ? dashboardData.machineFleet
+      : (machines.length > 0 ? machines : [
+          { machineId: 'HM001', capacity: '300T', machineName: 'Hydraulic Machine 1', status: 'Running', activeWo: '—', product: '—', shift: 'A', operator: 'Operator 1', runtimeHours: '6.5h', idleHours: '1.5h', oee: 88 },
+          { machineId: 'HM002', capacity: '300T', machineName: 'Hydraulic Machine 2', status: 'Running', activeWo: '—', product: '—', shift: 'A', operator: 'Operator 2', runtimeHours: '6.5h', idleHours: '1.5h', oee: 85 },
+          { machineId: 'HM003', capacity: '200T', machineName: 'Hydraulic Machine 3', status: 'Running', activeWo: '—', product: '—', shift: 'B', operator: 'Operator 3', runtimeHours: '6.5h', idleHours: '1.5h', oee: 82 },
+          { machineId: 'HM004', capacity: '200T', machineName: 'Hydraulic Machine 4', status: 'Running', activeWo: '—', product: '—', shift: 'B', operator: 'Operator 4', runtimeHours: '6.5h', idleHours: '1.5h', oee: 80 },
+          { machineId: 'HM005', capacity: '500T', machineName: 'Hydraulic Machine 5', status: 'Running', activeWo: '—', product: '—', shift: 'C', operator: 'Operator 5', runtimeHours: '6.5h', idleHours: '1.5h', oee: 78 },
+          { machineId: 'HM006', capacity: '500T', machineName: 'Hydraulic Machine 6', status: 'Running', activeWo: '—', product: '—', shift: 'C', operator: 'Operator 6', runtimeHours: '6.5h', idleHours: '1.5h', oee: 75 }
+        ]);
 
-  const trendData = (Array.isArray(dashboardData?.productionTrendMonthly) && dashboardData.productionTrendMonthly.length > 0 && timeFilter === 'month')
+  const trendData = (Array.isArray(dashboardData?.productionTrendMonthly) && dashboardData.productionTrendMonthly.length > 0)
     ? dashboardData.productionTrendMonthly
-    : periodData.trend;
+    : (Array.isArray(dashboardData?.dailyTrend) && dashboardData.dailyTrend.length > 0)
+      ? dashboardData.dailyTrend
+      : periodData.trend;
 
   const rawShift = dashboardData?.shiftWiseProductionSummary;
-  const isShiftValid = rawShift?.total?.totalWeightMt && Number(rawShift.total.totalWeightMt) > (timeFilter === 'day' ? 5 : 100);
-  const shiftSummary = isShiftValid ? rawShift : {
-    shifts: periodData.shifts,
-    total: periodData.totalShift
-  };
+  const shiftSummary = (rawShift?.shifts && rawShift.shifts.length > 0)
+    ? rawShift
+    : {
+        shifts: periodData.shifts,
+        total: periodData.totalShift
+      };
 
   const diagnostics = dashboardData?.qualityAndScrapDiagnostics || {
-    firstPassYield: { passRatePct: 98.9, passedUnits: 2821, passedPct: 98.9, failedUnits: 32, failedPct: 1.1 },
+    firstPassYield: {
+      passRatePct: dashboardData?.summary?.firstPassYield || 100,
+      passedUnits: dashboardData?.summary?.goodUnits || 0,
+      passedPct: dashboardData?.summary?.firstPassYield || 100,
+      failedUnits: dashboardData?.summary?.rejectedUnits || 0,
+      failedPct: dashboardData?.summary?.scrapRate || 0
+    },
     loadTestDistribution: [
       { rating: '2.5T', percentage: 28 },
       { rating: '12.5T', percentage: 22 },
@@ -413,117 +434,33 @@ export default function ProductionOperationsDashboard({
       { rating: '40T', percentage: 16 }
     ],
     topDefectPareto: [
-      { category: 'Hairline cracks', percentage: 32, color: '#f97316' },
-      { category: 'Surface voids', percentage: 24, color: '#f59e0b' },
-      { category: 'Rim mismatch', percentage: 18, color: '#fbbf24' },
-      { category: 'Incomplete curing', percentage: 16, color: '#64748b' },
-      { category: 'Weight deviation', percentage: 12, color: '#8b5cf6' }
+      { category: 'Process Scrap', percentage: 100, color: '#f97316' }
     ],
-    scrapFinancialImpact: { totalCostInr: 48750, scrapWeightKg: 1235, ratePerKg: 39.5 }
+    scrapFinancialImpact: {
+      totalCostInr: Math.round((dashboardData?.summary?.totalScrapQty || 0) * 39.5 * 25),
+      scrapWeightKg: (dashboardData?.summary?.totalScrapQty || 0) * 25,
+      ratePerKg: 39.5
+    }
   };
 
-  const refWorkOrders = dashboardData?.referenceActiveWorkOrders || [
-    {
-      id: 'ref-wo-1042',
-      workOrderNo: 'WO-1042',
-      salesOrderCustomer: 'SO-2627/0001 – ABC Infra',
-      product: '600×600 Cover + Frame',
-      loadRating: '40T',
-      targetQty: '500 Sets',
-      producedQty: '320 Sets',
-      progress: 64,
-      shiftMachine: 'A – HM001',
-      duration: '6h 12m',
-      status: 'Floor Run',
-      badgeClass: 'floor-run',
-      stage: 'FLOOR'
-    },
-    {
-      id: 'ref-wo-1043',
-      workOrderNo: 'WO-1043',
-      salesOrderCustomer: 'SO-2627/0002 – XYZ Builders',
-      product: '450×450 Frame',
-      loadRating: '25T',
-      targetQty: '800 Sets',
-      producedQty: '620 Sets',
-      progress: 78,
-      shiftMachine: 'B – HM002',
-      duration: '5h 48m',
-      status: 'QC Testing',
-      badgeClass: 'qc-testing',
-      stage: 'QC_PENDING'
-    },
-    {
-      id: 'ref-wo-1045',
-      workOrderNo: 'WO-1045',
-      salesOrderCustomer: 'SO-2627/0003 – Metro Corp',
-      product: '600×600 Cover',
-      loadRating: '40T',
-      targetQty: '600 Sets',
-      producedQty: '540 Sets',
-      progress: 90,
-      shiftMachine: 'B – HM003',
-      duration: '3h 22m',
-      status: 'Rework',
-      badgeClass: 'rework',
-      stage: 'QC_FAILED'
-    },
-    {
-      id: 'ref-wo-1046',
-      workOrderNo: 'WO-1046',
-      salesOrderCustomer: 'SO-2627/0004 – Green Tech',
-      product: '300×300 Frame',
-      loadRating: '12.5T',
-      targetQty: '1,000 Sets',
-      producedQty: '780 Sets',
-      progress: 78,
-      shiftMachine: 'C – HM004',
-      duration: '5h 10m',
-      status: 'Floor Run',
-      badgeClass: 'floor-run',
-      stage: 'FLOOR'
-    },
-    {
-      id: 'ref-wo-1047',
-      workOrderNo: 'WO-1047',
-      salesOrderCustomer: 'SO-2627/0005 – Summit Infra',
-      product: '1000×1000 Cover + Frame',
-      loadRating: '50T',
-      targetQty: '400 Sets',
-      producedQty: '320 Sets',
-      progress: 80,
-      shiftMachine: 'C – HM005',
-      duration: '2h 45m',
-      status: 'QC Testing',
-      badgeClass: 'qc-testing',
-      stage: 'QC_PENDING'
-    },
-    {
-      id: 'ref-wo-1048',
-      workOrderNo: 'WO-1048',
-      salesOrderCustomer: 'SO-2627/0006 – Sunrise Ltd',
-      product: '450×450 Cover',
-      loadRating: '25T',
-      targetQty: '300 Sets',
-      producedQty: '0 Sets',
-      progress: 0,
-      shiftMachine: '—',
-      duration: '—',
-      status: 'Pending',
-      badgeClass: 'pending',
-      stage: 'INCOMING'
+  const refWorkOrders = (Array.isArray(dashboardData?.referenceActiveWorkOrders) && dashboardData.referenceActiveWorkOrders.length > 0)
+    ? dashboardData.referenceActiveWorkOrders
+    : (Array.isArray(dashboardData?.allWorkOrders) && dashboardData.allWorkOrders.length > 0)
+      ? dashboardData.allWorkOrders
+      : [];
+
+  // Live Work Orders Pool (combines backend API items and state items)
+  const liveWorkOrdersPool = useMemo(() => {
+    if (Array.isArray(dashboardData?.allWorkOrders) && dashboardData.allWorkOrders.length > 0) {
+      return dashboardData.allWorkOrders;
     }
-  ];
-
-  // Combined or Filtered Work Orders
-  const displayedWorkOrders = useMemo(() => {
-    let source = refWorkOrders;
-
-    // If user clicked "View All" or searches, blend or use live DB work orders
-    if (showAllLiveOrders && Array.isArray(workOrders) && workOrders.length > 0) {
-      source = workOrders.map((w) => {
+    if (Array.isArray(dashboardData?.referenceActiveWorkOrders) && dashboardData.referenceActiveWorkOrders.length > 0) {
+      return dashboardData.referenceActiveWorkOrders;
+    }
+    if (Array.isArray(workOrders) && workOrders.length > 0) {
+      return workOrders.map((w) => {
         const target = Number(w.quantity || 10);
-        const prod = Number(w.quantityProduced || w.producedQuantity || 0);
+        const prod = Number(w.quantityProduced || w.producedQuantity || w.producedQty || 0);
         const prog = target > 0 ? Math.min(100, Math.round((prod / target) * 100)) : 0;
         const st = String(w.status || w.productionStatus || 'PENDING').toUpperCase();
 
@@ -531,15 +468,15 @@ export default function ProductionOperationsDashboard({
         let statusDisplay = 'Pending';
         let stage = 'INCOMING';
 
-        if (['STARTED', 'IN_PROGRESS', 'IN_PRODUCTION'].includes(st)) {
+        if (['STARTED', 'IN_PROGRESS', 'IN_PRODUCTION', 'RUNNING'].includes(st)) {
           badge = 'floor-run';
           statusDisplay = 'Floor Run';
           stage = 'FLOOR';
-        } else if (['QC_PENDING', 'TESTING'].includes(st)) {
+        } else if (['QC_PENDING', 'TESTING', 'UNDER_INSPECTION'].includes(st)) {
           badge = 'qc-testing';
           statusDisplay = 'QC Testing';
           stage = 'QC_PENDING';
-        } else if (['QC_FAILED', 'REWORK'].includes(st)) {
+        } else if (['QC_FAILED', 'REWORK', 'REWORK_IN_PROGRESS'].includes(st)) {
           badge = 'rework';
           statusDisplay = 'Rework';
           stage = 'QC_FAILED';
@@ -547,24 +484,28 @@ export default function ProductionOperationsDashboard({
           badge = 'ready-dispatch';
           statusDisplay = 'Ready for Dispatch';
           stage = 'READY_FOR_DISPATCH';
-        } else if (['DISPATCHED', 'CLOSED'].includes(st)) {
+        } else if (['DISPATCHED', 'CLOSED', 'COMPLETED'].includes(st)) {
           badge = 'dispatched';
           statusDisplay = 'Dispatched';
           stage = 'DISPATCHED';
         }
 
+        const so = w.productionPlan?.salesOrder || w.salesOrder;
+        const customerName = so?.customer?.companyName || so?.customer?.name || w.customer || w.customerName || 'Valued Client';
+        const soOrderNo = so?.orderNumber || w.orderNo || w.orderNumber || '—';
+
         return {
           id: w.id,
           workOrderNo: w.workOrderNumber || w.id,
-          salesOrderCustomer: w.productionPlan?.salesOrder
-            ? `${w.productionPlan.salesOrder.orderNumber} – ${w.productionPlan.salesOrder.customer?.companyName || 'Client'}`
-            : 'Internal Production Plan',
-          product: w.salesOrderItem?.product?.name || w.productName || 'Standard Heavy Duty Product',
-          loadRating: w.salesOrderItem?.product?.capacity || '40T',
+          orderNo: soOrderNo,
+          customer: customerName,
+          salesOrderCustomer: soOrderNo !== '—' ? `${soOrderNo} – ${customerName}` : customerName,
+          product: w.salesOrderItem?.product?.name || w.productName || w.product || 'Standard Product',
+          loadRating: w.salesOrderItem?.product?.capacity || w.loadRating || '40T',
           targetQty: `${target} Sets`,
           producedQty: `${prod} Sets`,
           progress: prog,
-          shiftMachine: w.machineId ? `A – ${w.machineId}` : '—',
+          shiftMachine: w.machineId ? `A – ${w.machineId}` : (stage === 'FLOOR' ? 'A – HM001' : '—'),
           duration: '4h 30m',
           status: statusDisplay,
           badgeClass: badge,
@@ -572,6 +513,12 @@ export default function ProductionOperationsDashboard({
         };
       });
     }
+    return [];
+  }, [dashboardData, workOrders]);
+
+  // Combined or Filtered Work Orders
+  const displayedWorkOrders = useMemo(() => {
+    let source = liveWorkOrdersPool.length > 0 ? liveWorkOrdersPool : refWorkOrders;
 
     return source.filter((item) => {
       if (shiftFilter !== 'ALL') {
@@ -601,7 +548,7 @@ export default function ProductionOperationsDashboard({
       }
       return true;
     });
-  }, [refWorkOrders, workOrders, showAllLiveOrders, activeStageFilter, searchQuery, shiftFilter, machineFilter]);
+  }, [liveWorkOrdersPool, refWorkOrders, activeStageFilter, searchQuery, shiftFilter, machineFilter]);
 
   // Operational Action Handlers
   const handleStartRun = async (e) => {
@@ -1171,9 +1118,10 @@ export default function ProductionOperationsDashboard({
             <button
               type="button"
               className="pod-panel-link"
-              onClick={() => setShowAllLiveOrders(!showAllLiveOrders)}
+              onClick={() => fetchDashboardData(false)}
             >
-              {showAllLiveOrders ? 'Show Reference Focus' : 'View All (Live ERP Records)'}
+              <RefreshCw size={12} style={{ display: 'inline', marginRight: '5px' }} />
+              Live DB Synced ({displayedWorkOrders.length} Orders)
             </button>
           </div>
 

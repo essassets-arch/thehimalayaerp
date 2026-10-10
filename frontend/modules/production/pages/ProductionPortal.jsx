@@ -1923,8 +1923,10 @@ export default function ProductionPortal() {
       .filter(wo => wo.status === 'QC Passed')
       .reduce((sum, wo) => sum + (wo.producedQty || wo.quantity || 0), 0);
 
-    const rejectedQty = mockReworkItems
-      .reduce((sum, rw) => sum + (rw.reworkQty || 0), 0);
+    const rejectedQty = workOrders
+      .filter(wo => [STATUS.QC_FAILED, STATUS.REWORK, 'QC Failed', 'Rework', 'QC_FAILED'].includes(wo.status))
+      .reduce((sum, wo) => sum + (Number(wo.rejectedQty || wo.reworkQty || wo.quantity || 0)), 0) +
+      mockReworkItems.reduce((sum, rw) => sum + (rw.reworkQty || 0), 0);
 
     const finishedGoods = workOrders
       .filter(wo => wo.status === 'QC Passed')
@@ -1984,7 +1986,7 @@ export default function ProductionPortal() {
 
     // Rework ratio calculation
     const reworkCount = workOrders.filter(wo => (wo.reworkCount || 0) > 0 || wo.status === STATUS.REWORK).length;
-    const reworkRatio = totalWOs > 0 ? ((reworkCount / totalWOs) * 100).toFixed(1) : '3.2';
+    const reworkRatio = totalWOs > 0 ? ((reworkCount / totalWOs) * 100).toFixed(1) : '0.0';
 
     // Incoming planned orders needing WO generation
     const incomingPlannedOrders = orders.filter(o =>
