@@ -62,7 +62,10 @@ export default function ProductionOperationsDashboard({
   const [timeFilter, setTimeFilter] = useState('month'); // 'day' | 'week' | 'month' | 'all'
   const [shiftFilter, setShiftFilter] = useState('ALL'); // 'ALL' | 'A' | 'B' | 'C'
   const [machineFilter, setMachineFilter] = useState('ALL');
-  const [selectedMonth, setSelectedMonth] = useState('2026-10'); // 'ALL' | 'HM001' ...
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [activeStageFilter, setActiveStageFilter] = useState('ALL'); // 'ALL' | 'FLOOR' | 'QC_PENDING' ...
   const [showAllLiveOrders, setShowAllLiveOrders] = useState(false);
@@ -77,7 +80,7 @@ export default function ProductionOperationsDashboard({
     workOrderId: '',
     machineId: 'HM001',
     shift: 'A',
-    operator: 'Ramesh'
+    operator: ''
   });
 
   const [shiftForm, setShiftForm] = useState({
@@ -155,170 +158,49 @@ export default function ProductionOperationsDashboard({
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const monthShorts = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+  // Dynamically generated rolling 24-month list for filter dropdown
+  const availableMonths = useMemo(() => {
+    const list = [];
+    const now = new Date();
+    for (let i = 0; i < 24; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+      list.push({ val, label });
+    }
+    return list;
+  }, []);
+
   // Dynamic reporting period label
   const reportingPeriodLabel = useMemo(() => {
     if (dashboardData?.reportingPeriodLabel) return dashboardData.reportingPeriodLabel;
     if (dashboardData?.reportingPeriod) return dashboardData.reportingPeriod;
+    const now = new Date();
     if (timeFilter === 'day') {
-      return '09 Oct 2026';
+      const d = String(now.getDate()).padStart(2, '0');
+      const m = monthShorts[now.getMonth()];
+      const y = now.getFullYear();
+      return `${d} ${m} ${y}`;
     }
     if (timeFilter === 'week') {
-      return '04 Oct 2026 – 10 Oct 2026';
+      const past = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const d1 = String(past.getDate()).padStart(2, '0');
+      const m1 = monthShorts[past.getMonth()];
+      const y1 = past.getFullYear();
+      const d2 = String(now.getDate()).padStart(2, '0');
+      const m2 = monthShorts[now.getMonth()];
+      const y2 = now.getFullYear();
+      return `${d1} ${m1} ${y1} – ${d2} ${m2} ${y2}`;
     }
     if (timeFilter === 'all') {
-      return 'All Recorded Operations (01 Jan 2026 – 31 Dec 2026)';
+      return 'All Recorded Operations';
     }
-    const [y, m] = (selectedMonth || '2026-10').split('-').map(Number);
+    const curMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const [y, m] = (selectedMonth || curMonthStr).split('-').map(Number);
     const lastDay = new Date(y, m, 0).getDate();
-    const mShort = monthShorts[m - 1] || 'Oct';
+    const mShort = monthShorts[(m || 1) - 1] || 'Oct';
     return `01 ${mShort} ${y} – ${lastDay} ${mShort} ${y}`;
   }, [timeFilter, selectedMonth, dashboardData]);
-
-  // Dynamic Period-Wise Data Sets
-  const periodData = useMemo(() => {
-    if (timeFilter === 'day') {
-      return {
-        totalProduction: { valueMt: 16.1, unitsLabel: '95 Units (Sets + Covers + Frames)', trend: '▲ 5.2% vs. yesterday', trendType: 'positive' },
-        planAchievement: { percentage: 97.4, targetLabel: 'Target: 95%+', trend: '▲ 1.4% vs. yesterday', trendType: 'positive' },
-        oee: { percentage: 84.7, targetLabel: 'Target: 82%+', trend: '▲ 0.8% vs. yesterday', trendType: 'positive' },
-        activeFloorRuns: { activeCount: 4, totalAvailable: 6, subtitle: 'of 6 presses running', note: 'Balanced load' },
-        firstPassYield: { percentage: 98.9, targetLabel: 'Target: 98.5%+', trend: '▲ 0.2% vs. target', trendType: 'positive' },
-        dispatchBacklog: { unitsCount: 14, subtitle: '(3.8 MT)', trend: '▼ 12% vs. yesterday', trendType: 'negative' },
-        pipeline: [
-          { id: 'incoming', stageNumber: '01', stageName: 'Incoming', woCount: 4, weightMt: 32.5, color: '#334155' },
-          { id: 'floorRuns', stageNumber: '02', stageName: 'Floor Runs', woCount: 6, weightMt: 48.2, color: '#1d68ed' },
-          { id: 'qcTesting', stageNumber: '03', stageName: 'QC Testing', woCount: 3, weightMt: 21.0, color: '#f59e0b' },
-          { id: 'reworkScrap', stageNumber: '04', stageName: 'Rework / Scrap', woCount: 1, weightMt: 2.4, color: '#ef4444' },
-          { id: 'readyDispatch', stageNumber: '05', stageName: 'Ready for Dispatch', woCount: 5, weightMt: 34.2, color: '#10b981' },
-          { id: 'dispatched', stageNumber: '06', stageName: 'Dispatched', woCount: 4, weightMt: 28.5, color: '#475569' }
-        ],
-        shifts: [
-          { shift: 'Shift A (Morning)', sets: 28, covers: 44, frames: 43, totalWeightMt: 5.8 },
-          { shift: 'Shift B (Evening)', sets: 26, covers: 41, frames: 40, totalWeightMt: 5.3 },
-          { shift: 'Shift C (Night)', sets: 24, covers: 37, frames: 36, totalWeightMt: 4.5 }
-        ],
-        totalShift: { shift: 'Total', sets: 78, covers: 122, frames: 119, totalWeightMt: 15.6 },
-        wipMt: 0.5,
-        trend: [
-          { date: '06:00', actual: 1.2, planned: 1.5 },
-          { date: '09:00', actual: 2.8, planned: 2.6 },
-          { date: '12:00', actual: 3.4, planned: 3.2 },
-          { date: '15:00', actual: 3.1, planned: 3.0 },
-          { date: '18:00', actual: 2.6, planned: 2.5 },
-          { date: '21:00', actual: 1.8, planned: 2.0 },
-          { date: '00:00', actual: 1.2, planned: 1.2 }
-        ]
-      };
-    }
-    if (timeFilter === 'week') {
-      return {
-        totalProduction: { valueMt: 112.5, unitsLabel: '664 Units (Sets + Covers + Frames)', trend: '▲ 8.1% vs. last week', trendType: 'positive' },
-        planAchievement: { percentage: 96.5, targetLabel: 'Target: 95%+', trend: '▲ 2.8% vs. last week', trendType: 'positive' },
-        oee: { percentage: 84.7, targetLabel: 'Target: 82%+', trend: '▲ 4.5% vs. target', trendType: 'positive' },
-        activeFloorRuns: { activeCount: 4, totalAvailable: 6, subtitle: 'of 6 presses running', note: 'Balanced load' },
-        firstPassYield: { percentage: 98.9, targetLabel: 'Target: 98.5%+', trend: '▲ 0.4% vs. target', trendType: 'positive' },
-        dispatchBacklog: { unitsCount: 26, subtitle: '(7.2 MT)', trend: '▼ 18% vs. last week', trendType: 'negative' },
-        pipeline: [
-          { id: 'incoming', stageNumber: '01', stageName: 'Incoming', woCount: 10, weightMt: 78.0, color: '#334155' },
-          { id: 'floorRuns', stageNumber: '02', stageName: 'Floor Runs', woCount: 16, weightMt: 118.5, color: '#1d68ed' },
-          { id: 'qcTesting', stageNumber: '03', stageName: 'QC Testing', woCount: 7, weightMt: 48.0, color: '#f59e0b' },
-          { id: 'reworkScrap', stageNumber: '04', stageName: 'Rework / Scrap', woCount: 2, weightMt: 6.4, color: '#ef4444' },
-          { id: 'readyDispatch', stageNumber: '05', stageName: 'Ready for Dispatch', woCount: 12, weightMt: 82.0, color: '#10b981' },
-          { id: 'dispatched', stageNumber: '06', stageName: 'Dispatched', woCount: 11, weightMt: 72.4, color: '#475569' }
-        ],
-        shifts: [
-          { shift: 'Shift A (Morning)', sets: 192, covers: 296, frames: 292, totalWeightMt: 37.8 },
-          { shift: 'Shift B (Evening)', sets: 181, covers: 278, frames: 275, totalWeightMt: 34.2 },
-          { shift: 'Shift C (Night)', sets: 165, covers: 252, frames: 248, totalWeightMt: 30.5 }
-        ],
-        totalShift: { shift: 'Total', sets: 538, covers: 826, frames: 815, totalWeightMt: 102.5 },
-        wipMt: 10.0,
-        trend: [
-          { date: 'Oct 4', actual: 14.8, planned: 15.0 },
-          { date: 'Oct 5', actual: 16.2, planned: 15.5 },
-          { date: 'Oct 6', actual: 15.9, planned: 16.0 },
-          { date: 'Oct 7', actual: 17.1, planned: 16.5 },
-          { date: 'Oct 8', actual: 16.5, planned: 16.0 },
-          { date: 'Oct 9', actual: 16.1, planned: 15.8 },
-          { date: 'Oct 10', actual: 15.9, planned: 15.5 }
-        ]
-      };
-    }
-    if (timeFilter === 'all') {
-      return {
-        totalProduction: { valueMt: 1448.2, unitsLabel: '8,538 Units (Sets + Covers + Frames)', trend: '▲ 18.6% YTD', trendType: 'positive' },
-        planAchievement: { percentage: 96.2, targetLabel: 'Target: 95%+', trend: '▲ 3.9% YTD', trendType: 'positive' },
-        oee: { percentage: 84.7, targetLabel: 'Target: 82%+', trend: '▲ 5.5% vs. target', trendType: 'positive' },
-        activeFloorRuns: { activeCount: 4, totalAvailable: 6, subtitle: 'of 6 presses running', note: 'Balanced load' },
-        firstPassYield: { percentage: 98.9, targetLabel: 'Target: 98.5%+', trend: '▲ 0.5% vs. target', trendType: 'positive' },
-        dispatchBacklog: { unitsCount: 48, subtitle: '(12.6 MT)', trend: '▼ 28% vs. last week', trendType: 'negative' },
-        pipeline: [
-          { id: 'incoming', stageNumber: '01', stageName: 'Incoming', woCount: 48, weightMt: 360.0, color: '#334155' },
-          { id: 'floorRuns', stageNumber: '02', stageName: 'Floor Runs', woCount: 84, weightMt: 620.0, color: '#1d68ed' },
-          { id: 'qcTesting', stageNumber: '03', stageName: 'QC Testing', woCount: 36, weightMt: 240.0, color: '#f59e0b' },
-          { id: 'reworkScrap', stageNumber: '04', stageName: 'Rework / Scrap', woCount: 12, weightMt: 38.0, color: '#ef4444' },
-          { id: 'readyDispatch', stageNumber: '05', stageName: 'Ready for Dispatch', woCount: 64, weightMt: 410.0, color: '#10b981' },
-          { id: 'dispatched', stageNumber: '06', stageName: 'Dispatched', woCount: 82, weightMt: 540.0, color: '#475569' }
-        ],
-        shifts: [
-          { shift: 'Shift A (Morning)', sets: 2436, covers: 3744, frames: 3705, totalWeightMt: 475.2 },
-          { shift: 'Shift B (Evening)', sets: 2292, covers: 3528, frames: 3486, totalWeightMt: 428.1 },
-          { shift: 'Shift C (Night)', sets: 2094, covers: 3186, frames: 3144, totalWeightMt: 384.9 }
-        ],
-        totalShift: { shift: 'Total', sets: 6822, covers: 10458, frames: 10335, totalWeightMt: 1288.2 },
-        wipMt: 160.0,
-        trend: [
-          { date: 'Jan', actual: 128, planned: 135 },
-          { date: 'Feb', actual: 134, planned: 138 },
-          { date: 'Mar', actual: 142, planned: 140 },
-          { date: 'Apr', actual: 146, planned: 145 },
-          { date: 'May', actual: 152, planned: 150 },
-          { date: 'Jun', actual: 148, planned: 150 },
-          { date: 'Jul', actual: 155, planned: 152 },
-          { date: 'Aug', actual: 158, planned: 155 },
-          { date: 'Sep', actual: 154, planned: 155 },
-          { date: 'Oct', actual: 161, planned: 158 }
-        ]
-      };
-    }
-    // Default Month (October 2026 or selected month)
-    return {
-      totalProduction: { valueMt: 482.6, unitsLabel: '2,846 Units (Sets + Covers + Frames)', trend: '▲ 12.4% vs. last month', trendType: 'positive' },
-      planAchievement: { percentage: 96.8, targetLabel: 'Target: 95%+', trend: '▲ 4.2% vs. last month', trendType: 'positive' },
-      oee: { percentage: 84.7, targetLabel: 'Target: 82%+', trend: '▲ 6.1% vs. last month', trendType: 'positive' },
-      activeFloorRuns: { activeCount: 4, totalAvailable: 6, subtitle: 'of 6 presses running', note: 'Balanced load' },
-      firstPassYield: { percentage: 98.9, targetLabel: 'Target: 98.5%+', trend: '▲ 0.5% vs. last month', trendType: 'positive' },
-      dispatchBacklog: { unitsCount: 48, subtitle: '(12.6 MT)', trend: '▼ 28% vs. last week', trendType: 'negative' },
-      pipeline: [
-        { id: 'incoming', stageNumber: '01', stageName: 'Incoming', woCount: 24, weightMt: 186.5, color: '#334155' },
-        { id: 'floorRuns', stageNumber: '02', stageName: 'Floor Runs', woCount: 42, weightMt: 312.8, color: '#1d68ed' },
-        { id: 'qcTesting', stageNumber: '03', stageName: 'QC Testing', woCount: 18, weightMt: 121.4, color: '#f59e0b' },
-        { id: 'reworkScrap', stageNumber: '04', stageName: 'Rework / Scrap', woCount: 6, weightMt: 18.7, color: '#ef4444' },
-        { id: 'readyDispatch', stageNumber: '05', stageName: 'Ready for Dispatch', woCount: 32, weightMt: 204.6, color: '#10b981' },
-        { id: 'dispatched', stageNumber: '06', stageName: 'Dispatched', woCount: 28, weightMt: 176.3, color: '#475569' }
-      ],
-      shifts: [
-        { shift: 'Shift A (Morning)', sets: 812, covers: 1248, frames: 1235, totalWeightMt: 158.4 },
-        { shift: 'Shift B (Evening)', sets: 764, covers: 1176, frames: 1162, totalWeightMt: 142.7 },
-        { shift: 'Shift C (Night)', sets: 698, covers: 1062, frames: 1048, totalWeightMt: 128.3 }
-      ],
-      totalShift: { shift: 'Total', sets: 2274, covers: 3486, frames: 3445, totalWeightMt: 429.4 },
-      wipMt: 53.2,
-      trend: [
-        { date: 'Oct 1', actual: 26, planned: 30 },
-        { date: 'Oct 4', actual: 42, planned: 46 },
-        { date: 'Oct 7', actual: 48, planned: 45 },
-        { date: 'Oct 10', actual: 45, planned: 44 },
-        { date: 'Oct 13', actual: 42, planned: 40 },
-        { date: 'Oct 16', actual: 47, planned: 48 },
-        { date: 'Oct 19', actual: 48, planned: 46 },
-        { date: 'Oct 22', actual: 47, planned: 45 },
-        { date: 'Oct 25', actual: 52, planned: 50 },
-        { date: 'Oct 28', actual: 38, planned: 40 },
-        { date: 'Oct 31', actual: 32, planned: 35 }
-      ]
-    };
-  }, [timeFilter, selectedMonth]);
 
   // Authoritative Data Resolvers
   const rawKpis = dashboardData?.executiveKpis;
@@ -335,7 +217,7 @@ export default function ProductionOperationsDashboard({
 
   const planAchievementKpi = useMemo(() => {
     if (targetSource) {
-      const pct = Number(targetSource.percentage ?? targetSource.achievement ?? 96.8);
+      const pct = Number(targetSource.percentage ?? targetSource.achievement ?? 0);
       const targetQty = Number(targetSource.target ?? targetSource.quantityTarget ?? targetSource.targetQty ?? 0);
       const achievedQty = Number(targetSource.achieved ?? targetSource.achievedQty ?? 0);
       const periodName = targetSource.period || 'Monthly';
@@ -365,13 +247,32 @@ export default function ProductionOperationsDashboard({
         hasTarget: true
       };
     }
-    return rawKpis?.planAchievement || periodData.planAchievement;
-  }, [targetSource, rawKpis?.planAchievement, periodData.planAchievement]);
+    return rawKpis?.planAchievement || {
+      percentage: dashboardData?.summary?.efficiency || 0,
+      targetLabel: 'Target: 95%+',
+      trend: 'Live Database Rate',
+      trendType: 'positive',
+      targetQty: dashboardData?.summary?.plannedUnits || 0,
+      achievedQty: dashboardData?.summary?.producedUnits || 0,
+      hasTarget: false
+    };
+  }, [targetSource, rawKpis?.planAchievement, dashboardData?.summary]);
 
   const kpis = {
-    totalProduction: rawKpis?.totalProduction || periodData.totalProduction,
+    totalProduction: rawKpis?.totalProduction || {
+      valueMt: Number(((Number(dashboardData?.summary?.producedUnits || 0) * 45) / 1000).toFixed(1)),
+      unitsCount: dashboardData?.summary?.producedUnits || 0,
+      unitsLabel: `${(dashboardData?.summary?.producedUnits || 0).toLocaleString('en-IN')} Units Produced`,
+      trend: '▲ Live Database Output',
+      trendType: 'positive'
+    },
     planAchievement: planAchievementKpi,
-    oee: rawKpis?.oee || periodData.oee,
+    oee: rawKpis?.oee || {
+      percentage: dashboardData?.summary?.efficiency || 0,
+      targetLabel: 'Target: 82%+',
+      trend: `${dashboardData?.summary?.machinesRunning || 0} presses running`,
+      trendType: 'positive'
+    },
     activeFloorRuns: rawKpis?.activeFloorRuns || {
       activeCount: dashboardData?.summary?.inProgress || 0,
       totalAvailable: dashboardData?.hydraulicPressFleet?.length || 6,
@@ -384,13 +285,26 @@ export default function ProductionOperationsDashboard({
       trend: 'Live QC rate',
       trendType: 'positive'
     },
-    dispatchBacklog: rawKpis?.dispatchBacklog || periodData.dispatchBacklog
+    dispatchBacklog: rawKpis?.dispatchBacklog || {
+      unitsCount: dashboardData?.summary?.dispatchReady || 0,
+      weightMt: Number(((Number(dashboardData?.summary?.dispatchReady || 0) * 45) / 1000).toFixed(1)),
+      subtitle: `(${Number(((Number(dashboardData?.summary?.dispatchReady || 0) * 45) / 1000).toFixed(1))} MT)`,
+      trend: `${dashboardData?.summary?.dispatchReady || 0} orders staged`,
+      trendType: 'positive'
+    }
   };
 
 
   const pipeline = (Array.isArray(dashboardData?.manufacturingPipeline) && dashboardData.manufacturingPipeline.length > 0)
     ? dashboardData.manufacturingPipeline
-    : periodData.pipeline;
+    : [
+        { id: 'incoming', stageNumber: '01', stageName: 'Incoming', woCount: dashboardData?.summary?.incomingOrdersCount || 0, weightMt: 0, color: '#334155' },
+        { id: 'floorRuns', stageNumber: '02', stageName: 'Floor Runs', woCount: dashboardData?.summary?.inProgress || 0, weightMt: 0, color: '#1d68ed' },
+        { id: 'qcTesting', stageNumber: '03', stageName: 'QC Testing', woCount: dashboardData?.summary?.underTestingUnits || 0, weightMt: 0, color: '#f59e0b' },
+        { id: 'reworkScrap', stageNumber: '04', stageName: 'Rework / Scrap', woCount: dashboardData?.summary?.qcFailed || 0, weightMt: 0, color: '#ef4444' },
+        { id: 'readyDispatch', stageNumber: '05', stageName: 'Ready for Dispatch', woCount: dashboardData?.summary?.dispatchReady || 0, weightMt: 0, color: '#10b981' },
+        { id: 'dispatched', stageNumber: '06', stageName: 'Dispatched', woCount: dashboardData?.summary?.doneCount || 0, weightMt: 0, color: '#475569' }
+      ];
 
   const pressFleet = (Array.isArray(dashboardData?.hydraulicPressFleet) && dashboardData.hydraulicPressFleet.length > 0)
     ? dashboardData.hydraulicPressFleet
@@ -409,14 +323,18 @@ export default function ProductionOperationsDashboard({
     ? dashboardData.productionTrendMonthly
     : (Array.isArray(dashboardData?.dailyTrend) && dashboardData.dailyTrend.length > 0)
       ? dashboardData.dailyTrend
-      : periodData.trend;
+      : [];
 
   const rawShift = dashboardData?.shiftWiseProductionSummary;
   const shiftSummary = (rawShift?.shifts && rawShift.shifts.length > 0)
     ? rawShift
     : {
-        shifts: periodData.shifts,
-        total: periodData.totalShift
+        shifts: [
+          { shift: 'Shift A (Morning)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
+          { shift: 'Shift B (Evening)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
+          { shift: 'Shift C (Night)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 }
+        ],
+        total: { shift: 'Total', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 }
       };
 
   const diagnostics = dashboardData?.qualityAndScrapDiagnostics || {
@@ -618,12 +536,16 @@ export default function ProductionOperationsDashboard({
 
   const handleQcSubmit = async (e) => {
     e.preventDefault();
+    if (!qcForm.workOrderId) {
+      showToast('Please select a work order for QC inspection', 'error');
+      return;
+    }
     setSubmitting(true);
     try {
       await backendFetch('/api/production-workflow/qc-pass', {
         method: 'POST',
         body: {
-          workOrderIds: [qcForm.workOrderId || 'ref-wo-1043'],
+          workOrderIds: [qcForm.workOrderId],
           result: qcForm.status,
           notes: qcForm.remarks,
           certificateNo: qcForm.certificateNo
@@ -641,12 +563,16 @@ export default function ProductionOperationsDashboard({
 
   const handleDispatchSubmit = async (e) => {
     e.preventDefault();
+    if (!dispatchForm.workOrderId) {
+      showToast('Please select a finished goods work order for dispatch handover', 'error');
+      return;
+    }
     setSubmitting(true);
     try {
       await backendFetch('/api/production-workflow/send-to-dispatch', {
         method: 'POST',
         body: {
-          workOrderIds: [dispatchForm.workOrderId || 'ref-wo-1042']
+          workOrderIds: [dispatchForm.workOrderId]
         }
       }).catch(() => null);
       showToast('Eligible Finished Goods staged and handed over to Dispatch');
@@ -699,12 +625,11 @@ export default function ProductionOperationsDashboard({
               aria-label="Machine Filter"
             >
               <option value="ALL">All Machines</option>
-              <option value="HM001">HM001 (300T)</option>
-              <option value="HM002">HM002 (300T)</option>
-              <option value="HM003">HM003 (200T)</option>
-              <option value="HM004">HM004 (200T)</option>
-              <option value="HM005">HM005 (500T)</option>
-              <option value="HM006">HM006 (500T)</option>
+              {(pressFleet || []).map((m) => (
+                <option key={m.machineId || m.id} value={m.machineId || m.id}>
+                  {m.machineId} ({m.capacity || 'Press'})
+                </option>
+              ))}
             </select>
 
             {/* Period Filter Bar */}
@@ -718,16 +643,9 @@ export default function ProductionOperationsDashboard({
               }}
               aria-label="Month Selection Filter"
             >
-              <option value="2026-10">October 2026</option>
-              <option value="2026-09">September 2026</option>
-              <option value="2026-08">August 2026</option>
-              <option value="2026-07">July 2026</option>
-              <option value="2026-06">June 2026</option>
-              <option value="2026-05">May 2026</option>
-              <option value="2026-04">April 2026</option>
-              <option value="2026-03">March 2026</option>
-              <option value="2026-02">February 2026</option>
-              <option value="2026-01">January 2026</option>
+              {availableMonths.map((m) => (
+                <option key={m.val} value={m.val}>{m.label}</option>
+              ))}
             </select>
 
             <div className="pod-period-bar">
@@ -1243,9 +1161,15 @@ export default function ProductionOperationsDashboard({
                     value={startForm.workOrderId}
                     onChange={(e) => setStartForm({ ...startForm, workOrderId: e.target.value })}
                   >
-                    <option value="">WO-1048 — 450×450 Cover (300 Sets)</option>
-                    <option value="WO-1042">WO-1042 — 600×600 Cover + Frame (500 Sets)</option>
-                    <option value="WO-1046">WO-1046 — 300×300 Frame (1,000 Sets)</option>
+                    <option value="">Select Work Order...</option>
+                    {(displayedWorkOrders.filter(w => ['INCOMING', 'PLANNED', 'READY', 'CREATED'].includes(w.stage) || w.status === 'Pending' || w.status === 'Incoming').length > 0
+                      ? displayedWorkOrders.filter(w => ['INCOMING', 'PLANNED', 'READY', 'CREATED'].includes(w.stage) || w.status === 'Pending' || w.status === 'Incoming')
+                      : displayedWorkOrders
+                    ).slice(0, 50).map((w) => (
+                      <option key={w.id} value={w.id || w.workOrderNo}>
+                        {w.workOrderNo} — {w.product} ({w.targetQty})
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1257,12 +1181,11 @@ export default function ProductionOperationsDashboard({
                       value={startForm.machineId}
                       onChange={(e) => setStartForm({ ...startForm, machineId: e.target.value })}
                     >
-                      <option value="HM001">HM001 (300T)</option>
-                      <option value="HM002">HM002 (300T)</option>
-                      <option value="HM003">HM003 (200T)</option>
-                      <option value="HM004">HM004 (200T)</option>
-                      <option value="HM005">HM005 (500T)</option>
-                      <option value="HM006">HM006 (500T)</option>
+                      {(pressFleet || []).map((m) => (
+                        <option key={m.machineId || m.id} value={m.machineId || m.id}>
+                          {m.machineId} ({m.capacity || 'Press'})
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -1347,7 +1270,7 @@ export default function ProductionOperationsDashboard({
                     className="pod-form-input"
                     value={shiftForm.workOrderId}
                     onChange={(e) => setShiftForm({ ...shiftForm, workOrderId: e.target.value })}
-                    placeholder="e.g. WO-1042"
+                    placeholder="Enter Work Order No. (e.g. WO-2026-001)"
                   />
                 </div>
 
@@ -1437,8 +1360,15 @@ export default function ProductionOperationsDashboard({
                     value={finishQcForm.workOrderId}
                     onChange={(e) => setFinishQcForm({ ...finishQcForm, workOrderId: e.target.value })}
                   >
-                    <option value="">WO-1042 — 600×600 Cover + Frame (320 Produced)</option>
-                    <option value="WO-1046">WO-1046 — 300×300 Frame (780 Produced)</option>
+                    <option value="">Select Active Floor Run...</option>
+                    {(displayedWorkOrders.filter(w => w.stage === 'FLOOR' || w.status === 'Floor Run').length > 0
+                      ? displayedWorkOrders.filter(w => w.stage === 'FLOOR' || w.status === 'Floor Run')
+                      : displayedWorkOrders
+                    ).slice(0, 50).map((w) => (
+                      <option key={w.id} value={w.id || w.workOrderNo}>
+                        {w.workOrderNo} — {w.product} ({w.producedQty} produced)
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1484,8 +1414,15 @@ export default function ProductionOperationsDashboard({
                     value={qcForm.workOrderId}
                     onChange={(e) => setQcForm({ ...qcForm, workOrderId: e.target.value })}
                   >
-                    <option value="WO-1043">WO-1043 — 450×450 Frame (25T Rating)</option>
-                    <option value="WO-1047">WO-1047 — 1000×1000 Cover + Frame (50T Rating)</option>
+                    <option value="">Select Work Order in QC Queue...</option>
+                    {(displayedWorkOrders.filter(w => w.stage === 'QC_PENDING' || w.status === 'QC Testing').length > 0
+                      ? displayedWorkOrders.filter(w => w.stage === 'QC_PENDING' || w.status === 'QC Testing')
+                      : displayedWorkOrders
+                    ).slice(0, 50).map((w) => (
+                      <option key={w.id} value={w.id || w.workOrderNo}>
+                        {w.workOrderNo} — {w.product} ({w.loadRating || '40T Rating'})
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1568,8 +1505,15 @@ export default function ProductionOperationsDashboard({
                     value={dispatchForm.workOrderId}
                     onChange={(e) => setDispatchForm({ ...dispatchForm, workOrderId: e.target.value })}
                   >
-                    <option value="WO-1042">WO-1042 — 600×600 Cover + Frame (Passed QC)</option>
-                    <option value="WO-1047">WO-1047 — 1000×1000 Cover + Frame (Passed QC)</option>
+                    <option value="">Select Eligible Work Order...</option>
+                    {(displayedWorkOrders.filter(w => w.stage === 'READY_FOR_DISPATCH' || w.status === 'Ready for Dispatch').length > 0
+                      ? displayedWorkOrders.filter(w => w.stage === 'READY_FOR_DISPATCH' || w.status === 'Ready for Dispatch')
+                      : displayedWorkOrders
+                    ).slice(0, 50).map((w) => (
+                      <option key={w.id} value={w.id || w.workOrderNo}>
+                        {w.workOrderNo} — {w.product} (Passed QC)
+                      </option>
+                    ))}
                   </select>
                 </div>
 
