@@ -91,13 +91,33 @@ export class ProductionWorkflowController {
   // DASHBOARD
   // ==========================================
   @Get('production/dashboard')
-  @RequirePermissions('production.floor.read', 'production.qc.read')
+  @RequirePermissions(
+    'production.floor.read',
+    'production.qc.read',
+    'production.productionworkflow.read',
+    'production.reports.read',
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'production.view',
+    'production.read',
+  )
   async getDashboard(@Query() query: any) {
     return this.workflowService.getGlobalSummaryReport(query);
   }
 
   @Get('production-workflow/dashboard')
-  @RequirePermissions('production.floor.read', 'production.qc.read')
+  @RequirePermissions(
+    'production.floor.read',
+    'production.qc.read',
+    'production.productionworkflow.read',
+    'production.reports.read',
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'production.view',
+    'production.read',
+  )
   async getDashboardWorkflowAlias(@Query() query: any) {
     return this.workflowService.getGlobalSummaryReport(query);
   }
@@ -323,6 +343,22 @@ export class ProductionWorkflowController {
     return this.workflowService.startJob(id, req.user?.sub || 'system');
   }
 
+  @Post('production-workflow/work-orders/:id/start')
+  @RequirePermissions(
+    'production.floor.start',
+    'production.floor.create',
+    'production.workorder.start',
+    'production.workorder.create',
+    'production.productionworkflow.read',
+    'production.productionworkflow.create',
+    'production.floor.read',
+    'admin.planthead.create',
+    'planthead.create',
+  )
+  async startJobWorkflowAlias(@Param('id') id: string, @Req() req: any) {
+    return this.workflowService.startJob(id, req.user?.sub || 'system');
+  }
+
   @Post('production/:id/complete')
   @RequirePermissions(
     'production.floor.complete',
@@ -335,6 +371,21 @@ export class ProductionWorkflowController {
     'planthead.create',
   )
   async completeJob(@Param('id') id: string, @Req() req: any) {
+    return this.workflowService.completeWork(id, req.user?.sub || 'system');
+  }
+
+  @Post('production-workflow/work-orders/:id/finish-run')
+  @RequirePermissions(
+    'production.floor.complete',
+    'production.floor.create',
+    'production.workorder.complete',
+    'production.productionworkflow.read',
+    'production.productionworkflow.create',
+    'production.floor.read',
+    'admin.planthead.create',
+    'planthead.create',
+  )
+  async completeJobWorkflowAlias(@Param('id') id: string, @Req() req: any) {
     return this.workflowService.completeWork(id, req.user?.sub || 'system');
   }
 
@@ -372,6 +423,51 @@ export class ProductionWorkflowController {
     @Req() req: any,
   ) {
     return this.workflowService.passQC(id, req.user?.sub || 'system', dto);
+  }
+
+  @Post('production-workflow/qc-pass')
+  @RequirePermissions(
+    'production.qc.approve',
+    'production.qc.pass',
+    'production.floor.read',
+    'production.qc.read',
+    'production.productionworkflow.read',
+    'production.productionworkflow.create',
+    'admin.planthead.create',
+    'planthead.create',
+  )
+  async qcPassBatch(
+    @Body() body: any,
+    @Req() req: any,
+  ) {
+    const ids: string[] = Array.isArray(body?.workOrderIds)
+      ? body.workOrderIds
+      : body?.workOrderId
+      ? [body.workOrderId]
+      : [];
+    const userId = req.user?.sub || 'system';
+    const isFail = body?.result === 'FAILED' || body?.status === 'FAILED';
+
+    const results: any[] = [];
+    for (const id of ids) {
+      if (isFail) {
+        const res = await this.workflowService.failQC(
+          id,
+          userId,
+          body?.failureReason || body?.defectCategory || 'Defect noted',
+          body?.notes || body?.remarks || '',
+        );
+        results.push(res);
+      } else {
+        const approvedQty = Number(body?.approvedQuantity || body?.quantity || 1);
+        const res = await this.workflowService.passQC(id, userId, {
+          approvedQuantity: approvedQty > 0 ? approvedQty : 1,
+          remarks: body?.notes || body?.remarks,
+        });
+        results.push(res);
+      }
+    }
+    return { success: true, count: results.length, data: results };
   }
 
   @Post('production/:id/qc-fail')

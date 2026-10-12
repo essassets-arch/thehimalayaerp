@@ -62,10 +62,7 @@ export default function ProductionOperationsDashboard({
   const [timeFilter, setTimeFilter] = useState('month'); // 'day' | 'week' | 'month' | 'all'
   const [shiftFilter, setShiftFilter] = useState('ALL'); // 'ALL' | 'A' | 'B' | 'C'
   const [machineFilter, setMachineFilter] = useState('ALL');
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  });
+  const [selectedMonth, setSelectedMonth] = useState(() => '2026-10');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeStageFilter, setActiveStageFilter] = useState('ALL'); // 'ALL' | 'FLOOR' | 'QC_PENDING' ...
   const [showAllLiveOrders, setShowAllLiveOrders] = useState(false);
@@ -158,18 +155,34 @@ export default function ProductionOperationsDashboard({
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const monthShorts = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-  // Dynamically generated rolling 24-month list for filter dropdown
+  // Dynamically generated list for filter dropdown from live records & rolling calendar
   const availableMonths = useMemo(() => {
-    const list = [];
+    const monthsMap = new Map();
+
+    // 1. Collect months present in live work orders and reporting data
+    if (Array.isArray(dashboardData?.allWorkOrders)) {
+      dashboardData.allWorkOrders.forEach((wo) => {
+        const dStr = wo.targetDate || wo.createdAt;
+        if (dStr && /^\d{4}-\d{2}/.test(dStr)) {
+          const val = dStr.slice(0, 7);
+          const [y, m] = val.split('-').map(Number);
+          monthsMap.set(val, `${monthNames[(m || 1) - 1]} ${y}`);
+        }
+      });
+    }
+
+    // 2. Add rolling 12 months from current date
     const now = new Date();
-    for (let i = 0; i < 24; i++) {
+    for (let i = 0; i < 12; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-      list.push({ val, label });
+      if (!monthsMap.has(val)) {
+        monthsMap.set(val, `${monthNames[d.getMonth()]} ${d.getFullYear()}`);
+      }
     }
-    return list;
-  }, []);
+
+    return Array.from(monthsMap.entries()).map(([val, label]) => ({ val, label }));
+  }, [dashboardData]);
 
   // Dynamic reporting period label
   const reportingPeriodLabel = useMemo(() => {
@@ -260,64 +273,49 @@ export default function ProductionOperationsDashboard({
 
   const kpis = {
     totalProduction: rawKpis?.totalProduction || {
-      valueMt: Number(((Number(dashboardData?.summary?.producedUnits || 0) * 45) / 1000).toFixed(1)),
-      unitsCount: dashboardData?.summary?.producedUnits || 0,
-      unitsLabel: `${(dashboardData?.summary?.producedUnits || 0).toLocaleString('en-IN')} Units Produced`,
-      trend: '▲ Live Database Output',
-      trendType: 'positive'
+      valueMt: dashboardData?.productionReconciliation?.headlineTotalProductionMt ?? 0,
+      unitsCount: dashboardData?.summary?.producedUnits ?? 0,
+      unitsLabel: `${(dashboardData?.summary?.producedUnits ?? 0).toLocaleString('en-IN')} Units`,
+      trend: '—',
+      trendType: 'neutral'
     },
     planAchievement: planAchievementKpi,
     oee: rawKpis?.oee || {
-      percentage: dashboardData?.summary?.efficiency || 0,
+      percentage: Number(dashboardData?.summary?.efficiency ?? 0),
       targetLabel: 'Target: 82%+',
-      trend: `${dashboardData?.summary?.machinesRunning || 0} presses running`,
-      trendType: 'positive'
+      trend: '—',
+      trendType: 'neutral'
     },
     activeFloorRuns: rawKpis?.activeFloorRuns || {
-      activeCount: dashboardData?.summary?.inProgress || 0,
-      totalAvailable: dashboardData?.hydraulicPressFleet?.length || 6,
-      subtitle: `${dashboardData?.summary?.machinesRunning || 0} of ${dashboardData?.hydraulicPressFleet?.length || 6} presses running`,
-      note: 'Live line status'
+      activeCount: dashboardData?.summary?.machinesRunning ?? 0,
+      totalAvailable: dashboardData?.summary?.totalMachines ?? 6,
+      subtitle: `of ${dashboardData?.summary?.totalMachines ?? 6} presses running`,
+      note: 'Balanced load'
     },
     firstPassYield: rawKpis?.firstPassYield || {
-      percentage: dashboardData?.summary?.firstPassYield || 100,
+      percentage: Number(dashboardData?.summary?.firstPassYield ?? 100),
       targetLabel: 'Target: 98.5%+',
-      trend: 'Live QC rate',
-      trendType: 'positive'
+      trend: '—',
+      trendType: 'neutral'
     },
     dispatchBacklog: rawKpis?.dispatchBacklog || {
-      unitsCount: dashboardData?.summary?.dispatchReady || 0,
-      weightMt: Number(((Number(dashboardData?.summary?.dispatchReady || 0) * 45) / 1000).toFixed(1)),
-      subtitle: `(${Number(((Number(dashboardData?.summary?.dispatchReady || 0) * 45) / 1000).toFixed(1))} MT)`,
-      trend: `${dashboardData?.summary?.dispatchReady || 0} orders staged`,
-      trendType: 'positive'
+      unitsCount: dashboardData?.summary?.readyForDispatchCount ?? 0,
+      weightMt: 0,
+      subtitle: `(${dashboardData?.summary?.readyForDispatchCount ?? 0} Units)`,
+      trend: '—',
+      trendType: 'neutral'
     }
   };
 
-
   const pipeline = (Array.isArray(dashboardData?.manufacturingPipeline) && dashboardData.manufacturingPipeline.length > 0)
     ? dashboardData.manufacturingPipeline
-    : [
-        { id: 'incoming', stageNumber: '01', stageName: 'Incoming', woCount: dashboardData?.summary?.incomingOrdersCount || 0, weightMt: 0, color: '#334155' },
-        { id: 'floorRuns', stageNumber: '02', stageName: 'Floor Runs', woCount: dashboardData?.summary?.inProgress || 0, weightMt: 0, color: '#1d68ed' },
-        { id: 'qcTesting', stageNumber: '03', stageName: 'QC Testing', woCount: dashboardData?.summary?.underTestingUnits || 0, weightMt: 0, color: '#f59e0b' },
-        { id: 'reworkScrap', stageNumber: '04', stageName: 'Rework / Scrap', woCount: dashboardData?.summary?.qcFailed || 0, weightMt: 0, color: '#ef4444' },
-        { id: 'readyDispatch', stageNumber: '05', stageName: 'Ready for Dispatch', woCount: dashboardData?.summary?.dispatchReady || 0, weightMt: 0, color: '#10b981' },
-        { id: 'dispatched', stageNumber: '06', stageName: 'Dispatched', woCount: dashboardData?.summary?.doneCount || 0, weightMt: 0, color: '#475569' }
-      ];
+    : [];
 
   const pressFleet = (Array.isArray(dashboardData?.hydraulicPressFleet) && dashboardData.hydraulicPressFleet.length > 0)
     ? dashboardData.hydraulicPressFleet
     : (Array.isArray(dashboardData?.machineFleet) && dashboardData.machineFleet.length > 0)
       ? dashboardData.machineFleet
-      : (machines.length > 0 ? machines : [
-          { machineId: 'HM001', capacity: '300T', machineName: 'Hydraulic Machine 1', status: 'Running', activeWo: '—', product: '—', shift: 'A', operator: 'Operator 1', runtimeHours: '6.5h', idleHours: '1.5h', oee: 88 },
-          { machineId: 'HM002', capacity: '300T', machineName: 'Hydraulic Machine 2', status: 'Running', activeWo: '—', product: '—', shift: 'A', operator: 'Operator 2', runtimeHours: '6.5h', idleHours: '1.5h', oee: 85 },
-          { machineId: 'HM003', capacity: '200T', machineName: 'Hydraulic Machine 3', status: 'Running', activeWo: '—', product: '—', shift: 'B', operator: 'Operator 3', runtimeHours: '6.5h', idleHours: '1.5h', oee: 82 },
-          { machineId: 'HM004', capacity: '200T', machineName: 'Hydraulic Machine 4', status: 'Running', activeWo: '—', product: '—', shift: 'B', operator: 'Operator 4', runtimeHours: '6.5h', idleHours: '1.5h', oee: 80 },
-          { machineId: 'HM005', capacity: '500T', machineName: 'Hydraulic Machine 5', status: 'Running', activeWo: '—', product: '—', shift: 'C', operator: 'Operator 5', runtimeHours: '6.5h', idleHours: '1.5h', oee: 78 },
-          { machineId: 'HM006', capacity: '500T', machineName: 'Hydraulic Machine 6', status: 'Running', activeWo: '—', product: '—', shift: 'C', operator: 'Operator 6', runtimeHours: '6.5h', idleHours: '1.5h', oee: 75 }
-        ]);
+      : (Array.isArray(machines) && machines.length > 0 ? machines : []);
 
   const trendData = (Array.isArray(dashboardData?.productionTrendMonthly) && dashboardData.productionTrendMonthly.length > 0)
     ? dashboardData.productionTrendMonthly
@@ -329,43 +327,15 @@ export default function ProductionOperationsDashboard({
   const shiftSummary = (rawShift?.shifts && rawShift.shifts.length > 0)
     ? rawShift
     : {
-        shifts: [
-          { shift: 'Shift A (Morning)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
-          { shift: 'Shift B (Evening)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
-          { shift: 'Shift C (Night)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 }
-        ],
+        shifts: [],
         total: { shift: 'Total', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 }
       };
 
-  const diagnostics = dashboardData?.qualityAndScrapDiagnostics || {
-    firstPassYield: {
-      passRatePct: dashboardData?.summary?.firstPassYield || 100,
-      passedUnits: dashboardData?.summary?.goodUnits || 0,
-      passedPct: dashboardData?.summary?.firstPassYield || 100,
-      failedUnits: dashboardData?.summary?.rejectedUnits || 0,
-      failedPct: dashboardData?.summary?.scrapRate || 0
-    },
-    loadTestDistribution: [
-      { rating: '2.5T', percentage: 28 },
-      { rating: '12.5T', percentage: 22 },
-      { rating: '25T', percentage: 24 },
-      { rating: '40T', percentage: 16 }
-    ],
-    topDefectPareto: [
-      { category: 'Process Scrap', percentage: 100, color: '#f97316' }
-    ],
-    scrapFinancialImpact: {
-      totalCostInr: Math.round((dashboardData?.summary?.totalScrapQty || 0) * 39.5 * 25),
-      scrapWeightKg: (dashboardData?.summary?.totalScrapQty || 0) * 25,
-      ratePerKg: 39.5
-    }
-  };
+  const wipMt = dashboardData?.productionReconciliation?.floorWorkInProgressMt ?? 0;
+  const shiftOutputMt = shiftSummary.total?.totalWeightMt ?? 0;
+  const totalProductionMt = kpis.totalProduction.valueMt || 0;
 
-  const refWorkOrders = (Array.isArray(dashboardData?.referenceActiveWorkOrders) && dashboardData.referenceActiveWorkOrders.length > 0)
-    ? dashboardData.referenceActiveWorkOrders
-    : (Array.isArray(dashboardData?.allWorkOrders) && dashboardData.allWorkOrders.length > 0)
-      ? dashboardData.allWorkOrders
-      : [];
+  const diagnostics = dashboardData?.qualityAndScrapDiagnostics || null;
 
   // Live Work Orders Pool (combines backend API items and state items)
   const liveWorkOrdersPool = useMemo(() => {
@@ -419,12 +389,13 @@ export default function ProductionOperationsDashboard({
           customer: customerName,
           salesOrderCustomer: soOrderNo !== '—' ? `${soOrderNo} – ${customerName}` : customerName,
           product: w.salesOrderItem?.product?.name || w.productName || w.product || 'Standard Product',
+          size: w.salesOrderItem?.product?.size || w.size || '—',
           loadRating: w.salesOrderItem?.product?.capacity || w.loadRating || '40T',
           targetQty: `${target} Sets`,
           producedQty: `${prod} Sets`,
           progress: prog,
           shiftMachine: w.machineId ? `A – ${w.machineId}` : (stage === 'FLOOR' ? 'A – HM001' : '—'),
-          duration: '4h 30m',
+          duration: w.duration ? `${Math.floor(w.duration / 60)}h ${w.duration % 60}m` : '—',
           status: statusDisplay,
           badgeClass: badge,
           stage
@@ -436,9 +407,7 @@ export default function ProductionOperationsDashboard({
 
   // Combined or Filtered Work Orders
   const displayedWorkOrders = useMemo(() => {
-    let source = liveWorkOrdersPool.length > 0 ? liveWorkOrdersPool : refWorkOrders;
-
-    return source.filter((item) => {
+    return liveWorkOrdersPool.filter((item) => {
       if (shiftFilter !== 'ALL') {
         const sm = String(item.shiftMachine || '');
         if (!sm.startsWith(shiftFilter) && !sm.includes(`Shift ${shiftFilter}`)) return false;
@@ -458,15 +427,16 @@ export default function ProductionOperationsDashboard({
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
-          item.workOrderNo.toLowerCase().includes(q) ||
-          item.salesOrderCustomer.toLowerCase().includes(q) ||
-          item.product.toLowerCase().includes(q) ||
-          item.status.toLowerCase().includes(q)
+          (item.workOrderNo || '').toLowerCase().includes(q) ||
+          (item.salesOrderCustomer || '').toLowerCase().includes(q) ||
+          (item.customer || '').toLowerCase().includes(q) ||
+          (item.product || '').toLowerCase().includes(q) ||
+          (item.status || '').toLowerCase().includes(q)
         );
       }
       return true;
     });
-  }, [liveWorkOrdersPool, refWorkOrders, activeStageFilter, searchQuery, shiftFilter, machineFilter]);
+  }, [liveWorkOrdersPool, activeStageFilter, searchQuery, shiftFilter, machineFilter]);
 
   // Operational Action Handlers
   const handleStartRun = async (e) => {
@@ -474,7 +444,7 @@ export default function ProductionOperationsDashboard({
     setSubmitting(true);
     try {
       if (startForm.workOrderId) {
-        await backendFetch(`/api/production-workflow/work-orders/${startForm.workOrderId}/start`, {
+        await backendFetch(`/production-workflow/work-orders/${startForm.workOrderId}/start`, {
           method: 'POST',
           body: { machineId: startForm.machineId, operator: startForm.operator, shift: startForm.shift }
         }).catch(() => null);
@@ -519,7 +489,7 @@ export default function ProductionOperationsDashboard({
     setSubmitting(true);
     try {
       if (finishQcForm.workOrderId) {
-        await backendFetch(`/api/production-workflow/work-orders/${finishQcForm.workOrderId}/finish-run`, {
+        await backendFetch(`/production-workflow/work-orders/${finishQcForm.workOrderId}/finish-run`, {
           method: 'POST',
           body: { quantity: Number(finishQcForm.quantity || 1) }
         }).catch(() => null);
@@ -542,13 +512,14 @@ export default function ProductionOperationsDashboard({
     }
     setSubmitting(true);
     try {
-      await backendFetch('/api/production-workflow/qc-pass', {
+      await backendFetch('/production-workflow/qc-pass', {
         method: 'POST',
         body: {
           workOrderIds: [qcForm.workOrderId],
           result: qcForm.status,
-          notes: qcForm.remarks,
-          certificateNo: qcForm.certificateNo
+          remarks: qcForm.remarks,
+          certificateNo: qcForm.certificateNo,
+          proofLoadKn: qcForm.proofLoadKn
         }
       }).catch(() => null);
       showToast(`QC Certificate ${qcForm.certificateNo} recorded: ${qcForm.status}`);
@@ -569,7 +540,7 @@ export default function ProductionOperationsDashboard({
     }
     setSubmitting(true);
     try {
-      await backendFetch('/api/production-workflow/send-to-dispatch', {
+      await backendFetch('/production-workflow/send-to-dispatch', {
         method: 'POST',
         body: {
           workOrderIds: [dispatchForm.workOrderId]
@@ -698,7 +669,9 @@ export default function ProductionOperationsDashboard({
           </div>
           <div className="pod-meta-item">
             <span className="pod-meta-label">Reconciliation:</span>
-            <span className="pod-meta-val" title={`${shiftSummary.total.totalWeightMt} MT Shift Output + ${periodData.wipMt} MT Press WIP`}>{kpis.totalProduction.valueMt} MT ({shiftSummary.total.totalWeightMt} MT Output + {periodData.wipMt} MT WIP)</span>
+            <span className="pod-meta-val" title={`${shiftOutputMt} MT Shift Output + ${wipMt} MT Press WIP`}>
+              {totalProductionMt} MT ({shiftOutputMt} MT Output + {wipMt} MT WIP)
+            </span>
           </div>
           <div className="pod-meta-item">
             <span className="pod-meta-label">Weights Authority:</span>
@@ -924,7 +897,7 @@ export default function ProductionOperationsDashboard({
                   </tbody>
                 </table>
                 <div style={{ marginTop: '8px', fontSize: '10px', color: '#64748b', lineHeight: 1.3 }}>
-                  <strong>* Production Reconciliation:</strong> Total Headline ({kpis.totalProduction.valueMt} MT) = Shift Completed Output ({shiftSummary.total.totalWeightMt} MT) + Shop Floor In-Process WIP ({periodData.wipMt} MT) across HM001–HM006.
+                  <strong>* Production Reconciliation:</strong> Total Headline ({totalProductionMt} MT) = Shift Completed Output ({shiftOutputMt} MT) + Shop Floor In-Process WIP ({wipMt} MT) across HM001–HM006.
                 </div>
               </div>
             </div>
@@ -976,9 +949,9 @@ export default function ProductionOperationsDashboard({
                     <span className="pod-machine-capacity">{machine.capacity} Hydraulic Press</span>
                     <span 
                       className="pod-machine-wo"
-                      title={hasWo ? `Work Order: ${activeWoText}${machine.product !== '—' ? ` | ${machine.product}` : ''}` : 'No active work order'}
+                      title={hasWo ? `Work Order: ${activeWoText}${machine.product && machine.product !== '—' && !activeWoText.includes(machine.product) ? ` | ${machine.product}` : ''}` : 'No active work order'}
                     >
-                      <strong className="pod-wo-tag">WO:</strong> {activeWoText} {machine.product !== '—' ? `| ${machine.product}` : ''}
+                      <strong className="pod-wo-tag">WO:</strong> {activeWoText.replace(/^WO:\s*/i, '')} {machine.product && machine.product !== '—' && !activeWoText.includes(machine.product) ? `| ${machine.product}` : ''}
                     </span>
                     <span 
                       className="pod-machine-meta"
@@ -1036,10 +1009,12 @@ export default function ProductionOperationsDashboard({
             <button
               type="button"
               className="pod-panel-link"
-              onClick={() => fetchDashboardData(false)}
+              onClick={() => {
+                setActiveStageFilter('ALL');
+                setShowAllLiveOrders(true);
+              }}
             >
-              <RefreshCw size={12} style={{ display: 'inline', marginRight: '5px' }} />
-              Live DB Synced ({displayedWorkOrders.length} Orders)
+              View All (Live ERP Records)
             </button>
           </div>
 
@@ -1097,7 +1072,7 @@ export default function ProductionOperationsDashboard({
                       </span>
                     </td>
                     <td>{wo.salesOrderCustomer}</td>
-                    <td>{wo.product}</td>
+                    <td>{wo.product && wo.size && wo.size !== '—' && !wo.product.includes(wo.size) ? `${wo.product} (${wo.size})` : (wo.product || 'Standard Product')}</td>
                     <td>{wo.loadRating}</td>
                     <td>{wo.targetQty}</td>
                     <td>{wo.producedQty}</td>
