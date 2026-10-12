@@ -16,6 +16,7 @@ import {
   isTradingProduct,
   isPureTradingOrder,
   hasManufacturingItems,
+  normalizeDispatchCategory,
 } from '../../common/utils/trading-product.util';
 
 export interface EvaluatedProductWeight {
@@ -3791,7 +3792,13 @@ export class ProductionWorkflowService {
       });
     }
 
-    const catalogProducts = rawProducts.filter(isCatalogProduct);
+    const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const isTradingTarget = normalizedRole === 'DISPATCH_2' || role === 'dispatch-2';
+    const catalogProducts = rawProducts.filter((p) => {
+      if (!isCatalogProduct(p)) return false;
+      const isTrading = isTradingProduct(p) || normalizeDispatchCategory(p.dispatchCategory) === 'D2';
+      return isTradingTarget ? isTrading : !isTrading;
+    });
     const productIds = catalogProducts.map((p) => p.id);
 
     const [

@@ -292,11 +292,16 @@ export class ProductsService {
       }
     }
 
-    if (
+    if (scope === 'production') {
+      where.AND = [
+        { productType: 'MANUFACTURING' },
+        { isTrading: false },
+        { dispatchCategory: { not: 'D2' } },
+      ];
+    } else if (
       scope === 'daily-report' ||
       scope === 'catalog' ||
       scope === 'all_products' ||
-      scope === 'production' ||
       scope === 'dispatch'
     ) {
       where.AND = [

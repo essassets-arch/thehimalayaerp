@@ -5300,6 +5300,14 @@ export class PlantHeadService {
 
   private async mapSalesOrdersWithFulfillment(orders: any[]) {
     if (!orders || orders.length === 0) return [];
+    // Strict Auto-Bypass: Strip trading items so Plant Head work board strictly receives manufacturing items
+    for (const order of orders) {
+      if (Array.isArray(order.items)) {
+        order.items = order.items.filter(
+          (item: any) => !isTradingProduct(item.product || item, item),
+        );
+      }
+    }
     const fulfillmentData = await this.getFulfillmentData(orders);
     return orders.map((order) => mapSalesOrder(order, fulfillmentData));
   }

@@ -303,8 +303,26 @@ export default function FinishedGoodsStockView({
         receivedById: item.receivedById || null,
         workOrder: item.workOrder,
       };
+    })
+    .filter((row: StockRow) => {
+      const isTrading =
+        row.productType === "TRADING" ||
+        row.dispatchCategory?.includes("D2") ||
+        (row as any).isTrading === true ||
+        ["COVERBLOCK", "COVER BLOCK", "FRC COVER", "RCC PIPE", "OTHERS", "TRADING", "MOULDED"].some((c) =>
+          String(row.category || "").toUpperCase().includes(c)
+        );
+      const isDispatch2Page = typeof window !== "undefined" && window.location.pathname.includes("/dispatch-2");
+      const isDispatch1Page = typeof window !== "undefined" && window.location.pathname.includes("/dispatch") && !isDispatch2Page;
+      if (role === "production" || role === "plant-head" || isDispatch1Page) {
+        return !isTrading;
+      }
+      if (isDispatch2Page) {
+        return isTrading;
+      }
+      return true;
     });
-  }, [data]);
+  }, [data, role]);
 
 
   const filteredData = useMemo(() => {
@@ -2028,7 +2046,7 @@ export default function FinishedGoodsStockView({
                       onChange={(e) => setAddFormData({ ...addFormData, productType: e.target.value })}
                     >
                       <option value="MANUFACTURING">Manufactured</option>
-                      <option value="TRADING">Trading</option>
+                      {role !== "production" && role !== "plant-head" && <option value="TRADING">Trading</option>}
                     </select>
                   </div>
 
@@ -2219,7 +2237,7 @@ export default function FinishedGoodsStockView({
                       onChange={(e) => setEditFormData({ ...editFormData, productType: e.target.value })}
                     >
                       <option value="MANUFACTURING">Manufactured</option>
-                      <option value="TRADING">Trading</option>
+                      {role !== "production" && role !== "plant-head" && <option value="TRADING">Trading</option>}
                     </select>
                   </div>
 

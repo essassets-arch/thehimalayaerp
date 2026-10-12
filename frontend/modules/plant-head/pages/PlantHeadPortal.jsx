@@ -233,9 +233,9 @@ export const isTradingItem = (item) => isTradingProduct(item);
 export const hasManufacturingItems = (order) => hasMfgItemsUtil(order);
 
 const normalizeIncomingOrder = (order, sourceQuotation, userMap = {}) => {
-  const rawItems = Array.isArray(order?.detailedItems) && order.detailedItems.length
+  const rawItems = (Array.isArray(order?.detailedItems) && order.detailedItems.length
     ? order.detailedItems
-    : (Array.isArray(order?.items) && order.items.length ? order.items : (sourceQuotation?.detailedItems || []));
+    : (Array.isArray(order?.items) && order.items.length ? order.items : (sourceQuotation?.detailedItems || []))).filter(item => !isTradingProduct(item));
   const detailedItems = rawItems.map((item) => ({
     ...item,
     productName: item.productName || item.product_name || item.name || 'Item',
@@ -4446,7 +4446,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
   };
 
   const renderProducts = () => {
-    return <ProductMasterUI role={user?.role || 'Plant Head'} scope="ALL" />;
+    return <ProductMasterUI role={user?.role || 'Plant Head'} scope="MANUFACTURING" />;
   };
 
   const renderCategories = () => {
@@ -4454,7 +4454,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
   };
 
   const renderProductFormPage = () => {
-    return <ProductMasterUI role={user?.role || 'Plant Head'} scope="ALL" />;
+    return <ProductMasterUI role={user?.role || 'Plant Head'} scope="MANUFACTURING" />;
   };
 
   const renderRawInventory = () => {
