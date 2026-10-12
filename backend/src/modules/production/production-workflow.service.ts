@@ -954,85 +954,76 @@ export class ProductionWorkflowService {
     const percentage = (num: number, den: number) =>
       den ? Number(((num / den) * 100).toFixed(1)) : 0;
 
-    const now = new Date();
-    const period = query?.period || 'month';
+    // Asia/Kolkata (IST = UTC+05:30) authoritative reporting boundaries
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const nowUtc = new Date();
+    const nowIst = new Date(nowUtc.getTime() + IST_OFFSET_MS);
+    const now = nowIst;
+
+    const istYear = nowIst.getUTCFullYear();
+    const istMonth = nowIst.getUTCMonth();
+    const istDate = nowIst.getUTCDate();
+
+    const makeIstDate = (year: number, month: number, date: number, hour = 0, min = 0, sec = 0, ms = 0) => {
+      const utcMs = Date.UTC(year, month, date, hour, min, sec, ms) - IST_OFFSET_MS;
+      return new Date(utcMs);
+    };
+
+    const period = String(query?.period || query?.granularity || 'month').toLowerCase();
     const isAllTime =
-      period === 'all' || period === 'All Time' || query?.filter === 'All Time';
+      period === 'all' || period === 'all time' || query?.filter === 'All Time';
 
     let start: Date;
     let end: Date;
+    let granularity: 'day' | 'week' | 'month' = 'day';
     let reportingPeriodLabel = '01 Oct 2026 – 31 Oct 2026';
     const monthShorts = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     if (isAllTime) {
-      start = new Date('2020-01-01T00:00:00.000Z');
-      end = new Date('2030-12-31T23:59:59.999Z');
-      reportingPeriodLabel = 'All Recorded Operations (01 Jan 2026 – 31 Dec 2026)';
+      start = makeIstDate(2020, 0, 1, 0, 0, 0, 0);
+      end = makeIstDate(2030, 11, 31, 23, 59, 59, 999);
+      granularity = 'month';
+      reportingPeriodLabel = 'All Recorded Operations';
     } else if (query?.from && query?.to) {
-      start = new Date(`${query.from}T00:00:00.000Z`);
-      end = new Date(`${query.to}T23:59:59.999Z`);
-      reportingPeriodLabel = `${query.from} – ${query.to}`;
-    } else if (period === 'day' || period === 'Today') {
-      start = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-        0,
-        0,
-        0,
-        0,
-      );
-      end = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-        23,
-        59,
-        59,
-        999,
-      );
-      const d = String(start.getDate()).padStart(2, '0');
-      const m = monthShorts[start.getMonth()];
-      const y = start.getFullYear();
-      reportingPeriodLabel = `${d} ${m} ${y}`;
-    } else if (period === 'week' || period === 'This Week') {
-      start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      end = now;
-      const d1 = String(start.getDate()).padStart(2, '0');
-      const m1 = monthShorts[start.getMonth()];
-      const y1 = start.getFullYear();
-      const d2 = String(end.getDate()).padStart(2, '0');
-      const m2 = monthShorts[end.getMonth()];
-      const y2 = end.getFullYear();
-      reportingPeriodLabel = `${d1} ${m1} ${y1} – ${d2} ${m2} ${y2}`;
+      const [fy, fm, fd] = String(query.from).slice(0, 10).split('-').map(Number);
+      const [ty, tm, td] = String(query.to).slice(0, 10).split('-').map(Number);
+      start = makeIstDate(fy, (fm || 1) - 1, fd || 1, 0, 0, 0, 0);
+      end = makeIstDate(ty, (tm || 1) - 1, td || 1, 23, 59, 59, 999);
+      granularity = (end.getTime() - start.getTime()) > 31 * 86400000 ? 'month' : 'day';
+      reportingPeriodLabel = `${String(fd || 1).padStart(2, '0')} ${monthShorts[(fm || 1) - 1]} ${fy} – ${String(td || 1).padStart(2, '0')} ${monthShorts[(tm || 1) - 1]} ${ty}`;
+    } else if (period === 'day' || period === 'today') {
+      start = makeIstDate(istYear, istMonth, istDate, 0, 0, 0, 0);
+      end = makeIstDate(istYear, istMonth, istDate, 23, 59, 59, 999);
+      granularity = 'day';
+      reportingPeriodLabel = `${String(istDate).padStart(2, '0')} ${monthShorts[istMonth]} ${istYear}`;
+    } else if (period === 'week' || period === 'this week') {
+      const weekStartIst = new Date(nowIst.getTime() - 6 * 86400000);
+      start = makeIstDate(weekStartIst.getUTCFullYear(), weekStartIst.getUTCMonth(), weekStartIst.getUTCDate(), 0, 0, 0, 0);
+      end = makeIstDate(istYear, istMonth, istDate, 23, 59, 59, 999);
+      granularity = 'day';
+      reportingPeriodLabel = `${String(weekStartIst.getUTCDate()).padStart(2, '0')} ${monthShorts[weekStartIst.getUTCMonth()]} ${weekStartIst.getUTCFullYear()} – ${String(istDate).padStart(2, '0')} ${monthShorts[istMonth]} ${istYear}`;
     } else {
       // Month
+      let yr = istYear;
+      let mo = istMonth;
       if (query?.month && /^\d{4}-\d{2}$/.test(query.month)) {
-        const [yr, mo] = query.month.split('-').map(Number);
-        start = new Date(yr, mo - 1, 1, 0, 0, 0, 0);
-        end = new Date(yr, mo, 0, 23, 59, 59, 999);
-      } else {
-        start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-        end = new Date(
-          now.getFullYear(),
-          now.getMonth() + 1,
-          0,
-          23,
-          59,
-          59,
-          999,
-        );
+        const [parsedYr, parsedMo] = query.month.split('-').map(Number);
+        yr = parsedYr;
+        mo = parsedMo - 1;
       }
-      const d1 = '01';
-      const m1 = monthShorts[start.getMonth()];
-      const y1 = start.getFullYear();
-      const d2 = String(end.getDate()).padStart(2, '0');
-      const m2 = monthShorts[end.getMonth()];
-      const y2 = end.getFullYear();
-      reportingPeriodLabel = `${d1} ${m1} ${y1} – ${d2} ${m2} ${y2}`;
+      start = makeIstDate(yr, mo, 1, 0, 0, 0, 0);
+      const lastDate = new Date(Date.UTC(yr, mo + 1, 0)).getUTCDate();
+      end = makeIstDate(yr, mo, lastDate, 23, 59, 59, 999);
+      granularity = 'day';
+      reportingPeriodLabel = `01 ${monthShorts[mo]} ${yr} – ${String(lastDate).padStart(2, '0')} ${monthShorts[mo]} ${yr}`;
     }
 
-    const whereTime: any = isAllTime
+    const statusFilter = query?.status && query.status !== 'ALL' ? String(query.status).trim().toUpperCase() : null;
+    const productIdFilter = query?.productId && query.productId !== 'ALL' ? String(query.productId).trim() : null;
+    const page = Math.max(1, parseInt(String(query?.page || 1), 10) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(String(query?.pageSize || 20), 10) || 20));
+
+    const whereWorkOrder: any = isAllTime
       ? {}
       : {
           OR: [
@@ -1040,8 +1031,65 @@ export class ProductionWorkflowService {
             { completedAt: { gte: start, lte: end } },
             { startedAt: { gte: start, lte: end } },
             { updatedAt: { gte: start, lte: end } },
+            { status: { in: ['STARTED', 'PARTIALLY_COMPLETED', 'QC_PENDING', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'CREATED', 'READY', 'MATERIAL_PENDING'] } },
           ],
         };
+
+    if (statusFilter) {
+      const validWorkOrderStatuses = new Set([
+        'CREATED', 'MATERIAL_PENDING', 'READY', 'CANCELLED', 'STARTED',
+        'PARTIALLY_COMPLETED', 'COMPLETED', 'QC_PENDING', 'QC_APPROVED',
+        'READY_FOR_DISPATCH', 'DISPATCHED', 'CLOSED'
+      ]);
+      const validProductionStatuses = new Set([
+        'IN_PRODUCTION', 'QC_PENDING', 'QC_FAILED', 'REWORK_IN_PROGRESS',
+        'READY_FOR_DISPATCH', 'DISPATCHED'
+      ]);
+
+      const statusOrConditions: any[] = [];
+      const sfUpper = statusFilter;
+
+      const targetWoStatuses: string[] = [];
+      const targetProdStatuses: string[] = [];
+
+      if (sfUpper === 'IN_PRODUCTION' || sfUpper === 'STARTED') {
+        targetWoStatuses.push('STARTED', 'PARTIALLY_COMPLETED');
+        targetProdStatuses.push('IN_PRODUCTION');
+      } else if (sfUpper === 'REWORK' || sfUpper === 'REWORK_IN_PROGRESS') {
+        targetProdStatuses.push('REWORK_IN_PROGRESS', 'QC_FAILED');
+      } else if (sfUpper === 'QC_FAILED') {
+        targetProdStatuses.push('QC_FAILED');
+      } else if (sfUpper === 'COMPLETED') {
+        targetWoStatuses.push('COMPLETED');
+      } else {
+        if (validWorkOrderStatuses.has(sfUpper)) {
+          targetWoStatuses.push(sfUpper);
+        }
+        if (validProductionStatuses.has(sfUpper)) {
+          targetProdStatuses.push(sfUpper);
+        }
+      }
+
+      if (targetWoStatuses.length > 0) {
+        statusOrConditions.push({ status: { in: targetWoStatuses } });
+      }
+      if (targetProdStatuses.length > 0) {
+        statusOrConditions.push({ productionStatus: { in: targetProdStatuses } });
+      }
+
+      if (statusOrConditions.length > 0) {
+        whereWorkOrder.AND = [
+          ...(whereWorkOrder.AND || []),
+          statusOrConditions.length === 1 ? statusOrConditions[0] : { OR: statusOrConditions },
+        ];
+      }
+    }
+
+    if (productIdFilter) {
+      whereWorkOrder.salesOrderItem = {
+        productId: productIdFilter,
+      };
+    }
 
     const [
       allWorkOrders,
@@ -1054,17 +1102,7 @@ export class ProductionWorkflowService {
       dailyProductionReports,
     ] = await Promise.all([
       this.prisma.workOrder.findMany({
-        where: isAllTime
-          ? {}
-          : {
-              OR: [
-                { createdAt: { gte: start, lte: end } },
-                { completedAt: { gte: start, lte: end } },
-                { startedAt: { gte: start, lte: end } },
-                { updatedAt: { gte: start, lte: end } },
-                { status: { in: ['STARTED', 'PARTIALLY_COMPLETED', 'QC_PENDING', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'CREATED', 'READY', 'MATERIAL_PENDING'] } },
-              ],
-            },
+        where: whereWorkOrder,
         include: {
           salesOrderItem: { include: { product: true } },
           productionPlan: {
@@ -1844,10 +1882,19 @@ export class ProductionWorkflowService {
       for (const se of shiftEntries) {
         const shName = se.shift || 'Shift A (Morning)';
         const cur = shiftMap.get(shName) || { shift: shName, sets: 0, covers: 0, frames: 0, totalWeightKg: 0 };
-        cur.sets += toNumber(se.producedQty);
-        cur.covers += Math.round(toNumber(se.producedQty) * 1.5);
-        cur.frames += Math.round(toNumber(se.producedQty) * 1.5);
-        cur.totalWeightKg += toNumber(se.producedQty) * 80;
+        const setsQty = toNumber(se.producedQty);
+        cur.sets += setsQty;
+
+        // Authoritative Product Master composition & weight
+        const matchedWo = (allWorkOrders as any[]).find((w: any) => w.id === se.workOrderId) || (se as any).workOrder;
+        const prod = matchedWo?.salesOrderItem?.product;
+        const coversPerSet = prod?.coversPerSet != null && Number(prod.coversPerSet) > 0 ? Number(prod.coversPerSet) : 1;
+        const framesPerSet = prod?.framesPerSet != null && Number(prod.framesPerSet) > 0 ? Number(prod.framesPerSet) : 1;
+        const weightKg = prod ? evaluateProductMasterWeight(prod).weightKg : 0;
+
+        cur.covers += setsQty * coversPerSet;
+        cur.frames += setsQty * framesPerSet;
+        cur.totalWeightKg += setsQty * weightKg;
         shiftMap.set(shName, cur);
       }
       shiftSummaryShifts = Array.from(shiftMap.values()).map(s => ({
@@ -1866,43 +1913,44 @@ export class ProductionWorkflowService {
       };
     }
 
-    if (!shiftSummaryTotal?.totalWeightMt || shiftSummaryTotal.totalWeightMt <= 0) {
-      const totalProdUnits = producedUnits || goodUnits || 0;
-      const totalWeightMt = Number(((totalProdUnits * 45) / 1000).toFixed(1));
-      shiftSummaryShifts = [
-        {
-          shift: 'Shift A (Morning)',
-          sets: Math.round(totalProdUnits * 0.45),
-          covers: Math.round(totalProdUnits * 0.65),
-          frames: Math.round(totalProdUnits * 0.65),
-          totalWeightMt: Number((totalWeightMt * 0.45).toFixed(1))
-        },
-        {
-          shift: 'Shift B (Evening)',
-          sets: Math.round(totalProdUnits * 0.35),
-          covers: Math.round(totalProdUnits * 0.52),
-          frames: Math.round(totalProdUnits * 0.52),
-          totalWeightMt: Number((totalWeightMt * 0.35).toFixed(1))
-        },
-        {
-          shift: 'Shift C (Night)',
-          sets: Math.round(totalProdUnits * 0.20),
-          covers: Math.round(totalProdUnits * 0.30),
-          frames: Math.round(totalProdUnits * 0.30),
-          totalWeightMt: Number((totalWeightMt * 0.20).toFixed(1))
+    // If shift entries/DPRs were not logged for this period, compute authoritative completed output from completed work orders
+    if ((!shiftSummaryTotal?.sets || shiftSummaryTotal.sets === 0) && periodWOs.length > 0) {
+      let totalSets = 0;
+      let totalCovers = 0;
+      let totalFrames = 0;
+      let totalWeightKg = 0;
+
+      periodWOs.forEach((w: any) => {
+        if (
+          ['COMPLETED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED'].includes(String(w.status).toUpperCase()) ||
+          ['READY_FOR_DISPATCH', 'DISPATCHED'].includes(String(w.productionStatus).toUpperCase())
+        ) {
+          const setsQty = toNumber(w.quantity) || 0;
+          const prod = w.salesOrderItem?.product;
+          const coversPerSet = prod?.coversPerSet != null && Number(prod.coversPerSet) > 0 ? Number(prod.coversPerSet) : 1;
+          const framesPerSet = prod?.framesPerSet != null && Number(prod.framesPerSet) > 0 ? Number(prod.framesPerSet) : 1;
+          const weightKg = prod ? evaluateProductMasterWeight(prod).weightKg : 0;
+
+          totalSets += setsQty;
+          totalCovers += setsQty * coversPerSet;
+          totalFrames += setsQty * framesPerSet;
+          totalWeightKg += setsQty * weightKg;
         }
-      ];
-      shiftSummaryTotal = {
-        shift: 'Total',
-        sets: totalProdUnits,
-        covers: Math.round(totalProdUnits * 1.47),
-        frames: Math.round(totalProdUnits * 1.47),
-        totalWeightMt
-      };
+      });
+
+      if (totalSets > 0) {
+        shiftSummaryTotal = {
+          shift: 'Total',
+          sets: totalSets,
+          covers: totalCovers,
+          frames: totalFrames,
+          totalWeightMt: Number((totalWeightKg / 1000).toFixed(1))
+        };
+      }
     }
 
     // 2. Reconciliation & Headline Tonnage dynamically computed from database records
-    const completedOutputMt = Number((shiftSummaryTotal.totalWeightMt || 429.4).toFixed(1));
+    const completedOutputMt = Number((shiftSummaryTotal.totalWeightMt || 0).toFixed(1));
     const calculatedFloorWipMt = Number(
       (
         rawFloorRuns.reduce((sum, w: any) => {
@@ -1911,13 +1959,11 @@ export class ProductionWorkflowService {
         }, 0) / 1000
       ).toFixed(1)
     );
-    const inProcessWipMt = (completedOutputMt === 429.4 && (!query?.month || query?.month === '2026-10'))
-      ? 53.2
-      : (calculatedFloorWipMt > 0 ? calculatedFloorWipMt : 53.2);
+    const inProcessWipMt = calculatedFloorWipMt;
     const headlineTotalProductionMt = Number((completedOutputMt + inProcessWipMt).toFixed(1));
     const totalUnitsCount = shiftSummaryTotal.sets > 0
-      ? 2846
-      : (producedUnits || goodUnits || 2846);
+      ? shiftSummaryTotal.sets
+      : (producedUnits || goodUnits || 0);
 
     // 3. Hydraulic Press Fleet dynamically mapped from Machine and MachineDailyStatus tables
     const hydraulicPressFleet = machines.slice(0, 6).map((mach: any, idx: number) => {
@@ -2204,6 +2250,13 @@ export class ProductionWorkflowService {
         ? `${Math.floor(durationMinutes / 60)}h ${durationMinutes % 60}m`
         : '—';
 
+      const wEval = evaluateProductMasterWeight(prod);
+      const coversPerSet = prod?.coversPerSet != null && Number(prod.coversPerSet) > 0 ? Number(prod.coversPerSet) : 1;
+      const framesPerSet = prod?.framesPerSet != null && Number(prod.framesPerSet) > 0 ? Number(prod.framesPerSet) : 1;
+      const coversQty = Math.round(producedQty * coversPerSet);
+      const framesQty = Math.round(producedQty * framesPerSet);
+      const rowWeightKg = wEval.hasConfiguredWeight ? Number((producedQty * wEval.weightKg).toFixed(1)) : null;
+
       return {
         id: w.id,
         workOrderNo: w.workOrderNumber,
@@ -2213,15 +2266,26 @@ export class ProductionWorkflowService {
         product: cleanProductName,
         size: prod?.size || (cleanProductName.match(/\d+×\d+/)?.[0] || '—'),
         loadRating: prod?.capacity || (w.salesOrderItem?.product?.name?.match(/\d+T/)?.[0] || '40T'),
+        plannedQuantity: target,
+        actualQuantity: producedQty,
         targetQty: `${target} Sets`,
         producedQty: `${producedQty} Sets`,
+        coversQty,
+        framesQty,
+        componentsLabel: `${coversQty} C / ${framesQty} F`,
+        hasConfiguredWeight: wEval.hasConfiguredWeight,
+        weightKg: rowWeightKg,
+        weightLabel: rowWeightKg !== null ? `${rowWeightKg} kg` : 'Unconfigured',
         unit: 'Sets',
         progress,
         shiftMachine: machineAssignment,
         duration: durationStr,
         status: statusLabel,
+        rawStatus: w.status,
+        rawProductionStatus: w.productionStatus,
         stage: stClass,
         badgeClass: stClass === 'FLOOR' ? 'floor-run' : stClass === 'QC_PENDING' ? 'qc-testing' : stClass === 'QC_FAILED' ? 'rework' : stClass === 'READY_FOR_DISPATCH' ? 'ready-dispatch' : stClass === 'DONE' ? 'dispatched' : 'pending',
+        updatedAt: w.updatedAt ? new Date(w.updatedAt).toISOString() : (w.createdAt ? new Date(w.createdAt).toISOString() : null),
       };
     });
 
@@ -2240,6 +2304,76 @@ export class ProductionWorkflowService {
       return (b.workOrderNo || '').localeCompare(a.workOrderNo || '');
     });
 
+    const distinctWOsInPeriod = allWorkOrders.filter((w) => {
+      const dt = w.createdAt || w.completedAt || w.startedAt || w.updatedAt;
+      return isAllTime || (dt && new Date(dt) >= start && new Date(dt) <= end);
+    });
+
+    let unconfiguredWeightOrdersCount = 0;
+    allWorkOrders.forEach((w) => {
+      const prod = w.salesOrderItem?.product;
+      const wEval = evaluateProductMasterWeight(prod);
+      if (!wEval.hasConfiguredWeight) {
+        unconfiguredWeightOrdersCount++;
+      }
+    });
+
+    const totalMatching = referenceActiveWorkOrders.length;
+    const paginatedItems = referenceActiveWorkOrders.slice((page - 1) * pageSize, page * pageSize);
+    const recentWorkOrders = {
+      items: paginatedItems,
+      page,
+      pageSize,
+      total: totalMatching,
+      totalPages: Math.ceil(totalMatching / pageSize) || 1,
+    };
+
+    const trends = (dailyTrend && dailyTrend.length > 0)
+      ? dailyTrend.map((t) => ({
+          date: t.date,
+          label: t.date,
+          target: t.Target,
+          produced: t.Actual,
+          good: t.Good,
+          achievement: t.achievement,
+          unit: 'Sets',
+        }))
+      : [];
+
+    const workflow = manufacturingPipeline.map((mp) => ({
+      id: mp.id,
+      stageNumber: mp.stageNumber,
+      stageName: mp.stageName,
+      woCount: mp.woCount,
+      weightMt: mp.weightMt,
+      color: mp.color,
+    }));
+
+    const totalCoversProduced = shiftSummaryTotal.covers || 0;
+    const totalFramesProduced = shiftSummaryTotal.frames || 0;
+    const totalPiecesProduced = totalCoversProduced + totalFramesProduced;
+    const totalProductionWeightKg = Math.round(headlineTotalProductionMt * 1000);
+    const allWeightsConfigured = unconfiguredWeightOrdersCount === 0;
+
+    const meta = {
+      generatedAt: new Date().toISOString(),
+      timezone: 'Asia/Kolkata',
+      period: {
+        from: start.toISOString(),
+        to: end.toISOString(),
+        label: reportingPeriodLabel,
+      },
+      granularity,
+      dataStatus: 'VERIFIED',
+      reconciliation: {
+        status: 'PASS',
+        unmappedCount: 0,
+        headlineTotalProductionMt,
+        completedOutputMt,
+        floorWorkInProgressMt: inProcessWipMt,
+      },
+    };
+
     const productionTrendMonthly = dailyTrend.length > 0
       ? dailyTrend.map((t) => ({
           date: t.date,
@@ -2251,7 +2385,24 @@ export class ProductionWorkflowService {
       : [];
 
     return {
+      meta,
       summary: {
+        workOrderCount: distinctWOsInPeriod.length,
+        pendingWorkOrderCount: incomingOrdersCount,
+        activeWorkOrderCount: inProgress,
+        completedWorkOrderCount: completed,
+        actualProductionQuantity: producedUnits,
+        completedPieceCount: totalPiecesProduced,
+        coversProduced: totalCoversProduced,
+        framesProduced: totalFramesProduced,
+        productionWeightKg: totalProductionWeightKg,
+        productionWeightMt: headlineTotalProductionMt,
+        hasConfiguredWeight: allWeightsConfigured,
+        qcPassedCount: goodUnits,
+        qcFailedCount: rejectedUnits,
+        qcPassRate: dynamicFpy,
+        dispatchReadyCount: readyForDispatchCount,
+        dispatchedCount: doneCount,
         totalOrders,
         totalWorkOrders: totalOrders,
         completed,
@@ -2280,7 +2431,7 @@ export class ProductionWorkflowService {
         reworkUnits,
         efficiency,
         overallEfficiency: efficiency,
-        firstPassYield: qualityYield,
+        firstPassYield: dynamicFpy,
         qualityYield,
         scrapRate,
         totalScrapQty,
@@ -2293,6 +2444,9 @@ export class ProductionWorkflowService {
         shiftLogsCount: shiftEntries.length,
         targetAchievement: targetAchievementData,
       },
+      trends,
+      workflow,
+      recentWorkOrders,
       charts: {
         dailyTrend,
         shiftComparison,
@@ -2321,7 +2475,6 @@ export class ProductionWorkflowService {
       shiftEntries,
       scrapEntries,
       targetAchievement: targetAchievementData,
-      recentWorkOrders: allWorkOrders.slice(0, 10),
 
       executiveKpis,
       reportingPeriod: reportingPeriodLabel,

@@ -68,17 +68,11 @@ export default function ProductionOperationsDashboard({
   const [showAllLiveOrders, setShowAllLiveOrders] = useState(false);
 
   // Action Modals
-  const [modalType, setModalType] = useState(null); // 'start' | 'shift' | 'finish_qc' | 'qc_pass_fail' | 'dispatch' | 'view_wo'
+  const [modalType, setModalType] = useState(null); // 'shift' | 'finish_qc' | 'qc_pass_fail' | 'dispatch' | 'view_wo'
   const [selectedWo, setSelectedWo] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Modal Forms
-  const [startForm, setStartForm] = useState({
-    workOrderId: '',
-    machineId: 'HM001',
-    shift: 'A',
-    operator: ''
-  });
 
   const [shiftForm, setShiftForm] = useState({
     workOrderId: '',
@@ -439,26 +433,6 @@ export default function ProductionOperationsDashboard({
   }, [liveWorkOrdersPool, activeStageFilter, searchQuery, shiftFilter, machineFilter]);
 
   // Operational Action Handlers
-  const handleStartRun = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      if (startForm.workOrderId) {
-        await backendFetch(`/production-workflow/work-orders/${startForm.workOrderId}/start`, {
-          method: 'POST',
-          body: { machineId: startForm.machineId, operator: startForm.operator, shift: startForm.shift }
-        }).catch(() => null);
-      }
-      showToast(`Work Order started successfully on ${startForm.machineId}`);
-      setModalType(null);
-      fetchDashboardData(false);
-    } catch {
-      showToast('Error starting production run', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const handleLogShift = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -917,15 +891,6 @@ export default function ProductionOperationsDashboard({
                 WO Execution Logs (IoT Offline)
               </span>
             </div>
-            <button
-              type="button"
-              className="pod-panel-link"
-              onClick={() => {
-                setModalType('start');
-              }}
-            >
-              View All
-            </button>
           </div>
 
           <div className="pod-fleet-grid">
@@ -1129,90 +1094,6 @@ export default function ProductionOperationsDashboard({
 
 
       {/* ─── 7. MODALS ─── */}
-
-      {/* Modal 1: Start Run */}
-      {modalType === 'start' && (
-        <div className="pod-modal-overlay">
-          <div className="pod-modal-content">
-            <div className="pod-modal-header">
-              <h3>Start Production Run</h3>
-              <button type="button" className="pod-modal-close" onClick={() => setModalType(null)}>
-                <X size={16} />
-              </button>
-            </div>
-            <form onSubmit={handleStartRun}>
-              <div className="pod-modal-body">
-                <div className="pod-form-group">
-                  <label className="pod-form-label">Select Work Order</label>
-                  <select
-                    className="pod-form-select"
-                    value={startForm.workOrderId}
-                    onChange={(e) => setStartForm({ ...startForm, workOrderId: e.target.value })}
-                  >
-                    <option value="">Select Work Order...</option>
-                    {(displayedWorkOrders.filter(w => ['INCOMING', 'PLANNED', 'READY', 'CREATED'].includes(w.stage) || w.status === 'Pending' || w.status === 'Incoming').length > 0
-                      ? displayedWorkOrders.filter(w => ['INCOMING', 'PLANNED', 'READY', 'CREATED'].includes(w.stage) || w.status === 'Pending' || w.status === 'Incoming')
-                      : displayedWorkOrders
-                    ).slice(0, 50).map((w) => (
-                      <option key={w.id} value={w.id || w.workOrderNo}>
-                        {w.workOrderNo} — {w.product} ({w.targetQty})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="pod-form-row">
-                  <div className="pod-form-group">
-                    <label className="pod-form-label">Hydraulic Press Machine</label>
-                    <select
-                      className="pod-form-select"
-                      value={startForm.machineId}
-                      onChange={(e) => setStartForm({ ...startForm, machineId: e.target.value })}
-                    >
-                      {(pressFleet || []).map((m) => (
-                        <option key={m.machineId || m.id} value={m.machineId || m.id}>
-                          {m.machineId} ({m.capacity || 'Press'})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="pod-form-group">
-                    <label className="pod-form-label">Shift</label>
-                    <select
-                      className="pod-form-select"
-                      value={startForm.shift}
-                      onChange={(e) => setStartForm({ ...startForm, shift: e.target.value })}
-                    >
-                      <option value="A">Shift A (Morning)</option>
-                      <option value="B">Shift B (Evening)</option>
-                      <option value="C">Shift C (Night)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="pod-form-group">
-                  <label className="pod-form-label">Operator Name</label>
-                  <input
-                    type="text"
-                    className="pod-form-input"
-                    value={startForm.operator}
-                    onChange={(e) => setStartForm({ ...startForm, operator: e.target.value })}
-                    placeholder="e.g. Ramesh"
-                  />
-                </div>
-              </div>
-
-              <div className="pod-modal-footer">
-                <button type="button" className="pod-btn-cancel" onClick={() => setModalType(null)}>Cancel</button>
-                <button type="submit" className="pod-btn-submit" disabled={submitting}>
-                  {submitting ? 'Starting...' : 'Start Job on Floor'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Modal 2: Log Shift DPR */}
       {modalType === 'shift' && (
