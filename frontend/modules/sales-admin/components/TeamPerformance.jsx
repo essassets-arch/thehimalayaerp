@@ -595,9 +595,9 @@ export default function TeamPerformance({ state, dispatch, performers, showToast
       {selectedUserAnalytics && (() => {
         const agentName = selectedUserAnalytics.name;
         const agentLeads = (state.sales?.leads || []).filter(l => l.salesperson === agentName);
-        const agentLeadNames = agentLeads.map(l => l.companyName.toLowerCase());
+        const agentLeadNames = agentLeads.map(l => String(l.companyName || '').toLowerCase());
         const agentQuotations = (state.sales?.quotations || []).filter(q => 
-          agentLeadNames.includes(q.customerName.toLowerCase())
+          agentLeadNames.includes(String(q.customerName || '').toLowerCase())
         );
         const agentOrders = (state.sales?.orders || []).filter(o => o.salesperson === agentName);
         const agentPayments = (state.payments || []).filter(p => {

@@ -596,11 +596,15 @@ export default function ProductionOperationsDashboard({
               aria-label="Machine Filter"
             >
               <option value="ALL">All Machines</option>
-              {(pressFleet || []).map((m) => (
-                <option key={m.machineId || m.id} value={m.machineId || m.id}>
-                  {m.machineId} ({m.capacity || 'Press'})
-                </option>
-              ))}
+              {(pressFleet || []).map((m, idx) => {
+                const mId = m?.machineId || m?.id || `HM00${idx + 1}`;
+                const mCap = m?.capacity || m?.machineName?.match(/\d+T/)?.[0] || 'Press';
+                return (
+                  <option key={mId} value={mId}>
+                    {mId} ({mCap})
+                  </option>
+                );
+              })}
             </select>
 
             {/* Period Filter Bar */}
@@ -925,52 +929,61 @@ export default function ProductionOperationsDashboard({
           </div>
 
           <div className="pod-fleet-grid">
-            {pressFleet.map((machine) => {
-              const statusClass = machine.status.toLowerCase().replace(/\s+/g, '-');
+            {pressFleet.map((machine, index) => {
+              const machineId = machine?.machineId || machine?.id || `HM00${index + 1}`;
+              const rawStatus = machine?.status || (machine?.isActive === false ? 'Maintenance' : 'Running');
+              const statusClass = String(rawStatus || 'running').toLowerCase().replace(/\s+/g, '-');
+              const oee = typeof machine?.oee === 'number' ? machine.oee : (statusClass === 'running' ? 80 : 0);
               const radius = 18;
               const circumference = 2 * Math.PI * radius;
-              const strokeOffset = circumference - (machine.oee / 100) * circumference;
+              const strokeOffset = circumference - (oee / 100) * circumference;
               const strokeColor =
-                machine.oee >= 80 ? '#16a34a' : machine.oee >= 60 ? '#2563eb' : machine.oee > 0 ? '#d97706' : '#94a3b8';
-              const activeWoText = machine.activeWo || '—';
+                oee >= 80 ? '#16a34a' : oee >= 60 ? '#2563eb' : oee > 0 ? '#d97706' : '#94a3b8';
+              const activeWoText = machine?.activeWo || '—';
               const hasWo = activeWoText !== '—';
+              const capacity = machine?.capacity || machine?.machineName?.match(/\d+T/)?.[0] || '300T';
+              const shift = machine?.shift || 'A';
+              const operator = machine?.operator || '—';
+              const runtimeHours = machine?.runtimeHours || '0.0h';
+              const idleHours = machine?.idleHours || '0.0h';
+              const product = machine?.product;
 
               return (
                 <div 
-                  key={machine.machineId} 
+                  key={machineId} 
                   className={`pod-machine-card ${statusClass}`}
-                  title={`${machine.machineId} (${machine.capacity} Hydraulic Press) — ${machine.status}\nWO: ${activeWoText}${machine.product && machine.product !== '—' ? ` | ${machine.product}` : ''}\nShift ${machine.shift} • Operator: ${machine.operator}\nRuntime: ${machine.runtimeHours} | Idle: ${machine.idleHours}\nOEE: ${machine.oee}%`}
+                  title={`${machineId} (${capacity} Hydraulic Press) — ${rawStatus}\nWO: ${activeWoText}${product && product !== '—' ? ` | ${product}` : ''}\nShift ${shift} • Operator: ${operator}\nRuntime: ${runtimeHours} | Idle: ${idleHours}\nOEE: ${oee}%`}
                 >
                   <div className="pod-machine-info">
                     <div className="pod-machine-header-row">
-                      <span className="pod-machine-id">{machine.machineId}</span>
-                      <span className={`pod-machine-status-badge ${statusClass}`}>{machine.status}</span>
+                      <span className="pod-machine-id">{machineId}</span>
+                      <span className={`pod-machine-status-badge ${statusClass}`}>{rawStatus}</span>
                     </div>
-                    <span className="pod-machine-capacity">{machine.capacity} Hydraulic Press</span>
+                    <span className="pod-machine-capacity">{capacity} Hydraulic Press</span>
                     <span 
                       className="pod-machine-wo"
-                      title={hasWo ? `Work Order: ${activeWoText}${machine.product && machine.product !== '—' && !activeWoText.includes(machine.product) ? ` | ${machine.product}` : ''}` : 'No active work order'}
+                      title={hasWo ? `Work Order: ${activeWoText}${product && product !== '—' && !activeWoText.includes(product) ? ` | ${product}` : ''}` : 'No active work order'}
                     >
-                      <strong className="pod-wo-tag">WO:</strong> {activeWoText.replace(/^WO:\s*/i, '')} {machine.product && machine.product !== '—' && !activeWoText.includes(machine.product) ? `| ${machine.product}` : ''}
+                      <strong className="pod-wo-tag">WO:</strong> {activeWoText.replace(/^WO:\s*/i, '')} {product && product !== '—' && !activeWoText.includes(product) ? `| ${product}` : ''}
                     </span>
                     <span 
                       className="pod-machine-meta"
-                      title={`Shift ${machine.shift} • Operator: ${machine.operator}`}
+                      title={`Shift ${shift} • Operator: ${operator}`}
                     >
-                      Shift {machine.shift} • Operator: {machine.operator}
+                      Shift {shift} • Operator: {operator}
                     </span>
                     <div className="pod-machine-runtime-row">
-                      <span className="pod-runtime-chip run" title={`Runtime: ${machine.runtimeHours}`}>
-                        <span className="pod-chip-dot green" /> {machine.runtimeHours}
+                      <span className="pod-runtime-chip run" title={`Runtime: ${runtimeHours}`}>
+                        <span className="pod-chip-dot green" /> {runtimeHours}
                       </span>
-                      <span className="pod-runtime-chip idle" title={`Idle Time: ${machine.idleHours}`}>
-                        <span className="pod-chip-dot amber" /> Idle {machine.idleHours}
+                      <span className="pod-runtime-chip idle" title={`Idle Time: ${idleHours}`}>
+                        <span className="pod-chip-dot amber" /> Idle {idleHours}
                       </span>
                     </div>
                   </div>
 
                   {/* Circular OEE Gauge */}
-                  <div className="pod-machine-gauge" title={`OEE: ${machine.oee}%`}>
+                  <div className="pod-machine-gauge" title={`OEE: ${oee}%`}>
                     <svg className="pod-gauge-svg" width="48" height="48" viewBox="0 0 48 48">
                       <circle className="pod-gauge-bg" cx="24" cy="24" r={radius} strokeWidth="4" fill="none" />
                       <circle
@@ -987,7 +1000,7 @@ export default function ProductionOperationsDashboard({
                       />
                     </svg>
                     <div className="pod-gauge-center">
-                      <span className="pod-gauge-pct">{machine.oee}%</span>
+                      <span className="pod-gauge-pct">{oee}%</span>
                       <span className="pod-gauge-label">OEE</span>
                     </div>
                   </div>

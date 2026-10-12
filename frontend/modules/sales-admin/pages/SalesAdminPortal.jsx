@@ -64,14 +64,14 @@ export default function SalesAdminPortal() {
 
     const name = user.name;
     const myLeads = (state.sales?.leads || []).filter(l => l.salesperson === name);
-    const myLeadNames = myLeads.map(l => l.companyName.toLowerCase());
+    const myLeadNames = myLeads.map(l => String(l.companyName || '').toLowerCase());
 
     return {
       ...state,
       leads: myLeads,
       orders: (state.sales?.orders || []).filter(o => o.salesperson === name),
       quotations: (state.sales?.quotations || []).filter(q => 
-        myLeadNames.includes(q.customerName.toLowerCase())
+        myLeadNames.includes(String(q.customerName || '').toLowerCase())
       ),
       payments: (state.payments || []).filter(p => {
         const order = (state.sales?.orders || []).find(o => o.orderNo === p.orderNo);

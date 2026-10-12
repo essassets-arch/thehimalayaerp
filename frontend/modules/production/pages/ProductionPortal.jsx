@@ -1244,19 +1244,19 @@ export default function ProductionPortal() {
   // Start with empty table. The user manually searches and adds items using the Smart Search & Add feature.
 
   const addRequestMaterialRow = () => {
-    const existing = requestMaterials.map(m => m.material.toLowerCase());
-    const available = rawInventory.find(item => !existing.includes(item.material.toLowerCase()));
+    const existing = requestMaterials.map(m => String(m.material || '').toLowerCase());
+    const available = rawInventory.find(item => !existing.includes(String(item.material || '').toLowerCase()));
     const nextMaterial = available ? available.material : (rawInventory[0]?.material || 'Cement');
     setRequestMaterials(prev => [...prev, { material: nextMaterial, qty: 0, category: 'Raw Material', rate: getMaterialRate(nextMaterial), discount: 0, tax: 18 }]);
   };
 
   const removeRequestMaterial = (materialName) => {
-    setRequestMaterials(prev => prev.filter(row => row.material.toLowerCase() !== materialName.toLowerCase()));
+    setRequestMaterials(prev => prev.filter(row => String(row.material || '').toLowerCase() !== String(materialName || '').toLowerCase()));
   };
 
   const updateRequestMaterial = (materialName, field, value) => {
     setRequestMaterials(prev => prev.map(row => {
-      if (row.material.toLowerCase() === materialName.toLowerCase()) {
+      if (String(row.material || '').toLowerCase() === String(materialName || '').toLowerCase()) {
         return {
           ...row,
           [field]: field === 'qty' || field === 'rate' || field === 'discount' || field === 'tax'
