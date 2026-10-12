@@ -472,7 +472,7 @@ export class LocationTrackingService {
       },
     });
 
-    // 5. Broadcast to WebSocket Room for Live Map
+    // 5. Broadcast to WebSocket Room for Live Map & sync LatestUserLocation
     if (latestAcceptedPoint && this.locationGateway) {
       try {
         const payload = {
@@ -489,7 +489,7 @@ export class LocationTrackingService {
           totalPointsCount,
           totalStopsCount,
           recordedAt: latestAcceptedPoint.recordedAt,
-          serverReceivedAt: new Date(),
+          serverReceivedAt: now,
           status: 'LIVE',
         };
         this.locationGateway.server
@@ -498,8 +498,73 @@ export class LocationTrackingService {
         this.locationGateway.server
           ?.to('global:live-users')
           ?.emit('employee:route:update', payload);
+
+        // Also emit user:location:update for all-users live map
+        const userLocPayload = {
+          userId,
+          sessionId: session.id,
+          latitude: Number(latestAcceptedPoint.latitude),
+          longitude: Number(latestAcceptedPoint.longitude),
+          accuracy: latestAcceptedPoint.accuracy,
+          speed: latestAcceptedPoint.speed,
+          heading: latestAcceptedPoint.heading,
+          batteryLevel: latestAcceptedPoint.batteryLevel,
+          capturedAt: latestAcceptedPoint.recordedAt,
+          serverReceivedAt: now.toISOString(),
+          status: 'ONLINE',
+        };
+        this.locationGateway.server
+          ?.to(`company:${companyId}:live-users`)
+          ?.emit('user:location:update', userLocPayload);
+        this.locationGateway.server
+          ?.to('global:live-users')
+          ?.emit('user:location:update', userLocPayload);
       } catch (wsErr: any) {
         this.logger.warn(`Failed to broadcast live update: ${wsErr?.message}`);
+      }
+
+      // Sync latestUserLocation for the user's active device session
+      try {
+        const devSession = await this.prisma.deviceSession.findFirst({
+          where: { userId },
+          orderBy: { lastSeenAt: 'desc' },
+        });
+        if (devSession) {
+          await this.prisma.latestUserLocation.upsert({
+            where: { deviceSessionId: devSession.id },
+            create: {
+              companyId,
+              userId,
+              deviceSessionId: devSession.id,
+              latitude: new Prisma.Decimal(latestAcceptedPoint.latitude),
+              longitude: new Prisma.Decimal(latestAcceptedPoint.longitude),
+              accuracy: latestAcceptedPoint.accuracy != null ? Number(latestAcceptedPoint.accuracy) : null,
+              altitude: latestAcceptedPoint.altitude != null ? Number(latestAcceptedPoint.altitude) : null,
+              speed: latestAcceptedPoint.speed != null ? Number(latestAcceptedPoint.speed) : null,
+              heading: latestAcceptedPoint.heading != null ? Number(latestAcceptedPoint.heading) : null,
+              batteryLevel: latestAcceptedPoint.batteryLevel != null ? Number(latestAcceptedPoint.batteryLevel) : null,
+              capturedAt: new Date(latestAcceptedPoint.recordedAt),
+              receivedAt: now,
+            },
+            update: {
+              latitude: new Prisma.Decimal(latestAcceptedPoint.latitude),
+              longitude: new Prisma.Decimal(latestAcceptedPoint.longitude),
+              accuracy: latestAcceptedPoint.accuracy != null ? Number(latestAcceptedPoint.accuracy) : null,
+              altitude: latestAcceptedPoint.altitude != null ? Number(latestAcceptedPoint.altitude) : null,
+              speed: latestAcceptedPoint.speed != null ? Number(latestAcceptedPoint.speed) : null,
+              heading: latestAcceptedPoint.heading != null ? Number(latestAcceptedPoint.heading) : null,
+              batteryLevel: latestAcceptedPoint.batteryLevel != null ? Number(latestAcceptedPoint.batteryLevel) : null,
+              capturedAt: new Date(latestAcceptedPoint.recordedAt),
+              receivedAt: now,
+            },
+          });
+          await this.prisma.deviceSession.update({
+            where: { id: devSession.id },
+            data: { lastSeenAt: now, locationPermission: 'GRANTED' },
+          });
+        }
+      } catch (devErr: any) {
+        this.logger.warn(`Failed to sync batch point to deviceSession: ${devErr?.message}`);
       }
     }
 
@@ -688,7 +753,7 @@ export class LocationTrackingService {
         minutesSinceLastGps = Math.floor(diffMs / 60000);
         if (minutesSinceLastGps > 30) {
           stalenessStatus = 'CONNECTION_DEGRADED';
-        } else if (minutesSinceLastGps > 5) {
+        } else if (minutesSinceLastGps > 2) {
           stalenessStatus = 'GPS_STALE';
         } else {
           stalenessStatus = 'LIVE';

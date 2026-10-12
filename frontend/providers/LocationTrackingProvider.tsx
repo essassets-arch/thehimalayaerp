@@ -103,10 +103,10 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
   >('PROMPT');
   const permissionStateRef = useRef(permissionState);
 
-  const setPermissionState = (state: typeof permissionState) => {
+  const setPermissionState = useCallback((state: 'GRANTED' | 'DENIED' | 'PROMPT' | 'UNAVAILABLE' | 'UNSUPPORTED') => {
     setPermissionStateState(state);
     permissionStateRef.current = state;
-  };
+  }, []);
 
   const [showNotice, setShowNotice] = useState(false);
 
@@ -154,7 +154,6 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
   }, []);
 
   const startTracking = useCallback(() => {
-    if (isDispatchExempt) return;
     if (typeof window === 'undefined' || !window.navigator.geolocation) {
       setPermissionState('UNSUPPORTED');
       syncPermission('UNSUPPORTED');
@@ -206,7 +205,9 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
           sessionStorage.setItem('himalaya_last_lng', String(longitude));
           sessionStorage.setItem('himalaya_last_loc_accuracy', String(accuracy));
           sessionStorage.setItem('himalaya_last_loc_time', String(now));
-        } catch (_) {}
+        } catch {
+          // ignore
+        }
 
         const payload = {
           sessionId: sessionIdRef.current,
@@ -245,7 +246,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
       },
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
     );
-  }, [syncPermission]);
+  }, [syncPermission, setPermissionState]);
 
   useEffect(() => {
     if (!isAuthenticated || !accessToken) {

@@ -8,7 +8,7 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { CreateDeviceSessionDto } from './dto/device-session.dto';
 import { UpdateLocationDto } from './dto/location-update.dto';
-import { LocationPermissionState, ClientType } from '@prisma/client';
+import { LocationPermissionState, ClientType, Prisma } from '@prisma/client';
 
 export const ONLINE_THRESHOLD_SECONDS = 90; // 90 seconds window for active heartbeat
 export const RECENT_THRESHOLD_SECONDS = 300; // 5 minutes window for recently active
@@ -18,6 +18,37 @@ export interface LiveUserResponse {
   name: string;
   email: string;
   role: string;
+  department?: string;
+  employeeId?: string;
+  employeeCode?: string;
+  jobTitle?: string;
+  companyId?: string;
+  companyName?: string;
+  overallStatus?: 'LIVE' | 'STALE' | 'OFFLINE' | 'PERMISSION_DENIED' | 'TRACKING_STOPPED' | 'NO_LOCATION';
+  trackingStatus?: 'ACTIVE_SHIFT' | 'ACTIVE_DEVICE' | 'STOPPED';
+  gpsFreshness?: 'LIVE' | 'STALE' | 'NO_LOCATION';
+  latestLocation?: {
+    latitude: number;
+    longitude: number;
+    accuracy: number | null;
+    speed: number | null;
+    heading: number | null;
+    batteryLevel: number | null;
+    capturedAt: Date | string;
+    receivedAt?: Date | string;
+    gpsAgeSeconds?: number | null;
+    source?: string;
+  } | null;
+  activeShift?: {
+    sessionId: string;
+    punchInAt: Date | string;
+    punchInAddress: string | null;
+    punchInCoordinates: { latitude: number; longitude: number };
+    totalDistanceKm: number;
+    totalPointsCount: number;
+    totalStopsCount: number;
+    stops?: any[];
+  } | null;
   sessions: {
     sessionId: string;
     deviceId: string;
@@ -28,6 +59,9 @@ export interface LiveUserResponse {
     clientType: ClientType;
     locationPermission: LocationPermissionState;
     lastSeenAt: Date;
+    heartbeatAgeSeconds?: number;
+    gpsStatus?: 'ACTIVE' | 'STALE' | 'UNAVAILABLE';
+    gpsAgeSeconds?: number | null;
     status: 'ONLINE' | 'RECENTLY_ACTIVE' | 'OFFLINE';
     location: {
       latitude: number;
@@ -37,6 +71,8 @@ export interface LiveUserResponse {
       heading: number | null;
       batteryLevel: number | null;
       capturedAt: Date;
+      gpsAgeSeconds?: number | null;
+      gpsStatus?: 'ACTIVE' | 'STALE' | 'UNAVAILABLE';
     } | null;
   }[];
 }
@@ -356,6 +392,83 @@ export class LocationService {
       },
     });
 
+    // 5. Cross-synchronize to active EmployeeLocationSession if user is on-shift
+    try {
+      const activeShift = await this.prisma.employeeLocationSession.findFirst({
+        where: {
+          userId,
+          status: 'ACTIVE',
+        },
+      });
+
+      if (activeShift) {
+        const clientPointId = `rt-${session.id}-${captured.getTime()}`;
+        const lastShiftPoint = await this.prisma.employeeLocationPoint.findFirst({
+          where: { sessionId: activeShift.id, isFilteredJump: false },
+          orderBy: { recordedAt: 'desc' },
+        });
+
+        let incrementalDistKm = 0;
+        if (lastShiftPoint) {
+          const distM = this.calculateDistance(
+            Number(lastShiftPoint.latitude),
+            Number(lastShiftPoint.longitude),
+            dto.latitude,
+            dto.longitude,
+          );
+          incrementalDistKm = distM / 1000;
+        }
+
+        const newTotalDistKm =
+          Number(activeShift.totalDistanceKm) +
+          (incrementalDistKm > 0 ? incrementalDistKm : 0);
+
+        await this.prisma.employeeLocationPoint.upsert({
+          where: {
+            sessionId_clientPointId: {
+              sessionId: activeShift.id,
+              clientPointId,
+            },
+          },
+          create: {
+            sessionId: activeShift.id,
+            companyId: activeShift.companyId,
+            employeeId: activeShift.employeeId,
+            userId,
+            clientPointId,
+            latitude: new Prisma.Decimal(dto.latitude),
+            longitude: new Prisma.Decimal(dto.longitude),
+            accuracy: dto.accuracy != null ? Number(dto.accuracy) : null,
+            altitude: dto.altitude != null ? Number(dto.altitude) : null,
+            speed: dto.speed != null ? Number(dto.speed) : null,
+            heading: dto.heading != null ? Number(dto.heading) : null,
+            batteryLevel: dto.batteryLevel != null ? Number(dto.batteryLevel) : null,
+            source: 'WEB_REALTIME',
+            recordedAt: captured,
+            serverReceivedAt: now,
+          },
+          update: {
+            serverReceivedAt: now,
+          },
+        });
+
+        const updatedPointsCount = (activeShift.totalPointsCount || 0) + 1;
+        await this.prisma.employeeLocationSession.update({
+          where: { id: activeShift.id },
+          data: {
+            totalDistanceKm: new Prisma.Decimal(
+              Math.round(newTotalDistKm * 1000) / 1000,
+            ),
+            totalPointsCount: updatedPointsCount,
+          },
+        });
+      }
+    } catch (shiftErr: any) {
+      this.logger.warn(
+        `Failed to sync real-time GPS point to active shift session: ${shiftErr?.message}`,
+      );
+    }
+
     return location;
   }
 
@@ -386,6 +499,7 @@ export class LocationService {
 
   /**
    * Fetch all user sessions and their locations for the company, or all companies if companyId is omitted.
+   * Provides authoritative real-time GPS telemetry, device connectivity, shift integration, and truthful freshness states.
    */
   async getLiveUsers(companyId?: string): Promise<LiveUserResponse[]> {
     const now = new Date();
@@ -407,6 +521,22 @@ export class LocationService {
         id: true,
         name: true,
         email: true,
+        companyId: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        employee: {
+          select: {
+            id: true,
+            employeeCode: true,
+            jobTitle: true,
+            department: { select: { id: true, name: true } },
+            workLocation: { select: { id: true, name: true } },
+          },
+        },
         role: {
           select: {
             name: true,
@@ -421,14 +551,29 @@ export class LocationService {
             latestLocation: true,
           },
         },
+        employeeLocationSessions: {
+          where: { status: 'ACTIVE' },
+          take: 1,
+          orderBy: { punchInAt: 'desc' },
+          include: {
+            points: {
+              where: { isFilteredJump: false },
+              orderBy: { recordedAt: 'desc' },
+              take: 20,
+            },
+            stops: {
+              orderBy: { arrivedAt: 'asc' },
+            },
+          },
+        },
       },
       orderBy: {
         name: 'asc',
       },
     });
 
-    return users.map((u) => {
-      const sessions = (u.deviceSessions || []).map((ds) => {
+    return users.map((u: any) => {
+      const sessions = (u.deviceSessions || []).map((ds: any) => {
         let status: 'ONLINE' | 'RECENTLY_ACTIVE' | 'OFFLINE' = 'OFFLINE';
         if (ds.lastSeenAt >= onlineCutoff) {
           status = 'ONLINE';
@@ -489,11 +634,177 @@ export class LocationService {
         };
       });
 
+      // ── Determine Primary Authoritative Location & Status per User ──
+      const primarySession = u.deviceSessions && u.deviceSessions.length > 0 ? u.deviceSessions[0] : null;
+      const activeShift = u.employeeLocationSessions && u.employeeLocationSessions.length > 0 ? u.employeeLocationSessions[0] : null;
+
+      // Check coordinates candidates: primarySession.latestLocation vs activeShift.points[0]
+      const sessionLoc = primarySession?.latestLocation || null;
+      const shiftNewestPoint = activeShift?.points && activeShift.points.length > 0 ? activeShift.points[0] : null;
+
+      let latestCoord: any = null;
+      if (sessionLoc && shiftNewestPoint) {
+        const sessionTime = new Date(sessionLoc.capturedAt).getTime();
+        const shiftTime = new Date(shiftNewestPoint.recordedAt).getTime();
+        if (shiftTime >= sessionTime) {
+          latestCoord = {
+            latitude: Number(shiftNewestPoint.latitude),
+            longitude: Number(shiftNewestPoint.longitude),
+            accuracy: shiftNewestPoint.accuracy,
+            speed: shiftNewestPoint.speed,
+            heading: shiftNewestPoint.heading,
+            batteryLevel: shiftNewestPoint.batteryLevel,
+            capturedAt: shiftNewestPoint.recordedAt,
+            receivedAt: shiftNewestPoint.serverReceivedAt || shiftNewestPoint.recordedAt,
+            source: shiftNewestPoint.source || 'SHIFT_GPS',
+          };
+        } else {
+          latestCoord = {
+            latitude: Number(sessionLoc.latitude),
+            longitude: Number(sessionLoc.longitude),
+            accuracy: sessionLoc.accuracy,
+            speed: sessionLoc.speed,
+            heading: sessionLoc.heading,
+            batteryLevel: sessionLoc.batteryLevel,
+            capturedAt: sessionLoc.capturedAt,
+            receivedAt: sessionLoc.receivedAt || sessionLoc.capturedAt,
+            source: 'DEVICE_SESSION',
+          };
+        }
+      } else if (shiftNewestPoint) {
+        latestCoord = {
+          latitude: Number(shiftNewestPoint.latitude),
+          longitude: Number(shiftNewestPoint.longitude),
+          accuracy: shiftNewestPoint.accuracy,
+          speed: shiftNewestPoint.speed,
+          heading: shiftNewestPoint.heading,
+          batteryLevel: shiftNewestPoint.batteryLevel,
+          capturedAt: shiftNewestPoint.recordedAt,
+          receivedAt: shiftNewestPoint.serverReceivedAt || shiftNewestPoint.recordedAt,
+          source: shiftNewestPoint.source || 'SHIFT_GPS',
+        };
+      } else if (sessionLoc) {
+        latestCoord = {
+          latitude: Number(sessionLoc.latitude),
+          longitude: Number(sessionLoc.longitude),
+          accuracy: sessionLoc.accuracy,
+          speed: sessionLoc.speed,
+          heading: sessionLoc.heading,
+          batteryLevel: sessionLoc.batteryLevel,
+          capturedAt: sessionLoc.capturedAt,
+          receivedAt: sessionLoc.receivedAt || sessionLoc.capturedAt,
+          source: 'DEVICE_SESSION',
+        };
+      }
+
+      // Timing & Freshness metrics
+      let gpsAgeSeconds: number | null = null;
+      let isGpsFresh = false;
+      if (latestCoord?.capturedAt) {
+        gpsAgeSeconds = Math.max(
+          0,
+          Math.round((now.getTime() - new Date(latestCoord.capturedAt).getTime()) / 1000),
+        );
+        isGpsFresh = gpsAgeSeconds <= 120; // 120 seconds target freshness window
+        latestCoord.gpsAgeSeconds = gpsAgeSeconds;
+      }
+
+      const heartbeatAgeSeconds = primarySession
+        ? Math.max(
+            0,
+            Math.round(
+              (now.getTime() - new Date(primarySession.lastSeenAt).getTime()) / 1000,
+            ),
+          )
+        : null;
+
+      const isDeviceOnline =
+        heartbeatAgeSeconds !== null &&
+        heartbeatAgeSeconds <= ONLINE_THRESHOLD_SECONDS &&
+        !primarySession?.disconnectedAt;
+
+      const locationPermission: LocationPermissionState =
+        primarySession?.locationPermission || 'PROMPT';
+
+      // 1. Separate tracking service status
+      const trackingStatus: 'ACTIVE_SHIFT' | 'ACTIVE_DEVICE' | 'STOPPED' = activeShift
+        ? 'ACTIVE_SHIFT'
+        : isDeviceOnline
+        ? 'ACTIVE_DEVICE'
+        : 'STOPPED';
+
+      // 2. Separate GPS freshness status
+      const gpsFreshness: 'LIVE' | 'STALE' | 'NO_LOCATION' = isGpsFresh
+        ? 'LIVE'
+        : latestCoord
+        ? 'STALE'
+        : 'NO_LOCATION';
+
+      // 3. Truthful Overall Status
+      let overallStatus:
+        | 'LIVE'
+        | 'STALE'
+        | 'OFFLINE'
+        | 'PERMISSION_DENIED'
+        | 'TRACKING_STOPPED'
+        | 'NO_LOCATION';
+
+      if (locationPermission === 'DENIED') {
+        overallStatus = 'PERMISSION_DENIED';
+      } else if (isGpsFresh) {
+        overallStatus = 'LIVE';
+      } else if (latestCoord) {
+        overallStatus = isDeviceOnline ? 'STALE' : 'OFFLINE';
+      } else {
+        overallStatus = isDeviceOnline ? 'NO_LOCATION' : 'OFFLINE';
+      }
+
+      // Active shift metadata if employee is punched in
+      let activeShiftData: any = null;
+      if (activeShift) {
+        activeShiftData = {
+          sessionId: activeShift.id,
+          punchInAt: activeShift.punchInAt,
+          punchInAddress: activeShift.punchInAddress,
+          punchInCoordinates: {
+            latitude: Number(activeShift.punchInLatitude),
+            longitude: Number(activeShift.punchInLongitude),
+          },
+          totalDistanceKm: Number(activeShift.totalDistanceKm || 0),
+          totalPointsCount: activeShift.totalPointsCount || 0,
+          totalStopsCount: activeShift.stops?.length || activeShift.totalStopsCount || 0,
+          stops: (activeShift.stops || []).map((st: any) => ({
+            stopNumber: st.stopNumber,
+            latitude: Number(st.latitude),
+            longitude: Number(st.longitude),
+            durationMinutes: st.durationMinutes,
+            arrivedAt: st.arrivedAt,
+            departedAt: st.departedAt,
+            address: st.address,
+          })),
+        };
+      }
+
+      const roleName = u.role?.name || 'User';
+      const employee = u.employee || null;
+      const department = employee?.department?.name || roleName || 'Operations';
+
       return {
         userId: u.id,
         name: u.name,
         email: u.email,
-        role: u.role?.name || 'User',
+        role: roleName,
+        department,
+        employeeId: employee?.id || null,
+        employeeCode: employee?.employeeCode || null,
+        jobTitle: employee?.jobTitle || null,
+        companyId: u.companyId,
+        companyName: u.company?.name || null,
+        overallStatus,
+        trackingStatus,
+        gpsFreshness,
+        latestLocation: latestCoord,
+        activeShift: activeShiftData,
         sessions,
       };
     });
