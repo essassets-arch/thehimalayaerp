@@ -342,6 +342,64 @@ export default function OrderDetailPage() {
     fetchOrderDetails();
   }, [decodedOrderId, fetchOrderDetails, router]);
 
+  // Derive authoritative unified order status combining order, dispatches, and work orders
+  const effectiveOrderForStatus = useMemo(() => {
+    if (!order) return null;
+    const effectiveDispatches = dispatches.length > 0 ? dispatches : (order.dispatches || []);
+    const effectiveWorkOrders = workOrders.length > 0 ? workOrders : (order.workOrders || order.productionPlans?.[0]?.workOrders || []);
+
+    let calculatedDispatchStatus = order.dispatchStatus;
+    if (effectiveDispatches.length > 0) {
+      const completedStatuses = new Set(["DELIVERED", "POD_RECEIVED", "DISPATCH_CLOSED"]);
+      const activeTransitStatuses = new Set(["DISPATCHED", "SHIPPED", "IN_TRANSIT", "OUT_FOR_DELIVERY"]);
+      if (effectiveDispatches.every((d: any) => completedStatuses.has(String(d.status).toUpperCase()))) {
+        calculatedDispatchStatus = "DELIVERED";
+      } else if (effectiveDispatches.some((d: any) => activeTransitStatuses.has(String(d.status).toUpperCase()))) {
+        calculatedDispatchStatus = "IN_TRANSIT";
+      } else {
+        calculatedDispatchStatus = effectiveDispatches[0]?.status || calculatedDispatchStatus;
+      }
+    }
+
+    return {
+      ...order,
+      dispatches: effectiveDispatches,
+      workOrders: effectiveWorkOrders,
+      dispatchStatus: calculatedDispatchStatus,
+    };
+  }, [order, dispatches, workOrders]);
+
+  const accurateStatusLabel = useMemo(() => {
+    if (!effectiveOrderForStatus) return "Confirmed";
+    return getOrderStatusLabel(effectiveOrderForStatus);
+  }, [effectiveOrderForStatus]);
+
+  const currentStageIdx = useMemo(() => {
+    switch (accurateStatusLabel) {
+      case "Delivered":
+      case "Closed":
+        return 7;
+      case "In Transit":
+        return 6;
+      case "Ready for Dispatch":
+      case "Sent to Dispatch":
+        return 5;
+      case "QC Approved":
+        return 4;
+      case "QC Inspection":
+        return 3;
+      case "In Production":
+        return 2;
+      case "Production Planned":
+      case "Accepted by Plant Head":
+      case "Sent to Plant Head":
+        return 1;
+      case "Confirmed":
+      default:
+        return 0;
+    }
+  }, [accurateStatusLabel]);
+
   if (isLoading) {
     return (
       <div style={{ padding: 60, textAlign: "center", minHeight: "60vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
@@ -411,64 +469,6 @@ export default function OrderDetailPage() {
 
   const fmtDate = (d: any) =>
     d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-
-  // Derive authoritative unified order status combining order, dispatches, and work orders
-  const effectiveOrderForStatus = useMemo(() => {
-    if (!order) return null;
-    const effectiveDispatches = dispatches.length > 0 ? dispatches : (order.dispatches || []);
-    const effectiveWorkOrders = workOrders.length > 0 ? workOrders : (order.workOrders || order.productionPlans?.[0]?.workOrders || []);
-
-    let calculatedDispatchStatus = order.dispatchStatus;
-    if (effectiveDispatches.length > 0) {
-      const completedStatuses = new Set(["DELIVERED", "POD_RECEIVED", "DISPATCH_CLOSED"]);
-      const activeTransitStatuses = new Set(["DISPATCHED", "SHIPPED", "IN_TRANSIT", "OUT_FOR_DELIVERY"]);
-      if (effectiveDispatches.every((d: any) => completedStatuses.has(String(d.status).toUpperCase()))) {
-        calculatedDispatchStatus = "DELIVERED";
-      } else if (effectiveDispatches.some((d: any) => activeTransitStatuses.has(String(d.status).toUpperCase()))) {
-        calculatedDispatchStatus = "IN_TRANSIT";
-      } else {
-        calculatedDispatchStatus = effectiveDispatches[0]?.status || calculatedDispatchStatus;
-      }
-    }
-
-    return {
-      ...order,
-      dispatches: effectiveDispatches,
-      workOrders: effectiveWorkOrders,
-      dispatchStatus: calculatedDispatchStatus,
-    };
-  }, [order, dispatches, workOrders]);
-
-  const accurateStatusLabel = useMemo(() => {
-    if (!effectiveOrderForStatus) return "Confirmed";
-    return getOrderStatusLabel(effectiveOrderForStatus);
-  }, [effectiveOrderForStatus]);
-
-  const currentStageIdx = useMemo(() => {
-    switch (accurateStatusLabel) {
-      case "Delivered":
-      case "Closed":
-        return 7;
-      case "In Transit":
-        return 6;
-      case "Ready for Dispatch":
-      case "Sent to Dispatch":
-        return 5;
-      case "QC Approved":
-        return 4;
-      case "QC Inspection":
-        return 3;
-      case "In Production":
-        return 2;
-      case "Production Planned":
-      case "Accepted by Plant Head":
-      case "Sent to Plant Head":
-        return 1;
-      case "Confirmed":
-      default:
-        return 0;
-    }
-  }, [accurateStatusLabel]);
 
   const resolvePodUrl = (url: string) => {
     if (!url) return "";

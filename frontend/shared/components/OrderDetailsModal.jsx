@@ -7,16 +7,26 @@ import { backendFetch } from '../../lib/backendFetch';
 import { getOrderStatusLabel } from '../utils/orderStatusResolver';
 
 export default function OrderDetailsModal({ order, role, onClose }) {
-  if (!order) return null;
+  const safeOrder = order || {};
+
+  // Global ERP store for cross-referencing customer / lead / order records
+  const erpState = useERPStore(s => s.state || s) || {};
+  const allOrders = useMemo(() => Array.isArray(erpState.orders) ? erpState.orders : [], [erpState.orders]);
+  const allCustomers = useMemo(() => Array.isArray(erpState.customers) ? erpState.customers : [], [erpState.customers]);
+  const allLeads = useMemo(() => Array.isArray(erpState.leads) ? erpState.leads : [], [erpState.leads]);
+  const allQuotations = useMemo(() => Array.isArray(erpState.quotations) ? erpState.quotations : [], [erpState.quotations]);
+
+  // Async data state in case caller only passed minimal order summary
+  const [asyncData, setAsyncData] = useState(null);
 
   // Hide pricing for production and plant-head roles — they only need product + quantity
   const isProduction = role === 'production' || role === 'plant';
 
   // Normalize data formats to support both top-level state data and custom format data
-  const orderRef = order.orderNo || order.ref || order.salesOrderNumber || '';
-  const customerName = order.customerName || (order.customer && typeof order.customer === 'object' ? (order.customer.name || order.customer.companyName) : order.customer) || '';
+  const orderRef = safeOrder.orderNo || safeOrder.ref || safeOrder.salesOrderNumber || '';
+  const customerName = safeOrder.customerName || (safeOrder.customer && typeof safeOrder.customer === 'object' ? (safeOrder.customer.name || safeOrder.customer.companyName) : safeOrder.customer) || '';
   const date = (() => {
-    const raw = order.date || order.orderDate || order.customerPurchaseOrderDate || order.confirmedAt || order.createdAt || order.quotation?.createdAt || order.lead?.leadDate;
+    const raw = safeOrder.date || safeOrder.orderDate || safeOrder.customerPurchaseOrderDate || safeOrder.confirmedAt || safeOrder.createdAt || safeOrder.quotation?.createdAt || safeOrder.lead?.leadDate;
     if (!raw) return '—';
     if (typeof raw === 'string') {
       const trimmed = raw.trim();
@@ -29,26 +39,17 @@ export default function OrderDetailsModal({ order, role, onClose }) {
     return '—';
   })();
   
-  const orderStatus = getOrderStatusLabel(order);
-  const productionStatus = order.productionStatus || 'Pending';
-  const dispatchStatus = order.dispatchStatus || 'Pending';
-
-  // Global ERP store for cross-referencing customer / lead / order records
-  const erpState = useERPStore(s => s.state || s) || {};
-  const allOrders = useMemo(() => Array.isArray(erpState.orders) ? erpState.orders : [], [erpState.orders]);
-  const allCustomers = useMemo(() => Array.isArray(erpState.customers) ? erpState.customers : [], [erpState.customers]);
-  const allLeads = useMemo(() => Array.isArray(erpState.leads) ? erpState.leads : [], [erpState.leads]);
-  const allQuotations = useMemo(() => Array.isArray(erpState.quotations) ? erpState.quotations : [], [erpState.quotations]);
-
-  // Async data state in case caller only passed minimal order summary
-  const [asyncData, setAsyncData] = useState(null);
+  const orderStatus = getOrderStatusLabel(safeOrder);
+  const productionStatus = safeOrder.productionStatus || 'Pending';
+  const dispatchStatus = safeOrder.dispatchStatus || 'Pending';
 
   useEffect(() => {
+    if (!order) return;
     let isMounted = true;
     const fetchFullDetails = async () => {
-      const hasSpecs = Array.isArray(order.items) && order.items.some(i => Boolean(i.specifications || i.productDetails || i.size || i.description));
-      const hasQuoteItems = Array.isArray(order.quotation?.items) && order.quotation.items.length > 0;
-      const hasAddrAndGst = (order.billingAddress || order.address || order.customer?.billingAddress) && (order.gstin || order.customer?.gstin);
+      const hasSpecs = Array.isArray(safeOrder.items) && safeOrder.items.some(i => Boolean(i.specifications || i.productDetails || i.size || i.description));
+      const hasQuoteItems = Array.isArray(safeOrder.quotation?.items) && safeOrder.quotation.items.length > 0;
+      const hasAddrAndGst = (safeOrder.billingAddress || safeOrder.address || safeOrder.customer?.billingAddress) && (safeOrder.gstin || safeOrder.customer?.gstin);
       if (hasAddrAndGst && (hasSpecs || hasQuoteItems)) {
         return;
       }
@@ -130,25 +131,25 @@ export default function OrderDetailsModal({ order, role, onClose }) {
 
   const matchedCustomer = useMemo(() => {
     return allCustomers.find(c =>
-      (c.id && (c.id === order.customerId || c.id === order.customer?.id)) ||
+      (c.id && (c.id === safeOrder.customerId || c.id === safeOrder.customer?.id)) ||
       (c.name && customerName && c.name.toLowerCase() === customerName.toLowerCase()) ||
       (c.companyName && customerName && c.companyName.toLowerCase() === customerName.toLowerCase())
     );
-  }, [allCustomers, order, customerName]);
+  }, [allCustomers, safeOrder, customerName]);
 
   const matchedLead = useMemo(() => {
     return allLeads.find(l =>
-      (l.id && (l.id === order.leadId || l.id === order.customer?.leadId)) ||
+      (l.id && (l.id === safeOrder.leadId || l.id === safeOrder.customer?.leadId)) ||
       (l.companyName && customerName && l.companyName.toLowerCase() === customerName.toLowerCase())
     );
-  }, [allLeads, order, customerName]);
+  }, [allLeads, safeOrder, customerName]);
 
   const matchedOrder = useMemo(() => {
     return allOrders.find(o =>
       (orderRef && String(o.orderNo || o.orderNumber || o.id) === String(orderRef)) ||
-      (order.id && o.id === order.id)
+      (safeOrder.id && o.id === safeOrder.id)
     );
-  }, [allOrders, orderRef, order]);
+  }, [allOrders, orderRef, safeOrder]);
 
   // Resolve dynamic address
   const resolvedAddress =
@@ -229,16 +230,16 @@ export default function OrderDetailsModal({ order, role, onClose }) {
     return `₹${Math.round(num).toLocaleString('en-IN')}`;
   };
 
-  const transportVal = order.transportCharge !== undefined ? order.transportCharge : 0;
+  const transportVal = safeOrder.transportCharge !== undefined ? safeOrder.transportCharge : 0;
 
   const matchedQuotation = useMemo(() => {
     return allQuotations.find(q =>
-      (order.quotationId && q.id === order.quotationId) ||
-      (order.sourceQuotationId && q.id === order.sourceQuotationId) ||
-      (order.quotationNumber && (q.quotationNo === order.quotationNumber || q.quotationNumber === order.quotationNumber)) ||
+      (safeOrder.quotationId && q.id === safeOrder.quotationId) ||
+      (safeOrder.sourceQuotationId && q.id === safeOrder.sourceQuotationId) ||
+      (safeOrder.quotationNumber && (q.quotationNo === safeOrder.quotationNumber || q.quotationNumber === safeOrder.quotationNumber)) ||
       (orderRef && (q.salesOrderNumber === orderRef || q.orderNo === orderRef))
     ) || null;
-  }, [allQuotations, order, orderRef]);
+  }, [allQuotations, safeOrder, orderRef]);
 
   const quoteItems = order.quotation?.items || order.sourceQuotation?.items || asyncData?.quotation?.items || asyncData?.sourceQuotation?.items || matchedQuotation?.items || matchedQuotation?.detailedItems || [];
 
@@ -312,6 +313,8 @@ export default function OrderDetailsModal({ order, role, onClose }) {
         return 'badge badge-pending';
     }
   };
+
+  if (!order) return null;
 
   return (
     <div className="modal-overlay active" onClick={onClose} style={{ zIndex: 10000 }}>
