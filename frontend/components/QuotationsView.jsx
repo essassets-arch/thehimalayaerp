@@ -430,6 +430,68 @@ export default function QuotationsView({
 
   const handleRepeatQuotation = (qtn) => {
     if (!qtn) return;
+
+    const resolvedAddrObj = (typeof qtn.address === 'object' && qtn.address !== null)
+      ? qtn.address
+      : (typeof qtn.lead?.address === 'object' && qtn.lead?.address !== null)
+        ? qtn.lead.address
+        : null;
+
+    let parsedJsonAddr = null;
+    if (!resolvedAddrObj && typeof qtn.address === 'string' && qtn.address.trim().startsWith('{')) {
+      try { parsedJsonAddr = JSON.parse(qtn.address); } catch(e) {}
+    }
+    if (!resolvedAddrObj && !parsedJsonAddr && typeof qtn.lead?.address === 'string' && qtn.lead.address.trim().startsWith('{')) {
+      try { parsedJsonAddr = JSON.parse(qtn.lead.address); } catch(e) {}
+    }
+    const finalAddrObj = resolvedAddrObj || parsedJsonAddr || {};
+
+    const rawAddrLine = qtn.addressLine1 || finalAddrObj.line1 || finalAddrObj.addressLine1 || finalAddrObj.street || '';
+    const rawCity = qtn.city || finalAddrObj.city || '';
+    const rawState = qtn.stateName || qtn.state || finalAddrObj.state || finalAddrObj.stateName || '';
+    const rawPincode = qtn.pincode || finalAddrObj.pincode || finalAddrObj.postalCode || finalAddrObj.pinCode || '';
+
+    let parsedFromDeliv = { line1: '', city: '', state: '', pincode: '' };
+    const rawDeliveryStr = (typeof qtn.deliveryAddress === 'string' && qtn.deliveryAddress)
+      ? qtn.deliveryAddress
+      : (typeof qtn.clientAddress === 'string' && qtn.clientAddress)
+        ? qtn.clientAddress
+        : (typeof finalAddrObj.deliveryAddress === 'string')
+          ? finalAddrObj.deliveryAddress
+          : '';
+
+    if (rawDeliveryStr && (!rawAddrLine || !rawCity || !rawState || !rawPincode)) {
+      const parts = rawDeliveryStr.split(',').map(p => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        const lastPart = parts[parts.length - 1];
+        const pinMatch = lastPart.match(/\b\d{6}\b/);
+        const extractedPin = pinMatch ? pinMatch[0] : (lastPart.replace(/\D/g, '').length === 6 ? lastPart.replace(/\D/g, '') : '');
+        let remainingParts = [...parts];
+        if (extractedPin) {
+          remainingParts.pop();
+        }
+        if (remainingParts.length > 0 && remainingParts[remainingParts.length - 1].toLowerCase() === 'india') {
+          remainingParts.pop();
+        }
+        const extractedState = remainingParts.length > 0 ? remainingParts.pop() : '';
+        const extractedCity = remainingParts.length > 0 ? remainingParts.pop() : '';
+        const extractedLine1 = remainingParts.join(', ');
+
+        parsedFromDeliv = {
+          line1: extractedLine1,
+          city: extractedCity,
+          state: extractedState,
+          pincode: extractedPin
+        };
+      }
+    }
+
+    const addressLine1 = rawAddrLine || parsedFromDeliv.line1 || (rawDeliveryStr ? rawDeliveryStr.split(',')[0].trim() : '');
+    const city = rawCity || parsedFromDeliv.city || '';
+    const stateName = rawState || parsedFromDeliv.state || '';
+    const pincode = rawPincode || parsedFromDeliv.pincode || '';
+    const deliveryAddress = rawDeliveryStr || [addressLine1, city, stateName, 'India', pincode].filter(Boolean).join(', ');
+
     const draft = {
       ...qtn,
       id: undefined,
@@ -444,6 +506,22 @@ export default function QuotationsView({
       siteInchargeMobile: qtn.siteInchargeMobile || qtn.phone || '',
       contactPerson: qtn.contactPerson || qtn.siteInchargeName || '',
       phone: qtn.phone || qtn.siteInchargeMobile || '',
+      addressLine1,
+      city,
+      state: stateName,
+      stateName,
+      pincode,
+      deliveryAddress,
+      address: {
+        line1: addressLine1,
+        addressLine1,
+        city,
+        state: stateName,
+        stateName,
+        country: 'India',
+        pincode,
+        deliveryAddress
+      },
       validTill: qtn.validTill || qtn.validUntil || '',
       paymentTerms: qtn.paymentTerms || '15 Days',
       items: qtn.detailedItems || qtn.items || [],
@@ -915,22 +993,31 @@ export default function QuotationsView({
   }, [selectedQuotation, customers]);
 
   const rawAddress =
+    selectedQuotation?.deliveryAddress ||
+    (selectedQuotation?.addressLine1 ? {
+      line1: selectedQuotation.addressLine1,
+      city: selectedQuotation.city,
+      state: selectedQuotation.state || selectedQuotation.stateName,
+      country: 'India',
+      pincode: selectedQuotation.pincode
+    } : null) ||
+    selectedQuotation?.address ||
     selectedQuotation?.clientAddress ||
     selectedQuotation?.customerAddress ||
     selectedQuotation?.shippingAddress ||
     selectedQuotation?.billingAddress ||
-    selectedQuotation?.deliveryAddress ||
     selectedQuotation?.siteAddress ||
-    selectedQuotation?.address ||
     selectedQuotation?.customer?.shippingAddress ||
     selectedQuotation?.customer?.billingAddress ||
     selectedQuotation?.customer?.address ||
-    selectedQuotation?.lead?.siteAddress ||
+    selectedQuotation?.lead?.deliveryAddress ||
     selectedQuotation?.lead?.address ||
+    selectedQuotation?.lead?.siteAddress ||
     selectedQuotation?.lead?.location ||
     clientCustomer?.address ||
     clientCustomer?.shippingAddress ||
     clientCustomer?.billingAddress ||
+    clientLead?.deliveryAddress ||
     clientLead?.address ||
     clientLead?.siteAddress ||
     clientLead?.location ||

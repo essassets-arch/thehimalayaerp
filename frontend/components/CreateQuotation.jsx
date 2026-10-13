@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { ArrowLeft, Plus, Trash2, FileText, Percent, ShieldCheck, Truck, Search, ChevronDown, AlertCircle, CheckSquare, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, FileText, Percent, ShieldCheck, Truck, Search, ChevronDown, AlertCircle, CheckSquare, Check, MapPin, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Swal from 'sweetalert2';
 import { useERPStore } from '../shared/context/ERPContext';
 import { useAuth } from '../shared/context/AuthContext';
 import ProductPicker from '../shared/components/ProductPicker';
@@ -45,6 +46,98 @@ const normalizeQuotationItemIds = (items = []) => {
     seenIds.add(normalizedId);
     return id === originalId ? item : { ...item, id };
   });
+};
+
+const extractAddressFields = (source) => {
+  if (!source) return { addressLine1: '', city: '', stateName: '', pincode: '', deliveryAddress: '' };
+
+  let addrObj = null;
+  if (typeof source.address === 'object' && source.address !== null) {
+    addrObj = source.address;
+  } else if (typeof source.address === 'string' && source.address.trim().startsWith('{')) {
+    try {
+      addrObj = JSON.parse(source.address);
+    } catch (e) {
+      addrObj = null;
+    }
+  }
+
+  const rawAddrLine =
+    source.addressLine1 ||
+    addrObj?.line1 ||
+    addrObj?.addressLine1 ||
+    addrObj?.street ||
+    '';
+
+  const rawCity =
+    source.city ||
+    addrObj?.city ||
+    '';
+
+  const rawState =
+    source.stateName ||
+    source.state ||
+    addrObj?.state ||
+    addrObj?.stateName ||
+    '';
+
+  const rawPincode =
+    source.pincode ||
+    addrObj?.pincode ||
+    addrObj?.postalCode ||
+    addrObj?.pinCode ||
+    '';
+
+  let parsedFromDeliv = { line1: '', city: '', state: '', pincode: '' };
+  const rawDeliveryStr = (typeof source.deliveryAddress === 'string' && source.deliveryAddress)
+    ? source.deliveryAddress
+    : (typeof source.clientAddress === 'string' && source.clientAddress)
+      ? source.clientAddress
+      : (typeof addrObj?.deliveryAddress === 'string')
+        ? addrObj.deliveryAddress
+        : (typeof source.address === 'string' && !source.address.trim().startsWith('{'))
+          ? source.address
+          : '';
+
+  if (rawDeliveryStr && (!rawAddrLine || !rawCity || !rawState || !rawPincode)) {
+    const parts = rawDeliveryStr.split(',').map(p => p.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      const lastPart = parts[parts.length - 1];
+      const pinMatch = lastPart.match(/\b\d{6}\b/);
+      const extractedPin = pinMatch ? pinMatch[0] : (lastPart.replace(/\D/g, '').length === 6 ? lastPart.replace(/\D/g, '') : '');
+      let remainingParts = [...parts];
+      if (extractedPin) {
+        remainingParts.pop();
+      }
+      if (remainingParts.length > 0 && remainingParts[remainingParts.length - 1].toLowerCase() === 'india') {
+        remainingParts.pop();
+      }
+      const extractedState = remainingParts.length > 0 ? remainingParts.pop() : '';
+      const extractedCity = remainingParts.length > 0 ? remainingParts.pop() : '';
+      const extractedLine1 = remainingParts.join(', ');
+
+      parsedFromDeliv = {
+        line1: extractedLine1,
+        city: extractedCity,
+        state: extractedState,
+        pincode: extractedPin
+      };
+    }
+  }
+
+  const addressLine1 = rawAddrLine || parsedFromDeliv.line1 || (rawDeliveryStr ? rawDeliveryStr.split(',')[0].trim() : '');
+  const city = rawCity || parsedFromDeliv.city || '';
+  const stateName = rawState || parsedFromDeliv.state || '';
+  const pincode = (rawPincode || parsedFromDeliv.pincode || '').replace(/\D/g, '').slice(0, 6);
+  const deliveryAddress = rawDeliveryStr || [addressLine1, city, stateName, 'India', pincode].filter(Boolean).join(', ');
+
+  return {
+    addressLine1,
+    city,
+    stateName,
+    pincode,
+    deliveryAddress
+  };
 };
 
 export default function CreateQuotation({ 
@@ -342,6 +435,7 @@ export default function CreateQuotation({
   };
 
   const initialTermsSetup = getInitialTermsData();
+  const initialAddr = extractAddressFields(matchedLeadFromProps || quotationDraft || legacyQuotationDraft);
 
   const emptyQuotationForm = {
     // A quotation opened with leadId must always show that lead's customer;
@@ -355,6 +449,15 @@ export default function CreateQuotation({
     siteInchargeMobile: matchedLeadFromProps?.siteInchargeMobile || matchedLeadFromProps?.phone || quotationDraft?.siteInchargeMobile || quotationDraft?.phone || '',
     contactPerson: matchedLeadFromProps?.contactPerson || matchedLeadFromProps?.siteInchargeName || quotationDraft?.contactPerson || quotationDraft?.siteInchargeName || '',
     phone: matchedLeadFromProps?.phone || matchedLeadFromProps?.siteInchargeMobile || quotationDraft?.phone || quotationDraft?.siteInchargeMobile || '',
+    addressLine1: initialAddr.addressLine1 || '',
+    city: initialAddr.city || '',
+    stateName: initialAddr.stateName || '',
+    pincode: initialAddr.pincode || '',
+    deliveryAddress: initialAddr.deliveryAddress || '',
+    deliveryLatitude: quotationDraft?.deliveryLatitude || null,
+    deliveryLongitude: quotationDraft?.deliveryLongitude || null,
+    deliveryAccuracy: quotationDraft?.deliveryAccuracy || null,
+    deliveryPlaceId: quotationDraft?.deliveryPlaceId || '',
     validTill: formatInputDate(quotationDraft?.validTill || quotationDraft?.validUntil) || defaultValidTill(),
     paymentTerms: resolvePaymentTerms(quotationDraft),
     items: getInitialItems(),
@@ -376,6 +479,7 @@ export default function CreateQuotation({
   useEffect(() => {
     if (editingQuotation && quotationDraft) {
       const termsSetup = getInitialTermsData();
+      const editAddr = extractAddressFields(quotationDraft);
       setFormData({
         customerName: quotationDraft.customerName || '',
         groupName: quotationDraft.groupName || '',
@@ -386,6 +490,15 @@ export default function CreateQuotation({
         siteInchargeMobile: quotationDraft.siteInchargeMobile || quotationDraft.phone || '',
         contactPerson: quotationDraft.contactPerson || quotationDraft.siteInchargeName || '',
         phone: quotationDraft.phone || quotationDraft.siteInchargeMobile || '',
+        addressLine1: editAddr.addressLine1 || '',
+        city: editAddr.city || '',
+        stateName: editAddr.stateName || '',
+        pincode: editAddr.pincode || '',
+        deliveryAddress: editAddr.deliveryAddress || '',
+        deliveryLatitude: quotationDraft.deliveryLatitude || null,
+        deliveryLongitude: quotationDraft.deliveryLongitude || null,
+        deliveryAccuracy: quotationDraft.deliveryAccuracy || null,
+        deliveryPlaceId: quotationDraft.deliveryPlaceId || '',
         validTill: formatInputDate(quotationDraft.validTill || quotationDraft.validUntil) || defaultValidTill(),
         paymentTerms: quotationDraft.paymentTerms || '15 Days',
         items: getInitialItems(),
@@ -481,6 +594,7 @@ export default function CreateQuotation({
       const targetGstNum = sourceLead.gstNumber || sourceLead.gst || legacyQuotationDraft?.gstNumber || '';
       const targetPaymentTerms = sourceLead.paymentTerms || legacyQuotationDraft?.paymentTerms || '15 Days';
       const targetTransportCharge = Number(legacyQuotationDraft?.transportCharge || sourceLead.transportCharge || 0);
+      const sourceAddr = extractAddressFields(sourceLead || legacyQuotationDraft);
 
       setFormData(prev => ({
         ...prev,
@@ -493,6 +607,15 @@ export default function CreateQuotation({
         siteInchargeMobile: sourceLead.siteInchargeMobile || sourceLead.phone || legacyQuotationDraft?.siteInchargeMobile || legacyQuotationDraft?.phone || prev.siteInchargeMobile || '',
         contactPerson: sourceLead.contactPerson || sourceLead.siteInchargeName || legacyQuotationDraft?.contactPerson || legacyQuotationDraft?.siteInchargeName || prev.contactPerson || '',
         phone: sourceLead.phone || sourceLead.siteInchargeMobile || legacyQuotationDraft?.phone || legacyQuotationDraft?.siteInchargeMobile || prev.phone || '',
+        addressLine1: sourceAddr.addressLine1 || prev.addressLine1 || '',
+        city: sourceAddr.city || prev.city || '',
+        stateName: sourceAddr.stateName || prev.stateName || '',
+        pincode: sourceAddr.pincode || prev.pincode || '',
+        deliveryAddress: sourceAddr.deliveryAddress || prev.deliveryAddress || '',
+        deliveryLatitude: legacyQuotationDraft?.deliveryLatitude || prev.deliveryLatitude || null,
+        deliveryLongitude: legacyQuotationDraft?.deliveryLongitude || prev.deliveryLongitude || null,
+        deliveryAccuracy: legacyQuotationDraft?.deliveryAccuracy || prev.deliveryAccuracy || null,
+        deliveryPlaceId: legacyQuotationDraft?.deliveryPlaceId || prev.deliveryPlaceId || '',
         paymentTerms: targetPaymentTerms || prev.paymentTerms,
         transportCharge: targetTransportCharge || prev.transportCharge,
         notes: sourceLead.remarks || sourceLead.notes || legacyQuotationDraft?.notes || prev.notes || '',
@@ -502,7 +625,9 @@ export default function CreateQuotation({
   }, [matchedLeadFromProps, legacyQuotationDraft, editingQuotation, leads, prefilledCustomer, prefilledProduct, prefilledQuantity]);
 
   const {
-    customerName, groupName, isGstRegistered, gstNumber, gstName, siteInchargeName, siteInchargeMobile, validTill, paymentTerms,
+    customerName, groupName, isGstRegistered, gstNumber, gstName, siteInchargeName, siteInchargeMobile,
+    addressLine1, city, stateName, pincode, deliveryAddress, deliveryLatitude, deliveryLongitude, deliveryAccuracy, deliveryPlaceId,
+    validTill, paymentTerms,
     items: storedItems, transportCharge, notes, selectedTermIds: storedTermIds, customTerms: storedCustomTerms
   } = formData;
 
@@ -534,6 +659,26 @@ export default function CreateQuotation({
     }));
   };
 
+  const updateAddressField = (field, value) => {
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        [field]: typeof value === 'function' ? value(prev[field]) : value
+      };
+      const formatted = [
+        updated.addressLine1,
+        updated.city,
+        updated.stateName,
+        'India',
+        updated.pincode
+      ].filter(Boolean).join(', ');
+      return {
+        ...updated,
+        deliveryAddress: formatted
+      };
+    });
+  };
+
   const setCustomerName = (val) => updateField('customerName', val);
   const setGroupName = (val) => updateField('groupName', val);
   const setIsGstRegistered = (val) => updateField('isGstRegistered', val);
@@ -547,9 +692,307 @@ export default function CreateQuotation({
     updateField('siteInchargeMobile', val);
     updateField('phone', val);
   };
+  const setAddressLine1 = (val) => updateAddressField('addressLine1', val);
+  const setCity = (val) => updateAddressField('city', val);
+  const setStateName = (val) => updateAddressField('stateName', val);
+  const setPincode = (val) => updateAddressField('pincode', (val || '').replace(/\D/g, '').slice(0, 6));
+  const setDeliveryAddress = (val) => updateField('deliveryAddress', val);
   const setValidTill = (val) => updateField('validTill', val);
   const setPaymentTerms = (val) => updateField('paymentTerms', val);
   const setSelectedTermIds = (val) => updateField('selectedTermIds', val);
+
+  const [locationStatus, setLocationStatus] = useState(
+    (initialAddr.addressLine1 && initialAddr.city) || quotationDraft?.deliveryAccuracy ? 'captured' : 'idle'
+  );
+  const addressInputRef = useRef(null);
+
+  const handleUseCurrentLocation = async () => {
+    setLocationStatus('locating');
+
+    const handleFinalError = (error) => {
+      setLocationStatus('idle');
+      let errorMsg = 'Unable to retrieve your location.';
+      if (error && error.code === 'LOCATION_SERVICES_DISABLED') {
+        errorMsg = 'Location services are turned off. Please enable Location/GPS and try again.';
+      } else if (error && error.code === 1) {
+        errorMsg = 'Location permission was denied. Please allow location access and try again.';
+      } else if (error && error.code === 2) {
+        errorMsg = 'Unable to determine your current location. Please check Location/GPS and try again.';
+      } else if (error && error.code === 3) {
+        errorMsg = 'Location request timed out. Please try again.';
+      }
+
+      Swal.fire({
+        icon: 'error',
+        title: 'Location Unavailable',
+        text: errorMsg,
+        confirmButtonColor: '#2563eb'
+      });
+    };
+
+    const onPositionSuccess = async (position) => {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
+
+      setLocationStatus('fetching');
+
+      let geocodeResult = null;
+
+      try {
+        const query = new URLSearchParams();
+        query.set('lat', String(lat));
+        query.set('lng', String(lng));
+        if (accuracy != null && accuracy > 0) {
+          query.set('accuracy', String(Math.round(accuracy)));
+        }
+        const res = await backendFetch(`/api/backend/location/reverse-geocode?${query.toString()}`);
+        if (res && res.success && res.formattedAddress) {
+          geocodeResult = res;
+        }
+      } catch (bridgeErr) {
+        console.warn('Backend geocode bridge error, attempting client Google Geocoder:', bridgeErr);
+      }
+
+      if (!geocodeResult && typeof window !== 'undefined' && window.google && window.google.maps && window.google.maps.Geocoder) {
+        try {
+          geocodeResult = await new Promise((resolve) => {
+            const geocoder = new window.google.maps.Geocoder();
+            geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+              if (status === 'OK' && results && results[0]) {
+                const place = results[0];
+                let streetNumber = '';
+                let route = '';
+                let sublocality = '';
+                let locality = '';
+                let adminArea2 = '';
+                let state = '';
+                let postalCode = '';
+
+                (place.address_components || []).forEach(component => {
+                  const types = component.types || [];
+                  if (types.includes('street_number')) streetNumber = component.long_name;
+                  if (types.includes('route')) route = component.long_name;
+                  if (types.includes('sublocality') || types.includes('sublocality_level_1') || types.includes('sublocality_level_2')) {
+                    sublocality = sublocality ? `${sublocality}, ${component.long_name}` : component.long_name;
+                  }
+                  if (types.includes('locality')) locality = component.long_name;
+                  if (types.includes('administrative_area_level_2')) adminArea2 = component.long_name;
+                  if (types.includes('administrative_area_level_1')) state = component.long_name;
+                  if (types.includes('postal_code')) postalCode = component.long_name;
+                });
+
+                const addressParts = [];
+                if (streetNumber) addressParts.push(streetNumber);
+                if (route) addressParts.push(route);
+                if (sublocality) addressParts.push(sublocality);
+
+                let line1 = addressParts.join(', ');
+                if (!line1) {
+                  line1 = place.formatted_address ? place.formatted_address.split(',')[0] : '';
+                }
+
+                resolve({
+                  success: true,
+                  formattedAddress: place.formatted_address || line1,
+                  placeId: place.place_id || '',
+                  line1,
+                  city: locality || adminArea2 || sublocality || '',
+                  state,
+                  pincode: postalCode
+                });
+              } else {
+                resolve(null);
+              }
+            });
+          });
+        } catch (clientErr) {
+          console.warn('Client Google Geocoder failed:', clientErr);
+        }
+      }
+
+      if (geocodeResult && geocodeResult.formattedAddress) {
+        const resolvedLine1 = geocodeResult.line1 || geocodeResult.formattedAddress;
+        const resolvedCity = geocodeResult.city || '';
+        const resolvedState = geocodeResult.state || '';
+        const resolvedPincode = (geocodeResult.pincode || '').replace(/\D/g, '').slice(0, 6);
+        const resolvedPlaceId = geocodeResult.placeId || '';
+        const resolvedFormatted = geocodeResult.formattedAddress;
+
+        setFormData(prev => ({
+          ...prev,
+          addressLine1: resolvedLine1,
+          city: resolvedCity || prev.city,
+          stateName: resolvedState || prev.stateName,
+          pincode: resolvedPincode || prev.pincode,
+          deliveryAddress: resolvedFormatted,
+          deliveryLatitude: lat,
+          deliveryLongitude: lng,
+          deliveryAccuracy: accuracy != null ? Math.round(accuracy) : null,
+          deliveryPlaceId: resolvedPlaceId
+        }));
+
+        setLocationStatus('captured');
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Location Captured',
+          text: `Delivery address resolved (~${Math.round(accuracy)}m accuracy).`,
+          timer: 2000,
+          showConfirmButton: false
+        });
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          deliveryLatitude: lat,
+          deliveryLongitude: lng,
+          deliveryAccuracy: accuracy != null ? Math.round(accuracy) : null,
+        }));
+
+        setLocationStatus('idle');
+
+        Swal.fire({
+          icon: 'info',
+          title: 'Location Notice',
+          text: 'Location captured, but address could not be resolved. Please enter the delivery address manually.',
+          confirmButtonColor: '#2563eb'
+        });
+      }
+    };
+
+    const w = typeof window !== 'undefined' ? window : null;
+    const hasInAppWebView = Boolean(w && w.flutter_inappwebview && typeof w.flutter_inappwebview.callHandler === 'function');
+
+    if (hasInAppWebView) {
+      try {
+        let nativeRes = await Promise.race([
+          w.flutter_inappwebview.callHandler('requestLocation'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('NATIVE_TIMEOUT')), 25000))
+        ]);
+
+        if (!nativeRes || (nativeRes.latitude == null && nativeRes.coords?.latitude == null && !nativeRes.errorCode && !nativeRes.status)) {
+          try {
+            nativeRes = await Promise.race([
+              w.flutter_inappwebview.callHandler('getLocation'),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('NATIVE_TIMEOUT')), 5000))
+            ]);
+          } catch (_) {}
+        }
+
+        if (
+          nativeRes?.errorCode === 'LOCATION_SERVICES_DISABLED' ||
+          nativeRes?.serviceEnabled === false ||
+          nativeRes?.status === 'disabled'
+        ) {
+          setLocationStatus('idle');
+          Swal.fire({
+            icon: 'warning',
+            title: 'Location Services Disabled',
+            text: 'Location services are turned off. Please enable Location/GPS in your device settings and try again.',
+            confirmButtonColor: '#2563eb'
+          });
+          return;
+        }
+
+        if (
+          nativeRes?.errorCode === 'PERMISSION_DENIED' ||
+          nativeRes?.granted === false ||
+          nativeRes?.status === 'denied'
+        ) {
+          setLocationStatus('idle');
+          Swal.fire({
+            icon: 'error',
+            title: 'Location Permission Denied',
+            text: 'Location permission was denied. Please allow location access and try again.',
+            confirmButtonColor: '#2563eb'
+          });
+          return;
+        }
+
+        if (
+          nativeRes?.errorCode === 'PERMISSION_PERMANENTLY_DENIED' ||
+          nativeRes?.status === 'permanentlyDenied'
+        ) {
+          setLocationStatus('idle');
+          Swal.fire({
+            icon: 'error',
+            title: 'Location Permission Required',
+            text: 'Location permission was denied. Please allow location access in your device/app settings and try again.',
+            confirmButtonColor: '#2563eb'
+          });
+          return;
+        }
+
+        const rawLat = nativeRes?.latitude ?? nativeRes?.coords?.latitude;
+        const rawLng = nativeRes?.longitude ?? nativeRes?.coords?.longitude;
+        const rawAcc = nativeRes?.accuracy ?? nativeRes?.coords?.accuracy ?? 15;
+
+        if (rawLat != null && rawLng != null && !isNaN(Number(rawLat)) && !isNaN(Number(rawLng))) {
+          await onPositionSuccess({
+            coords: {
+              latitude: Number(rawLat),
+              longitude: Number(rawLng),
+              accuracy: Number(rawAcc)
+            }
+          });
+          return;
+        }
+
+        setLocationStatus('idle');
+        Swal.fire({
+          icon: 'error',
+          title: 'Location Unavailable',
+          text: nativeRes?.message || 'Unable to obtain device location from Android native provider. Please try again.',
+          confirmButtonColor: '#2563eb'
+        });
+        return;
+      } catch (nativeErr) {
+        setLocationStatus('idle');
+        Swal.fire({
+          icon: 'error',
+          title: 'Location Error',
+          text: nativeErr?.message === 'NATIVE_TIMEOUT' ? 'Location request timed out. Please try again.' : 'Unable to communicate with location bridge.',
+          confirmButtonColor: '#2563eb'
+        });
+        return;
+      }
+    }
+
+    if (!navigator || !navigator.geolocation) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Geolocation Not Supported',
+        text: 'Geolocation is not supported by your browser. Please enter the delivery address manually.',
+        confirmButtonColor: '#2563eb'
+      });
+      setLocationStatus('idle');
+      return;
+    }
+
+    let positionResolved = false;
+    const handleSuccessOnce = async (position) => {
+      if (positionResolved) return;
+      positionResolved = true;
+      await onPositionSuccess(position);
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => handleSuccessOnce(pos),
+      (error) => {
+        if (positionResolved) return;
+        if (error && (error.code === 2 || error.code === 3)) {
+          navigator.geolocation.getCurrentPosition(
+            (pos2) => handleSuccessOnce(pos2),
+            (err2) => handleFinalError(err2),
+            { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
+          );
+          return;
+        }
+        handleFinalError(error);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
 
   const handleToggleTerm = (termId) => {
     setSelectedTermIds(prev => {
@@ -613,36 +1056,52 @@ export default function CreateQuotation({
   const normalizeText = (value) => String(value || '').trim().toLowerCase();
   const customerOptions = useMemo(() => {
     const options = [
-      ...leads.map(lead => ({
-        key: `lead-${lead.id}`,
-        type: 'Lead',
-        id: lead.id,
-        name: lead.companyName || lead.customerName || lead.projectName || '',
-        subtitle: [lead.groupName || lead.group_name, lead.status ? `Lead - ${lead.status}` : 'Lead'].filter(Boolean).join(' - '),
-        groupName: lead.groupName || lead.group_name || '',
-        gstNumber: lead.gstNumber || lead.gst_number || '',
-        gstName: lead.gstName || lead.companyName || lead.customerName || lead.projectName || '',
-        siteInchargeName: lead.siteInchargeName || lead.contactPerson || '',
-        siteInchargeMobile: lead.siteInchargeMobile || lead.phone || '',
-        contactPerson: lead.contactPerson || lead.siteInchargeName || '',
-        phone: lead.phone || lead.siteInchargeMobile || '',
-      })),
-      ...customers.map(customer => ({
-        key: `customer-${customer.id}`,
-        type: 'Customer',
-        id: customer.id,
-        // Customer records from the live API use companyName.  Keeping that
-        // ID on the payload lets the quotations list resolve the customer.
-        name: customer.companyName || customer.name || customer.customerName || '',
-        subtitle: [customer.groupName || customer.group_name, 'Customer'].filter(Boolean).join(' - '),
-        groupName: customer.groupName || customer.group_name || '',
-        gstNumber: customer.gst || customer.gstNumber || customer.gstin || '',
-        gstName: customer.gstName || customer.companyName || customer.name || customer.customerName || '',
-        siteInchargeName: customer.contactPerson || customer.contact_person || '',
-        siteInchargeMobile: customer.phone || customer.mobile || '',
-        contactPerson: customer.contactPerson || customer.contact_person || '',
-        phone: customer.phone || customer.mobile || '',
-      }))
+      ...leads.map(lead => {
+        const leadAddr = extractAddressFields(lead);
+        return {
+          key: `lead-${lead.id}`,
+          type: 'Lead',
+          id: lead.id,
+          name: lead.companyName || lead.customerName || lead.projectName || '',
+          subtitle: [lead.groupName || lead.group_name, lead.status ? `Lead - ${lead.status}` : 'Lead'].filter(Boolean).join(' - '),
+          groupName: lead.groupName || lead.group_name || '',
+          gstNumber: lead.gstNumber || lead.gst_number || '',
+          gstName: lead.gstName || lead.companyName || lead.customerName || lead.projectName || '',
+          siteInchargeName: lead.siteInchargeName || lead.contactPerson || '',
+          siteInchargeMobile: lead.siteInchargeMobile || lead.phone || '',
+          contactPerson: lead.contactPerson || lead.siteInchargeName || '',
+          phone: lead.phone || lead.siteInchargeMobile || '',
+          addressLine1: leadAddr.addressLine1,
+          city: leadAddr.city,
+          stateName: leadAddr.stateName,
+          pincode: leadAddr.pincode,
+          deliveryAddress: leadAddr.deliveryAddress,
+        };
+      }),
+      ...customers.map(customer => {
+        const custAddr = extractAddressFields(customer);
+        return {
+          key: `customer-${customer.id}`,
+          type: 'Customer',
+          id: customer.id,
+          // Customer records from the live API use companyName.  Keeping that
+          // ID on the payload lets the quotations list resolve the customer.
+          name: customer.companyName || customer.name || customer.customerName || '',
+          subtitle: [customer.groupName || customer.group_name, 'Customer'].filter(Boolean).join(' - '),
+          groupName: customer.groupName || customer.group_name || '',
+          gstNumber: customer.gst || customer.gstNumber || customer.gstin || '',
+          gstName: customer.gstName || customer.companyName || customer.name || customer.customerName || '',
+          siteInchargeName: customer.contactPerson || customer.contact_person || '',
+          siteInchargeMobile: customer.phone || customer.mobile || '',
+          contactPerson: customer.contactPerson || customer.contact_person || '',
+          phone: customer.phone || customer.mobile || '',
+          addressLine1: custAddr.addressLine1,
+          city: custAddr.city,
+          stateName: custAddr.stateName,
+          pincode: custAddr.pincode,
+          deliveryAddress: custAddr.deliveryAddress,
+        };
+      })
     ].filter(option => option.name);
 
     const seen = new Set();
@@ -688,6 +1147,16 @@ export default function CreateQuotation({
     if (option.siteInchargeMobile || option.phone) {
       updateField('siteInchargeMobile', option.siteInchargeMobile || option.phone);
       updateField('phone', option.phone || option.siteInchargeMobile);
+    }
+    if (option.addressLine1 || option.city || option.stateName || option.pincode) {
+      updateField('addressLine1', option.addressLine1 || '');
+      updateField('city', option.city || '');
+      updateField('stateName', option.stateName || '');
+      updateField('pincode', option.pincode || '');
+      updateField('deliveryAddress', option.deliveryAddress || '');
+      if (option.addressLine1 && option.city) {
+        setLocationStatus('captured');
+      }
     }
     setCustomerSearchOpen(false);
   };
@@ -854,6 +1323,57 @@ export default function CreateQuotation({
       alert('Site Incharge Mobile number must be a valid 10-digit number.');
       return;
     }
+
+    const trimmedAddress1 = (addressLine1 || formData.addressLine1 || '').trim();
+    const trimmedCity = (city || formData.city || '').trim();
+    const trimmedState = (stateName || formData.stateName || '').trim();
+    const trimmedPincode = (pincode || formData.pincode || '').trim();
+
+    if (!trimmedAddress1) {
+      alert('Please provide Address Line 1 for delivery address.');
+      addressInputRef.current?.focus();
+      return;
+    }
+    if (!trimmedCity) {
+      alert('Please provide City for delivery address.');
+      return;
+    }
+    if (!trimmedState) {
+      alert('Please provide State for delivery address.');
+      return;
+    }
+    if (!trimmedPincode) {
+      alert('Please provide Pincode for delivery address.');
+      return;
+    }
+    if (trimmedPincode.length < 6) {
+      alert('Pincode must be a 6-digit postal code.');
+      return;
+    }
+
+    const formattedDeliveryAddress = (deliveryAddress && deliveryAddress.trim()) || [
+      trimmedAddress1,
+      trimmedCity,
+      trimmedState,
+      'India',
+      trimmedPincode
+    ].filter(Boolean).join(', ');
+
+    const addressObject = {
+      line1: trimmedAddress1,
+      addressLine1: trimmedAddress1,
+      city: trimmedCity,
+      state: trimmedState,
+      stateName: trimmedState,
+      country: 'India',
+      pincode: trimmedPincode,
+      deliveryAddress: formattedDeliveryAddress,
+      latitude: deliveryLatitude || null,
+      longitude: deliveryLongitude || null,
+      accuracy: deliveryAccuracy || null,
+      placeId: deliveryPlaceId || ''
+    };
+
     if (items.length === 0) {
       alert('Please add at least one item to the quotation.');
       return;
@@ -883,9 +1403,19 @@ export default function CreateQuotation({
       siteInchargeName: (siteInchargeName || formData.siteInchargeName || formData.contactPerson || selectedCustomerRecord?.siteInchargeName || selectedCustomerRecord?.contactPerson || matchedLeadFromProps?.siteInchargeName || matchedLeadFromProps?.contactPerson || quotationDraft?.siteInchargeName || '').trim(),
       siteInchargeMobile: (siteInchargeMobile || formData.siteInchargeMobile || formData.phone || selectedCustomerRecord?.siteInchargeMobile || selectedCustomerRecord?.phone || matchedLeadFromProps?.siteInchargeMobile || matchedLeadFromProps?.phone || quotationDraft?.siteInchargeMobile || '').trim(),
       phone: (siteInchargeMobile || formData.siteInchargeMobile || formData.phone || selectedCustomerRecord?.phone || selectedCustomerRecord?.siteInchargeMobile || matchedLeadFromProps?.phone || matchedLeadFromProps?.siteInchargeMobile || quotationDraft?.phone || '').trim(),
-      deliveryAddress: (matchedLeadFromProps?.deliveryAddress || (matchedLeadFromProps?.address ? (typeof matchedLeadFromProps.address === 'string' ? matchedLeadFromProps.address : (matchedLeadFromProps.address.deliveryAddress || matchedLeadFromProps.address.line1)) : '') || quotationDraft?.deliveryAddress || '').trim(),
-      billingAddress: (matchedLeadFromProps?.deliveryAddress || quotationDraft?.billingAddress || '').trim(),
-      address: matchedLeadFromProps?.address || quotationDraft?.address || undefined,
+      deliveryAddress: formattedDeliveryAddress,
+      addressLine1: trimmedAddress1,
+      city: trimmedCity,
+      state: trimmedState,
+      stateName: trimmedState,
+      pincode: trimmedPincode,
+      billingAddress: formattedDeliveryAddress,
+      shippingAddress: formattedDeliveryAddress,
+      address: addressObject,
+      deliveryLatitude: deliveryLatitude || undefined,
+      deliveryLongitude: deliveryLongitude || undefined,
+      deliveryAccuracy: deliveryAccuracy || undefined,
+      deliveryPlaceId: deliveryPlaceId || undefined,
       items: items.map((item) => {
         const itemQty = Number(item.quantity) || 0;
         const itemUnitPrice = Number(item.unitPrice) || 0;
@@ -988,6 +1518,59 @@ export default function CreateQuotation({
 
   return (
     <div className="app-card" style={{ flex: 1 }}>
+      <style>{`
+        .responsive-address-container {
+          display: flex;
+          gap: 8px;
+          width: 100%;
+          align-items: center;
+        }
+        .use-location-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+          color: #ffffff;
+          border: none;
+          border-radius: 8px;
+          height: 38px;
+          padding: 0 16px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+          white-space: nowrap;
+        }
+        .use-location-btn:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3);
+        }
+        .use-location-btn:disabled {
+          opacity: 0.75;
+          cursor: not-allowed;
+        }
+        .use-location-btn.captured {
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .spin-animation {
+          animation: spin 1s linear infinite;
+        }
+        .use-location-btn-text {
+          display: inline;
+        }
+        @media (max-width: 500px) {
+          .use-location-btn {
+            padding: 0 12px;
+          }
+        }
+      `}</style>
       <div className="module-header-row" style={{ borderBottom: '1px solid #eaeaea', paddingBottom: '12px', marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button 
@@ -1234,6 +1817,124 @@ export default function CreateQuotation({
               pattern="[0-9]{10}"
               required 
             />
+          </div>
+        </div>
+
+        {/* 📍 Delivery Address Section */}
+        <div style={{ background: '#f8f9fa', padding: '20px', borderRadius: '16px', border: '1px solid var(--color-border)' }}>
+          <h3 style={{ fontSize: '14px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', borderBottom: '1px solid #eaeaea', paddingBottom: '8px' }}>
+            <MapPin size={16} style={{ color: 'var(--color-accent-purple, #6366f1)' }} />
+            <span>📍 Delivery Address</span>
+          </h3>
+
+          <div className="form-group">
+            <label className="form-label">Address Line 1 *</label>
+            <div className="responsive-address-container">
+              <input
+                ref={addressInputRef}
+                data-testid="quotation-address"
+                type="text"
+                className="form-input"
+                placeholder="e.g. Sector 62, Noida Industrial Area"
+                value={addressLine1 || ''}
+                onChange={e => setAddressLine1(e.target.value)}
+                style={{ flex: 1 }}
+                required
+              />
+              <button
+                type="button"
+                data-testid="use-current-location-btn"
+                onClick={handleUseCurrentLocation}
+                disabled={locationStatus === 'locating' || locationStatus === 'fetching'}
+                className={`use-location-btn ${locationStatus === 'captured' ? 'captured' : ''}`}
+              >
+                {locationStatus === 'locating' ? (
+                  <>
+                    <Loader2 size={15} className="spin-animation" />
+                    <span className="use-location-btn-text">Locating...</span>
+                  </>
+                ) : locationStatus === 'fetching' ? (
+                  <>
+                    <Loader2 size={15} className="spin-animation" />
+                    <span className="use-location-btn-text">Fetching address...</span>
+                  </>
+                ) : locationStatus === 'captured' ? (
+                  <>
+                    <Check size={15} />
+                    <span className="use-location-btn-text">Location captured</span>
+                  </>
+                ) : (
+                  <>
+                    <MapPin size={15} />
+                    <span className="use-location-btn-text">Use Current Location</span>
+                  </>
+                )}
+              </button>
+            </div>
+            {deliveryAccuracy != null && deliveryLatitude != null && deliveryLongitude != null && (
+              <div
+                data-testid="location-accuracy-badge"
+                style={{
+                  marginTop: '8px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  background: '#ecfdf5',
+                  border: '1px solid #a7f3d0',
+                  color: '#065f46',
+                  fontSize: '12px',
+                  fontWeight: '600'
+                }}
+              >
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', flexShrink: 0 }}></span>
+                <span>Location accuracy: ~{Math.round(deliveryAccuracy)} m</span>
+                <span style={{ color: '#047857', opacity: 0.8, fontSize: '11px', marginLeft: '4px' }}>
+                  ({Number(deliveryLatitude).toFixed(5)}, {Number(deliveryLongitude).toFixed(5)})
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="form-row-three">
+            <div className="form-group">
+              <label className="form-label">City *</label>
+              <input
+                data-testid="quotation-city"
+                type="text"
+                className="form-input"
+                placeholder="e.g. Noida"
+                value={city || ''}
+                onChange={e => setCity(e.target.value)}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">State *</label>
+              <input
+                data-testid="quotation-state"
+                type="text"
+                className="form-input"
+                placeholder="e.g. Uttar Pradesh"
+                value={stateName || ''}
+                onChange={e => setStateName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Pincode *</label>
+              <input
+                data-testid="quotation-pincode"
+                type="text"
+                className="form-input"
+                placeholder="e.g. 201301"
+                value={pincode || ''}
+                onChange={e => setPincode(e.target.value)}
+                maxLength={6}
+                required
+              />
+            </div>
           </div>
         </div>
 

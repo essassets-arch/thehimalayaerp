@@ -1168,6 +1168,8 @@ model Quotation {
   remarks           String?
   siteInchargeName   String?
   siteInchargeMobile String?
+  deliveryAddress    String?
+  address            Json?
   paymentTerms      String?
   paymentTermDays   Int?
   version           Int     @default(1)

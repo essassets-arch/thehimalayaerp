@@ -658,6 +658,14 @@ export class QuotationsService {
               : null,
         siteInchargeName: (dto.siteInchargeName || dto.contactPerson || '').trim() || null,
         siteInchargeMobile: (dto.siteInchargeMobile || dto.phone || '').trim() || null,
+        deliveryAddress: (dto.deliveryAddress || (dto.address ? (typeof dto.address === 'string' ? dto.address : (dto.address.deliveryAddress || [dto.address.line1 || dto.address.addressLine1, dto.address.city, dto.address.state, dto.address.pincode].filter(Boolean).join(', '))) : '') || '').trim() || null,
+        address: dto.address || (dto.addressLine1 || dto.city || dto.stateName || dto.pincode ? {
+          line1: dto.addressLine1 || '',
+          city: dto.city || '',
+          state: dto.stateName || dto.state || '',
+          pincode: dto.pincode || '',
+          deliveryAddress: dto.deliveryAddress || ''
+        } : null),
         paymentTerms: paymentTermInfo.paymentTerms,
         paymentTermDays: paymentTermInfo.paymentTermDays,
         workflowStateId: initialState.id,
@@ -706,6 +714,15 @@ export class QuotationsService {
       }
       if (dto.siteInchargeMobile || dto.phone) {
         leadUpdateData.phone = (dto.siteInchargeMobile || dto.phone).trim();
+      }
+      if (dto.deliveryAddress || dto.address || dto.addressLine1) {
+        leadUpdateData.address = dto.address || {
+          line1: dto.addressLine1 || dto.deliveryAddress || '',
+          city: dto.city || '',
+          state: dto.stateName || dto.state || '',
+          pincode: dto.pincode || '',
+          deliveryAddress: dto.deliveryAddress || ''
+        };
       }
       const quotationState = await this.prisma.workflowState.findFirst({
         where: { workflow: { code: 'LEAD' }, code: 'QUOTATION_SENT' },
@@ -883,6 +900,15 @@ export class QuotationsService {
                   : dto.phone !== undefined
                     ? dto.phone
                     : undefined,
+              ...(dto.deliveryAddress !== undefined || dto.address !== undefined || dto.addressLine1 !== undefined ? {
+                address: dto.address || {
+                  line1: dto.addressLine1 || dto.deliveryAddress || '',
+                  city: dto.city || '',
+                  state: dto.stateName || dto.state || '',
+                  pincode: dto.pincode || '',
+                  deliveryAddress: dto.deliveryAddress || ''
+                }
+              } : {}),
             },
           })
           .catch(() => {});
@@ -964,6 +990,22 @@ export class QuotationsService {
               ? (dto.siteInchargeMobile || '').trim() || null
               : dto.phone !== undefined
                 ? (dto.phone || '').trim() || null
+                : undefined,
+          deliveryAddress:
+            dto.deliveryAddress !== undefined
+              ? (dto.deliveryAddress || '').trim() || null
+              : undefined,
+          address:
+            dto.address !== undefined
+              ? dto.address
+              : (dto.addressLine1 || dto.city || dto.stateName || dto.pincode)
+                ? {
+                    line1: dto.addressLine1 || '',
+                    city: dto.city || '',
+                    state: dto.stateName || dto.state || '',
+                    pincode: dto.pincode || '',
+                    deliveryAddress: dto.deliveryAddress || ''
+                  }
                 : undefined,
           paymentTerms:
             paymentTermInfo.paymentTerms !== undefined
@@ -1527,8 +1569,8 @@ export class QuotationsService {
           customerId: customerId as string,
           quotationId: id,
           sourceQuotationId: id,
-          shippingAddress: quotation.lead?.address || (quotation as any).shippingAddress || undefined,
-          billingAddress: quotation.lead?.address || (quotation as any).billingAddress || undefined,
+          shippingAddress: (quotation as any).deliveryAddress || (quotation as any).address || quotation.lead?.address || (quotation as any).shippingAddress || undefined,
+          billingAddress: (quotation as any).deliveryAddress || (quotation as any).address || quotation.lead?.address || (quotation as any).billingAddress || undefined,
           salesExecutiveId:
             quotation.salesExecutiveId ||
             quotation.createdById ||
