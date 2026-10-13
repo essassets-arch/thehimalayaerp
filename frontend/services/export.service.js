@@ -2117,8 +2117,8 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
   let y = 35;
 
   // Resolve client information passed from parent
-  const clientAddress = quotation.clientAddress || '';
-  const clientGST = quotation.clientGST || '';
+  const clientAddress = quotation.clientAddress || quotation.deliveryAddress || (typeof quotation.address === 'string' ? quotation.address : (quotation.address?.deliveryAddress || [quotation.address?.line1 || quotation.address?.addressLine1, quotation.address?.city, quotation.address?.state, quotation.address?.pincode].filter(Boolean).join(', '))) || '';
+  const clientGST = quotation.clientGST || quotation.gstNumber || quotation.gstin || quotation.gst || '';
   const cleanPdfStr = (val) => {
     if (!val || typeof val !== 'string') return '';
     const t = val.trim();
