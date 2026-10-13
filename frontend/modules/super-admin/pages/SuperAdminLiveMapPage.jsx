@@ -482,7 +482,7 @@ export default function SuperAdminLiveMapPage() {
           backendFetch('/location/live-users', { cacheTtlMs: 0 })
         ),
         backendFetch('/location/routes/live', { cacheTtlMs: 0 }),
-        backendFetch('/employees', { cacheTtlMs: 60000 }),
+        backendFetch('/hr/employees', { cacheTtlMs: 60000 }),
       ]);
 
       const rawUsers =
@@ -503,7 +503,7 @@ export default function SuperAdminLiveMapPage() {
         empRes.status === 'fulfilled'
           ? Array.isArray(empRes.value)
             ? empRes.value
-            : empRes.value?.data || []
+            : empRes.value?.items || empRes.value?.data?.items || empRes.value?.data || []
           : [];
 
       // Create a map of active shift routes keyed by userId and employeeId

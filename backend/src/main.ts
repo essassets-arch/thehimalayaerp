@@ -43,6 +43,11 @@ async function bootstrap() {
   app.setGlobalPrefix(apiPrefix);
 
   app.use((req, res, next) => {
+    if (req.url.startsWith(`/${apiPrefix}/employees`)) {
+      req.url = req.url.replace(`/${apiPrefix}/employees`, `/${apiPrefix}/hr/employees`);
+    } else if (req.url.startsWith('/employees')) {
+      req.url = req.url.replace('/employees', '/hr/employees');
+    }
     console.log(
       `[REQUEST] ${req.method} ${req.url} - Auth: ${req.headers.authorization ? 'Present' : 'Missing'}`,
     );

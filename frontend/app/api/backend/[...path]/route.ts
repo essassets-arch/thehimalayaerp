@@ -13,6 +13,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   // Keep older Dispatch dashboard bundles working after the replacement API
   // was promoted from the logistics namespace to its canonical endpoint.
   const backendPathAliases: Record<string, string> = {
+    '/employees': '/hr/employees',
     '/logistics/dispatches/replacements': '/replacements',
     '/logistics/dispatches/remaining': '/logistics/dispatches',
     '/sales/sales-returns': '/sales-returns',
@@ -48,6 +49,8 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   } else if (backendPath.startsWith('/admin/employees')) {
     backendPath = backendPath.replace('/admin/employees', '/hr/employees');
     if (finalMethod === 'PUT') finalMethod = 'PATCH';
+  } else if (backendPath.startsWith('/employees')) {
+    backendPath = backendPath.replace('/employees', '/hr/employees');
   } else if (backendPath.startsWith('/admin/roles')) {
     backendPath = backendPath.replace('/admin/roles', '/super-admin/roles');
   }
