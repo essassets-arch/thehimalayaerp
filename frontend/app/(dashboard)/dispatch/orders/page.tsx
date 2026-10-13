@@ -1066,8 +1066,13 @@ export default function DispatchOrdersPage() {
 
       const isDispatchedStatus = (st: any) => {
         const s = String(st || "").toUpperCase();
+        if (!s || ["CANCELLED", "VOID", "REJECTED", "DRAFT", "DISPATCH_DRAFT"].includes(s)) return false;
         return (
-          ["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED", "DISPATCHED", "COMPLETED"].includes(s)
+          [
+            "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED", "DISPATCHED",
+            "COMPLETED", "PENDING_DISPATCH", "DISPATCH_APPROVED", "READY_FOR_PICKUP",
+            "VEHICLE_ASSIGNED", "LOADING_IN_PROGRESS", "POD_RECEIVED", "DISPATCH_CLOSED"
+          ].includes(s) || Boolean(s)
         );
       };
 
@@ -1314,7 +1319,7 @@ export default function DispatchOrdersPage() {
             orderedQuantity: qty,
             dispatchedQuantity: fromActiveDispatches,
             remainingQuantity: remaining,
-            isPartiallyDispatched: Boolean(orderHasPriorDispatches || fromActiveDispatches > 0),
+            isPartiallyDispatched: fromActiveDispatches > 0 && remaining > 0,
             salesOrderId: qOrder.salesOrderId || matchedSo?.id,
             salesOrderItemId: qItem.salesOrderItemId,
             productId: qItem.productId,
@@ -1378,7 +1383,7 @@ export default function DispatchOrdersPage() {
           orderedQuantity: qty,
           dispatchedQuantity: fromActiveDispatches,
           remainingQuantity: remaining,
-          isPartiallyDispatched: Boolean(orderHasPriorDispatches || fromActiveDispatches > 0),
+          isPartiallyDispatched: fromActiveDispatches > 0 && remaining > 0,
           workOrderId: fg.workOrderId || fg.id,
           salesOrderId: salesOrder?.id || fg.salesOrderId,
           salesOrderItemId: fg.salesOrderItemId || wo?.salesOrderItemId || fg.workOrder?.salesOrderItemId || fg.workOrder?.salesOrderItem?.id || undefined,
@@ -1453,8 +1458,7 @@ export default function DispatchOrdersPage() {
         const projectName = resolveProjectName(salesOrder, customer, wo);
         const salesPersonName = resolveSalesPersonName(salesOrder, wo, customer, usersMap);
 
-        const orderHasPriorDispatches = ordersWithPriorDispatches.has(soKeyNorm) || (soIdLower ? ordersWithPriorDispatches.has(soIdLower) : false);
-        const isPartiallyDispatched = (alreadyDispatched > 0 && remaining > 0) || (orderHasPriorDispatches && remaining > 0);
+        const isPartiallyDispatched = alreadyDispatched > 0 && remaining > 0;
 
         unifiedWorkOrders.push({
           id: `wo-${wo.id}`,
@@ -1551,8 +1555,7 @@ export default function DispatchOrdersPage() {
 
             const soKeyNorm = normalizeKey(orderNo);
             const soIdLower = String(so.id || "").toLowerCase();
-            const orderHasPriorDispatches = ordersWithPriorDispatches.has(soKeyNorm) || (soIdLower ? ordersWithPriorDispatches.has(soIdLower) : false);
-            const isPartiallyDispatched = (alreadyDispatched > 0 && remaining > 0) || (orderHasPriorDispatches && remaining > 0);
+            const isPartiallyDispatched = alreadyDispatched > 0 && remaining > 0;
 
             if (remaining <= 0 && alreadyDispatched > 0) return;
 
@@ -1740,8 +1743,8 @@ export default function DispatchOrdersPage() {
     });
   }, [pendingItems, currentCategory, productsMap, search]);
 
-  // Group pending items order-wise
-  const groupedPendingOrders = useMemo(() => {
+  // Group pending and remaining items order-wise
+  const allGroupedOrders = useMemo(() => {
     const map = new Map<string, PendingOrderGroup>();
 
     filteredPendingItems.forEach((item) => {
@@ -1763,8 +1766,9 @@ export default function DispatchOrdersPage() {
       }
 
       const existing = map.get(key);
-      const qtyNum = remQty;
-      const orderedNum = item.orderedQuantity ?? qtyNum;
+      const ordNum = Number(item.orderedQuantity ?? (remQty + dispatchedNum));
+      const dispNum = Number(dispatchedNum);
+      const remainingNum = Number(remQty);
 
       if (existing) {
         // Upgrade orderNumber if incoming is HCPPL / real SO number and existing is not
@@ -1813,28 +1817,36 @@ export default function DispatchOrdersPage() {
 
         if (existingItemIdx >= 0) {
           const prev = existing.items[existingItemIdx];
-          const prevQty = typeof prev.remainingQuantity === "number" ? prev.remainingQuantity : (typeof prev.approvedQuantity === "number" ? prev.approvedQuantity : 1);
+          const newOrdered = Math.max(ordNum, Number(prev.orderedQuantity || 0));
+          const newDispatched = Math.max(dispNum, Number(prev.dispatchedQuantity || 0));
+          const newRem = Math.max(0, item.remainingQuantity !== undefined ? item.remainingQuantity : (newOrdered - newDispatched));
+
           existing.items[existingItemIdx] = {
             ...prev,
             ...item,
             orderNumber: isRealSoNumber(item.orderNumber) ? item.orderNumber : prev.orderNumber,
-            approvedQuantity: item.approvedQuantity !== undefined ? item.approvedQuantity : prev.approvedQuantity,
-            remainingQuantity: item.remainingQuantity !== undefined ? item.remainingQuantity : prev.remainingQuantity,
-            orderedQuantity: item.orderedQuantity !== undefined ? item.orderedQuantity : prev.orderedQuantity,
-            dispatchedQuantity: Math.max(item.dispatchedQuantity || 0, prev.dispatchedQuantity || 0),
+            approvedQuantity: newRem,
+            remainingQuantity: newRem,
+            orderedQuantity: newOrdered,
+            dispatchedQuantity: newDispatched,
+            isPartiallyDispatched: newDispatched > 0 && newRem > 0,
           };
-          const newQty = typeof existing.items[existingItemIdx].remainingQuantity === "number" ? existing.items[existingItemIdx].remainingQuantity : (typeof existing.items[existingItemIdx].approvedQuantity === "number" ? existing.items[existingItemIdx].approvedQuantity : 1);
-          existing.totalQty += (Number(newQty) - Number(prevQty));
         } else {
-          existing.items.push(item);
-          existing.totalQty += qtyNum;
-          existing.totalOrderedQty = (existing.totalOrderedQty || 0) + orderedNum;
-          existing.totalDispatchedQty = (existing.totalDispatchedQty || 0) + dispatchedNum;
+          existing.items.push({
+            ...item,
+            approvedQuantity: remainingNum,
+            remainingQuantity: remainingNum,
+            orderedQuantity: ordNum,
+            dispatchedQuantity: dispNum,
+            isPartiallyDispatched: dispNum > 0 && remainingNum > 0,
+          });
         }
 
-        if (item.isPartiallyDispatched || existing.totalDispatchedQty > 0) {
-          existing.isPartiallyDispatched = true;
-        }
+        // Accurately compute group totals from items
+        existing.totalOrderedQty = existing.items.reduce((sum, it) => sum + Number(it.orderedQuantity ?? it.approvedQuantity ?? 0), 0);
+        existing.totalDispatchedQty = existing.items.reduce((sum, it) => sum + Number(it.dispatchedQuantity || 0), 0);
+        existing.totalQty = existing.items.reduce((sum, it) => sum + Number(it.remainingQuantity ?? it.approvedQuantity ?? 0), 0);
+        existing.isPartiallyDispatched = existing.totalDispatchedQty > 0 && existing.totalQty > 0;
       } else {
         map.set(key, {
           orderKey: key,
@@ -1844,11 +1856,18 @@ export default function DispatchOrdersPage() {
           projectName: item.projectName,
           deliveryAddress: item.deliveryAddress,
           salesOrderId: item.salesOrderId,
-          totalQty: qtyNum,
-          totalOrderedQty: orderedNum,
-          totalDispatchedQty: dispatchedNum,
-          isPartiallyDispatched: Boolean(item.isPartiallyDispatched || dispatchedNum > 0),
-          items: [item],
+          totalQty: remainingNum,
+          totalOrderedQty: ordNum,
+          totalDispatchedQty: dispNum,
+          isPartiallyDispatched: dispNum > 0 && remainingNum > 0,
+          items: [{
+            ...item,
+            approvedQuantity: remainingNum,
+            remainingQuantity: remainingNum,
+            orderedQuantity: ordNum,
+            dispatchedQuantity: dispNum,
+            isPartiallyDispatched: dispNum > 0 && remainingNum > 0,
+          }],
         });
       }
     });
@@ -1866,36 +1885,25 @@ export default function DispatchOrdersPage() {
       });
   }, [filteredPendingItems]);
 
-  // Remaining Items (Partially Dispatched)
+  // Tab 1: Fresh Pending Orders (0% Dispatched, awaiting initial dispatch)
+  const groupedPendingOrders = useMemo(() => {
+    return allGroupedOrders.filter((group) => {
+      const isPartial = group.isPartiallyDispatched || (group.totalDispatchedQty > 0);
+      return !isPartial && group.totalQty > 0;
+    });
+  }, [allGroupedOrders]);
+
+  // Tab 2: Remaining Orders (Partially Dispatched orders with remaining quantity to fulfill)
   const groupedRemainingOrders = useMemo(() => {
-    return groupedPendingOrders.filter(
-      (group) =>
-        (group.isPartiallyDispatched ||
-          (group.totalDispatchedQty !== undefined && group.totalDispatchedQty > 0) ||
-          group.items.some((i) => i.isPartiallyDispatched || (i.dispatchedQuantity && i.dispatchedQuantity > 0))) &&
-        group.totalQty > 0
-    );
-  }, [groupedPendingOrders]);
+    return allGroupedOrders.filter((group) => {
+      const isPartial = group.isPartiallyDispatched || (group.totalDispatchedQty > 0);
+      return isPartial && group.totalQty > 0;
+    });
+  }, [allGroupedOrders]);
 
   const filteredRemainingItems = useMemo(() => {
-    const remainingOrderKeys = new Set(groupedRemainingOrders.map((g) => g.orderKey));
-    return filteredPendingItems.filter((item) => {
-      if (item.isPartiallyDispatched) return true;
-      if ((item.dispatchedQuantity ?? 0) > 0 && (item.remainingQuantity ?? 0) > 0) return true;
-      let key = "";
-      if (item.salesOrderId && !item.salesOrderId.includes("/") && item.salesOrderId.length > 8) {
-        key = `SO_ID_${String(item.salesOrderId).toLowerCase().trim()}`;
-      } else {
-        const norm = normalizeKey(item.orderNumber);
-        if (norm && norm !== "NA" && norm !== "SODISPATCH" && norm !== "WOFG") {
-          key = `SO_NUM_${norm}`;
-        } else {
-          key = item.workOrderNumber ? `WO_${item.workOrderNumber}` : `ITEM_${item.id}`;
-        }
-      }
-      return remainingOrderKeys.has(key);
-    });
-  }, [filteredPendingItems, groupedRemainingOrders]);
+    return groupedRemainingOrders.flatMap((g) => g.items);
+  }, [groupedRemainingOrders]);
 
   // Filter history items
   const filteredHistoryItems = useMemo(() => {
@@ -1939,16 +1947,13 @@ export default function DispatchOrdersPage() {
   // KPI Computations
   const totalPendingOrdersCount = groupedPendingOrders.length;
   const totalPendingUnits = useMemo(() => {
-    return filteredPendingItems.reduce((sum, it) => {
-      const n = typeof it.approvedQuantity === "number" ? it.approvedQuantity : parseFloat(String(it.approvedQuantity)) || 1;
-      return sum + n;
-    }, 0);
-  }, [filteredPendingItems]);
+    return groupedPendingOrders.reduce((sum, g) => sum + g.totalQty, 0);
+  }, [groupedPendingOrders]);
 
   const totalRemainingOrdersCount = groupedRemainingOrders.length;
   const totalRemainingUnits = useMemo(() => {
-    return filteredRemainingItems.reduce((sum, it) => sum + (it.remainingQuantity || 0), 0);
-  }, [filteredRemainingItems]);
+    return groupedRemainingOrders.reduce((sum, g) => sum + g.totalQty, 0);
+  }, [groupedRemainingOrders]);
 
   const totalMfgItemsCount = useMemo(() => {
     return filteredPendingItems.filter((i) => i.itemType === "WORK_ORDER").length;
@@ -1983,12 +1988,43 @@ export default function DispatchOrdersPage() {
     if (group.deliveryAddress && group.deliveryAddress !== "—" && group.deliveryAddress !== "N/A" && group.deliveryAddress !== "Factory Staging Area") {
       params.set("deliveryAddress", group.deliveryAddress);
     }
+
+    // Pass authoritative remaining quantities per item and order
+    const itemRemainingMap: Record<string, number> = {};
+    group.items.forEach((it) => {
+      const rem = Number(it.remainingQuantity ?? it.approvedQuantity ?? 0);
+      if (it.salesOrderItemId) itemRemainingMap[String(it.salesOrderItemId).toLowerCase()] = rem;
+      if (it.workOrderId) itemRemainingMap[String(it.workOrderId).toLowerCase()] = rem;
+      if (it.productId) itemRemainingMap[String(it.productId).toLowerCase()] = rem;
+      if (it.productSku) itemRemainingMap[String(it.productSku).toLowerCase()] = rem;
+    });
+    if (Object.keys(itemRemainingMap).length > 0) {
+      params.set("itemRemaining", JSON.stringify(itemRemainingMap));
+    }
+    if (group.totalQty > 0) {
+      params.set("remainingQty", String(group.totalQty));
+    }
+
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem("himalaya_current_dispatch_group", JSON.stringify(group));
+        if (group.orderNumber) {
+          sessionStorage.setItem(`dispatch_order_items_${normalizeKey(group.orderNumber)}`, JSON.stringify(group.items));
+        }
+        if (group.salesOrderId) {
+          sessionStorage.setItem(`dispatch_order_items_${String(group.salesOrderId).toLowerCase()}`, JSON.stringify(group.items));
+        }
+      } catch {}
+    }
+
     router.push(`${basePath}/create-dispatch?${params.toString()}`);
   };
 
   const handleExportCsv = () => {
     if (activeTab === "pending" || activeTab === "remaining") {
-      const targetItems = activeTab === "remaining" ? filteredRemainingItems : filteredPendingItems;
+      const targetItems = activeTab === "remaining"
+        ? groupedRemainingOrders.flatMap((g) => g.items)
+        : groupedPendingOrders.flatMap((g) => g.items);
       if (!targetItems.length) return;
       const exportRows = targetItems.map((item) => ({
         "Order Number": item.orderNumber,
@@ -2585,28 +2621,56 @@ export default function DispatchOrdersPage() {
                         <div
                           className={styles.orderNumberBadge}
                           onClick={() => copyToClipboard(group.orderNumber)}
-                          style={{ cursor: "pointer", background: "rgba(245, 158, 11, 0.2)", borderColor: "rgba(251, 191, 36, 0.4)", color: "#fde68a" }}
+                          style={{
+                            cursor: "pointer",
+                            background: "rgba(245, 158, 11, 0.22)",
+                            borderColor: "rgba(251, 191, 36, 0.45)",
+                            color: "#fef08a",
+                          }}
                           title="Click to copy Sales Order #"
                         >
-                          <FileText size={13} color="#fde68a" />
-                          <span>{cleanOrderNo}</span>
+                          <FileText size={13} color="#fef08a" />
+                          <span style={{ color: "#fef08a", fontWeight: 800 }}>{cleanOrderNo}</span>
                           {isCopied ? (
                             <CheckCircle2 size={12} color="#4ade80" />
                           ) : (
-                            <Copy size={11} color="#94a3b8" />
+                            <Copy size={11} color="#cbd5e1" />
                           )}
                         </div>
 
                         <div className={styles.customerInfo}>
-                          <div className={styles.customerAvatar} style={{ background: "#fef3c7", color: "#92400e" }}>
+                          <div
+                            className={styles.customerAvatar}
+                            style={{
+                              background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                              color: "#ffffff",
+                              fontWeight: 800,
+                              boxShadow: "0 2px 6px rgba(245, 158, 11, 0.35)",
+                            }}
+                          >
                             {(group.customerName || "C")[0].toUpperCase()}
                           </div>
                           <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
-                            <span className={styles.customerName}>
+                            <span
+                              className={styles.customerName}
+                              style={{
+                                color: "#ffffff",
+                                fontWeight: 800,
+                                fontSize: "14.5px",
+                                letterSpacing: "0.01em",
+                              }}
+                            >
                               {group.customerName}
                             </span>
                             {!isProjectRedundant(group.projectName, group.customerName) && (
-                              <span style={{ fontSize: "11px", color: "#b45309", fontWeight: 600 }}>
+                              <span
+                                style={{
+                                  fontSize: "11.5px",
+                                  color: "#fde68a",
+                                  fontWeight: 700,
+                                  letterSpacing: "0.01em",
+                                }}
+                              >
                                 Project: {group.projectName}
                               </span>
                             )}
@@ -2618,32 +2682,51 @@ export default function DispatchOrdersPage() {
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
-                            gap: 5,
-                            padding: "4px 9px",
+                            gap: 6,
+                            padding: "4px 10px",
                             borderRadius: 6,
-                            background: "#fffbeb",
-                            border: "1px solid #fde68a",
+                            background: "rgba(245, 158, 11, 0.16)",
+                            border: "1px solid rgba(251, 191, 36, 0.4)",
                             fontSize: "12px",
                             fontWeight: 700,
-                            color: "#92400e",
+                            color: "#fef3c7",
                             whiteSpace: "nowrap",
                           }}
                           title={`Sales Owner: ${group.salesPersonName || "Sales Executive"}`}
                         >
-                          <User size={12} color="#d97706" style={{ flexShrink: 0 }} />
-                          <span>Sales: {group.salesPersonName || "Sales Executive"}</span>
+                          <User size={12} color="#fde68a" style={{ flexShrink: 0 }} />
+                          <span style={{ color: "#fef3c7" }}>Sales: {group.salesPersonName || "Sales Executive"}</span>
                         </div>
 
-                        <div className={styles.destinationBadge} title={group.deliveryAddress}>
-                          <MapPin size={13} color="#f59e0b" style={{ flexShrink: 0 }} />
-                          <span>{group.deliveryAddress}</span>
+                        <div
+                          className={styles.destinationBadge}
+                          style={{
+                            background: "rgba(255, 255, 255, 0.09)",
+                            border: "1px solid rgba(255, 255, 255, 0.2)",
+                            color: "#f1f5f9",
+                            fontWeight: 600,
+                          }}
+                          title={group.deliveryAddress}
+                        >
+                          <MapPin size={13} color="#fde68a" style={{ flexShrink: 0 }} />
+                          <span style={{ color: "#f1f5f9" }}>{group.deliveryAddress}</span>
                         </div>
                       </div>
 
                       <div className={styles.orderHeaderRight}>
-                        <span className={styles.remainingSummaryBadge}>
-                          <Layers size={13} />
-                          {group.totalQty} Remaining ({pct}% Dispatched)
+                        <span
+                          className={styles.remainingSummaryBadge}
+                          style={{
+                            background: "rgba(245, 158, 11, 0.22)",
+                            border: "1px solid rgba(251, 191, 36, 0.45)",
+                            color: "#fef08a",
+                            fontWeight: 800,
+                          }}
+                        >
+                          <Layers size={13} color="#fef08a" />
+                          <span style={{ color: "#fef08a" }}>
+                            {group.totalQty} Remaining ({pct}% Dispatched)
+                          </span>
                         </span>
                         <button
                           type="button"
