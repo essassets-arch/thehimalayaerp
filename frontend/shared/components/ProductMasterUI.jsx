@@ -33,7 +33,7 @@ export default function ProductMasterUI({ role, scope }) {
   // Scope determines whether this catalog is strictly Kasna Plant (Manufacturing), Sahad Dispatch (Trading), or All
   const effectiveScope = scope || (
     role === 'Dispatch 2' || pathname?.includes('/dispatch-2') ? 'TRADING' :
-    role === 'Plant Head' || pathname?.includes('/plant-head') || role === 'Production' || pathname?.includes('/production') ? 'MANUFACTURING' :
+    role === 'Production' || pathname?.includes('/production') ? 'MANUFACTURING' :
     role === 'Dispatch' || (pathname?.includes('/dispatch') && !pathname?.includes('/dispatch-2')) ? 'MANUFACTURING' :
     'ALL'
   );
@@ -114,7 +114,7 @@ export default function ProductMasterUI({ role, scope }) {
         const rawDC = p.dispatchCategory || p.dispatch_category;
         const normDC = normalizeDispatchCategory(rawDC);
         const pType = normalizeProductType(p.product_type || p.productType);
-        const isTrading = p.isTrading === true || normDC === 'D2' || pType === 'TRADING';
+        const isTrading = p.isTrading === true || normDC === 'D2' || pType === 'TRADING' || isTradingProduct(p);
         let cat = normDC || (isTrading ? 'D2' : 'D1');
 
         return {

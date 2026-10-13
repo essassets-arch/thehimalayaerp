@@ -4446,7 +4446,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
   };
 
   const renderProducts = () => {
-    return <ProductMasterUI role={user?.role || 'Plant Head'} scope="MANUFACTURING" />;
+    return <ProductMasterUI role={user?.role || 'Plant Head'} scope="ALL" />;
   };
 
   const renderCategories = () => {
@@ -4454,7 +4454,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
   };
 
   const renderProductFormPage = () => {
-    return <ProductMasterUI role={user?.role || 'Plant Head'} scope="MANUFACTURING" />;
+    return <ProductMasterUI role={user?.role || 'Plant Head'} scope="ALL" />;
   };
 
   const renderRawInventory = () => {
