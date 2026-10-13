@@ -479,6 +479,13 @@ export default function OrderDetailPage() {
     return dispatches.length > 0 && deliveredDispatches.length === dispatches.length;
   }, [dispatches, deliveredDispatches]);
 
+  const earliestDispatchCreatedAt = useMemo(() => {
+    return (dispatches || [])
+      .map((d: any) => d.createdAt || d.created_at || d.creationDate || d.readyAt || d.approvedAt)
+      .filter(Boolean)
+      .sort((a: any, b: any) => new Date(a).getTime() - new Date(b).getTime())[0] || null;
+  }, [dispatches]);
+
   const currentStageIdx = useMemo(() => {
     switch (accurateStatusLabel) {
       case "Delivered":
@@ -531,6 +538,12 @@ export default function OrderDetailPage() {
     const driver = inTransitDispatches[0]?.driverName || dispatches[0]?.driverName;
     const vehicle = inTransitDispatches[0]?.vehicleNumber || dispatches[0]?.vehicleNumber;
 
+    const earliestDispatchCreatedAt = (dispatches || [])
+      .map((d: any) => d.createdAt || d.created_at || d.creationDate || d.readyAt || d.approvedAt)
+      .filter(Boolean)
+      .sort((a: any, b: any) => new Date(a).getTime() - new Date(b).getTime())[0];
+    const dispatchCreatedDateStr = fmt(earliestDispatchCreatedAt);
+
     const delCount = deliveredDispatches.length;
     const totalDisp = dispatches.length;
     const delDateStr = fmt(deliveredDispatches[0]?.deliveredAt);
@@ -562,12 +575,13 @@ export default function OrderDetailPage() {
       ? "All Verified Ready"
       : "Pending Release";
 
-    // 6. Ready Dispatch
-    const readyDispatchSubtitle = inv
-      ? `Inv #${inv} Ready`
-      : totalDisp > 0
-        ? `${totalDisp} Run${totalDisp > 1 ? "s" : ""} Staged`
-        : "Staged for Transit";
+    // 6. Ready Dispatch / Dispatch Created
+    let readyDispatchSubtitle = "Staged for Transit";
+    if (totalDisp > 0) {
+      readyDispatchSubtitle = `${totalDisp} Run${totalDisp > 1 ? "s" : ""} Created${dispatchCreatedDateStr ? ` (${dispatchCreatedDateStr})` : ""}`;
+    } else if (inv) {
+      readyDispatchSubtitle = `Inv #${inv} Ready`;
+    }
 
     // 7. In Transit
     let inTransitSubtitle = "On Route with Driver";
@@ -625,9 +639,9 @@ export default function OrderDetailPage() {
       },
       {
         key: "READY_FOR_DISPATCH",
-        label: "Ready Dispatch",
+        label: totalDisp > 0 ? "Dispatch Created" : "Ready Dispatch",
         desc: readyDispatchSubtitle,
-        date: fmt(dispatches[0]?.dispatchedAt) || woDateStr,
+        date: dispatchCreatedDateStr || fmt(dispatches[0]?.dispatchedAt) || woDateStr,
         icon: Package,
       },
       {
@@ -998,6 +1012,27 @@ export default function OrderDetailPage() {
               gap: 9,
             }}
           >
+            {/* Dispatch Creation Record */}
+            {dispatches.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, paddingBottom: 8, borderBottom: "1px dashed #e2e8f0" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#002e5d" }}>
+                  <Package size={15} color="#0284c7" />
+                  <span>
+                    <strong>{dispatches.length} Dispatch Run{dispatches.length > 1 ? "s" : ""} Created &amp; Staged</strong>
+                    {earliestDispatchCreatedAt && (
+                      <span> &bull; First Created: <strong>{new Date(earliestDispatchCreatedAt).toLocaleString("en-IN")}</strong></span>
+                    )}
+                    {(dispatches[0]?.invoiceNumber || order?.invoiceNumber || order?.invoiceNo) && (
+                      <span> &bull; Invoice Ref: <strong style={{ fontFamily: "monospace", color: "#0284c7" }}>#{dispatches[0]?.invoiceNumber || order?.invoiceNumber || order?.invoiceNo}</strong></span>
+                    )}
+                  </span>
+                </div>
+                <span style={{ fontSize: 11, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", padding: "2px 7px", borderRadius: 4, fontWeight: 700 }}>
+                  Live Dispatch Records
+                </span>
+              </div>
+            )}
+
             {/* Active In-Transit Telemetry */}
             {inTransitDispatches.length > 0 && (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
@@ -1140,7 +1175,11 @@ export default function OrderDetailPage() {
               label="Dispatches Count"
               value={`${dispatches.length} Dispatch Run(s)`}
               highlight
-              subtext={dispatches.length > 0 ? (isPartiallyDelivered ? `${inTransitDispatches.length} In Transit, ${deliveredDispatches.length} Delivered` : (isFullyDelivered ? "All Delivered" : "Active Dispatches")) : undefined}
+              subtext={
+                dispatches.length > 0
+                  ? `${earliestDispatchCreatedAt ? `Created ${fmtDate(earliestDispatchCreatedAt)} • ` : ""}${isPartiallyDelivered ? `${inTransitDispatches.length} Transit, ${deliveredDispatches.length} Delivered` : (isFullyDelivered ? "All Delivered" : "Active Dispatches")}`
+                  : undefined
+              }
             />
             <InfoCard
               icon={ShieldCheck}
@@ -1554,6 +1593,7 @@ export default function OrderDetailPage() {
                     <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Invoice Ref</th>
                     <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Driver / Vehicle</th>
                     <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Receiver Info</th>
+                    <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Created At</th>
                     <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Dispatched At</th>
                     <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Delivered At</th>
                     <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700, textAlign: "center" }}>POD Proof</th>
@@ -1561,37 +1601,45 @@ export default function OrderDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {dispatches.map((disp: any) => (
-                    <tr key={disp.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                      <td style={{ padding: "12px 14px" }}>
-                        <span style={{ fontFamily: "monospace", fontWeight: 800, color: "#0284c7", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "3px 8px", borderRadius: 6 }}>
-                          #{disp.dispatchNo || disp.dispatchNumber || disp.id?.slice(0, 8)}
-                        </span>
-                      </td>
-                      <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700, color: "#002e5d" }}>
-                        {disp.invoiceNumber || invoiceNo}
-                      </td>
-                      <td style={{ padding: "12px 14px" }}>
-                        <div style={{ fontWeight: 750, color: "#002e5d" }}>{disp.driverName || "Driver Assigned"}</div>
-                        {disp.vehicleNumber && (
-                          <div style={{ fontSize: 11, fontFamily: "monospace", color: "#64748b" }}>Vehicle: {disp.vehicleNumber}</div>
-                        )}
-                        {disp.driverPhone && (
-                          <div style={{ fontSize: 11, color: "#0284c7" }}>📞 {disp.driverPhone}</div>
-                        )}
-                      </td>
-                      <td style={{ padding: "12px 14px" }}>
-                        <div style={{ fontWeight: 750, color: "#002e5d" }}>{disp.receivedBy || customerName}</div>
-                        {disp.receiverPhone && (
-                          <div style={{ fontSize: 11, fontFamily: "monospace", color: "#16a34a", fontWeight: 700 }}>+91 {disp.receiverPhone}</div>
-                        )}
-                      </td>
-                      <td style={{ padding: "12px 14px", color: "#475569", fontSize: 12 }}>
-                        {disp.dispatchedAt ? new Date(disp.dispatchedAt).toLocaleString("en-IN") : "—"}
-                      </td>
-                      <td style={{ padding: "12px 14px", color: "#475569", fontSize: 12 }}>
-                        {disp.deliveredAt ? new Date(disp.deliveredAt).toLocaleString("en-IN") : "—"}
-                      </td>
+                  {dispatches.map((disp: any) => {
+                    const createdAtRaw = disp.createdAt || disp.created_at || disp.creationDate;
+                    const createdAtDisplay = createdAtRaw
+                      ? new Date(createdAtRaw).toLocaleString("en-IN")
+                      : (disp.dispatchDate ? new Date(disp.dispatchDate).toLocaleDateString("en-IN") : "—");
+                    return (
+                      <tr key={disp.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "12px 14px" }}>
+                          <span style={{ fontFamily: "monospace", fontWeight: 800, color: "#0284c7", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "3px 8px", borderRadius: 6 }}>
+                            #{disp.dispatchNo || disp.dispatchNumber || disp.id?.slice(0, 8)}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700, color: "#002e5d" }}>
+                          {disp.invoiceNumber || invoiceNo}
+                        </td>
+                        <td style={{ padding: "12px 14px" }}>
+                          <div style={{ fontWeight: 750, color: "#002e5d" }}>{disp.driverName || "Driver Assigned"}</div>
+                          {disp.vehicleNumber && (
+                            <div style={{ fontSize: 11, fontFamily: "monospace", color: "#64748b" }}>Vehicle: {disp.vehicleNumber}</div>
+                          )}
+                          {disp.driverPhone && (
+                            <div style={{ fontSize: 11, color: "#0284c7" }}>📞 {disp.driverPhone}</div>
+                          )}
+                        </td>
+                        <td style={{ padding: "12px 14px" }}>
+                          <div style={{ fontWeight: 750, color: "#002e5d" }}>{disp.receivedBy || customerName}</div>
+                          {disp.receiverPhone && (
+                            <div style={{ fontSize: 11, fontFamily: "monospace", color: "#16a34a", fontWeight: 700 }}>+91 {disp.receiverPhone}</div>
+                          )}
+                        </td>
+                        <td style={{ padding: "12px 14px", color: "#002e5d", fontSize: 12, fontWeight: 700 }}>
+                          {createdAtDisplay}
+                        </td>
+                        <td style={{ padding: "12px 14px", color: "#475569", fontSize: 12 }}>
+                          {disp.dispatchedAt ? new Date(disp.dispatchedAt).toLocaleString("en-IN") : "—"}
+                        </td>
+                        <td style={{ padding: "12px 14px", color: "#475569", fontSize: 12 }}>
+                          {disp.deliveredAt ? new Date(disp.deliveredAt).toLocaleString("en-IN") : "—"}
+                        </td>
                       <td style={{ padding: "12px 14px", textAlign: "center" }}>
                         {disp.podUrl ? (
                           <button
@@ -1622,7 +1670,8 @@ export default function OrderDetailPage() {
                         <StatusPill status={disp.status || "DISPATCHED"} />
                       </td>
                     </tr>
-                  ))}
+                  );
+                })}
                 </tbody>
               </table>
             </div>
@@ -1637,6 +1686,8 @@ export default function OrderDetailPage() {
                 const driverPhone = disp.driverPhone || "";
                 const receiverName = disp.receivedBy || customerName;
                 const receiverPhone = disp.receiverPhone || "";
+                const createdAtRaw = disp.createdAt || disp.created_at || disp.creationDate;
+                const createdAtStr = createdAtRaw ? new Date(createdAtRaw).toLocaleString("en-IN") : (disp.dispatchDate ? new Date(disp.dispatchDate).toLocaleDateString("en-IN") : "—");
                 const dispAt = disp.dispatchedAt ? new Date(disp.dispatchedAt).toLocaleString("en-IN") : "—";
                 const delAt = disp.deliveredAt ? new Date(disp.deliveredAt).toLocaleString("en-IN") : "—";
 
@@ -1702,6 +1753,10 @@ export default function OrderDetailPage() {
 
                     {/* Timestamps */}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 11, color: "#64748b", background: "#ffffff", padding: "8px 10px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                      <div style={{ gridColumn: "span 2", borderBottom: "1px dashed #e2e8f0", paddingBottom: 4 }}>
+                        <span style={{ fontWeight: 750, color: "#002e5d" }}>Created: </span>
+                        <span style={{ fontWeight: 650, color: "#002e5d" }}>{createdAtStr}</span>
+                      </div>
                       <div>
                         <span style={{ fontWeight: 700, color: "#475569" }}>Dispatched: </span>
                         <span>{dispAt}</span>
