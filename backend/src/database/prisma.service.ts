@@ -142,6 +142,8 @@ export class PrismaService
         -- Auto-heal Quotation schema
         ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "siteInchargeName" TEXT;
         ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "siteInchargeMobile" TEXT;
+        ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "deliveryAddress" TEXT;
+        ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "address" JSONB;
       `;
       for (const statement of ddl.split(';').map(s => s.trim()).filter(Boolean)) {
         await this.$executeRawUnsafe(statement).catch(() => {});
