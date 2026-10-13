@@ -8,6 +8,11 @@ import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { getAdvancedScope, getSalesScope } from '../../common/utils/rbac.util';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  isTradingProduct,
+  isPureTradingOrder,
+  hasManufacturingItems,
+} from '../../common/utils/trading-product.util';
 
 @Injectable()
 export class ProductionService {
@@ -20,7 +25,7 @@ export class ProductionService {
 
   async listPlans(userId?: string, role?: string) {
     const scope = getSalesScope(userId, role, 'ProductionPlan');
-    return this.prisma.productionPlan.findMany({
+    const plans = await this.prisma.productionPlan.findMany({
       where: scope,
       include: {
         salesOrder: {
@@ -28,6 +33,7 @@ export class ProductionService {
             customer: true,
             quotation: { include: { lead: true } },
             sourceQuotation: { include: { lead: true } },
+            items: { include: { product: true } },
           },
         },
         _count: {
@@ -36,6 +42,13 @@ export class ProductionService {
         workflowState: true,
       },
       orderBy: { createdAt: 'desc' },
+    });
+
+    return plans.filter((p: any) => {
+      const so = p.salesOrder;
+      if (!so) return true;
+      if (isPureTradingOrder(so) || !hasManufacturingItems(so)) return false;
+      return true;
     });
   }
 
@@ -216,7 +229,13 @@ export class ProductionService {
             REJECT: 'CANCELLED',
           }[actionName] as any,
         },
-        include: { salesOrder: { include: { items: true } } },
+        include: {
+          salesOrder: {
+            include: {
+              items: { include: { product: true } },
+            },
+          },
+        },
       });
 
       // If released, automatically generate Work Orders based on the sales order items
@@ -233,6 +252,9 @@ export class ProductionService {
 
         for (let i = 0; i < updated.salesOrder.items.length; i++) {
           const item = updated.salesOrder.items[i];
+          if (isTradingProduct(item.product || item, item)) {
+            continue;
+          }
 
           // Calculate reservations of type FINISHED_GOODS_RESERVATION for this item
           const reservations = await tx.salesOrderAllocation.findMany({

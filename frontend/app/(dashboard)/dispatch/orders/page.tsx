@@ -1531,8 +1531,8 @@ export default function DispatchOrdersPage() {
               }
             } else {
               // Trading products (D2): DIRECT Sales -> Dispatch 2!
-              // Only show in Dispatch 2 once confirmed / sent to dispatch
-              if (!["READY_FOR_DISPATCH", "CONFIRMED", "SENT_TO_DISPATCH", "DISPATCHED_PARTIAL"].includes(soStatus)) {
+              // All confirmed/active sales orders route trading items directly to Dispatch 2
+              if (["DRAFT", "CANCELLED", "LOST", "REJECTED", "PENDING_APPROVAL"].includes(soStatus)) {
                 return;
               }
             }

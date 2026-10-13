@@ -345,7 +345,7 @@ const _selectDispatchOrders = (store: ERPStoreState) => {
           (o as any).currentDepartment === 'Dispatch 2' ||
           eligibleDispatch.includes(dispSt) ||
           eligibleDispatch.includes(orderSt) ||
-          ((o as any).dispatchCategory === 'D2' && ['CONFIRMED', 'ORDER_CONFIRMED', 'READY_FOR_DISPATCH'].includes(orderSt))
+          ['CONFIRMED', 'ORDER_CONFIRMED', 'READY_FOR_DISPATCH', 'SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD', 'PLANT_APPROVED'].includes(orderSt)
         );
       }
 
@@ -600,7 +600,7 @@ export const canRequestReturn = (
 
 /** Plant Head view: no payment, no pricing — operational info only */
 function toPlantHeadSafeView(order: SalesOrder) {
-  const safeItems = Array.isArray(order.items) ? order.items : [];
+  const safeItems = (Array.isArray(order.items) ? order.items : []).filter(item => !isTradingProduct(item));
   return {
     ...order,
     id: order.id,
@@ -654,7 +654,7 @@ function resolveCustomerName(order: any): string {
 
 /** Production view: operational info only */
 function toProductionSafeView(order: SalesOrder) {
-  const safeItems = Array.isArray(order.items) ? order.items : [];
+  const safeItems = (Array.isArray(order.items) ? order.items : []).filter(item => !isTradingProduct(item));
   const productStr = (order as any).products || (safeItems.length > 0 ? safeItems.map(i => i?.productName || (i as any)?.name || 'Item').join(', ') : 'Custom Engineered Product');
   return {
     ...order,

@@ -3444,12 +3444,14 @@ export class ProductionWorkflowService {
     const soSyntheticRecords: any[] = [];
     for (const so of readySalesOrders as any[]) {
       if (existingSoIds.has(so.id)) continue;
+      if (isPureTradingOrder(so) || !hasManufacturingItems(so)) continue;
       const soLeadName =
         so.quotation?.lead?.companyName ||
         so.quotation?.lead?.projectName ||
         so.sourceQuotation?.lead?.companyName ||
         so.sourceQuotation?.lead?.projectName;
       for (const item of so.items || []) {
+        if (isTradingProduct(item.product || item, item)) continue;
         soSyntheticRecords.push({
           id: `fg-so-${so.id}-${item.id}`,
           workOrderId: so.orderNumber,

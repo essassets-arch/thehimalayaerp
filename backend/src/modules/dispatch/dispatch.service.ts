@@ -1869,7 +1869,7 @@ export class DispatchService {
     try {
       const readyTradingOrders: any = await this.prisma.salesOrder.findMany({
         where: {
-          status: { in: ['READY_FOR_DISPATCH', 'CONFIRMED'] as any },
+          status: { notIn: ['CANCELLED', 'LOST', 'DRAFT', 'REJECTED'] as any },
           deletedAt: null,
           ...(companyId ? { customer: { companyId } } : {}),
         },
@@ -1903,39 +1903,40 @@ export class DispatchService {
           allWos.length > 0 ||
           (so.productionPlans && so.productionPlans.length > 0);
 
-        // Strict Workflow Guard: If order is in production or in plant approval, NEVER show in dispatch
-        if (
-          soStatus === 'IN_PRODUCTION' ||
-          soStatus === 'READY_FOR_PRODUCTION' ||
-          soStatus === 'SENT_TO_PLANT' ||
-          soStatus === 'SENT_TO_PLANT_HEAD' ||
-          soStatus === 'PLANT_APPROVED' ||
-          soStatus === 'PRODUCTION_PLANNED' ||
-          soStatus === 'DRAFT' ||
-          soStatus === 'PENDING_APPROVAL'
-        ) {
+        // Strict Workflow Guard for Manufacturing (D1):
+        // 1. Pure trading orders never appear in Dispatch 1
+        if (userCategory === 'D1' && isTrading) {
           continue;
         }
 
-        // If order has work orders still in production, NEVER show in dispatch
-        if (
-          allWos.some((w: any) =>
-            ['IN_PRODUCTION', 'STARTED', 'PARTIALLY_COMPLETED', 'PLANNED', 'READY', 'MATERIAL_PENDING'].includes(String(w.status || '').toUpperCase()) ||
-            ['IN_PRODUCTION', 'QC_FAILED', 'REWORK_IN_PROGRESS'].includes(String(w.productionStatus || '').toUpperCase())
-          )
-        ) {
-          continue;
-        }
+        // 2. Manufacturing orders must be completed and ready
+        if (userCategory === 'D1') {
+          if (
+            soStatus === 'IN_PRODUCTION' ||
+            soStatus === 'READY_FOR_PRODUCTION' ||
+            soStatus === 'SENT_TO_PLANT' ||
+            soStatus === 'SENT_TO_PLANT_HEAD' ||
+            soStatus === 'PLANT_APPROVED' ||
+            soStatus === 'PRODUCTION_PLANNED' ||
+            soStatus === 'DRAFT' ||
+            soStatus === 'PENDING_APPROVAL' ||
+            soStatus === 'CONFIRMED'
+          ) {
+            continue;
+          }
 
-        // If status is CONFIRMED: ONLY pure trading orders (D2) can be dispatched directly without production!
-        // Manufacturing orders with status CONFIRMED are awaiting/undergoing production and MUST NOT show in dispatch!
-        if (soStatus === 'CONFIRMED' && (!isTrading || hasManufacturing)) {
-          continue;
-        }
+          if (
+            allWos.some((w: any) =>
+              ['IN_PRODUCTION', 'STARTED', 'PARTIALLY_COMPLETED', 'PLANNED', 'READY', 'MATERIAL_PENDING'].includes(String(w.status || '').toUpperCase()) ||
+              ['IN_PRODUCTION', 'QC_FAILED', 'REWORK_IN_PROGRESS'].includes(String(w.productionStatus || '').toUpperCase())
+            )
+          ) {
+            continue;
+          }
 
-        // Manufacturing orders MUST have status READY_FOR_DISPATCH or COMPLETED!
-        if (!isTrading && soStatus !== 'READY_FOR_DISPATCH' && soStatus !== 'COMPLETED') {
-          continue;
+          if (soStatus !== 'READY_FOR_DISPATCH' && soStatus !== 'COMPLETED') {
+            continue;
+          }
         }
 
         const customer = so.customer;
@@ -1943,8 +1944,8 @@ export class DispatchService {
 
         for (const item of items) {
           const product = item.product;
-          const isTrading = isTradingProduct(product, item);
-          const dispatchCat = isTrading ? 'D2' : (product?.dispatchCategory || 'D1');
+          const isItemTrading = isTradingProduct(product, item);
+          const dispatchCat = isItemTrading ? 'D2' : (product?.dispatchCategory || 'D1');
 
           // Strict category matching
           if (userCategory) {
@@ -1962,6 +1963,23 @@ export class DispatchService {
             )
               matches = true;
             if (!matches) continue;
+          }
+
+          // If item is manufacturing item, it must meet readiness requirements
+          if (!isItemTrading) {
+            if (
+              soStatus === 'IN_PRODUCTION' ||
+              soStatus === 'READY_FOR_PRODUCTION' ||
+              soStatus === 'SENT_TO_PLANT' ||
+              soStatus === 'SENT_TO_PLANT_HEAD' ||
+              soStatus === 'PLANT_APPROVED' ||
+              soStatus === 'PRODUCTION_PLANNED' ||
+              soStatus === 'DRAFT' ||
+              soStatus === 'PENDING_APPROVAL' ||
+              soStatus === 'CONFIRMED'
+            ) {
+              continue;
+            }
           }
 
           const key = so.id;

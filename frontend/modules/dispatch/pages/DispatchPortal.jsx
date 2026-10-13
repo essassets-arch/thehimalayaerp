@@ -432,13 +432,13 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     return orderList.filter((o) => {
       if (!o) return false;
 
-      // 1. Trading product check: Trading products/orders ALWAYS belong to Dispatch 2 (Sahad Dispatch)
-      const isTrading = isPureTradingOrder(o) || isTradingProduct(o);
-      if (isTrading) {
+      // 1. Pure Trading Order check: Pure trading orders ALWAYS belong exclusively to Dispatch 2
+      const isPureTrading = isPureTradingOrder(o);
+      if (isPureTrading) {
         return effectiveDispatchCat === 'D2';
       }
 
-      // 2. Check items array if present: if any item is trading, it routes to D2
+      // 2. Check items array if present: mixed orders route trading items to D2 and manufacturing items to D1
       const items = o.items || o.order_items || o.salesOrder?.items || o.detailedItems || [];
       if (Array.isArray(items) && items.length > 0) {
         const hasTradingItem = items.some((item) => {
@@ -448,9 +448,19 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
           if (itemCat === 'D2') return true;
           return isTradingProduct(item.salesOrderItem?.product || item.product || item);
         });
+        const hasMfgItem = items.some((item) => {
+          const itemCat = normalizeDispatchCategory(
+            item.dispatchCategory || item.dispatch_category || item.product?.dispatchCategory || item.salesOrderItem?.product?.dispatchCategory
+          );
+          if (itemCat === 'D1') return true;
+          return !isTradingProduct(item.salesOrderItem?.product || item.product || item);
+        });
 
-        if (hasTradingItem) {
-          return effectiveDispatchCat === 'D2';
+        if (effectiveDispatchCat === 'D2') {
+          return hasTradingItem;
+        }
+        if (effectiveDispatchCat === 'D1') {
+          return hasMfgItem && !isPureTrading;
         }
       }
 

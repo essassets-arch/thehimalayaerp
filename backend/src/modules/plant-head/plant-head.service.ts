@@ -4985,11 +4985,13 @@ export class PlantHeadService {
             continue;
           }
 
-          // Hard Invariant: Work order / production cannot be created for Trading / Dispatch 2 items
+          // Invariant: Work order / production cannot be created for Trading / Dispatch 2 items.
+          // In mixed orders containing both manufacturing and trading items, trading items are fulfilled via Dispatch 2.
           if (isTradingProduct(orderItem.product || orderItem)) {
-            throw new BadRequestException(
-              `Item ${orderItem.productNameSnapshot || orderItem.id} is a Trading / Dispatch 2 product. It cannot be planned for production or have work orders created.`,
+            console.log(
+              `[FULFILLMENT_PLAN:${orderId}] Skipping trading/Dispatch 2 item ${orderItem.productNameSnapshot || orderItem.id} from production planning.`,
             );
+            continue;
           }
 
           // Fetch remaining unallocated quantity
@@ -5049,6 +5051,7 @@ export class PlantHeadService {
             (i) => i.id === item.salesOrderItemId,
           );
           if (!orderItem) continue;
+          if (isTradingProduct(orderItem.product || orderItem)) continue;
 
           const productionQty = Number(
             item.productionQty || item.directDispatchQty || 0,
@@ -5378,7 +5381,10 @@ export class PlantHeadService {
       }),
     ]);
 
-    const readyForDispatchCount = readyOrdersDb.length;
+    const mfgReadyOrders = readyOrdersDb.filter((so) => this.isManufacturingOrder(so));
+    const mfgPlantApproved = plantApprovedOrdersDb.filter((so) => this.isManufacturingOrder(so));
+
+    const readyForDispatchCount = mfgReadyOrders.length;
 
     // Discovered available months dynamically from live database
     const monthsFound = new Set<string>();
@@ -5394,11 +5400,13 @@ export class PlantHeadService {
         so.deliveryAddress,
         so.customer?.billingAddress,
       );
-      const items = (so.items || []).map((it: any) => ({
-        product: it.product?.name || it.productNameSnapshot || 'FRP Product',
-        quantity: Number(it.quantity) || 0,
-        specifications: it.specifications || {},
-      }));
+      const items = (so.items || [])
+        .filter((it: any) => !isTradingProduct(it.product || it, it))
+        .map((it: any) => ({
+          product: it.product?.name || it.productNameSnapshot || 'FRP Product',
+          quantity: Number(it.quantity) || 0,
+          specifications: it.specifications || {},
+        }));
       const totalPcs = items.reduce((s: number, it: any) => s + it.quantity, 0);
       return {
         id: so.id,
@@ -5417,14 +5425,14 @@ export class PlantHeadService {
     };
 
     const pendingOrdersPayload = {
-      readyForDispatchCount: readyOrdersDb.length,
-      readyForDispatchList: readyOrdersDb.map(formatPendingOrderItem),
-      inProductionCount: plantApprovedOrdersDb.length,
-      inProductionList: plantApprovedOrdersDb.map(formatPendingOrderItem),
+      readyForDispatchCount: mfgReadyOrders.length,
+      readyForDispatchList: mfgReadyOrders.map(formatPendingOrderItem),
+      inProductionCount: mfgPlantApproved.length,
+      inProductionList: mfgPlantApproved.map(formatPendingOrderItem),
       draftCount: draftOrdersCount,
       totalOrdersCount,
       fulfilledOrdersCount: await this.prisma.salesOrder.count({ where: { customer: { companyId }, status: 'COMPLETED' } }),
-      totalRemainingCount: readyOrdersDb.length + plantApprovedOrdersDb.length + draftOrdersCount,
+      totalRemainingCount: mfgReadyOrders.length + mfgPlantApproved.length + draftOrdersCount,
     };
 
     const dbDispatches = await this.prisma.dispatch.findMany({

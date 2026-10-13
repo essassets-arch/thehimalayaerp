@@ -905,7 +905,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
     if (e) e.preventDefault();
     if (!selectedOrderForPlanning || isPlanningSubmitting) return;
 
-    const items = selectedOrderForPlanning.detailedItems || selectedOrderForPlanning.items || [];
+    const items = (selectedOrderForPlanning.detailedItems || selectedOrderForPlanning.items || []).filter(item => !isTradingProduct(item));
     const planItems = [];
 
     // Validate that all items have targetDate and send 100% to production

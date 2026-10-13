@@ -1533,11 +1533,19 @@ export default function CreateDispatchPage() {
       });
 
       if (targetedList.length > 0) {
-        const withRemaining = targetedList.filter((wo) => {
+        const categoryFiltered = targetedList.filter((wo) => {
+          const isTrading = isTradingProduct(wo.salesOrderItem || wo, productsMap);
+          const productCat = isTrading ? "D2" : "D1";
+          if (isDispatch2 && productCat !== "D2") return false;
+          if (!isDispatch2 && productCat === "D2") return false;
+          return true;
+        });
+        const listToUse = categoryFiltered.length > 0 ? categoryFiltered : (isDispatch2 ? categoryFiltered : targetedList);
+        const withRemaining = listToUse.filter((wo) => {
           const rem = wo.remainingQuantity !== undefined ? Number(wo.remainingQuantity) : availableQuantity(wo);
           return rem > 0;
         });
-        return withRemaining.length > 0 ? withRemaining : targetedList;
+        return withRemaining.length > 0 ? withRemaining : listToUse;
       }
     }
 

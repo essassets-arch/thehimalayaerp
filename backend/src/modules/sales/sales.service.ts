@@ -1080,7 +1080,9 @@ export class SalesService {
 
       const statusByAction: Partial<Record<string, SalesOrderStatus>> = {
         SUBMIT: SalesOrderStatus.PENDING_APPROVAL,
-        CONFIRM: SalesOrderStatus.CONFIRMED,
+        CONFIRM: isPureTrading
+          ? SalesOrderStatus.READY_FOR_DISPATCH
+          : SalesOrderStatus.CONFIRMED,
         SEND_TO_PLANT: isPureTrading
           ? SalesOrderStatus.READY_FOR_DISPATCH
           : SalesOrderStatus.SENT_TO_PLANT_HEAD,
@@ -1095,7 +1097,7 @@ export class SalesService {
       };
 
       let readyDispatchState: any = null;
-      if ((actionName === 'SEND_TO_PLANT' || actionName === 'SEND_TO_DISPATCH_2') && isPureTrading) {
+      if ((actionName === 'SEND_TO_PLANT' || actionName === 'SEND_TO_DISPATCH_2' || actionName === 'CONFIRM') && isPureTrading) {
         readyDispatchState = await tx.workflowState.findFirst({
           where: { workflow: { code: 'SALES_ORDER' }, code: 'READY_FOR_DISPATCH' },
         });
