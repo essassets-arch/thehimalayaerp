@@ -56,6 +56,8 @@ const statusColors: Record<string, { bg: string; color: string; border: string }
   DISPATCH_CREATED:   { bg: "#fef9c3", color: "#854d0e", border: "#fde68a" },
   DISPATCHED:         { bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" },
   IN_TRANSIT:         { bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" },
+  PARTIALLY_DELIVERED:{ bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
+  "PARTIALLY DELIVERED":{ bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
   OUT_FOR_DELIVERY:   { bg: "#fefce8", color: "#a16207", border: "#fef08a" },
   DELIVERED:          { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
   COMPLETED:          { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
@@ -147,16 +149,6 @@ function InfoCard({ icon: Icon, label, value, highlight = false, subtext }: any)
   );
 }
 
-const stages = [
-  { key: "ORDER_CONFIRMED",    label: "Confirmed",       desc: "Order Verified",          icon: FileText },
-  { key: "PLANT_APPROVED",     label: "Plant Planned",   desc: "Accepted & Scheduled",    icon: Factory },
-  { key: "PRODUCTION_STARTED", label: "Production",      desc: "Work Orders Active",      icon: Layers },
-  { key: "QC_PENDING",         label: "QC Inspect",      desc: "Quality Audit",           icon: AlertCircle },
-  { key: "QC_APPROVED",        label: "QC Passed",       desc: "Verified Ready",          icon: BadgeCheck },
-  { key: "READY_FOR_DISPATCH", label: "Ready Dispatch",  desc: "Staged for Transit",      icon: Package },
-  { key: "IN_TRANSIT",         label: "In Transit",      desc: "On Route with Driver",    icon: Truck },
-  { key: "DELIVERED",          label: "Delivered",       desc: "POD Verified & Closed",   icon: CheckCircle2 },
-];
 
 function formatAddressValue(value: any): string {
   if (!value) return "";
@@ -468,11 +460,31 @@ export default function OrderDetailPage() {
     return getOrderStatusLabel(effectiveOrderForStatus);
   }, [effectiveOrderForStatus]);
 
+  // Classify dispatches into completed / in-transit sets
+  const deliveredDispatches = useMemo(() => {
+    const completedStatuses = new Set(["DELIVERED", "POD_RECEIVED", "DISPATCH_CLOSED"]);
+    return (dispatches || []).filter((d: any) => completedStatuses.has(String(d.status || "").toUpperCase()));
+  }, [dispatches]);
+
+  const inTransitDispatches = useMemo(() => {
+    const transitStatuses = new Set(["DISPATCHED", "SHIPPED", "IN_TRANSIT", "OUT_FOR_DELIVERY"]);
+    return (dispatches || []).filter((d: any) => transitStatuses.has(String(d.status || "").toUpperCase()));
+  }, [dispatches]);
+
+  const isPartiallyDelivered = useMemo(() => {
+    return deliveredDispatches.length > 0 && inTransitDispatches.length > 0;
+  }, [deliveredDispatches, inTransitDispatches]);
+
+  const isFullyDelivered = useMemo(() => {
+    return dispatches.length > 0 && deliveredDispatches.length === dispatches.length;
+  }, [dispatches, deliveredDispatches]);
+
   const currentStageIdx = useMemo(() => {
     switch (accurateStatusLabel) {
       case "Delivered":
       case "Closed":
         return 7;
+      case "Partially Delivered":
       case "In Transit":
         return 6;
       case "Ready for Dispatch":
@@ -493,6 +505,160 @@ export default function OrderDetailPage() {
         return 0;
     }
   }, [accurateStatusLabel]);
+
+  // Dynamically compute authentic stages and timeline descriptions for the lifecycle stepper
+  const dynamicStages = useMemo(() => {
+    const fmt = (d: any) => {
+      if (!d) return "";
+      try {
+        const parsed = new Date(d);
+        if (isNaN(parsed.getTime())) return String(d);
+        return parsed.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      } catch {
+        return String(d);
+      }
+    };
+
+    const orderDateStr = fmt(order?.orderDate || order?.createdAt);
+    const woCount = workOrders.length;
+    const completedWoCount = workOrders.filter((w: any) =>
+      ["COMPLETED", "DISPATCHED"].includes(String(w.status || "").toUpperCase())
+    ).length;
+    const woDate = workOrders[0]?.completedAt || workOrders[0]?.startedAt || workOrders[0]?.createdAt;
+    const woDateStr = fmt(woDate);
+
+    const inv = (dispatches || []).find((d: any) => d?.invoiceNumber)?.invoiceNumber || order?.invoiceNumber || order?.invoiceNo;
+    const driver = inTransitDispatches[0]?.driverName || dispatches[0]?.driverName;
+    const vehicle = inTransitDispatches[0]?.vehicleNumber || dispatches[0]?.vehicleNumber;
+
+    const delCount = deliveredDispatches.length;
+    const totalDisp = dispatches.length;
+    const delDateStr = fmt(deliveredDispatches[0]?.deliveredAt);
+    const targetDateStr = fmt(order?.targetDate || order?.requestedDeliveryDate || order?.expectedDeliveryDate);
+
+    // 1. Confirmed
+    const confirmedSubtitle = orderDateStr ? `Verified ${orderDateStr}` : "Order Verified";
+
+    // 2. Plant Planned
+    const plantSubtitle = woCount > 0 ? `${woCount} WO${woCount > 1 ? "s" : ""} Scheduled` : "Accepted & Scheduled";
+
+    // 3. Production
+    let prodSubtitle = "Work Orders Active";
+    if (woCount > 0 && completedWoCount === woCount) {
+      prodSubtitle = `All ${woCount} Finished${woDateStr ? ` (${woDateStr})` : ""}`;
+    } else if (completedWoCount > 0) {
+      prodSubtitle = `${completedWoCount}/${woCount} Completed`;
+    } else if (woCount > 0) {
+      prodSubtitle = `${woCount} In Production`;
+    }
+
+    // 4. QC Inspect
+    const qcInspectSubtitle = (completedWoCount === woCount && woCount > 0) || totalDisp > 0
+      ? "Audit Completed"
+      : "Quality Audit";
+
+    // 5. QC Passed
+    const qcPassedSubtitle = (completedWoCount === woCount && woCount > 0) || totalDisp > 0
+      ? "All Verified Ready"
+      : "Pending Release";
+
+    // 6. Ready Dispatch
+    const readyDispatchSubtitle = inv
+      ? `Inv #${inv} Ready`
+      : totalDisp > 0
+        ? `${totalDisp} Run${totalDisp > 1 ? "s" : ""} Staged`
+        : "Staged for Transit";
+
+    // 7. In Transit
+    let inTransitSubtitle = "On Route with Driver";
+    if (inTransitDispatches.length > 0) {
+      inTransitSubtitle = `${inTransitDispatches.length} Run${inTransitDispatches.length > 1 ? "s" : ""} on Route${vehicle ? ` (${vehicle})` : ""}`;
+    } else if (totalDisp > 0 && isFullyDelivered) {
+      inTransitSubtitle = "Transit Completed";
+    }
+
+    // 8. Delivered
+    let deliveredSubtitle = "POD Verified & Closed";
+    if (isFullyDelivered) {
+      deliveredSubtitle = `All ${totalDisp} Delivered${delDateStr ? ` (${delDateStr})` : ""}`;
+    } else if (delCount > 0) {
+      deliveredSubtitle = `${delCount}/${totalDisp} Delivered (POD Verified)`;
+    } else if (targetDateStr) {
+      deliveredSubtitle = `Est: ${targetDateStr}`;
+    }
+
+    return [
+      {
+        key: "ORDER_CONFIRMED",
+        label: "Confirmed",
+        desc: confirmedSubtitle,
+        date: orderDateStr,
+        icon: FileText,
+      },
+      {
+        key: "PLANT_APPROVED",
+        label: "Plant Planned",
+        desc: plantSubtitle,
+        date: woDateStr || orderDateStr,
+        icon: Factory,
+      },
+      {
+        key: "PRODUCTION_STARTED",
+        label: "Production",
+        desc: prodSubtitle,
+        date: woDateStr,
+        icon: Layers,
+      },
+      {
+        key: "QC_PENDING",
+        label: "QC Inspect",
+        desc: qcInspectSubtitle,
+        date: woDateStr,
+        icon: AlertCircle,
+      },
+      {
+        key: "QC_APPROVED",
+        label: "QC Passed",
+        desc: qcPassedSubtitle,
+        date: woDateStr,
+        icon: BadgeCheck,
+      },
+      {
+        key: "READY_FOR_DISPATCH",
+        label: "Ready Dispatch",
+        desc: readyDispatchSubtitle,
+        date: fmt(dispatches[0]?.dispatchedAt) || woDateStr,
+        icon: Package,
+      },
+      {
+        key: "IN_TRANSIT",
+        label: "In Transit",
+        desc: inTransitSubtitle,
+        date: fmt(inTransitDispatches[0]?.dispatchedAt || dispatches[0]?.dispatchedAt),
+        icon: Truck,
+        driver: driver,
+        vehicle: vehicle,
+      },
+      {
+        key: "DELIVERED",
+        label: "Delivered",
+        desc: deliveredSubtitle,
+        date: delDateStr,
+        icon: CheckCircle2,
+        isPartial: isPartiallyDelivered,
+        partialCount: delCount,
+        totalCount: totalDisp,
+      },
+    ];
+  }, [
+    order,
+    workOrders,
+    dispatches,
+    inTransitDispatches,
+    deliveredDispatches,
+    isPartiallyDelivered,
+    isFullyDelivered,
+  ]);
 
   if (isLoading) {
     return (
@@ -542,6 +708,7 @@ export default function OrderDetailPage() {
     formatAddressValue(order.shippingAddress) ||
     formatAddressValue(customer?.shippingAddress) ||
     formatAddressValue(order.deliveryAddress) ||
+    formatAddressValue(dispatches.find((d: any) => d.deliveryAddress || d.shippingAddress)?.deliveryAddress || dispatches.find((d: any) => d.deliveryAddress || d.shippingAddress)?.shippingAddress) ||
     formatAddressValue(order.quotation?.siteAddress) ||
     formatAddressValue(order.sourceQuotation?.siteAddress) ||
     formatAddressValue(order.quotation?.lead?.siteAddress) ||
@@ -651,61 +818,163 @@ export default function OrderDetailPage() {
 
       {/* ── Live Order Progression Stepper ── */}
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: "20px 22px", marginBottom: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: "#002e5d", textTransform: "uppercase", letterSpacing: "0.05em", display: "flex", alignItems: "center", gap: 6 }}>
             <Sparkles size={15} color="#0284c7" /> Live Order Progression Lifecycle
           </div>
-          <span style={{ fontSize: 11.5, fontWeight: 700, color: "#64748b" }}>
-            Current Stage: <strong style={{ color: "#0284c7" }}>{accurateStatusLabel}</strong>
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: "#64748b" }}>
+              Current Stage:
+            </span>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                background: isPartiallyDelivered ? "#eff6ff" : (currentStageIdx === 7 ? "#f0fdf4" : "#eff6ff"),
+                color: isPartiallyDelivered ? "#1d4ed8" : (currentStageIdx === 7 ? "#15803d" : "#0284c7"),
+                border: `1px solid ${isPartiallyDelivered ? "#bfdbfe" : (currentStageIdx === 7 ? "#bbf7d0" : "#bfdbfe")}`,
+                borderRadius: 6,
+                padding: "3px 9px",
+                fontSize: 12,
+                fontWeight: 800,
+              }}
+            >
+              {isPartiallyDelivered ? (
+                <>
+                  <Truck size={13} />
+                  <span>In Transit ({deliveredDispatches.length}/{dispatches.length} Delivered)</span>
+                </>
+              ) : (
+                <span>{accurateStatusLabel}</span>
+              )}
+            </span>
+          </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", overflowX: "auto", paddingBottom: 8 }}>
-          {stages.map((stage, idx) => {
+        <div style={{ display: "flex", alignItems: "flex-start", overflowX: "auto", paddingBottom: 10 }}>
+          {dynamicStages.map((stage: any, idx: number) => {
             const isDone = idx < currentStageIdx;
             const isCurrent = idx === currentStageIdx;
+            const isPartial = Boolean(stage.isPartial);
             const Icon = stage.icon;
+
+            const circleBg = isCurrent
+              ? "#0284c7"
+              : isDone
+                ? "#dcfce7"
+                : isPartial
+                  ? "#f0fdf4"
+                  : "#f8fafc";
+
+            const circleBorder = isCurrent
+              ? "#0369a1"
+              : isDone
+                ? "#86efac"
+                : isPartial
+                  ? "#16a34a"
+                  : "#cbd5e1";
+
+            const iconColor = isCurrent
+              ? "#ffffff"
+              : isDone
+                ? "#16a34a"
+                : isPartial
+                  ? "#16a34a"
+                  : "#94a3b8";
+
             return (
               <React.Fragment key={stage.key}>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 84 }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, minWidth: 96, maxWidth: 115 }}>
                   <div
                     style={{
-                      width: 38,
-                      height: 38,
+                      width: 40,
+                      height: 40,
                       borderRadius: "50%",
                       display: "grid",
                       placeItems: "center",
-                      background: isCurrent ? "#0284c7" : isDone ? "#dcfce7" : "#f8fafc",
-                      border: `2px solid ${isCurrent ? "#0369a1" : isDone ? "#86efac" : "#cbd5e1"}`,
+                      background: circleBg,
+                      border: `2px ${isPartial ? "dashed" : "solid"} ${circleBorder}`,
                       boxShadow: isCurrent ? "0 0 0 4px rgba(2,132,199,0.2)" : "none",
                       transition: "all 0.3s ease",
+                      position: "relative",
                     }}
                   >
-                    <Icon size={16} color={isCurrent ? "#ffffff" : isDone ? "#16a34a" : "#94a3b8"} />
+                    <Icon size={17} color={iconColor} />
+                    {isDone && !isCurrent && (
+                      <span
+                        style={{
+                          position: "absolute",
+                          bottom: -2,
+                          right: -2,
+                          width: 14,
+                          height: 14,
+                          borderRadius: "50%",
+                          background: "#16a34a",
+                          color: "#fff",
+                          fontSize: 9,
+                          fontWeight: 900,
+                          display: "grid",
+                          placeItems: "center",
+                        }}
+                      >
+                        ✓
+                      </span>
+                    )}
                   </div>
                   <span
                     style={{
-                      fontSize: 11,
-                      fontWeight: isCurrent ? 850 : isDone ? 750 : 600,
-                      color: isCurrent ? "#0284c7" : isDone ? "#0f172a" : "#94a3b8",
+                      fontSize: 11.5,
+                      fontWeight: isCurrent ? 850 : isDone || isPartial ? 750 : 600,
+                      color: isCurrent ? "#0284c7" : isDone || isPartial ? "#0f172a" : "#94a3b8",
                       textAlign: "center",
                       whiteSpace: "nowrap",
                     }}
                   >
                     {stage.label}
                   </span>
-                  <span style={{ fontSize: 9.5, color: "#94a3b8", textAlign: "center", whiteSpace: "nowrap" }}>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      color: isCurrent ? "#0369a1" : isDone || isPartial ? "#475569" : "#94a3b8",
+                      fontWeight: isCurrent || isPartial ? 700 : 500,
+                      textAlign: "center",
+                      lineHeight: 1.25,
+                      wordBreak: "break-word",
+                    }}
+                  >
                     {stage.desc}
                   </span>
+                  {isPartial && (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 800,
+                        background: "#dcfce7",
+                        color: "#166534",
+                        border: "1px solid #86efac",
+                        borderRadius: 4,
+                        padding: "1px 5px",
+                        marginTop: 1,
+                      }}
+                    >
+                      {stage.partialCount}/{stage.totalCount} Delivered
+                    </span>
+                  )}
                 </div>
-                {idx < stages.length - 1 && (
+                {idx < dynamicStages.length - 1 && (
                   <div
                     style={{
                       flex: 1,
                       height: 3,
-                      background: idx < currentStageIdx ? "#22c55e" : "#e2e8f0",
+                      background:
+                        idx < currentStageIdx
+                          ? "#22c55e"
+                          : idx === 6 && isPartiallyDelivered
+                            ? "linear-gradient(to right, #0284c7, #22c55e)"
+                            : "#e2e8f0",
                       minWidth: 16,
-                      marginBottom: 32,
+                      marginTop: 18,
                       borderRadius: 2,
                     }}
                   />
@@ -714,6 +983,122 @@ export default function OrderDetailPage() {
             );
           })}
         </div>
+
+        {/* ── Dynamic Live Shipment & Production Telemetry Banner ── */}
+        {(inTransitDispatches.length > 0 || deliveredDispatches.length > 0 || workOrders.length > 0) && (
+          <div
+            style={{
+              marginTop: 14,
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: 10,
+              padding: "12px 16px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 9,
+            }}
+          >
+            {/* Active In-Transit Telemetry */}
+            {inTransitDispatches.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#002e5d" }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#0284c7", boxShadow: "0 0 0 3px rgba(2,132,199,0.25)" }} />
+                  <span>
+                    <strong>{inTransitDispatches.length} Dispatch Run{inTransitDispatches.length > 1 ? "s" : ""} Active In Transit</strong>
+                    {inTransitDispatches[0]?.driverName && (
+                      <span> &bull; Driver: <strong>{inTransitDispatches[0].driverName}</strong></span>
+                    )}
+                    {inTransitDispatches[0]?.vehicleNumber && (
+                      <span> &bull; Vehicle: <strong style={{ fontFamily: "monospace" }}>{inTransitDispatches[0].vehicleNumber}</strong></span>
+                    )}
+                  </span>
+                </div>
+                <span style={{ fontSize: 11.5, color: "#64748b" }}>
+                  Dispatched: {inTransitDispatches[0]?.dispatchedAt ? new Date(inTransitDispatches[0].dispatchedAt).toLocaleString("en-IN") : "En Route"}
+                </span>
+              </div>
+            )}
+
+            {/* Delivered Run Telemetry & One-Click POD */}
+            {deliveredDispatches.length > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  paddingTop: inTransitDispatches.length > 0 ? 8 : 0,
+                  borderTop: inTransitDispatches.length > 0 ? "1px dashed #e2e8f0" : "none",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#166534" }}>
+                  <CheckCircle2 size={15} color="#16a34a" />
+                  <span>
+                    <strong>{deliveredDispatches.length} Run{deliveredDispatches.length > 1 ? "s" : ""} Delivered &amp; Verified</strong>
+                    {deliveredDispatches[0]?.deliveredAt && (
+                      <span> on {new Date(deliveredDispatches[0].deliveredAt).toLocaleString("en-IN")}</span>
+                    )}
+                    {deliveredDispatches[0]?.receivedBy && (
+                      <span> &bull; Receiver: <strong>{deliveredDispatches[0].receivedBy}</strong></span>
+                    )}
+                  </span>
+                </div>
+                {deliveredDispatches[0]?.podUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPodImage(resolvePodUrl(deliveredDispatches[0].podUrl))}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      padding: "4px 10px",
+                      background: "#ffffff",
+                      border: "1px solid #86efac",
+                      borderRadius: 6,
+                      fontSize: 11.5,
+                      fontWeight: 750,
+                      color: "#166534",
+                      cursor: "pointer",
+                      boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                    }}
+                  >
+                    <ImageIcon size={13} />
+                    <span>View Verified POD</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Shop Floor Production Telemetry */}
+            {workOrders.length > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  paddingTop: (inTransitDispatches.length > 0 || deliveredDispatches.length > 0) ? 8 : 0,
+                  borderTop: (inTransitDispatches.length > 0 || deliveredDispatches.length > 0) ? "1px dashed #e2e8f0" : "none",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "#475569" }}>
+                  <Factory size={14} color="#0284c7" />
+                  <span>
+                    Shop Floor: <strong>{workOrders.filter((w: any) => ['COMPLETED', 'DISPATCHED'].includes(String(w.status || '').toUpperCase())).length}/{workOrders.length} Work Orders Dispatched/Completed</strong>
+                    {workOrders[0]?.completedAt && (
+                      <span> &bull; Finished: <strong>{new Date(workOrders[0].completedAt).toLocaleDateString("en-IN")}</strong></span>
+                    )}
+                  </span>
+                </div>
+                <span style={{ fontSize: 11, background: "#ecfdf5", color: "#166534", border: "1px solid #bbf7d0", padding: "2px 7px", borderRadius: 4, fontWeight: 700 }}>
+                  100% Quality Cleared
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Key Overview Cards Grid ── */}
@@ -743,10 +1128,31 @@ export default function OrderDetailPage() {
             <div style={{ gridColumn: "span 2" }}>
               <InfoCard icon={MapPin} label="Delivery Site Address" value={deliveryAddr} />
             </div>
-            <InfoCard icon={Layers} label="Order Status" value={accurateStatusLabel} highlight />
-            <InfoCard icon={Truck} label="Dispatches Count" value={`${dispatches.length} Dispatch Run(s)`} highlight />
-            <InfoCard icon={ShieldCheck} label="Work Orders" value={`${workOrders.length} Active`} />
-            <InfoCard icon={Phone} label="Contact Phone" value={customer?.phone || customer?.mobile || customer?.contactNumber || customer?.contactPersonPhone || order.customerPhone || order.quotation?.lead?.phone || order.lead?.phone || "—"} />
+            <InfoCard
+              icon={Layers}
+              label="Order Status"
+              value={accurateStatusLabel}
+              highlight
+              subtext={isPartiallyDelivered ? `${inTransitDispatches.length} on Route • ${deliveredDispatches.length} Delivered` : undefined}
+            />
+            <InfoCard
+              icon={Truck}
+              label="Dispatches Count"
+              value={`${dispatches.length} Dispatch Run(s)`}
+              highlight
+              subtext={dispatches.length > 0 ? (isPartiallyDelivered ? `${inTransitDispatches.length} In Transit, ${deliveredDispatches.length} Delivered` : (isFullyDelivered ? "All Delivered" : "Active Dispatches")) : undefined}
+            />
+            <InfoCard
+              icon={ShieldCheck}
+              label="Work Orders"
+              value={`${workOrders.length} ${workOrders.length > 0 && workOrders.every((w: any) => ['COMPLETED', 'DISPATCHED'].includes(String(w.status || '').toUpperCase())) ? "Dispatched" : "Active"}`}
+              subtext={workOrders.length > 0 ? `${workOrders.filter((w: any) => ['COMPLETED', 'DISPATCHED'].includes(String(w.status || '').toUpperCase())).length}/${workOrders.length} Completed` : undefined}
+            />
+            <InfoCard
+              icon={Phone}
+              label="Contact Phone"
+              value={customer?.phone || customer?.mobile || customer?.contactNumber || customer?.contactPersonPhone || order.customerPhone || order.quotation?.siteInchargeMobile || order.sourceQuotation?.siteInchargeMobile || order.quotation?.lead?.phone || order.lead?.phone || dispatches.find((d: any) => d.receiverPhone)?.receiverPhone || "—"}
+            />
           </div>
         </div>
       </div>

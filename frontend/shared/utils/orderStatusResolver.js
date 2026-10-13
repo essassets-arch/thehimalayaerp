@@ -55,12 +55,17 @@ export function getOrderStatusLabel(order) {
     return 'Delivered';
   }
 
-  // 2. In Transit / Dispatched
+  // 2. In Transit / Partially Delivered
   const dispatches = Array.isArray(order.dispatches) ? order.dispatches : [];
-  const hasActiveTransitDispatch = dispatches.some((d) =>
-    ['DISPATCHED', 'SHIPPED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(String(d.status || '').toUpperCase())
-  );
+  const completedStatuses = new Set(['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED']);
+  const deliveredRunsCount = dispatches.filter(d => completedStatuses.has(String(d.status || '').toUpperCase())).length;
+  const transitRunsCount = dispatches.filter(d => ['DISPATCHED', 'SHIPPED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(String(d.status || '').toUpperCase())).length;
 
+  if (deliveredRunsCount > 0 && transitRunsCount > 0) {
+    return 'Partially Delivered';
+  }
+
+  const hasActiveTransitDispatch = transitRunsCount > 0;
   const isInTransit =
     hasActiveTransitDispatch ||
     ['DISPATCHED', 'SHIPPED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(dispStatus) ||

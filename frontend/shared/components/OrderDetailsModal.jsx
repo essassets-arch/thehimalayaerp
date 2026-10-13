@@ -39,9 +39,22 @@ export default function OrderDetailsModal({ order, role, onClose }) {
     return '—';
   })();
   
-  const orderStatus = getOrderStatusLabel(safeOrder);
-  const productionStatus = safeOrder.productionStatus || 'Pending';
-  const dispatchStatus = safeOrder.dispatchStatus || 'Pending';
+  const effectiveSafeOrder = useMemo(() => {
+    return {
+      ...safeOrder,
+      ...(asyncData || {}),
+      dispatches: (asyncData?.dispatches && asyncData.dispatches.length > 0)
+        ? asyncData.dispatches
+        : (safeOrder.dispatches || []),
+      workOrders: (asyncData?.workOrders && asyncData.workOrders.length > 0)
+        ? asyncData.workOrders
+        : (safeOrder.workOrders || []),
+    };
+  }, [safeOrder, asyncData]);
+
+  const orderStatus = getOrderStatusLabel(effectiveSafeOrder);
+  const productionStatus = effectiveSafeOrder.productionStatus || safeOrder.productionStatus || 'Pending';
+  const dispatchStatus = effectiveSafeOrder.dispatchStatus || safeOrder.dispatchStatus || 'Pending';
 
   useEffect(() => {
     if (!order) return;
