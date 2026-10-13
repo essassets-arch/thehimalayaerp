@@ -68,6 +68,49 @@ function StatusPill({ status }: { status: string }) {
   return <StatusBadge status={status} />;
 }
 
+function WorkOrderStatusPill({ status }: { status: string }) {
+  const norm = String(status || "").toUpperCase();
+  if (norm === "DISPATCHED") {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          padding: "3px 9px",
+          borderRadius: 6,
+          fontSize: 12,
+          fontWeight: 750,
+          background: "rgba(34, 197, 94, 0.12)",
+          color: "#166534",
+          border: "1px solid rgba(34, 197, 94, 0.25)",
+        }}
+      >
+        Dispatched
+      </span>
+    );
+  }
+  if (norm === "COMPLETED") {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          padding: "3px 9px",
+          borderRadius: 6,
+          fontSize: 12,
+          fontWeight: 750,
+          background: "rgba(34, 197, 94, 0.12)",
+          color: "#166534",
+          border: "1px solid rgba(34, 197, 94, 0.25)",
+        }}
+      >
+        Completed
+      </span>
+    );
+  }
+  return <StatusBadge status={status} />;
+}
+
 function InfoCard({ icon: Icon, label, value, highlight = false, subtext }: any) {
   return (
     <div
@@ -275,16 +318,42 @@ export default function OrderDetailPage() {
         }
 
         const cleanTargetNo = String(foundOrder.orderNumber || decodedOrderId).replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-        const matchesTargetOrder = (sId?: any, sNo?: any) => {
-          if (sId && String(sId) === String(foundOrder.id)) return true;
+        const cleanTargetId = String(foundOrder.id || "").trim();
+        const targetCustomerName = String(foundOrder.customer?.companyName || foundOrder.customer?.name || foundOrder.customerName || "").trim().toLowerCase();
+
+        const matchesTargetOrder = (sId?: any, sNo?: any, itemCustomer?: any) => {
+          // 1. Strict primary foreign key match
+          if (sId && cleanTargetId && String(sId).trim() === cleanTargetId) return true;
           if (!sNo) return false;
+
           const cleanNo = String(sNo).replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-          return cleanNo === cleanTargetNo || cleanNo.endsWith(cleanTargetNo) || cleanTargetNo.endsWith(cleanNo);
+          if (!cleanNo) return false;
+
+          // 2. Strict exact normalized match
+          if (cleanNo === cleanTargetNo) {
+            if (targetCustomerName && itemCustomer) {
+              const custStr = String(itemCustomer).trim().toLowerCase();
+              if (custStr && custStr !== targetCustomerName && !custStr.includes(targetCustomerName) && !targetCustomerName.includes(custStr)) {
+                return false;
+              }
+            }
+            return true;
+          }
+
+          // 3. Strict match with standard separators (e.g. HCPPL/2627/0400 vs HCPPL-2627-0400)
+          const normTarget = String(foundOrder.orderNumber || decodedOrderId).trim().toUpperCase();
+          const normNo = String(sNo).trim().toUpperCase();
+          if (normTarget === normNo || normTarget.replace(/\//g, "-") === normNo.replace(/\//g, "-")) {
+            return true;
+          }
+
+          return false;
         };
 
         // Fetch related active/past dispatches for this sales order
         try {
           const dispRes: any =
+            (await apiClient.get(`/logistics/dispatches?salesOrderId=${encodeURIComponent(foundOrder.id)}&limit=200`).catch(() => null)) ||
             (await apiClient.get("/logistics/dispatches?limit=200").catch(() => null)) ||
             (await backendFetch("/logistics/dispatches?limit=200").catch(() => null));
           const allDispatches = Array.isArray(dispRes?.data?.data)
@@ -295,9 +364,21 @@ export default function OrderDetailPage() {
                 ? dispRes
                 : [];
           const matched = allDispatches.filter((d: any) =>
-            matchesTargetOrder(d.salesOrderId || d.salesOrder?.id, d.salesOrder?.orderNumber || d.salesOrderNo)
+            matchesTargetOrder(
+              d.salesOrderId || d.salesOrder?.id,
+              d.salesOrder?.orderNumber || d.salesOrderNo,
+              d.customerName || d.receiverName || d.receiver?.name || d.salesOrder?.customer?.companyName
+            )
           );
-          setDispatches(matched.length > 0 ? matched : (foundOrder.dispatches || []));
+
+          const dbDispatches = Array.isArray(foundOrder.dispatches) ? foundOrder.dispatches : [];
+          const combinedDispatches = [...dbDispatches];
+          for (const d of matched) {
+            if (!combinedDispatches.some((exist: any) => exist.id === d.id || (d.dispatchNumber && exist.dispatchNumber === d.dispatchNumber))) {
+              combinedDispatches.push(d);
+            }
+          }
+          setDispatches(combinedDispatches);
         } catch {
           setDispatches(foundOrder.dispatches || []);
         }
@@ -305,6 +386,7 @@ export default function OrderDetailPage() {
         // Fetch related work orders
         try {
           const woRes: any =
+            (await apiClient.get(`/production/work-orders?salesOrderId=${encodeURIComponent(foundOrder.id)}&limit=200`).catch(() => null)) ||
             (await apiClient.get("/production/work-orders?limit=200").catch(() => null)) ||
             (await backendFetch("/production/work-orders?limit=200").catch(() => null));
           const allWos = Array.isArray(woRes?.data?.data)
@@ -315,11 +397,23 @@ export default function OrderDetailPage() {
                 ? woRes
                 : [];
           const matchedWos = allWos.filter((w: any) =>
-            matchesTargetOrder(w.productionPlan?.salesOrderId || w.salesOrderId, w.productionPlan?.salesOrder?.orderNumber || w.salesOrderNumber)
+            matchesTargetOrder(
+              w.productionPlan?.salesOrderId || w.salesOrderId,
+              w.productionPlan?.salesOrder?.orderNumber || w.salesOrderNumber
+            )
           );
-          setWorkOrders(matchedWos.length > 0 ? matchedWos : (foundOrder.workOrders || foundOrder.productionPlans?.[0]?.workOrders || []));
+
+          const dbWorkOrders = foundOrder.productionPlans?.flatMap((p: any) => p.workOrders || []) || foundOrder.workOrders || [];
+          const combinedWos = [...dbWorkOrders];
+          for (const w of matchedWos) {
+            if (!combinedWos.some((exist: any) => exist.id === w.id || (w.workOrderNumber && exist.workOrderNumber === w.workOrderNumber))) {
+              combinedWos.push(w);
+            }
+          }
+          setWorkOrders(combinedWos);
         } catch {
-          setWorkOrders(foundOrder.workOrders || foundOrder.productionPlans?.[0]?.workOrders || []);
+          const dbWorkOrders = foundOrder.productionPlans?.flatMap((p: any) => p.workOrders || []) || foundOrder.workOrders || [];
+          setWorkOrders(dbWorkOrders);
         }
       } else {
         setOrder(null);
@@ -447,8 +541,13 @@ export default function OrderDetailPage() {
   const deliveryAddr =
     formatAddressValue(order.shippingAddress) ||
     formatAddressValue(customer?.shippingAddress) ||
+    formatAddressValue(order.deliveryAddress) ||
+    formatAddressValue(order.quotation?.siteAddress) ||
+    formatAddressValue(order.sourceQuotation?.siteAddress) ||
+    formatAddressValue(order.quotation?.lead?.siteAddress) ||
+    formatAddressValue(order.lead?.siteAddress) ||
+    formatAddressValue(customer?.address) ||
     formatAddressValue(customer?.billingAddress) ||
-    order.deliveryAddress ||
     "Factory Staging Area / Site Delivery";
 
   const billingAddr =
@@ -631,7 +730,7 @@ export default function OrderDetailPage() {
             <InfoCard icon={Calendar} label="Order Date" value={fmtDate(order.orderDate || order.createdAt)} />
             <InfoCard icon={Calendar} label="Target Delivery" value={fmtDate(order.targetDate || order.requestedDeliveryDate || order.expectedDeliveryDate)} highlight />
             <InfoCard icon={CreditCard} label="Payment Status" value={paymentStatusLabel} highlight={paymentStatusLabel === "Fully Paid"} subtext={paidAmount > 0 ? `Paid: ₹${paidAmount.toLocaleString("en-IN")}` : `Balance: ₹${balanceAmount.toLocaleString("en-IN")}`} />
-            <InfoCard icon={FileText} label="GST Number" value={customer?.taxId || customer?.gstin || order.gstNumber || "—"} />
+            <InfoCard icon={FileText} label="GST Number" value={customer?.taxId || customer?.gstin || customer?.gstNumber || customer?.gst || order.gstNumber || order.gstin || order.quotation?.gstin || order.sourceQuotation?.gstin || "—"} />
           </div>
         </div>
 
@@ -647,7 +746,7 @@ export default function OrderDetailPage() {
             <InfoCard icon={Layers} label="Order Status" value={accurateStatusLabel} highlight />
             <InfoCard icon={Truck} label="Dispatches Count" value={`${dispatches.length} Dispatch Run(s)`} highlight />
             <InfoCard icon={ShieldCheck} label="Work Orders" value={`${workOrders.length} Active`} />
-            <InfoCard icon={Phone} label="Contact Phone" value={customer?.phone || customer?.mobile || "—"} />
+            <InfoCard icon={Phone} label="Contact Phone" value={customer?.phone || customer?.mobile || customer?.contactNumber || customer?.contactPersonPhone || order.customerPhone || order.quotation?.lead?.phone || order.lead?.phone || "—"} />
           </div>
         </div>
       </div>
@@ -950,16 +1049,16 @@ export default function OrderDetailPage() {
                       {wo.workOrderNumber || wo.woNumber || `WO-${idx + 1}`}
                     </td>
                     <td style={{ padding: "12px 14px" }}>
-                      <StatusPill status={wo.productionStatus || wo.status || "IN_PRODUCTION"} />
+                      <WorkOrderStatusPill status={wo.productionStatus || wo.status || "IN_PRODUCTION"} />
                     </td>
                     <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 700, color: "#0f172a" }}>
                       {wo.plannedQuantity || wo.quantity || "—"}
                     </td>
                     <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 800, color: "#16a34a" }}>
-                      {wo.completedQuantity ?? wo.producedQuantity ?? "—"}
+                      {wo.completedQuantity ?? wo.producedQuantity ?? (['COMPLETED', 'DISPATCHED'].includes(String(wo.status || '').toUpperCase()) ? (wo.plannedQuantity || wo.quantity) : "—")}
                     </td>
                     <td style={{ padding: "12px 14px", textAlign: "right", color: "#64748b", fontSize: 12 }}>
-                      {wo.startDate ? new Date(wo.startDate).toLocaleDateString("en-IN") : "—"}
+                      {wo.completedAt ? new Date(wo.completedAt).toLocaleDateString("en-IN") : (wo.startedAt ? new Date(wo.startedAt).toLocaleDateString("en-IN") : (wo.startDate ? new Date(wo.startDate).toLocaleDateString("en-IN") : (wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("en-IN") : "—")))}
                     </td>
                   </tr>
                 ))}
@@ -986,7 +1085,7 @@ export default function OrderDetailPage() {
                   <div style={{ fontWeight: 800, fontFamily: "monospace", fontSize: 13.5, color: "#0284c7" }}>
                     {wo.workOrderNumber || wo.woNumber || `WO-${idx + 1}`}
                   </div>
-                  <StatusPill status={wo.productionStatus || wo.status || "IN_PRODUCTION"} />
+                  <WorkOrderStatusPill status={wo.productionStatus || wo.status || "IN_PRODUCTION"} />
                 </div>
 
                 <div
@@ -1009,13 +1108,13 @@ export default function OrderDetailPage() {
                   <div>
                     <div style={{ fontSize: 10, fontWeight: 750, color: "#64748b", textTransform: "uppercase" }}>Completed Qty</div>
                     <div style={{ fontSize: 13, fontWeight: 800, color: "#16a34a", marginTop: 2 }}>
-                      {wo.completedQuantity ?? wo.producedQuantity ?? "—"}
+                      {wo.completedQuantity ?? wo.producedQuantity ?? (['COMPLETED', 'DISPATCHED'].includes(String(wo.status || '').toUpperCase()) ? (wo.plannedQuantity || wo.quantity) : "—")}
                     </div>
                   </div>
                   <div>
                     <div style={{ fontSize: 10, fontWeight: 750, color: "#64748b", textTransform: "uppercase" }}>Timeline</div>
                     <div style={{ fontSize: 11.5, fontWeight: 600, color: "#64748b", marginTop: 2 }}>
-                      {wo.startDate ? new Date(wo.startDate).toLocaleDateString("en-IN") : "—"}
+                      {wo.completedAt ? new Date(wo.completedAt).toLocaleDateString("en-IN") : (wo.startedAt ? new Date(wo.startedAt).toLocaleDateString("en-IN") : (wo.startDate ? new Date(wo.startDate).toLocaleDateString("en-IN") : (wo.createdAt ? new Date(wo.createdAt).toLocaleDateString("en-IN") : "—")))}
                     </div>
                   </div>
                 </div>

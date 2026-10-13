@@ -7,6 +7,19 @@ export function isTradingOrder(order) {
 
 export function isDeliveredOrder(order) {
   if (!order) return false;
+
+  const dispatches = Array.isArray(order.dispatches) ? order.dispatches : [];
+  if (dispatches.length > 0) {
+    const completedStatuses = new Set(['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED']);
+    const hasActiveTransit = dispatches.some((d) =>
+      ['DISPATCHED', 'SHIPPED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(String(d.status || '').toUpperCase())
+    );
+    if (hasActiveTransit) {
+      return false; // Active dispatches on route with driver take precedence over legacy delivered flags
+    }
+    return dispatches.every((d) => completedStatuses.has(String(d.status || '').toUpperCase()));
+  }
+
   const dispatchSt = String(order.dispatchStatus || '').toUpperCase();
   const orderSt = String(order.orderStatus || order.status || order.workflowStatus || '').toUpperCase();
   return (
@@ -43,7 +56,13 @@ export function getOrderStatusLabel(order) {
   }
 
   // 2. In Transit / Dispatched
+  const dispatches = Array.isArray(order.dispatches) ? order.dispatches : [];
+  const hasActiveTransitDispatch = dispatches.some((d) =>
+    ['DISPATCHED', 'SHIPPED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(String(d.status || '').toUpperCase())
+  );
+
   const isInTransit =
+    hasActiveTransitDispatch ||
     ['DISPATCHED', 'SHIPPED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(dispStatus) ||
     ['DISPATCHED', 'IN_TRANSIT', 'SHIPPED', 'OUT_FOR_DELIVERY'].includes(status) ||
     prodStatus === 'DISPATCHED' ||
