@@ -14,6 +14,7 @@ import { useSalesBackend } from '../shared/context/ERPContext.jsx';
 import styles from './OrdersView.module.css';
 import { exportOrdersToCSV } from '../services/sales/salesExportService';
 import { isTradingProduct, isPureTradingOrder } from '@/shared/utils/dispatchCategory';
+import { getOrderStatusLabel, isDeliveredOrder } from '@/shared/utils/orderStatusResolver';
 
 export default function OrdersView({ 
   orders, 
@@ -291,12 +292,6 @@ export default function OrdersView({
     PICKUP_ASSIGNED: 'Dispatch Created',
     IN_TRANSIT: 'Return In Transit',
   }[String(order?.returnStatus || '').toUpperCase()] || 'Return Requested');
-
-  const isDeliveredOrder = (order) => {
-    const dispatchSt = String(order?.dispatchStatus || '').toUpperCase();
-    const orderSt = String(order?.orderStatus || order?.status || order?.workflowStatus || '').toUpperCase();
-    return dispatchSt === 'DELIVERED' || orderSt === 'DELIVERED' || orderSt === 'CLOSED' || Boolean(order?.deliveredDate || order?.deliveredAt);
-  };
 
   const hasPendingFinanceConfirmation = (order) => {
     const paymentSt = String(order?.paymentStatus || '').toUpperCase();
@@ -604,68 +599,6 @@ export default function OrdersView({
     return <span style={{ color: '#94a3b8', fontSize: '13px' }}>—</span>;
   };
 
-  const getOrderStatusLabel = (order) => {
-    if (!order) return 'Pending';
-    const status = String(order.status || order.orderStatus || '').toUpperCase();
-    if (status === 'LOST' || order.workflowStateCode === 'LOST' || Boolean(order.lostReason) || Boolean(order.lossRecord) || Boolean(order.lostComplaintId)) {
-      return 'Lost';
-    }
-    if (order.commercialStatus === 'ORDER_CLOSED') return 'Closed';
-    
-    const prodStatus = String(order.productionStatus || '').toUpperCase();
-    const dispStatus = String(order.dispatchStatus || '').toUpperCase();
-    
-    // 1. Delivered
-    if (dispStatus === 'DELIVERED' || status === 'DELIVERED' || status === 'COMPLETED') {
-      return 'Delivered';
-    }
-    
-    // 2. In Transit
-    if (['SHIPPED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(dispStatus) || status === 'IN_TRANSIT') {
-      return 'In Transit';
-    }
-    
-    // 3. Dispatch Planned / Ready for Dispatch
-    if (['DISPATCH_DRAFT', 'DISPATCH_CREATED', 'DISPATCH_READY'].includes(dispStatus) || status === 'READY_FOR_DISPATCH' || order.workflowStateCode === 'READY_FOR_DISPATCH') {
-      return isTradingOrder(order) ? 'Sent to Dispatch' : 'Ready for Dispatch';
-    }
-    
-    // 4. QC / Quality check / Production Completed
-    if (order.qcStatus === 'QC_APPROVED' || ['COMPLETED', 'PRODUCTION_COMPLETED', 'QC_APPROVED'].includes(prodStatus)) {
-      return 'QC Approved';
-    }
-    if (['QUALITY_CHECK', 'QC_INSPECTION', 'QC'].includes(prodStatus)) {
-      return 'QC Inspection';
-    }
-    
-    // 5. In Production
-    if (['RELEASED', 'PRODUCTION_STARTED', 'PRODUCTION_IN_PROGRESS', 'IN_PRODUCTION'].includes(prodStatus) || status === 'IN_PRODUCTION') {
-      return 'In Production';
-    }
-    
-    // 6. Production Planned (Plant Head Review)
-    if (order.planningStatus === 'PRODUCTION_PLANNED' || prodStatus === 'PLANNED' || status === 'PRODUCTION_PLANNED' || status === 'READY_FOR_PRODUCTION') {
-      return 'Production Planned';
-    }
-    
-    // 7. Accepted by Plant Head
-    if (order.planningStatus === 'PLANT_HEAD_ACCEPTED' || status === 'PLANT_APPROVED') {
-      return 'Accepted by Plant Head';
-    }
-    
-    // 8. Sent to Plant Head
-    if (order.planningStatus === 'PENDING_ACCEPTANCE' || ['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD'].includes(status) || order.sentToPlantHead) {
-      return isTradingOrder(order) ? 'Sent to Dispatch' : 'Sent to Plant Head';
-    }
-    
-    // 9. Confirmed
-    if (['CONFIRMED', 'ORDER_CONFIRMED', 'DRAFT', 'SUBMITTED', 'PENDING_APPROVAL'].includes(status) || order.commercialStatus === 'ORDER_CONFIRMED') {
-      return 'Confirmed';
-    }
-    
-    return order.status || order.workflowStatus || 'Confirmed';
-  };
-
   const renderRemarksCell = (o) => {
     const rawRemarks = o.remarks || o.acceptanceRemarks || o.plantHeadRemarks || o.plantRemarks || o.notes;
     const remarksText = typeof rawRemarks === 'string' ? rawRemarks.trim() : (rawRemarks ? String(rawRemarks) : '');
@@ -757,7 +690,7 @@ export default function OrdersView({
   };
 
   const getOrderActionState = (order) => {
-    if (!order) return { action: null, label: 'No Action' };
+    if (!order) return { action: null, label: null };
 
     const backendStatus = String(
       order.status ||
@@ -767,17 +700,17 @@ export default function OrdersView({
     ).trim().toUpperCase();
 
     if (backendStatus === 'LOST' || order.lostReason || order.lossRecord || order.lostComplaintId) {
-      return { action: null, label: 'Lost' };
+      return { action: null, label: null };
     }
 
     const isTrading = isTradingOrder(order);
 
     if (isTrading) {
       if (backendStatus === 'DELIVERED' || order.dispatchStatus === 'DELIVERED') {
-        return { action: null, label: 'Delivered' };
+        return { action: null, label: null };
       }
       if (['IN_TRANSIT', 'DISPATCHED'].includes(backendStatus) || ['IN_TRANSIT', 'DISPATCHED'].includes(String(order.dispatchStatus || '').toUpperCase())) {
-        return { action: null, label: 'In Transit' };
+        return { action: null, label: null };
       }
       const isSentToDispatch2 =
         backendStatus === 'READY_FOR_DISPATCH' ||
@@ -787,7 +720,7 @@ export default function OrdersView({
         Boolean(order.sentToDispatch2 || order.sentToDispatch2At || order.currentDepartment === 'Dispatch 2');
 
       if (isSentToDispatch2) {
-        return { action: null, label: 'Sent to Dispatch 2' };
+        return { action: null, label: null };
       }
 
       // If not yet sent to Dispatch 2, show the action button!
@@ -795,7 +728,7 @@ export default function OrdersView({
     }
 
     if (backendStatus === 'READY_FOR_DISPATCH') {
-      return { action: null, label: 'Ready for Dispatch' };
+      return { action: null, label: null };
     }
 
     const isAlreadySent = Boolean(
@@ -806,16 +739,7 @@ export default function OrdersView({
     );
 
     if (isAlreadySent) {
-      if (backendStatus === 'PLANT_APPROVED' || order.planningStatus === 'PLANT_HEAD_ACCEPTED') {
-        return { action: null, label: 'Accepted by Plant Head' };
-      }
-      if (order.planningStatus === 'PRODUCTION_PLANNED' || order.productionStatus === 'PLANNED' || backendStatus === 'PRODUCTION_PLANNED' || backendStatus === 'READY_FOR_PRODUCTION') {
-        return { action: null, label: 'Production Planned' };
-      }
-      if (['PRODUCTION_STARTED', 'PRODUCTION_IN_PROGRESS', 'IN_PRODUCTION'].includes(order.productionStatus) || backendStatus === 'IN_PRODUCTION') {
-        return { action: null, label: 'In Production' };
-      }
-      return { action: null, label: 'Sent to Plant Head' };
+      return { action: null, label: null };
     }
 
     return { action: 'SEND_TO_PLANT', label: 'Send to Plant Head' };

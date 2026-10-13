@@ -6,15 +6,31 @@ export default function StatusBadge({ status }) {
       'PENDING_PLANT_HEAD': 'Ready for Confirmation',
       'PLANT_PENDING': 'Sent to Plant Head',
       'Plant Pending': 'Sent to Plant Head',
+      'SENT_TO_PLANT': 'Sent to Plant Head',
+      'SENT_TO_PLANT_HEAD': 'Sent to Plant Head',
+      'PLANT_APPROVED': 'Accepted by Plant Head',
+      'PLANT_HEAD_ACCEPTED': 'Accepted by Plant Head',
+      'READY_FOR_PRODUCTION': 'Production Planned',
+      'PRODUCTION_PLANNED': 'Production Planned',
+      'PLANNED': 'Production Planned',
       'WORK_ORDER_CREATED': 'Work Order Created',
       'IN_PRODUCTION': 'In Production',
       'PRODUCTION_COMPLETED': 'Production Completed',
       'QC_PENDING': 'QC Pending',
+      'QC_INSPECTION': 'QC Inspection',
+      'QC_APPROVED': 'QC Approved',
       'QC_PASSED': 'QC Passed',
       'QC_REJECTED': 'QC Rejected',
       'DISPATCH_READY': 'Ready for Dispatch',
+      'READY_FOR_DISPATCH': 'Ready for Dispatch',
       'DISPATCH_CREATED': 'Dispatched',
+      'DISPATCHED': 'In Transit',
+      'IN_TRANSIT': 'In Transit',
       'DELIVERED': 'Delivered',
+      'CONFIRMED': 'Confirmed',
+      'ORDER_CONFIRMED': 'Confirmed',
+      'SENT_TO_DISPATCH': 'Sent to Dispatch',
+      'SENT_TO_DISPATCH_2': 'Sent to Dispatch 2',
       'PAYMENT_PENDING': 'Payment Pending',
       'CLOSED': 'Closed',
       'REQUESTED': 'Requested',
@@ -36,24 +52,29 @@ export default function StatusBadge({ status }) {
       'FINANCE_PROCESSED': 'Processed / Settled',
       'REJECTED': 'Declined',
     };
-    return displayMap[stat] || stat.replace(/_/g, ' ');
+    if (displayMap[stat]) return displayMap[stat];
+    if (displayMap[String(stat).toUpperCase()]) return displayMap[String(stat).toUpperCase()];
+    return String(stat)
+      .replace(/_/g, ' ')
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
   };
 
   const getBadgeStyle = (stat) => {
     if (!stat) return { background: '#f1f5f9', color: '#475569', border: '1px solid #D6E2F0' };
     const s = String(stat).toLowerCase();
     
-    // Green / Success: Approved, Completed, Delivered, Closed, QC Passed
-    if (s.includes('confirm') || s.includes('issue') || s.includes('approve') || 
+    // Green / Success: Approved, Completed, Delivered, Closed, QC Passed, QC Approved, Accepted
+    if (s.includes('confirm') || s.includes('issue') || s.includes('approve') || s.includes('accept') ||
         s === 'verified' || s === 'paid' || s === 'won' || s === 'completed' || 
-        s === 'qc approved' || s.includes('good') || s === 'active' || 
+        s.includes('qc approved') || s.includes('good') || s === 'active' || 
         s === 'delivered' || s === 'closed' || s.includes('passed') || 
         s === 'approved' || s === 'issued') {
       return { background: 'rgba(34, 197, 94, 0.12)', color: '#166534', border: '1px solid rgba(34, 197, 94, 0.2)' };
     }
 
-    // Purple / Prepared: prepared, preparing, ready_for_release, production_completed
-    if (s.includes('prepare') || s === 'ready_for_release' || s.includes('production_completed') || s === 'production completed') {
+    // Purple / Prepared: prepared, preparing, ready_for_release, production_completed, ready for dispatch
+    if (s.includes('prepare') || s === 'ready_for_release' || s.includes('production_completed') || s === 'production completed' || s.includes('ready for dispatch')) {
       return { background: 'rgba(99, 102, 241, 0.14)', color: '#4338ca', border: '1px solid rgba(99, 102, 241, 0.25)' };
     }
 
@@ -70,8 +91,8 @@ export default function StatusBadge({ status }) {
       return { background: 'rgba(249, 115, 22, 0.12)', color: '#c2410c', border: '1px solid rgba(249, 115, 22, 0.2)' };
     }
 
-    // Yellow / Pending: Pending, Sent, Draft, Requested
-    if (s.includes('pending') || s.includes('draft') || s === 'sent' || s === 'new' || s === 'requested') {
+    // Yellow / Pending: Pending, Sent, Draft, Requested, QC Inspection
+    if (s.includes('pending') || s.includes('draft') || s === 'sent' || s === 'new' || s === 'requested' || s.includes('inspect') || s.includes('qc')) {
       return { background: 'rgba(234, 179, 8, 0.12)', color: '#854d0e', border: '1px solid rgba(234, 179, 8, 0.2)' };
     }
 

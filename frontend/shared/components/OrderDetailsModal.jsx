@@ -4,6 +4,7 @@ import { CheckCircle, Box, Truck, PackageCheck, X } from 'lucide-react';
 import OrderTimeline from '../../components/OrderTimeline';
 import { useERPStore } from '../../store/erpStore';
 import { backendFetch } from '../../lib/backendFetch';
+import { getOrderStatusLabel } from '../utils/orderStatusResolver';
 
 export default function OrderDetailsModal({ order, role, onClose }) {
   if (!order) return null;
@@ -28,7 +29,7 @@ export default function OrderDetailsModal({ order, role, onClose }) {
     return '—';
   })();
   
-  const orderStatus = order.status || order.salesStatus || 'Pending';
+  const orderStatus = getOrderStatusLabel(order);
   const productionStatus = order.productionStatus || 'Pending';
   const dispatchStatus = order.dispatchStatus || 'Pending';
 

@@ -37,6 +37,8 @@ import {
 import { backendFetch } from "@/lib/backendFetch";
 import { apiClient } from "@/lib/apiClient";
 import { getBackendAssetUrl } from "@/lib/assetUrl";
+import StatusBadge from "@/shared/components/StatusBadge";
+import { getOrderStatusLabel, isDeliveredOrder } from "@/shared/utils/orderStatusResolver";
 
 const statusColors: Record<string, { bg: string; color: string; border: string }> = {
   CONFIRMED:          { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
@@ -63,28 +65,7 @@ const statusColors: Record<string, { bg: string; color: string; border: string }
 };
 
 function StatusPill({ status }: { status: string }) {
-  const key = (status || "").toUpperCase().replace(/[\s-]+/g, "_");
-  const s = statusColors[key] || statusColors.DEFAULT;
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "4px 12px",
-        borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 750,
-        background: s.bg,
-        color: s.color,
-        border: `1.5px solid ${s.border}`,
-        whiteSpace: "nowrap",
-      }}
-    >
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color }} />
-      {status || "PENDING"}
-    </span>
-  );
+  return <StatusBadge status={status} />;
 }
 
 function InfoCard({ icon: Icon, label, value, highlight = false, subtext }: any) {
@@ -192,35 +173,84 @@ export default function OrderDetailPage() {
       setIsRefreshing(true);
       setErrorMsg(null);
 
-      // 1. Try dedicated lookup endpoint via apiClient & backendFetch
+      // Clean representations of the order ID for matching
+      const targetVariants = [
+        decodedOrderId,
+        decodedOrderId.replace(/\//g, "-"),
+        decodedOrderId.replace(/-/g, "/"),
+        decodedOrderId.replace(/[^A-Za-z0-9]/g, ""),
+      ].filter(Boolean);
+
       let foundOrder: any = null;
-      try {
-        const res = await apiClient.get(`/sales/orders/lookup/by-number?orderNumber=${encodeURIComponent(decodedOrderId)}`);
-        foundOrder = res?.data?.data || res?.data || res;
-      } catch {
-        // Fallback
+
+      // 1. Try dedicated lookup endpoint via apiClient & backendFetch
+      for (const variant of targetVariants) {
+        if (foundOrder && (foundOrder.id || foundOrder.orderNumber)) break;
+        try {
+          const res: any = await apiClient.get(`/sales/orders/lookup/by-number?orderNumber=${encodeURIComponent(variant)}`);
+          const extracted = res?.data?.data || res?.data || res;
+          if (extracted && (extracted.id || extracted.orderNumber)) {
+            foundOrder = extracted;
+            break;
+          }
+        } catch {
+          // Continue
+        }
+        if (!foundOrder) {
+          try {
+            const res: any = await backendFetch(`/sales/orders/lookup/by-number?orderNumber=${encodeURIComponent(variant)}`);
+            const extracted = res?.data?.data || res?.data || res;
+            if (extracted && (extracted.id || extracted.orderNumber)) {
+              foundOrder = extracted;
+              break;
+            }
+          } catch {
+            // Continue
+          }
+        }
       }
 
       // 2. Direct ID / Slug endpoint
-      if (!foundOrder || !foundOrder.id) {
-        try {
-          const res = await apiClient.get(`/sales/orders/${encodeURIComponent(decodedOrderId)}`);
-          foundOrder = res?.data?.data || res?.data || res;
-        } catch {
-          // Fallback
+      if (!foundOrder || (!foundOrder.id && !foundOrder.orderNumber)) {
+        for (const variant of targetVariants) {
+          if (foundOrder && (foundOrder.id || foundOrder.orderNumber)) break;
+          try {
+            const res: any = await apiClient.get(`/sales/orders/${encodeURIComponent(variant)}`);
+            const extracted = res?.data?.data || res?.data || res;
+            if (extracted && (extracted.id || extracted.orderNumber)) {
+              foundOrder = extracted;
+              break;
+            }
+          } catch {
+            // Continue
+          }
+          if (!foundOrder) {
+            try {
+              const res: any = await backendFetch(`/sales/orders/${encodeURIComponent(variant)}`);
+              const extracted = res?.data?.data || res?.data || res;
+              if (extracted && (extracted.id || extracted.orderNumber)) {
+                foundOrder = extracted;
+                break;
+              }
+            } catch {
+              // Continue
+            }
+          }
         }
       }
 
       // 3. Fallback to list search
-      if (!foundOrder || !foundOrder.id) {
+      if (!foundOrder || (!foundOrder.id && !foundOrder.orderNumber)) {
         try {
-          const res = await apiClient.get("/sales/orders?limit=300");
-          const list = Array.isArray(res?.data?.data)
-            ? res.data.data
-            : Array.isArray(res?.data)
-              ? res.data
-              : Array.isArray(res)
-                ? res
+          const listRes: any =
+            (await apiClient.get("/sales/orders?limit=300").catch(() => null)) ||
+            (await backendFetch("/sales/orders?limit=300").catch(() => null));
+          const list = Array.isArray(listRes?.data?.data)
+            ? listRes.data.data
+            : Array.isArray(listRes?.data)
+              ? listRes.data
+              : Array.isArray(listRes)
+                ? listRes
                 : [];
           const cleanSearch = decodedOrderId.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
           foundOrder = list.find((o: any) => {
@@ -232,7 +262,7 @@ export default function OrderDetailPage() {
         }
       }
 
-      if (foundOrder && foundOrder.id) {
+      if (foundOrder && (foundOrder.id || foundOrder.orderNumber)) {
         setOrder(foundOrder);
 
         // If arrived via UUID or generic id, cleanly update browser address bar to human-readable orderNumber
@@ -244,9 +274,19 @@ export default function OrderDetailPage() {
           window.history.replaceState(null, "", `/orders/${foundOrder.orderNumber}`);
         }
 
+        const cleanTargetNo = String(foundOrder.orderNumber || decodedOrderId).replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+        const matchesTargetOrder = (sId?: any, sNo?: any) => {
+          if (sId && String(sId) === String(foundOrder.id)) return true;
+          if (!sNo) return false;
+          const cleanNo = String(sNo).replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+          return cleanNo === cleanTargetNo || cleanNo.endsWith(cleanTargetNo) || cleanTargetNo.endsWith(cleanNo);
+        };
+
         // Fetch related active/past dispatches for this sales order
         try {
-          const dispRes = await apiClient.get("/logistics/dispatches?limit=200").catch(() => null);
+          const dispRes: any =
+            (await apiClient.get("/logistics/dispatches?limit=200").catch(() => null)) ||
+            (await backendFetch("/logistics/dispatches?limit=200").catch(() => null));
           const allDispatches = Array.isArray(dispRes?.data?.data)
             ? dispRes.data.data
             : Array.isArray(dispRes?.data)
@@ -254,14 +294,9 @@ export default function OrderDetailPage() {
               : Array.isArray(dispRes)
                 ? dispRes
                 : [];
-          const matched = allDispatches.filter((d: any) => {
-            const sId = d.salesOrderId || d.salesOrder?.id;
-            const sNo = d.salesOrder?.orderNumber || d.salesOrderNo;
-            return (
-              (sId && String(sId) === String(foundOrder.id)) ||
-              (sNo && String(sNo).trim().toUpperCase() === String(foundOrder.orderNumber || decodedOrderId).trim().toUpperCase())
-            );
-          });
+          const matched = allDispatches.filter((d: any) =>
+            matchesTargetOrder(d.salesOrderId || d.salesOrder?.id, d.salesOrder?.orderNumber || d.salesOrderNo)
+          );
           setDispatches(matched.length > 0 ? matched : (foundOrder.dispatches || []));
         } catch {
           setDispatches(foundOrder.dispatches || []);
@@ -269,7 +304,9 @@ export default function OrderDetailPage() {
 
         // Fetch related work orders
         try {
-          const woRes = await apiClient.get("/production/work-orders?limit=200").catch(() => null);
+          const woRes: any =
+            (await apiClient.get("/production/work-orders?limit=200").catch(() => null)) ||
+            (await backendFetch("/production/work-orders?limit=200").catch(() => null));
           const allWos = Array.isArray(woRes?.data?.data)
             ? woRes.data.data
             : Array.isArray(woRes?.data)
@@ -277,14 +314,9 @@ export default function OrderDetailPage() {
               : Array.isArray(woRes)
                 ? woRes
                 : [];
-          const matchedWos = allWos.filter((w: any) => {
-            const sId = w.productionPlan?.salesOrderId || w.salesOrderId;
-            const sNo = w.productionPlan?.salesOrder?.orderNumber || w.salesOrderNumber;
-            return (
-              (sId && String(sId) === String(foundOrder.id)) ||
-              (sNo && String(sNo).trim().toUpperCase() === String(foundOrder.orderNumber || decodedOrderId).trim().toUpperCase())
-            );
-          });
+          const matchedWos = allWos.filter((w: any) =>
+            matchesTargetOrder(w.productionPlan?.salesOrderId || w.salesOrderId, w.productionPlan?.salesOrder?.orderNumber || w.salesOrderNumber)
+          );
           setWorkOrders(matchedWos.length > 0 ? matchedWos : (foundOrder.workOrders || foundOrder.productionPlans?.[0]?.workOrders || []));
         } catch {
           setWorkOrders(foundOrder.workOrders || foundOrder.productionPlans?.[0]?.workOrders || []);
@@ -366,28 +398,77 @@ export default function OrderDetailPage() {
     formatAddressValue(customer?.billingAddress) ||
     deliveryAddr;
 
-  const workflowStatus = order.dispatchStatus || order.status || "ORDER_CONFIRMED";
   const totalAmount = Number(order.totalAmount || order.grandTotal || 0);
   const subtotalAmount = Number(order.subtotal || order.taxableAmount || (totalAmount > 0 ? Math.round(totalAmount / 1.18) : 0));
   const taxAmount = Number(order.taxAmount || (totalAmount - subtotalAmount > 0 ? (totalAmount - subtotalAmount) : 0));
+  const paidAmount = Number(order.verifiedPaidAmount || order.paidAmount || 0);
+  const balanceAmount = Math.max(0, totalAmount - paidAmount);
+  const paymentStatusLabel = order.paymentStatus
+    ? String(order.paymentStatus).replace(/_/g, " ")
+    : (paidAmount >= totalAmount && totalAmount > 0 ? "Fully Paid" : (paidAmount > 0 ? "Partially Paid" : "Payment Pending"));
   
   const items = Array.isArray(order.items) ? order.items : [];
 
   const fmtDate = (d: any) =>
     d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
-  const currentStageIdx = (() => {
-    const norm = String(workflowStatus).toUpperCase().replace(/[\s-]+/g, "_");
-    if (norm === "DELIVERED" || norm === "POD_RECEIVED" || norm === "COMPLETED") return 7;
-    if (norm === "OUT_FOR_DELIVERY") return 6;
-    if (norm === "IN_TRANSIT" || norm === "DISPATCHED") return 6;
-    if (norm === "READY_FOR_DISPATCH" || norm === "DISPATCH_CREATED") return 5;
-    if (norm === "QC_APPROVED" || norm === "QC_PASSED") return 4;
-    if (norm === "QC_PENDING") return 3;
-    if (norm === "IN_PRODUCTION" || norm === "PRODUCTION_STARTED" || norm === "STARTED") return 2;
-    if (norm === "PLANT_APPROVED" || norm === "READY_FOR_PRODUCTION" || norm === "SENT_TO_PLANT_HEAD" || norm === "SENT_TO_PLANT") return 1;
-    return 0;
-  })();
+  // Derive authoritative unified order status combining order, dispatches, and work orders
+  const effectiveOrderForStatus = useMemo(() => {
+    if (!order) return null;
+    const effectiveDispatches = dispatches.length > 0 ? dispatches : (order.dispatches || []);
+    const effectiveWorkOrders = workOrders.length > 0 ? workOrders : (order.workOrders || order.productionPlans?.[0]?.workOrders || []);
+
+    let calculatedDispatchStatus = order.dispatchStatus;
+    if (effectiveDispatches.length > 0) {
+      const completedStatuses = new Set(["DELIVERED", "POD_RECEIVED", "DISPATCH_CLOSED"]);
+      const activeTransitStatuses = new Set(["DISPATCHED", "SHIPPED", "IN_TRANSIT", "OUT_FOR_DELIVERY"]);
+      if (effectiveDispatches.every((d: any) => completedStatuses.has(String(d.status).toUpperCase()))) {
+        calculatedDispatchStatus = "DELIVERED";
+      } else if (effectiveDispatches.some((d: any) => activeTransitStatuses.has(String(d.status).toUpperCase()))) {
+        calculatedDispatchStatus = "IN_TRANSIT";
+      } else {
+        calculatedDispatchStatus = effectiveDispatches[0]?.status || calculatedDispatchStatus;
+      }
+    }
+
+    return {
+      ...order,
+      dispatches: effectiveDispatches,
+      workOrders: effectiveWorkOrders,
+      dispatchStatus: calculatedDispatchStatus,
+    };
+  }, [order, dispatches, workOrders]);
+
+  const accurateStatusLabel = useMemo(() => {
+    if (!effectiveOrderForStatus) return "Confirmed";
+    return getOrderStatusLabel(effectiveOrderForStatus);
+  }, [effectiveOrderForStatus]);
+
+  const currentStageIdx = useMemo(() => {
+    switch (accurateStatusLabel) {
+      case "Delivered":
+      case "Closed":
+        return 7;
+      case "In Transit":
+        return 6;
+      case "Ready for Dispatch":
+      case "Sent to Dispatch":
+        return 5;
+      case "QC Approved":
+        return 4;
+      case "QC Inspection":
+        return 3;
+      case "In Production":
+        return 2;
+      case "Production Planned":
+      case "Accepted by Plant Head":
+      case "Sent to Plant Head":
+        return 1;
+      case "Confirmed":
+      default:
+        return 0;
+    }
+  }, [accurateStatusLabel]);
 
   const resolvePodUrl = (url: string) => {
     if (!url) return "";
@@ -429,7 +510,7 @@ export default function OrderDetailPage() {
               <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "#002e5d", letterSpacing: "-0.02em", fontFamily: "monospace" }}>
                 #{order.orderNumber || order.id}
               </h1>
-              <StatusPill status={workflowStatus} />
+              <StatusBadge status={accurateStatusLabel} />
             </div>
             <div style={{ fontSize: 13, color: "#64748b", marginTop: 3 }}>
               Customer: <strong style={{ color: "#002e5d" }}>{customerName}</strong>
@@ -476,7 +557,7 @@ export default function OrderDetailPage() {
             <Sparkles size={15} color="#0284c7" /> Live Order Progression Lifecycle
           </div>
           <span style={{ fontSize: 11.5, fontWeight: 700, color: "#64748b" }}>
-            Current Stage: <strong style={{ color: "#0284c7" }}>{stages[currentStageIdx]?.label || workflowStatus}</strong>
+            Current Stage: <strong style={{ color: "#0284c7" }}>{accurateStatusLabel}</strong>
           </span>
         </div>
 
@@ -549,6 +630,7 @@ export default function OrderDetailPage() {
             <InfoCard icon={DollarSign} label="Grand Total" value={totalAmount ? `₹${totalAmount.toLocaleString("en-IN")}` : "—"} highlight subtext={`Base: ₹${subtotalAmount.toLocaleString("en-IN")}`} />
             <InfoCard icon={Calendar} label="Order Date" value={fmtDate(order.orderDate || order.createdAt)} />
             <InfoCard icon={Calendar} label="Target Delivery" value={fmtDate(order.targetDate || order.requestedDeliveryDate || order.expectedDeliveryDate)} highlight />
+            <InfoCard icon={CreditCard} label="Payment Status" value={paymentStatusLabel} highlight={paymentStatusLabel === "Fully Paid"} subtext={paidAmount > 0 ? `Paid: ₹${paidAmount.toLocaleString("en-IN")}` : `Balance: ₹${balanceAmount.toLocaleString("en-IN")}`} />
             <InfoCard icon={FileText} label="GST Number" value={customer?.taxId || customer?.gstin || order.gstNumber || "—"} />
           </div>
         </div>
@@ -562,7 +644,7 @@ export default function OrderDetailPage() {
             <div style={{ gridColumn: "span 2" }}>
               <InfoCard icon={MapPin} label="Delivery Site Address" value={deliveryAddr} />
             </div>
-            <InfoCard icon={Layers} label="Order Status" value={workflowStatus} />
+            <InfoCard icon={Layers} label="Order Status" value={accurateStatusLabel} highlight />
             <InfoCard icon={Truck} label="Dispatches Count" value={`${dispatches.length} Dispatch Run(s)`} highlight />
             <InfoCard icon={ShieldCheck} label="Work Orders" value={`${workOrders.length} Active`} />
             <InfoCard icon={Phone} label="Contact Phone" value={customer?.phone || customer?.mobile || "—"} />
@@ -619,13 +701,32 @@ export default function OrderDetailPage() {
                   const qty = Number(item.orderedQuantity ?? item.quantity ?? 1);
                   const unit = item.unit || "SET";
                   const price = Number(item.unitPrice || 0);
-                  const taxable = Number(item.taxableAmount || (qty * price) || 0);
+                  const itemTotal = Number(item.lineTotal || (item.taxableAmount ? (Number(item.taxableAmount) + Number(item.taxAmount || 0)) : (qty * price)) || 0);
+
+                  const rawSpecs = item.specifications || item.productDetails || item.description || null;
+                  let specsText = "";
+                  if (typeof rawSpecs === "string") {
+                    specsText = rawSpecs.trim();
+                  } else if (rawSpecs && typeof rawSpecs === "object") {
+                    specsText = String(rawSpecs.description || rawSpecs.productDetails || rawSpecs.specifications || "").trim();
+                  }
+                  const size = item.size || (typeof rawSpecs === "object" && rawSpecs?.size ? String(rawSpecs.size).trim() : null);
+                  const capacity = item.capacity || (typeof rawSpecs === "object" && rawSpecs?.capacity ? String(rawSpecs.capacity).trim() : null);
+                  const sizeCap = [size, capacity].filter(Boolean).join(" ");
 
                   return (
                     <tr key={item.id || i} style={{ borderBottom: "1px solid #f1f5f9" }}>
                       <td style={{ padding: "12px 14px", color: "#94a3b8", fontWeight: 700 }}>{i + 1}</td>
                       <td style={{ padding: "12px 14px", fontWeight: 750, color: "#002e5d" }}>
-                        <div>{pName}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span>{pName}</span>
+                          {sizeCap && (
+                            <span style={{ fontSize: 11, fontWeight: 750, padding: "2px 7px", borderRadius: 6, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe" }}>
+                              {sizeCap}
+                            </span>
+                          )}
+                        </div>
+                        {specsText && <div style={{ fontSize: 11.5, color: "#475569", fontWeight: 500, marginTop: 3 }}>{specsText}</div>}
                         {pSku && <span style={{ fontSize: 11, fontFamily: "monospace", color: "#64748b" }}>SKU: {pSku}</span>}
                       </td>
                       <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 800, color: "#0f172a" }}>
@@ -635,7 +736,7 @@ export default function OrderDetailPage() {
                         {price ? `₹${price.toLocaleString("en-IN")}` : "—"}
                       </td>
                       <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 850, color: "#16a34a" }}>
-                        {taxable ? `₹${taxable.toLocaleString("en-IN")}` : "—"}
+                        {itemTotal ? `₹${itemTotal.toLocaleString("en-IN")}` : "—"}
                       </td>
                     </tr>
                   );
@@ -688,7 +789,18 @@ export default function OrderDetailPage() {
               const qty = Number(item.orderedQuantity ?? item.quantity ?? 1);
               const unit = item.unit || "SET";
               const price = Number(item.unitPrice || 0);
-              const taxable = Number(item.taxableAmount || (qty * price) || 0);
+              const itemTotal = Number(item.lineTotal || (item.taxableAmount ? (Number(item.taxableAmount) + Number(item.taxAmount || 0)) : (qty * price)) || 0);
+
+              const rawSpecs = item.specifications || item.productDetails || item.description || null;
+              let specsText = "";
+              if (typeof rawSpecs === "string") {
+                specsText = rawSpecs.trim();
+              } else if (rawSpecs && typeof rawSpecs === "object") {
+                specsText = String(rawSpecs.description || rawSpecs.productDetails || rawSpecs.specifications || "").trim();
+              }
+              const size = item.size || (typeof rawSpecs === "object" && rawSpecs?.size ? String(rawSpecs.size).trim() : null);
+              const capacity = item.capacity || (typeof rawSpecs === "object" && rawSpecs?.capacity ? String(rawSpecs.capacity).trim() : null);
+              const sizeCap = [size, capacity].filter(Boolean).join(" ");
 
               return (
                 <div
@@ -725,6 +837,16 @@ export default function OrderDetailPage() {
                       <div style={{ fontWeight: 800, color: "#002e5d", fontSize: 13.5, lineHeight: 1.35 }}>
                         {pName}
                       </div>
+                      {sizeCap && (
+                        <div style={{ marginTop: 3 }}>
+                          <span style={{ fontSize: 10.5, fontWeight: 750, padding: "2px 6px", borderRadius: 4, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe" }}>
+                            {sizeCap}
+                          </span>
+                        </div>
+                      )}
+                      {specsText && (
+                        <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>{specsText}</div>
+                      )}
                       {pSku && (
                         <div style={{ fontSize: 11, fontFamily: "monospace", color: "#64748b", marginTop: 2 }}>
                           SKU: <strong style={{ color: "#0284c7" }}>{pSku}</strong>
@@ -759,7 +881,7 @@ export default function OrderDetailPage() {
                     <div>
                       <div style={{ fontSize: 10, fontWeight: 750, color: "#64748b", textTransform: "uppercase" }}>Total Amount</div>
                       <div style={{ fontSize: 13, fontWeight: 850, color: "#16a34a", marginTop: 2 }}>
-                        {taxable ? `₹${taxable.toLocaleString("en-IN")}` : "—"}
+                        {itemTotal ? `₹${itemTotal.toLocaleString("en-IN")}` : "—"}
                       </div>
                     </div>
                   </div>
@@ -828,7 +950,7 @@ export default function OrderDetailPage() {
                       {wo.workOrderNumber || wo.woNumber || `WO-${idx + 1}`}
                     </td>
                     <td style={{ padding: "12px 14px" }}>
-                      <StatusPill status={wo.status || "IN_PRODUCTION"} />
+                      <StatusPill status={wo.productionStatus || wo.status || "IN_PRODUCTION"} />
                     </td>
                     <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 700, color: "#0f172a" }}>
                       {wo.plannedQuantity || wo.quantity || "—"}
@@ -864,7 +986,7 @@ export default function OrderDetailPage() {
                   <div style={{ fontWeight: 800, fontFamily: "monospace", fontSize: 13.5, color: "#0284c7" }}>
                     {wo.workOrderNumber || wo.woNumber || `WO-${idx + 1}`}
                   </div>
-                  <StatusPill status={wo.status || "IN_PRODUCTION"} />
+                  <StatusPill status={wo.productionStatus || wo.status || "IN_PRODUCTION"} />
                 </div>
 
                 <div

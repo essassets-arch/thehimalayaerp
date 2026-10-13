@@ -42,26 +42,52 @@ export function mapSalesOrder(
   let calculatedQcStatus = 'NOT_READY';
 
   if (workOrders.length > 0) {
-    const statuses = workOrders.map((wo) => String(wo.status).toUpperCase());
-    if (
-      statuses.some((s) =>
-        ['DISPATCHED', 'READY_FOR_DISPATCH', 'QC_APPROVED'].includes(s),
-      )
-    ) {
+    const statuses = workOrders.map((wo) =>
+      String((wo as any).productionStatus || wo.status || '').toUpperCase(),
+    );
+    const allDispatched =
+      statuses.length > 0 &&
+      statuses.every((s) => s === 'DISPATCHED' || s === 'CLOSED');
+    const allReadyForDispatch =
+      statuses.length > 0 &&
+      statuses.every((s) =>
+        ['READY_FOR_DISPATCH', 'DISPATCHED', 'CLOSED'].includes(s),
+      );
+    const allQcApproved =
+      statuses.length > 0 &&
+      statuses.every((s) =>
+        ['QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'CLOSED'].includes(s),
+      );
+    const anyInProduction = statuses.some((s) =>
+      ['STARTED', 'PARTIALLY_COMPLETED', 'IN_PRODUCTION'].includes(s),
+    );
+    const anyQcPending = statuses.some((s) =>
+      ['QC_PENDING', 'COMPLETED', 'QC'].includes(s),
+    );
+    const allPlanned = statuses.every((s) =>
+      ['CREATED', 'MATERIAL_PENDING', 'READY', 'PLANNED'].includes(s),
+    );
+
+    if (allDispatched) {
+      calculatedProductionStatus = 'DISPATCHED';
+      calculatedQcStatus = 'QC_APPROVED';
+    } else if (allReadyForDispatch) {
+      calculatedProductionStatus = 'READY_FOR_DISPATCH';
+      calculatedQcStatus = 'QC_APPROVED';
+    } else if (allQcApproved) {
       calculatedProductionStatus = 'QC_APPROVED';
       calculatedQcStatus = 'QC_APPROVED';
-    } else if (statuses.some((s) => ['QC_PENDING', 'COMPLETED'].includes(s))) {
+    } else if (anyInProduction) {
+      calculatedProductionStatus = 'IN_PRODUCTION';
+      calculatedQcStatus = anyQcPending ? 'QC_PENDING' : 'PENDING';
+    } else if (anyQcPending) {
       calculatedProductionStatus = 'QC';
       calculatedQcStatus = 'QC_PENDING';
-    } else if (
-      statuses.some((s) => ['STARTED', 'PARTIALLY_COMPLETED'].includes(s))
-    ) {
-      calculatedProductionStatus = 'IN_PRODUCTION';
-      calculatedQcStatus = 'PENDING';
-    } else if (
-      statuses.some((s) => ['CREATED', 'MATERIAL_PENDING', 'READY'].includes(s))
-    ) {
+    } else if (allPlanned) {
       calculatedProductionStatus = 'PLANNED';
+      calculatedQcStatus = 'PENDING';
+    } else {
+      calculatedProductionStatus = 'IN_PRODUCTION';
       calculatedQcStatus = 'PENDING';
     }
   }
@@ -87,14 +113,25 @@ export function mapSalesOrder(
     'POD_RECEIVED',
     'DISPATCH_CLOSED',
   ]);
+  const activeDispatchStatuses = new Set([
+    'DISPATCHED',
+    'SHIPPED',
+    'IN_TRANSIT',
+    'OUT_FOR_DELIVERY',
+  ]);
   const dispatches = order.dispatches ?? [];
-  const dispatchStatus =
-    dispatches.length > 0 &&
-    dispatches.every((dispatch) =>
-      completedDispatchStatuses.has(dispatch.status),
-    )
-      ? 'DELIVERED'
-      : dispatches[0]?.status || (isOrderAllTrading && effectiveStatus === 'READY_FOR_DISPATCH' ? 'READY_FOR_DISPATCH' : undefined);
+  let dispatchStatus: string | undefined = undefined;
+  if (dispatches.length > 0) {
+    if (dispatches.every((dispatch) => completedDispatchStatuses.has(dispatch.status))) {
+      dispatchStatus = 'DELIVERED';
+    } else if (dispatches.some((dispatch) => activeDispatchStatuses.has(dispatch.status))) {
+      dispatchStatus = 'IN_TRANSIT';
+    } else {
+      dispatchStatus = dispatches[0]?.status;
+    }
+  } else if (isOrderAllTrading && effectiveStatus === 'READY_FOR_DISPATCH') {
+    dispatchStatus = 'READY_FOR_DISPATCH';
+  }
   const deliveredAt = dispatches
     .filter((dispatch) => completedDispatchStatuses.has(dispatch.status))
     .map((dispatch) => dispatch.deliveredAt)
@@ -455,13 +492,7 @@ export function mapSalesOrder(
     sentToPlantHead: isOrderAllTrading
       ? false
       : Boolean(
-          order.status === 'SENT_TO_PLANT_HEAD' ||
-          order.status === 'PLANT_APPROVED' ||
-          order.status === 'READY_FOR_PRODUCTION' ||
-          order.status === 'IN_PRODUCTION' ||
-          order.status === 'READY_FOR_DISPATCH' ||
-          order.status === 'COMPLETED' ||
-          productionPlan?.id,
+          ['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD', 'PLANT_APPROVED', 'READY_FOR_PRODUCTION', 'IN_PRODUCTION', 'READY_FOR_DISPATCH', 'COMPLETED'].includes(String(order.status).toUpperCase()),
         ),
     sentToPlantHeadAt: isOrderAllTrading
       ? undefined
@@ -474,11 +505,13 @@ export function mapSalesOrder(
     currentDepartment: isOrderAllTrading ? (effectiveStatus === 'READY_FOR_DISPATCH' ? 'Dispatch 2' : 'Sales') : undefined,
     planningStatus: isOrderAllTrading
       ? 'NOT_REQUIRED'
-      : order.status === 'SENT_TO_PLANT_HEAD'
+      : ['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD'].includes(String(order.status).toUpperCase())
         ? 'PENDING_ACCEPTANCE'
         : order.status === 'PLANT_APPROVED'
-          ? 'PLANT_HEAD_ACCEPTED'
-          : productionPlan?.id
+          ? (productionPlan?.id && (workOrders.length > 0 || ['APPROVED', 'RELEASED', 'IN_PROGRESS', 'COMPLETED'].includes(String(productionPlan?.status).toUpperCase()))
+              ? 'PRODUCTION_PLANNED'
+              : 'PLANT_HEAD_ACCEPTED')
+          : ['READY_FOR_PRODUCTION', 'IN_PRODUCTION', 'READY_FOR_DISPATCH', 'COMPLETED'].includes(String(order.status).toUpperCase()) || (productionPlan?.id && order.status !== 'CONFIRMED' && order.status !== 'DRAFT')
             ? 'PRODUCTION_PLANNED'
             : 'NOT_SENT',
     dispatchStatus,
