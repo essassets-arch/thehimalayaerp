@@ -15,7 +15,6 @@ import { NotificationProvider } from '@/shared/context/NotificationContext';
 import MockDataSeeder from '@/components/MockDataSeeder';
 import { getNavigationForPath, getModuleKeyFromPath } from '@/config/navigationHelpers';
 import AuthGuard from '@/shared/components/AuthGuard';
-import { LocationTrackingProvider } from '@/providers/LocationTrackingProvider';
 import MandatoryPermissionsModal from '@/components/MandatoryPermissionsModal';
 
 import * as Lucide from 'lucide-react';
@@ -130,7 +129,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <AuthGuard>
     <ERPProvider>
     <NotificationProvider>
-    <LocationTrackingProvider>
       <div className={`app-container ${roleClass}`}>
       <MockDataSeeder />
       {/* Sidebar Navigation */}
@@ -181,7 +179,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {!isDispatchPanel && <MandatoryPermissionsModal />}
 
     </div>
-    </LocationTrackingProvider>
     </NotificationProvider>
     </ERPProvider>
     </AuthGuard>

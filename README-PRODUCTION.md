@@ -147,15 +147,17 @@ server {
     client_max_body_size 100M;
 
     # Real-Time WebSocket & Polling Gateway (NestJS Location & Notification Engine)
-    location /socket.io/ {
-        proxy_pass http://127.0.0.1:4001;
+    location ^~ /socket.io {
+        proxy_pass http://127.0.0.1:4001/socket.io;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header Connection $connection_upgrade;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
     }
 
     location / {
@@ -228,6 +230,21 @@ server {
     }
 }
 ```
+
+Define the upgrade connection map in the top-level `http {}` block of
+`/etc/nginx/nginx.conf` (outside the `server {}` block):
+
+```nginx
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+```
+
+The backend container listens on port 4000 internally and the Compose file
+publishes it as `127.0.0.1:4001` for host Nginx. If the proxy itself runs in
+Docker, proxy to `backend:4000` instead. After updating the active VPS config,
+run `sudo nginx -t && sudo systemctl reload nginx`.
 
 Reload Nginx:
 ```bash

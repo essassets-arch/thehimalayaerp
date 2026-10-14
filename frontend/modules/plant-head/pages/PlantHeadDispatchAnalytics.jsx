@@ -30,6 +30,9 @@ import {
   Search,
   ChevronLeft,
   ClipboardList,
+  User,
+  UserCheck,
+  Eye,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -141,10 +144,20 @@ export const PlantHeadDispatchAnalytics = () => {
   const reportRef = useRef(null);
 
   // ── Dispatch Register Table State ──
+  const [activeRegisterTab, setActiveRegisterTab] = useState('dailyReports');
   const [dispatchSearchQuery, setDispatchSearchQuery] = useState('');
   const [dispatchDateFilter, setDispatchDateFilter] = useState('All');
   const [dispatchPageSize, setDispatchPageSize] = useState(20);
   const [dispatchCurrentPage, setDispatchCurrentPage] = useState(1);
+
+  // ── Factory Daily Report Table State ──
+  const [dailyReportSearchQuery, setDailyReportSearchQuery] = useState('');
+  const [dailyReportUserFilter, setDailyReportUserFilter] = useState('All');
+  const [dailyReportShiftFilter, setDailyReportShiftFilter] = useState('All');
+  const [dailyReportUnitFilter, setDailyReportUnitFilter] = useState('All');
+  const [dailyReportStatusFilter, setDailyReportStatusFilter] = useState('All');
+  const [dailyReportPageSize, setDailyReportPageSize] = useState(20);
+  const [dailyReportCurrentPage, setDailyReportCurrentPage] = useState(1);
 
   useEffect(() => {
     setMounted(true);
@@ -646,6 +659,96 @@ export const PlantHeadDispatchAnalytics = () => {
     });
     return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
   }, [dispatchOrders]);
+
+  // ── Factory Daily Reports Data Extractors & Filters ──
+  const dispatchDailyReports = useMemo(() => analyticsData?.dispatchDailyReports || {}, [analyticsData?.dispatchDailyReports]);
+  const dailyReportsList = useMemo(() => dispatchDailyReports.reports || [], [dispatchDailyReports]);
+
+  const uniqueDailyReportUsers = useMemo(() => {
+    if (Array.isArray(dispatchDailyReports.userBreakdown) && dispatchDailyReports.userBreakdown.length > 0) {
+      return dispatchDailyReports.userBreakdown.map(u => ({
+        name: u.user || u.name,
+        user: u.user || u.name,
+        email: u.email || '',
+        count: u.reportCount || u.count || 0,
+        totalCovers: u.totalCovers || 0,
+        totalFrames: u.totalFrames || 0,
+        totalSets: u.totalSets || 0,
+        totalWeight: u.totalWeight || 0
+      }));
+    }
+    const userMap = {};
+    dailyReportsList.forEach(r => {
+      const u = r.enteredBy || r.dispatchExecutive || 'Unknown';
+      if (!userMap[u]) {
+        userMap[u] = { name: u, user: u, email: r.enteredByEmail || '', count: 0, totalCovers: 0, totalFrames: 0, totalSets: 0, totalWeight: 0 };
+      }
+      userMap[u].count += 1;
+      userMap[u].totalCovers += Number(r.totalCovers) || 0;
+      userMap[u].totalFrames += Number(r.totalFrames) || 0;
+      userMap[u].totalSets += Number(r.totalSets) || 0;
+      userMap[u].totalWeight += Number(r.totalWeight) || 0;
+    });
+    return Object.values(userMap).sort((a, b) => b.count - a.count);
+  }, [dispatchDailyReports, dailyReportsList]);
+
+  const filteredDailyReports = useMemo(() => {
+    let list = dailyReportsList;
+    if (dailyReportUserFilter && dailyReportUserFilter !== 'All') {
+      list = list.filter(r => (r.enteredBy === dailyReportUserFilter || r.dispatchExecutive === dailyReportUserFilter));
+    }
+    if (dailyReportShiftFilter && dailyReportShiftFilter !== 'All') {
+      list = list.filter(r => r.shift === dailyReportShiftFilter);
+    }
+    if (dailyReportUnitFilter && dailyReportUnitFilter !== 'All') {
+      list = list.filter(r => r.dispatchType === dailyReportUnitFilter);
+    }
+    if (dailyReportStatusFilter && dailyReportStatusFilter !== 'All') {
+      list = list.filter(r => r.status === dailyReportStatusFilter);
+    }
+    if (dailyReportSearchQuery && dailyReportSearchQuery.trim()) {
+      const q = dailyReportSearchQuery.trim().toLowerCase();
+      list = list.filter(r =>
+        (r.reportNo && String(r.reportNo).toLowerCase().includes(q)) ||
+        (r.enteredBy && String(r.enteredBy).toLowerCase().includes(q)) ||
+        (r.dispatchExecutive && String(r.dispatchExecutive).toLowerCase().includes(q)) ||
+        (r.shift && String(r.shift).toLowerCase().includes(q)) ||
+        (r.date && String(r.date).toLowerCase().includes(q)) ||
+        (Array.isArray(r.items) && r.items.some(it => (it.productName && it.productName.toLowerCase().includes(q)) || (it.size && it.size.toLowerCase().includes(q))))
+      );
+    }
+    return list;
+  }, [dailyReportsList, dailyReportUserFilter, dailyReportShiftFilter, dailyReportUnitFilter, dailyReportStatusFilter, dailyReportSearchQuery]);
+
+  const paginatedDailyReports = useMemo(() => {
+    if (dailyReportPageSize === 'All') return filteredDailyReports;
+    const start = (dailyReportCurrentPage - 1) * Number(dailyReportPageSize);
+    return filteredDailyReports.slice(start, start + Number(dailyReportPageSize));
+  }, [filteredDailyReports, dailyReportCurrentPage, dailyReportPageSize]);
+
+  const totalDailyReportPages = useMemo(() => {
+    if (dailyReportPageSize === 'All') return 1;
+    return Math.ceil(filteredDailyReports.length / Number(dailyReportPageSize)) || 1;
+  }, [filteredDailyReports.length, dailyReportPageSize]);
+
+  const filteredDailyReportsStats = useMemo(() => {
+    let covers = 0;
+    let frames = 0;
+    let sets = 0;
+    let weight = 0;
+    for (const r of filteredDailyReports) {
+      covers += Number(r.totalCovers) || 0;
+      frames += Number(r.totalFrames) || 0;
+      sets += Number(r.totalSets) || 0;
+      weight += Number(r.totalWeight) || 0;
+    }
+    return {
+      totalCovers: covers,
+      totalFrames: frames,
+      totalSets: sets,
+      totalWeight: Math.round(weight * 100) / 100,
+    };
+  }, [filteredDailyReports]);
 
   // Top 5 client summary values
   const top5Weight = customerConcentration?.top5Weight || (topCustomers.reduce((s, c) => s + (c.weight || 0), 0));
