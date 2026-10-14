@@ -23,6 +23,31 @@ import {
   isSalespersonScopedRole,
 } from '../../common/utils/rbac.util';
 
+function isPlaceholderCustomerName(name: string | null | undefined): boolean {
+  if (!name || typeof name !== 'string') return true;
+  const n = name.trim().toLowerCase();
+  return [
+    '',
+    'lead',
+    'quotation',
+    'order',
+    'sample',
+    'client',
+    'customer',
+    'n/a',
+    'na',
+    '—',
+    '-',
+    'prospect',
+    'lead prospect',
+    'quotation prospect',
+    'order client',
+    'customer reminder',
+    'follow-up',
+    'sales follow-up',
+  ].includes(n);
+}
+
 /** Dynamic reminder feed and CRUD operations used by the Sales workspace. */
 @Controller('sales/reminders')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -141,31 +166,6 @@ export class SalesRemindersController {
       whereClause.reminderDate = dateQuery;
     }
 
-function isPlaceholderCustomerName(name: string | null | undefined): boolean {
-  if (!name || typeof name !== 'string') return true;
-  const n = name.trim().toLowerCase();
-  return [
-    '',
-    'lead',
-    'quotation',
-    'order',
-    'sample',
-    'client',
-    'customer',
-    'n/a',
-    'na',
-    '—',
-    '-',
-    'prospect',
-    'lead prospect',
-    'quotation prospect',
-    'order client',
-    'customer reminder',
-    'follow-up',
-    'sales follow-up',
-  ].includes(n);
-}
-
     const matchedReminders = await this.prisma.followUp.findMany({
       where: whereClause,
       include: {
@@ -211,7 +211,6 @@ function isPlaceholderCustomerName(name: string | null | undefined): boolean {
             resolvedCustomerName =
               lead.companyName ||
               lead.projectName ||
-              lead.siteInchargeName ||
               lead.contactPerson ||
               lead.gstName ||
               '';
@@ -237,9 +236,9 @@ function isPlaceholderCustomerName(name: string | null | undefined): boolean {
             if (quote.customerId) {
               const cust = await this.prisma.customer.findUnique({
                 where: { id: quote.customerId },
-                select: { name: true, companyName: true },
+                select: { companyName: true, contactPerson: true },
               }).catch(() => null);
-              custName = cust?.name || cust?.companyName || '';
+              custName = cust?.companyName || cust?.contactPerson || '';
             }
             resolvedCustomerName =
               custName ||
@@ -259,6 +258,7 @@ function isPlaceholderCustomerName(name: string | null | undefined): boolean {
                 },
                 include: {
                   lead: true,
+                  customer: true,
                 },
               }).catch(() => null)
             : null;
@@ -266,19 +266,19 @@ function isPlaceholderCustomerName(name: string | null | undefined): boolean {
         if (sample) {
           referenceNo = sample.sampleNumber || 'N/A';
           if (isPlaceholderCustomerName(resolvedCustomerName)) {
-            let custName = '';
-            if (sample.customerId) {
+            let custName = sample.customer?.companyName || sample.customer?.contactPerson || '';
+            if (!custName && sample.customerId) {
               const cust = await this.prisma.customer.findUnique({
                 where: { id: sample.customerId },
-                select: { name: true, companyName: true },
+                select: { companyName: true, contactPerson: true },
               }).catch(() => null);
-              custName = cust?.name || cust?.companyName || '';
+              custName = cust?.companyName || cust?.contactPerson || '';
             }
             resolvedCustomerName =
               custName ||
               sample.lead?.companyName ||
               sample.lead?.projectName ||
-              sample.contactPerson ||
+              sample.lead?.contactPerson ||
               '';
           }
         }
@@ -311,9 +311,9 @@ function isPlaceholderCustomerName(name: string | null | undefined): boolean {
             if (order.customerId) {
               const cust = await this.prisma.customer.findUnique({
                 where: { id: order.customerId },
-                select: { name: true, companyName: true },
+                select: { companyName: true, contactPerson: true },
               }).catch(() => null);
-              custName = cust?.name || cust?.companyName || '';
+              custName = cust?.companyName || cust?.contactPerson || '';
             }
             resolvedCustomerName =
               custName ||
@@ -461,7 +461,6 @@ function isPlaceholderCustomerName(name: string | null | undefined): boolean {
         cust =
           reminder.lead.companyName ||
           reminder.lead.projectName ||
-          reminder.lead.siteInchargeName ||
           reminder.lead.contactPerson ||
           reminder.lead.gstName ||
           '';
@@ -1030,7 +1029,6 @@ async function getCustomerNameForSource(
     return (
       sourceRecord.companyName ||
       sourceRecord.projectName ||
-      sourceRecord.siteInchargeName ||
       sourceRecord.contactPerson ||
       sourceRecord.gstName ||
       sourceRecord.customerName ||
@@ -1048,7 +1046,6 @@ async function getCustomerNameForSource(
         return (
           lead.companyName ||
           lead.projectName ||
-          lead.siteInchargeName ||
           lead.contactPerson ||
           lead.gstName ||
           'Customer'
@@ -1062,7 +1059,7 @@ async function getCustomerNameForSource(
       const customer = await tx.customer.findUnique({
         where: { id: customerId },
       });
-      if (customer) return customer.name || customer.companyName || 'Customer';
+      if (customer) return customer.companyName || customer.contactPerson || customer.name || 'Customer';
     } catch {}
   }
 
@@ -1070,17 +1067,17 @@ async function getCustomerNameForSource(
     return (
       sourceRecord.lead.companyName ||
       sourceRecord.lead.projectName ||
-      sourceRecord.lead.siteInchargeName ||
       sourceRecord.lead.contactPerson ||
       'Customer'
     );
   }
 
-  if (sourceRecord.quotation?.lead) {
+  if (sourceRecord.quotation) {
     return (
-      sourceRecord.quotation.lead.companyName ||
-      sourceRecord.quotation.lead.projectName ||
-      sourceRecord.quotation.lead.siteInchargeName ||
+      sourceRecord.quotation.lead?.companyName ||
+      sourceRecord.quotation.lead?.projectName ||
+      sourceRecord.quotation.siteInchargeName ||
+      sourceRecord.quotation.lead?.contactPerson ||
       'Customer'
     );
   }

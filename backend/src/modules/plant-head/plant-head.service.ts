@@ -5435,7 +5435,7 @@ export class PlantHeadService {
       totalRemainingCount: mfgReadyOrders.length + mfgPlantApproved.length + draftOrdersCount,
     };
 
-    const [dbDispatches, dbDispatchDailyReports] = await Promise.all([
+    const [dbDispatches, rawDbDispatchDailyReports] = await Promise.all([
       this.prisma.dispatch.findMany({
         where: { ...dispatchScope, ...(isAllTime ? {} : { dispatchedAt: { gte: startDate, lt: endDate } }) },
         include: {
@@ -5480,15 +5480,17 @@ export class PlantHeadService {
             },
             orderBy: { reportDate: 'desc' },
           })
-        : Promise.resolve([])
-      ).catch(() => []),
+        : Promise.resolve([] as any[])
+      ).catch(() => [] as any[]),
     ]);
 
+    const dbDispatchDailyReports: any[] = (rawDbDispatchDailyReports as any[]) || [];
+
     // Aggregate Covers, Frames, Sets and Dispatch User Breakdown from Dispatch Daily Reports
-    const drTotalCovers = (dbDispatchDailyReports || []).reduce((s: number, r: any) => s + Number(r.totalCovers || 0), 0);
-    const drTotalFrames = (dbDispatchDailyReports || []).reduce((s: number, r: any) => s + Number(r.totalFrames || 0), 0);
-    const drTotalSets = (dbDispatchDailyReports || []).reduce((s: number, r: any) => s + Number(r.totalSets || 0), 0);
-    const drTotalWeight = Math.round((dbDispatchDailyReports || []).reduce((s: number, r: any) => s + Number(r.totalWeight || 0), 0) * 100) / 100;
+    const drTotalCovers: number = dbDispatchDailyReports.reduce((s: number, r: any) => s + Number(r.totalCovers || 0), 0);
+    const drTotalFrames: number = dbDispatchDailyReports.reduce((s: number, r: any) => s + Number(r.totalFrames || 0), 0);
+    const drTotalSets: number = dbDispatchDailyReports.reduce((s: number, r: any) => s + Number(r.totalSets || 0), 0);
+    const drTotalWeight: number = Math.round(dbDispatchDailyReports.reduce((s: number, r: any) => s + Number(r.totalWeight || 0), 0) * 100) / 100;
 
     // Dispatch User Breakdown (Shows which dispatch user logged the entries from /dispatch/daily-report)
     const dispatchUserMap = new Map<string, any>();
@@ -5532,7 +5534,7 @@ export class PlantHeadService {
     for (const r of (dbDispatchDailyReports || [])) {
       for (const it of r.items || []) {
         const rawName = it.product?.name || it.customProductName || '';
-        const pKey = standardizeProduct(it.type, rawName);
+        const pKey = standardizeProduct(it.type || undefined, rawName);
         if (!drProdMap.has(pKey)) {
           drProdMap.set(pKey, {
             product: pKey,
