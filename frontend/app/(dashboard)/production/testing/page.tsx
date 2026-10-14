@@ -80,7 +80,7 @@ export default function ProductionTestingPage() {
   /* ── Load Customers for Autocomplete ── */
   const fetchCustomers = async () => {
     try {
-      const res = await backendFetch<{ success?: boolean; data?: any[] }>('/api/backend/customers?limit=1000', { cacheTtlMs: 0 });
+      const res = await backendFetch<{ success?: boolean; data?: any[] }>('/api/backend/sales/customers?page=1&pageSize=1000', { cacheTtlMs: 0 });
       const list = Array.isArray(res) ? res : (res?.data || []);
       setCustomers(list);
     } catch {
