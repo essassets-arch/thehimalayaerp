@@ -45,50 +45,6 @@ const PALETTE = {
   cardBg: '#FFFFFF',
 };
 
-// ── Exact Verified ERP Database Telemetry Baselines ──
-const REAL_ERP_BASELINES = {
-  totalRevenue: 13102882.60,
-  totalCollections: 4928368.61,
-  totalOutstanding: 8174513.99,
-  overdueAmount: 1852438.12,
-  unpaidCount: 185,
-  overdueCount: 47,
-  collectionEfficiency: 37.61,
-  vendorDue: 62309.00,
-  topDebtors: [
-    { name: 'ARCHIT CORPORATION', totalBal: 1513287.31, count: 20, maxDays: 52, risk: 'HIGH' },
-    { name: 'SHREE MOMAI INFRA CONSTRUCTION', totalBal: 727081.00, count: 6, maxDays: 38, risk: 'HIGH' },
-    { name: 'VIJAY BHAI', totalBal: 674964.72, count: 2, maxDays: 45, risk: 'HIGH' },
-    { name: 'SHANNON PROJECTS LLP', totalBal: 590885.00, count: 4, maxDays: 32, risk: 'MEDIUM' },
-    { name: 'Jay Corporation', totalBal: 530926.00, count: 2, maxDays: 29, risk: 'MEDIUM' },
-    { name: 'MAHALAXMI CORPORATION', totalBal: 500321.60, count: 3, maxDays: 41, risk: 'HIGH' },
-    { name: 'BHADANI INDUSTRIES', totalBal: 432075.68, count: 2, maxDays: 35, risk: 'MEDIUM' },
-    { name: 'VARMINE CONTECH PVT LTD', totalBal: 242333.80, count: 3, maxDays: 24, risk: 'LOW' },
-    { name: 'OM INFRASTRUCTURE', totalBal: 176377.20, count: 2, maxDays: 18, risk: 'LOW' },
-    { name: 'SHIVOHAM INFRASTRUCTURE', totalBal: 130046.62, count: 1, maxDays: 14, risk: 'LOW' }
-  ],
-  salesReps: [
-    { name: 'Sales One', role: 'Sales Executive', count: 64, totalVal: 3632368.98, received: 939967.00, outstanding: 2692401.98 },
-    { name: 'SuperSales Two', role: 'SuperSales', count: 39, totalVal: 3810340.36, received: 1137405.00, outstanding: 2672935.36 },
-    { name: 'Sales Two', role: 'Sales Executive', count: 28, totalVal: 2006365.21, received: 314285.00, outstanding: 1692080.21 },
-    { name: 'Sales Four', role: 'Sales Executive', count: 17, totalVal: 1122840.80, received: 792944.00, outstanding: 329896.80 },
-    { name: 'Sales Three', role: 'Sales Executive', count: 21, totalVal: 456544.36, received: 48442.00, outstanding: 408102.36 },
-    { name: 'Jyoti Sales 12', role: 'Sales Executive', count: 16, totalVal: 383495.28, received: 4398.00, outstanding: 379097.28 }
-  ],
-  quarters: [
-    { period: 'Q1 FY26', collections: 2115897.61, outstanding: 595654.48 },
-    { period: 'Q2 FY26', collections: 350440.00, outstanding: 2818569.53 },
-    { period: 'Q3 FY26', collections: 1277472.00, outstanding: 2021976.74 },
-    { period: 'Q4 FY26', collections: 1184559.00, outstanding: 2738313.24 }
-  ],
-  aging: [
-    { name: '0–30 Days (Current)', value: 7623157.61, color: PALETTE.emerald, percentage: '93.2%' },
-    { name: '31–60 Days (Aging)', value: 53092.92, color: PALETTE.amber, percentage: '0.6%' },
-    { name: '61–90 Days (Overdue)', value: 288913.06, color: '#F97316', percentage: '3.5%' },
-    { name: '90+ Days (Critical)', value: 209350.40, color: PALETTE.rose, percentage: '2.6%' }
-  ]
-};
-
 export default function FinanceManagerDashboardView({
   state: propState,
   payments: propPayments = [],
@@ -180,9 +136,12 @@ export default function FinanceManagerDashboardView({
 
   // Combined AR Invoices (APPL + HCPPL)
   const allArInvoices = useMemo(() => {
-    const combined = [...liveData.applArInvoices, ...liveData.hcpplArInvoices];
-    return combined;
-  }, [liveData.applArInvoices, liveData.hcpplArInvoices]);
+    const combined = [...(liveData.applArInvoices || []), ...(liveData.hcpplArInvoices || [])];
+    if (combined.length > 0) return combined;
+    if (Array.isArray(propPayments) && propPayments.length > 0) return propPayments;
+    if (Array.isArray(state.invoices) && state.invoices.length > 0) return state.invoices;
+    return [];
+  }, [liveData.applArInvoices, liveData.hcpplArInvoices, propPayments, state.invoices]);
 
   // Combined Sales Orders
   const salesOrders = useMemo(() => {
@@ -196,11 +155,11 @@ export default function FinanceManagerDashboardView({
   const periodMeta = useMemo(() => {
     switch (timeRange) {
       case '30D':
-        return { label: '30 Days', badge: 'Last 30 Days (Rolling Window)', desc: 'Rolling 30-Day Window' };
+        return { label: '30 Days', badge: 'Last 30 Days (Active Rolling Cycle)', desc: 'Rolling 30-Day Window' };
       case '90D':
         return { label: 'Quarter', badge: 'Current Quarter (Q3 FY26)', desc: 'Quarterly Audit Cycle' };
       case '6M':
-        return { label: '6 Months', badge: 'Last 6 Months (H1 FY26)', desc: 'Half-Year Financial Window' };
+        return { label: '6 Months', badge: 'Half Year (H1 FY26: Q1 + Q2)', desc: 'Half-Year Financial Window' };
       case '1Y':
       default:
         return { label: 'Full Year', badge: 'Full Year (FY 2026–27)', desc: 'Annual Financial Horizon' };
@@ -214,39 +173,56 @@ export default function FinanceManagerDashboardView({
 
     const now = new Date();
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    let cutoff = new Date(now);
-    if (timeRange === '30D') cutoff.setDate(cutoff.getDate() - 30);
-    else if (timeRange === '90D') cutoff.setDate(cutoff.getDate() - 90);
-    else if (timeRange === '6M') cutoff.setMonth(cutoff.getMonth() - 6);
 
-    // 1. Precise Date-Range Filter
-    const dateMatches = allArInvoices.filter((inv) => {
-      const d = new Date(inv.invoiceDate || inv.createdAt);
-      return !isNaN(d.getTime()) && d >= cutoff && d <= endOfToday;
-    });
-
-    if (dateMatches.length > 0) {
-      return dateMatches;
+    if (timeRange === '6M') {
+      const h1 = allArInvoices.filter((i) => {
+        const q = String(i.quarter || '');
+        if (q.includes('Q1') || q.includes('Q2')) return true;
+        const d = new Date(i.invoiceDate || i.createdAt);
+        if (!isNaN(d.getTime())) {
+          const m = d.getMonth();
+          return m >= 3 && m <= 8; // Apr to Sep (H1)
+        }
+        return false;
+      });
+      return h1.length > 0 ? h1 : allArInvoices.slice(0, Math.ceil(allArInvoices.length / 2));
     }
 
-    // 2. Intelligent Quarter/Period partitioning fallback (when partition dates are discrete)
-    if (timeRange === '30D') {
-      const q3 = allArInvoices.filter((i) => (i.quarter || '').includes('Q3'));
-      const q2 = allArInvoices.filter((i) => (i.quarter || '').includes('Q2'));
-      const activeQuarter = q3.length > 0 ? q3 : (q2.length > 0 ? q2 : allArInvoices);
-      return activeQuarter.slice(0, Math.max(10, Math.round(activeQuarter.length / 3)));
-    }
     if (timeRange === '90D') {
-      const q3 = allArInvoices.filter((i) => (i.quarter || '').includes('Q3'));
+      const q3 = allArInvoices.filter((i) => {
+        const q = String(i.quarter || '');
+        if (q.includes('Q3')) return true;
+        const d = new Date(i.invoiceDate || i.createdAt);
+        if (!isNaN(d.getTime())) {
+          const m = d.getMonth();
+          return m >= 9 && m <= 11; // Oct to Dec (Q3)
+        }
+        return false;
+      });
       if (q3.length > 0) return q3;
       const q2 = allArInvoices.filter((i) => (i.quarter || '').includes('Q2'));
       if (q2.length > 0) return q2;
-      return allArInvoices.slice(0, Math.max(25, Math.round(allArInvoices.length / 4)));
+      return allArInvoices.slice(0, Math.max(10, Math.round(allArInvoices.length / 4)));
     }
-    if (timeRange === '6M') {
-      const h1 = allArInvoices.filter((i) => (i.quarter || '').includes('Q1') || (i.quarter || '').includes('Q2'));
-      if (h1.length > 0) return h1;
-      return allArInvoices.slice(0, Math.ceil(allArInvoices.length / 2));
+
+    if (timeRange === '30D') {
+      const cutoff = new Date(now);
+      cutoff.setDate(cutoff.getDate() - 30);
+
+      const dateMatches = allArInvoices.filter((inv) => {
+        const d = new Date(inv.invoiceDate || inv.createdAt);
+        return !isNaN(d.getTime()) && d >= cutoff && d <= endOfToday;
+      });
+
+      if (dateMatches.length > 0) {
+        return dateMatches;
+      }
+
+      // Quarterly imported invoices are indexed in discrete middle months (May, Aug, Nov, Feb).
+      // For a 30-day view, take the current 30-day monthly segment of the active quarter (Q3).
+      const q3 = allArInvoices.filter((i) => (i.quarter || '').includes('Q3'));
+      const activeQuarter = q3.length > 0 ? q3 : allArInvoices;
+      return activeQuarter.slice(0, Math.max(10, Math.ceil(activeQuarter.length / 3)));
     }
 
     return allArInvoices;
@@ -269,9 +245,7 @@ export default function FinanceManagerDashboardView({
       return !isNaN(d.getTime()) && d >= cutoff && d <= endOfToday;
     });
 
-    if (dateMatches.length > 0) {
-      return dateMatches;
-    }
+    if (dateMatches.length > 0) return dateMatches;
 
     if (timeRange === '30D') return salesOrders.slice(0, Math.max(15, Math.round(salesOrders.length / 12)));
     if (timeRange === '90D') return salesOrders.slice(0, Math.max(30, Math.round(salesOrders.length / 4)));
@@ -293,15 +267,15 @@ export default function FinanceManagerDashboardView({
     else if (timeRange === '6M') cutoff.setMonth(cutoff.getMonth() - 6);
 
     const dateMatches = list.filter((p) => {
-      const d = new Date(p.createdAt || p.poDate || p.date);
+      const d = new Date(p.issuedAt || p.createdAt || p.poDate || p.date);
       return !isNaN(d.getTime()) && d >= cutoff && d <= endOfToday;
     });
 
     if (dateMatches.length > 0) return dateMatches;
 
-    if (timeRange === '30D') return list.slice(0, Math.max(2, Math.round(list.length / 6)));
-    if (timeRange === '90D') return list.slice(0, Math.max(4, Math.round(list.length / 4)));
-    if (timeRange === '6M') return list.slice(0, Math.max(7, Math.round(list.length / 2)));
+    if (timeRange === '30D') return list.slice(0, Math.max(1, Math.round(list.length / 6)));
+    if (timeRange === '90D') return list.slice(0, Math.max(2, Math.round(list.length / 4)));
+    if (timeRange === '6M') return list.slice(0, Math.max(4, Math.round(list.length / 2)));
     return list;
   }, [liveData.purchaseOrders, timeRange]);
 
@@ -359,26 +333,15 @@ export default function FinanceManagerDashboardView({
           }
         }
       });
-    } else {
-      // 3. Fallback to exact verified database figures scaled by horizon
-      const scale = timeRange === '30D' ? 0.08 : timeRange === '90D' ? 0.25 : timeRange === '6M' ? 0.5 : 1;
-      revSum = REAL_ERP_BASELINES.totalRevenue * scale;
-      collSum = REAL_ERP_BASELINES.totalCollections * scale;
-      outSum = REAL_ERP_BASELINES.totalOutstanding * scale;
-      overdueSum = REAL_ERP_BASELINES.overdueAmount * scale;
-      unpaidCount = Math.round(REAL_ERP_BASELINES.unpaidCount * scale);
-      overdueCount = Math.round(REAL_ERP_BASELINES.overdueCount * scale);
     }
 
-    const effRatio = revSum > 0 ? ((collSum / revSum) * 100).toFixed(1) : '37.6';
-    const effNum = Number(effRatio || 0);
+    const effNum = revSum > 0 ? Number(((collSum / revSum) * 100).toFixed(1)) : 0;
+    const effRatio = effNum.toFixed(1);
 
-    const poCount = filteredPurchaseOrders.length || (timeRange === '30D' ? 3 : timeRange === '90D' ? 6 : timeRange === '6M' ? 10 : 19);
-    const poTotal = filteredPurchaseOrders.length > 0
-      ? filteredPurchaseOrders.reduce((s, p) => s + Number(p.totalAmount || 0), 0)
-      : Math.round(REAL_ERP_BASELINES.vendorDue * (timeRange === '30D' ? 0.15 : timeRange === '90D' ? 0.35 : timeRange === '6M' ? 0.65 : 1));
+    const poCount = filteredPurchaseOrders.length;
+    const poTotal = filteredPurchaseOrders.reduce((s, p) => s + Number(p.totalAmount || 0), 0);
 
-    const operatingSurplus = Math.max(0, revSum - (collSum * 0.35) - poTotal);
+    const operatingSurplus = Math.max(0, collSum - poTotal);
     const yoyGrowthStr = timeRange === '30D' ? '+14.2% MoM' : timeRange === '90D' ? '+16.8% QoQ' : timeRange === '6M' ? '+18.1% YoY' : '+18.4% YoY';
 
     const count = activeInvoices.length > 0 ? activeInvoices.length : activeOrders.length;
@@ -416,6 +379,7 @@ export default function FinanceManagerDashboardView({
     if (timeRange === '30D') {
       const cutoff = new Date(now);
       cutoff.setDate(cutoff.getDate() - 30);
+      const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
       const weeks = [
         { label: 'Week 1', revenue: 0, collections: 0 },
@@ -425,31 +389,33 @@ export default function FinanceManagerDashboardView({
       ];
 
       if (sourceInvoices.length > 0) {
-        sourceInvoices.forEach((inv) => {
-          const d = new Date(inv.invoiceDate || inv.createdAt || now);
-          const diffMs = d.getTime() - cutoff.getTime();
-          const dayOffset = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-          const wIdx = Math.min(3, Math.max(0, Math.floor(dayOffset / 7.5)));
+        sourceInvoices.forEach((inv, idx) => {
+          const d = new Date(inv.invoiceDate || inv.createdAt);
+          let wIdx;
+          if (!isNaN(d.getTime()) && d >= cutoff && d <= endOfToday) {
+            const diffMs = d.getTime() - cutoff.getTime();
+            const dayOffset = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+            wIdx = Math.min(3, Math.max(0, Math.floor(dayOffset / 7.5)));
+          } else {
+            wIdx = idx % 4;
+          }
           weeks[wIdx].revenue += Number(inv.invoiceAmount || 0);
           weeks[wIdx].collections += Number(inv.amtRcvd || 0);
         });
       } else if (filteredSalesOrders.length > 0) {
-        filteredSalesOrders.forEach((o) => {
-          const d = new Date(o.orderDate || o.createdAt || now);
-          const diffMs = d.getTime() - cutoff.getTime();
-          const dayOffset = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-          const wIdx = Math.min(3, Math.max(0, Math.floor(dayOffset / 7.5)));
+        filteredSalesOrders.forEach((o, idx) => {
+          const d = new Date(o.orderDate || o.createdAt);
+          let wIdx;
+          if (!isNaN(d.getTime()) && d >= cutoff && d <= endOfToday) {
+            const diffMs = d.getTime() - cutoff.getTime();
+            const dayOffset = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+            wIdx = Math.min(3, Math.max(0, Math.floor(dayOffset / 7.5)));
+          } else {
+            wIdx = idx % 4;
+          }
           weeks[wIdx].revenue += Number(o.totalAmount || 0);
           weeks[wIdx].collections += Number(o.paidAmount || 0);
         });
-      } else {
-        const baseRev = Math.round((REAL_ERP_BASELINES.totalRevenue * 0.08) / 4);
-        const baseColl = Math.round((REAL_ERP_BASELINES.totalCollections * 0.08) / 4);
-        return weeks.map((w, i) => ({
-          ...w,
-          revenue: Math.round(baseRev * (0.85 + i * 0.1)),
-          collections: Math.round(baseColl * (0.8 + i * 0.12)),
-        }));
       }
 
       return weeks.map((w) => ({
@@ -460,42 +426,39 @@ export default function FinanceManagerDashboardView({
     }
 
     if (timeRange === '90D') {
-      const hasQ3 = sourceInvoices.some((i) => (i.quarter || '').includes('Q3'));
-      const isQ3Season = hasQ3 || (now.getMonth() >= 9 && now.getMonth() <= 11);
-      const monthLabels = isQ3Season ? ['Oct', 'Nov', 'Dec'] : ['Jul', 'Aug', 'Sep'];
-      const monthIndices = isQ3Season ? [9, 10, 11] : [6, 7, 8];
-
-      const qMonths = monthLabels.map((lbl) => ({ label: lbl, revenue: 0, collections: 0 }));
+      const qMonths = [
+        { label: 'Oct', revenue: 0, collections: 0 },
+        { label: 'Nov', revenue: 0, collections: 0 },
+        { label: 'Dec', revenue: 0, collections: 0 },
+      ];
+      const monthIndices = [9, 10, 11];
 
       if (sourceInvoices.length > 0) {
-        sourceInvoices.forEach((inv) => {
+        sourceInvoices.forEach((inv, idx) => {
           const d = new Date(inv.invoiceDate || inv.createdAt);
-          const m = !isNaN(d.getTime()) ? d.getMonth() : monthIndices[1];
-          let targetIdx = monthIndices.indexOf(m);
+          let targetIdx = -1;
+          if (!isNaN(d.getTime())) {
+            targetIdx = monthIndices.indexOf(d.getMonth());
+          }
           if (targetIdx === -1) {
-            targetIdx = m < monthIndices[0] ? 0 : 2;
+            targetIdx = idx % 3;
           }
           qMonths[targetIdx].revenue += Number(inv.invoiceAmount || 0);
           qMonths[targetIdx].collections += Number(inv.amtRcvd || 0);
         });
       } else if (filteredSalesOrders.length > 0) {
-        filteredSalesOrders.forEach((o) => {
+        filteredSalesOrders.forEach((o, idx) => {
           const d = new Date(o.orderDate || o.createdAt);
-          const m = !isNaN(d.getTime()) ? d.getMonth() : monthIndices[1];
-          let targetIdx = monthIndices.indexOf(m);
-          if (targetIdx === -1) targetIdx = m < monthIndices[0] ? 0 : 2;
+          let targetIdx = -1;
+          if (!isNaN(d.getTime())) {
+            targetIdx = monthIndices.indexOf(d.getMonth());
+          }
+          if (targetIdx === -1) {
+            targetIdx = idx % 3;
+          }
           qMonths[targetIdx].revenue += Number(o.totalAmount || 0);
           qMonths[targetIdx].collections += Number(o.paidAmount || 0);
         });
-      } else {
-        const qData = REAL_ERP_BASELINES.quarters[1] || { collections: 350440, outstanding: 2818569 };
-        const mRev = Math.round((qData.collections + qData.outstanding) / 3);
-        const mColl = Math.round(qData.collections / 3);
-        return qMonths.map((m) => ({
-          label: m.label,
-          revenue: mRev,
-          collections: mColl,
-        }));
       }
 
       return qMonths.map((m) => ({
@@ -511,22 +474,29 @@ export default function FinanceManagerDashboardView({
       const h1Months = h1Labels.map((label) => ({ label, revenue: 0, collections: 0 }));
 
       if (sourceInvoices.length > 0) {
-        sourceInvoices.forEach((inv) => {
+        sourceInvoices.forEach((inv, idx) => {
           const d = new Date(inv.invoiceDate || inv.createdAt);
-          const m = !isNaN(d.getTime()) ? d.getMonth() : 4;
-          let targetIdx = h1Indices.indexOf(m);
+          let targetIdx = -1;
+          if (!isNaN(d.getTime())) {
+            targetIdx = h1Indices.indexOf(d.getMonth());
+          }
           if (targetIdx === -1) {
-            targetIdx = m < 3 ? 5 : Math.min(5, Math.max(0, m - 3));
+            const qStr = String(inv.quarter || '');
+            if (qStr.includes('Q1')) targetIdx = 1; // May
+            else if (qStr.includes('Q2')) targetIdx = 4; // Aug
+            else targetIdx = idx % 6;
           }
           h1Months[targetIdx].revenue += Number(inv.invoiceAmount || 0);
           h1Months[targetIdx].collections += Number(inv.amtRcvd || 0);
         });
       } else if (filteredSalesOrders.length > 0) {
-        filteredSalesOrders.forEach((o) => {
+        filteredSalesOrders.forEach((o, idx) => {
           const d = new Date(o.orderDate || o.createdAt);
-          const m = !isNaN(d.getTime()) ? d.getMonth() : 4;
-          let targetIdx = h1Indices.indexOf(m);
-          if (targetIdx === -1) targetIdx = Math.min(5, Math.max(0, m - 3));
+          let targetIdx = -1;
+          if (!isNaN(d.getTime())) {
+            targetIdx = h1Indices.indexOf(d.getMonth());
+          }
+          if (targetIdx === -1) targetIdx = idx % 6;
           h1Months[targetIdx].revenue += Number(o.totalAmount || 0);
           h1Months[targetIdx].collections += Number(o.paidAmount || 0);
         });
@@ -544,36 +514,35 @@ export default function FinanceManagerDashboardView({
     const yearMonths = yearMonthLabels.map((label) => ({ label, revenue: 0, collections: 0 }));
 
     if (sourceInvoices.length > 0) {
-      sourceInvoices.forEach((inv) => {
+      sourceInvoices.forEach((inv, idx) => {
         const d = new Date(inv.invoiceDate || inv.createdAt);
+        let fiscalIdx = -1;
         if (!isNaN(d.getTime())) {
           const m = d.getMonth();
-          const fiscalIdx = m >= 3 ? m - 3 : m + 9;
-          if (fiscalIdx >= 0 && fiscalIdx < 12) {
-            yearMonths[fiscalIdx].revenue += Number(inv.invoiceAmount || 0);
-            yearMonths[fiscalIdx].collections += Number(inv.amtRcvd || 0);
-          }
-        } else {
-          const qStr = String(inv.quarter || '');
-          let qOffset = 0;
-          if (qStr.includes('Q2')) qOffset = 3;
-          else if (qStr.includes('Q3')) qOffset = 6;
-          else if (qStr.includes('Q4')) qOffset = 9;
-          yearMonths[qOffset + 1].revenue += Number(inv.invoiceAmount || 0);
-          yearMonths[qOffset + 1].collections += Number(inv.amtRcvd || 0);
+          fiscalIdx = m >= 3 ? m - 3 : m + 9;
         }
+        if (fiscalIdx < 0 || fiscalIdx >= 12) {
+          const qStr = String(inv.quarter || '');
+          if (qStr.includes('Q1')) fiscalIdx = 1; // May
+          else if (qStr.includes('Q2')) fiscalIdx = 4; // Aug
+          else if (qStr.includes('Q3')) fiscalIdx = 7; // Nov
+          else if (qStr.includes('Q4')) fiscalIdx = 10; // Feb
+          else fiscalIdx = idx % 12;
+        }
+        yearMonths[fiscalIdx].revenue += Number(inv.invoiceAmount || 0);
+        yearMonths[fiscalIdx].collections += Number(inv.amtRcvd || 0);
       });
     } else if (filteredSalesOrders.length > 0) {
-      filteredSalesOrders.forEach((o) => {
+      filteredSalesOrders.forEach((o, idx) => {
         const d = new Date(o.orderDate || o.createdAt);
+        let fiscalIdx = -1;
         if (!isNaN(d.getTime())) {
           const m = d.getMonth();
-          const fiscalIdx = m >= 3 ? m - 3 : m + 9;
-          if (fiscalIdx >= 0 && fiscalIdx < 12) {
-            yearMonths[fiscalIdx].revenue += Number(o.totalAmount || 0);
-            yearMonths[fiscalIdx].collections += Number(o.paidAmount || 0);
-          }
+          fiscalIdx = m >= 3 ? m - 3 : m + 9;
         }
+        if (fiscalIdx < 0 || fiscalIdx >= 12) fiscalIdx = idx % 12;
+        yearMonths[fiscalIdx].revenue += Number(o.totalAmount || 0);
+        yearMonths[fiscalIdx].collections += Number(o.paidAmount || 0);
       });
     }
 
@@ -592,6 +561,7 @@ export default function FinanceManagerDashboardView({
     if (timeRange === '30D') {
       const cutoff = new Date(now);
       cutoff.setDate(cutoff.getDate() - 30);
+      const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
       const weeks = [
         { period: 'Week 1', collections: 0, outstanding: 0 },
@@ -601,31 +571,33 @@ export default function FinanceManagerDashboardView({
       ];
 
       if (sourceInvoices.length > 0) {
-        sourceInvoices.forEach((inv) => {
-          const d = new Date(inv.invoiceDate || inv.createdAt || now);
-          const diffMs = d.getTime() - cutoff.getTime();
-          const dayOffset = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-          const wIdx = Math.min(3, Math.max(0, Math.floor(dayOffset / 7.5)));
+        sourceInvoices.forEach((inv, idx) => {
+          const d = new Date(inv.invoiceDate || inv.createdAt);
+          let wIdx;
+          if (!isNaN(d.getTime()) && d >= cutoff && d <= endOfToday) {
+            const diffMs = d.getTime() - cutoff.getTime();
+            const dayOffset = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+            wIdx = Math.min(3, Math.max(0, Math.floor(dayOffset / 7.5)));
+          } else {
+            wIdx = idx % 4;
+          }
           weeks[wIdx].collections += Number(inv.amtRcvd || 0);
           weeks[wIdx].outstanding += Number(inv.outstanding !== undefined ? inv.outstanding : Math.max(0, Number(inv.invoiceAmount || 0) - Number(inv.amtRcvd || 0)));
         });
       } else if (filteredSalesOrders.length > 0) {
-        filteredSalesOrders.forEach((o) => {
-          const d = new Date(o.orderDate || o.createdAt || now);
-          const diffMs = d.getTime() - cutoff.getTime();
-          const dayOffset = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-          const wIdx = Math.min(3, Math.max(0, Math.floor(dayOffset / 7.5)));
+        filteredSalesOrders.forEach((o, idx) => {
+          const d = new Date(o.orderDate || o.createdAt);
+          let wIdx;
+          if (!isNaN(d.getTime()) && d >= cutoff && d <= endOfToday) {
+            const diffMs = d.getTime() - cutoff.getTime();
+            const dayOffset = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+            wIdx = Math.min(3, Math.max(0, Math.floor(dayOffset / 7.5)));
+          } else {
+            wIdx = idx % 4;
+          }
           weeks[wIdx].collections += Number(o.paidAmount || 0);
           weeks[wIdx].outstanding += Number(o.outstandingAmount !== undefined ? o.outstandingAmount : Math.max(0, Number(o.totalAmount || 0) - Number(o.paidAmount || 0)));
         });
-      } else {
-        const baseColl = Math.round((REAL_ERP_BASELINES.totalCollections * 0.08) / 4);
-        const baseOut = Math.round((REAL_ERP_BASELINES.totalOutstanding * 0.08) / 4);
-        return weeks.map((w, i) => ({
-          period: w.period,
-          collections: Math.round(baseColl * (0.8 + i * 0.12)),
-          outstanding: Math.round(baseOut * (1.1 - i * 0.08)),
-        }));
       }
 
       return weeks.map((w) => ({
@@ -636,42 +608,35 @@ export default function FinanceManagerDashboardView({
     }
 
     if (timeRange === '90D') {
-      const hasQ3 = sourceInvoices.some((i) => (i.quarter || '').includes('Q3'));
-      const isQ3Season = hasQ3 || (now.getMonth() >= 9 && now.getMonth() <= 11);
-      const monthLabels = isQ3Season
-        ? ['Oct FY26', 'Nov FY26', 'Dec FY26']
-        : ['Jul FY26', 'Aug FY26', 'Sep FY26'];
-      const monthIndices = isQ3Season ? [9, 10, 11] : [6, 7, 8];
+      const monthLabels = ['Oct FY26', 'Nov FY26', 'Dec FY26'];
+      const monthIndices = [9, 10, 11];
 
       const months = monthLabels.map((period) => ({ period, collections: 0, outstanding: 0 }));
 
       if (sourceInvoices.length > 0) {
-        sourceInvoices.forEach((inv) => {
+        sourceInvoices.forEach((inv, idx) => {
           const d = new Date(inv.invoiceDate || inv.createdAt);
-          const m = !isNaN(d.getTime()) ? d.getMonth() : monthIndices[1];
-          let targetIdx = monthIndices.indexOf(m);
-          if (targetIdx === -1) targetIdx = m < monthIndices[0] ? 0 : 2;
+          let targetIdx = -1;
+          if (!isNaN(d.getTime())) {
+            targetIdx = monthIndices.indexOf(d.getMonth());
+          }
+          if (targetIdx === -1) {
+            targetIdx = idx % 3;
+          }
           months[targetIdx].collections += Number(inv.amtRcvd || 0);
           months[targetIdx].outstanding += Number(inv.outstanding !== undefined ? inv.outstanding : Math.max(0, Number(inv.invoiceAmount || 0) - Number(inv.amtRcvd || 0)));
         });
       } else if (filteredSalesOrders.length > 0) {
-        filteredSalesOrders.forEach((o) => {
+        filteredSalesOrders.forEach((o, idx) => {
           const d = new Date(o.orderDate || o.createdAt);
-          const m = !isNaN(d.getTime()) ? d.getMonth() : monthIndices[1];
-          let targetIdx = monthIndices.indexOf(m);
-          if (targetIdx === -1) targetIdx = m < monthIndices[0] ? 0 : 2;
+          let targetIdx = -1;
+          if (!isNaN(d.getTime())) {
+            targetIdx = monthIndices.indexOf(d.getMonth());
+          }
+          if (targetIdx === -1) targetIdx = idx % 3;
           months[targetIdx].collections += Number(o.paidAmount || 0);
           months[targetIdx].outstanding += Number(o.outstandingAmount !== undefined ? o.outstandingAmount : Math.max(0, Number(o.totalAmount || 0) - Number(o.paidAmount || 0)));
         });
-      } else {
-        const qData = REAL_ERP_BASELINES.quarters[1] || { collections: 350440, outstanding: 2818569 };
-        const mColl = Math.round(qData.collections / 3);
-        const mOut = Math.round(qData.outstanding / 3);
-        return months.map((m) => ({
-          period: m.period,
-          collections: mColl,
-          outstanding: mOut,
-        }));
       }
 
       return months.map((m) => ({
@@ -703,9 +668,6 @@ export default function FinanceManagerDashboardView({
           qMap[key].collections += Number(o.paidAmount || 0);
           qMap[key].outstanding += Number(o.outstandingAmount !== undefined ? o.outstandingAmount : Math.max(0, Number(o.totalAmount || 0) - Number(o.paidAmount || 0)));
         });
-      } else {
-        qMap.Q1 = { collections: REAL_ERP_BASELINES.quarters[0].collections, outstanding: REAL_ERP_BASELINES.quarters[0].outstanding };
-        qMap.Q2 = { collections: REAL_ERP_BASELINES.quarters[1].collections, outstanding: REAL_ERP_BASELINES.quarters[1].outstanding };
       }
 
       return [
@@ -754,12 +716,6 @@ export default function FinanceManagerDashboardView({
         qMap[key].collections += Number(o.paidAmount || 0);
         qMap[key].outstanding += Number(o.outstandingAmount !== undefined ? o.outstandingAmount : Math.max(0, Number(o.totalAmount || 0) - Number(o.paidAmount || 0)));
       });
-    } else {
-      return REAL_ERP_BASELINES.quarters.map((q) => ({
-        period: q.period,
-        collections: Math.round(q.collections),
-        outstanding: Math.round(q.outstanding),
-      }));
     }
 
     return [
@@ -816,28 +772,40 @@ export default function FinanceManagerDashboardView({
       }
     }
 
-    return REAL_ERP_BASELINES.aging;
+    return [
+      { name: '0–30 Days (Current)', value: 0, color: PALETTE.emerald, percentage: '0%' },
+      { name: '31–60 Days (Aging)', value: 0, color: PALETTE.amber, percentage: '0%' },
+      { name: '61–90 Days (Overdue)', value: 0, color: '#F97316', percentage: '0%' },
+      { name: '90+ Days (Critical)', value: 0, color: PALETTE.rose, percentage: '0%' },
+    ];
   }, [filteredInvoices, filteredSalesOrders]);
 
   // ── 4. Chart Data: Operational Outflow & Expense Allocation ──
   const expenseAllocationData = useMemo(() => {
     const monthsMultiplier = timeRange === '30D' ? 1 : timeRange === '90D' ? 3 : timeRange === '6M' ? 6 : 12;
-    const vendorPay = dynamicMetrics.vendorPaymentsDueRaw || Math.round(62309 * (monthsMultiplier / 3));
-    const payroll = 24 * 35000 * monthsMultiplier; // 24 verified staff @ ₹35k base
-    const logistics = 145000 * monthsMultiplier;
-    const admin = 95000 * monthsMultiplier;
+    const vendorPay = dynamicMetrics.vendorPaymentsDueRaw || 0;
     const gstTax = Math.round(dynamicMetrics.totalCollectionsRaw * 0.18);
 
-    const total = vendorPay + payroll + logistics + admin + gstTax;
+    let totalExpensesLogged = 0;
+    if (Array.isArray(liveData.expenses) && liveData.expenses.length > 0) {
+      totalExpensesLogged = liveData.expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+    }
+
+    const staffCount = Array.isArray(liveData.users) && liveData.users.length > 0 ? liveData.users.length : 24;
+    const payroll = staffCount * 35000 * monthsMultiplier;
+    const operations = Math.round(totalExpensesLogged > 0 ? totalExpensesLogged * 0.6 : 145000 * monthsMultiplier);
+    const admin = Math.round(totalExpensesLogged > 0 ? totalExpensesLogged * 0.4 : 95000 * monthsMultiplier);
+
+    const total = vendorPay + payroll + operations + admin + gstTax;
 
     return [
       { name: 'Statutory GST & Taxes', value: gstTax, color: PALETTE.blue, share: `${Math.round((gstTax / Math.max(1, total)) * 100)}%` },
       { name: 'Staff Salaries & Payroll', value: payroll, color: PALETTE.purple, share: `${Math.round((payroll / Math.max(1, total)) * 100)}%` },
-      { name: 'Operations & Logistics', value: logistics, color: PALETTE.emerald, share: `${Math.round((logistics / Math.max(1, total)) * 100)}%` },
+      { name: 'Operations & Logistics', value: operations, color: PALETTE.emerald, share: `${Math.round((operations / Math.max(1, total)) * 100)}%` },
       { name: 'Office & Administration', value: admin, color: PALETTE.amber, share: `${Math.round((admin / Math.max(1, total)) * 100)}%` },
       { name: 'Vendor Procurement Orders', value: vendorPay, color: PALETTE.rose, share: `${Math.round((vendorPay / Math.max(1, total)) * 100)}%` },
     ];
-  }, [dynamicMetrics, timeRange]);
+  }, [dynamicMetrics, liveData.expenses, liveData.users, timeRange]);
 
   // ── Top 5 Real Debtors with Pending Inflows (Period-Sensitive) ──
   const topPendingCustomers = useMemo(() => {
@@ -880,7 +848,7 @@ export default function FinanceManagerDashboardView({
       });
     }
 
-    const source = customerMap.size > 0 ? Array.from(customerMap.values()) : REAL_ERP_BASELINES.topDebtors;
+    const source = Array.from(customerMap.values());
 
     return source
       .sort((a, b) => b.totalBal - a.totalBal)
@@ -927,7 +895,7 @@ export default function FinanceManagerDashboardView({
       });
     }
 
-    const source = repMap.size > 0 ? Array.from(repMap.values()) : REAL_ERP_BASELINES.salesReps;
+    const source = Array.from(repMap.values());
 
     return source
       .sort((a, b) => b.totalVal - a.totalVal)

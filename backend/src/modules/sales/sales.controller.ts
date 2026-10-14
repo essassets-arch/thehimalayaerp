@@ -69,6 +69,9 @@ export class SalesController {
     'admin.planthead.read',
     'planthead.read',
     'plant-head.read',
+    'finance.sales-analytics.read',
+    'finance.invoice.read',
+    'finance.payment.read',
   )
   async listOrders(
     @Query() query: ListSalesOrdersQueryDto,
