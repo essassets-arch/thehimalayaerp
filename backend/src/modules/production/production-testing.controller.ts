@@ -42,6 +42,151 @@ export class ProductionTestingController {
     return { success: true, data };
   }
 
+  // ── Testing Reports Endpoints (Declared before :id to prevent route clash) ──
+
+  @RequirePermissions(
+    'production.productiontesting.read',
+    'production.testing.read',
+    'plant-head.testing.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.testing.read',
+  )
+  @Get('reports/template/defaults')
+  getDefaultReportTemplate() {
+    const data = this.testingService.getDefaultTemplate();
+    return { success: true, data };
+  }
+
+  @RequirePermissions(
+    'production.productiontesting.read',
+    'production.testing.read',
+    'plant-head.testing.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.testing.read',
+  )
+  @Get('reports')
+  async listReports(@Req() req: any) {
+    const data = await this.testingService.listReports(
+      req.user.companyId,
+      req.query,
+    );
+    return { success: true, data };
+  }
+
+  @RequirePermissions(
+    'production.productiontesting.read',
+    'production.testing.read',
+    'plant-head.testing.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.testing.read',
+  )
+  @Get('reports/:reportId')
+  async getReport(@Param('reportId') reportId: string, @Req() req: any) {
+    const data = await this.testingService.getReport(
+      reportId,
+      req.user.companyId,
+    );
+    return { success: true, data };
+  }
+
+  @RequirePermissions(
+    'production.productiontesting.create',
+    'production.testing.create',
+    'production.floor.create',
+    'production.qc.approve',
+  )
+  @Post('reports')
+  async createReport(@Body() dto: any, @Req() req: any) {
+    const data = await this.testingService.createReport(
+      dto,
+      req.user.sub,
+      req.user.companyId,
+    );
+    return { success: true, data };
+  }
+
+  @RequirePermissions(
+    'production.productiontesting.update',
+    'production.testing.update',
+    'production.floor.create',
+    'plant-head.testing.read',
+    'planthead.read',
+  )
+  @Put('reports/:reportId')
+  async updateReport(
+    @Param('reportId') reportId: string,
+    @Body() dto: any,
+    @Req() req: any,
+  ) {
+    const data = await this.testingService.updateReport(
+      reportId,
+      dto,
+      req.user.sub,
+      req.user.companyId,
+    );
+    return { success: true, data };
+  }
+
+  @RequirePermissions(
+    'production.productiontesting.update',
+    'production.testing.update',
+    'production.qc.approve',
+    'plant-head.testing.read',
+    'planthead.read',
+  )
+  @Patch('reports/:reportId/status')
+  async updateReportStatus(
+    @Param('reportId') reportId: string,
+    @Body() dto: { status: 'Approved' | 'Rejected'; rejectionReason?: string; remarks?: string },
+    @Req() req: any,
+  ) {
+    const data = await this.testingService.updateReportStatus(
+      reportId,
+      dto,
+      req.user.sub,
+      req.user.companyId,
+    );
+    return { success: true, data };
+  }
+
+  @RequirePermissions(
+    'production.productiontesting.update',
+    'production.testing.update',
+    'plant-head.testing.read',
+    'planthead.read',
+  )
+  @Post('reports/:reportId/revise')
+  async createRevision(
+    @Param('reportId') reportId: string,
+    @Req() req: any,
+  ) {
+    const data = await this.testingService.createRevision(
+      reportId,
+      req.user.sub,
+      req.user.companyId,
+    );
+    return { success: true, data };
+  }
+
+  @RequirePermissions(
+    'production.productiontesting.delete',
+    'production.testing.delete',
+  )
+  @Delete('reports/:reportId')
+  async deleteReport(
+    @Param('reportId') reportId: string,
+    @Req() req: any,
+  ) {
+    const data = await this.testingService.deleteReport(
+      reportId,
+      req.user.companyId,
+    );
+    return { success: true, data };
+  }
+
   @RequirePermissions(
     'production.productiontesting.read',
     'production.testing.read',

@@ -3481,6 +3481,51 @@ model ProductionTestingRecord {
   @@index([companyId, createdAt])
 }
 
+model ProductionTestReport {
+  id                  String    @id @default(uuid())
+  companyId           String    @default("COMP-001")
+  reportNumber        String
+  revision            Int       @default(0)
+  isLatest            Boolean   @default(true)
+  parentReportId      String?
+  reportDate          DateTime  @default(now())
+  clientName          String
+  poNumber            String?
+  productName         String
+  productId           String?
+  clearOpening        String?
+  quantitySupply      String?
+  projectName         String?
+  specifications      Json      @default("[]")
+  loadTestingRows     Json      @default("[]")
+  cycleLoadsTon       String?
+  finalLoadTon        String?
+  cycleStatement      String?
+  resultStatement     String?
+  testedByName        String    @default("Sana Konda Reddy")
+  testedByTitle       String    @default("Plant Head")
+  testedByStamp       Boolean   @default(true)
+  testedBySignature   Boolean   @default(true)
+  approvedByName      String?
+  approvedByTitle     String?
+  approvedAt          DateTime?
+  approvedById        String?
+  approvedBySignature Boolean   @default(false)
+  status              String    @default("Draft")
+  rejectionReason     String?
+  remarks             String?
+  testingRecordId     String?
+  createdById         String?
+  updatedById         String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([companyId, reportNumber, revision])
+  @@index([companyId, status])
+  @@index([companyId, createdAt])
+  @@index([parentReportId])
+}
+
 model ProductionShiftEntry {
   id          String   @id @default(uuid())
   workOrderId String

@@ -682,3 +682,98 @@
     padding: 40px 16px;
   }
 }
+
+/* ── Testing Reports Tabs & Controls ── */
+.tabNav {
+  display: flex;
+  gap: 12px;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.tabBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 8px 8px 0 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tabBtn:hover {
+  color: #1e293b;
+  background-color: #f1f5f9;
+}
+
+.tabBtnActive {
+  color: #0284c7 !important;
+  background-color: #ffffff;
+  border-bottom: 3px solid #0284c7;
+}
+
+.tabBadge {
+  background-color: #e2e8f0;
+  color: #475569;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tabBtnActive .tabBadge {
+  background-color: #e0f2fe;
+  color: #0369a1;
+}
+
+.selectFilter {
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #334155;
+  background-color: #ffffff;
+  outline: none;
+  min-height: 36px;
+}
+
+.selectFilter:focus {
+  border-color: #0284c7;
+}
+
+.btnRowPdf {
+  background-color: #f0fdf4 !important;
+  color: #166534 !important;
+  border: 1px solid #bbf7d0 !important;
+  padding: 5px 10px !important;
+  border-radius: 6px;
+  font-size: 12px !important;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.btnRowPdf:hover {
+  background-color: #dcfce7 !important;
+}
+
+.revBadge {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  background-color: #f1f5f9;
+  color: #475569;
+  margin-left: 6px;
+}
+

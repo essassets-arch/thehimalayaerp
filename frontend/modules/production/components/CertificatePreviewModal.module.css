@@ -1,0 +1,189 @@
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.modalCard {
+  background: #0f172a;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 950px;
+  max-height: 95vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  border: 1px solid #334155;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  background-color: #1e293b;
+  border-bottom: 1px solid #334155;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.toolbarTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #f8fafc;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.statusBadge {
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.statusApproved {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.statusPending {
+  background-color: #fef9c3;
+  color: #854d0e;
+}
+
+.statusDraft {
+  background-color: #e2e8f0;
+  color: #334155;
+}
+
+.statusRejected {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.actionBtn {
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  transition: all 0.15s;
+}
+
+.btnDownload {
+  background-color: #0284c7;
+  color: #ffffff;
+}
+
+.btnDownload:hover {
+  background-color: #0369a1;
+}
+
+.btnPrint {
+  background-color: #334155;
+  color: #f8fafc;
+}
+
+.btnPrint:hover {
+  background-color: #475569;
+}
+
+.btnApprove {
+  background-color: #16a34a;
+  color: #ffffff;
+}
+
+.btnApprove:hover {
+  background-color: #15803d;
+}
+
+.btnReject {
+  background-color: #dc2626;
+  color: #ffffff;
+}
+
+.btnReject:hover {
+  background-color: #b91c1c;
+}
+
+.btnRevise {
+  background-color: #8b5cf6;
+  color: #ffffff;
+}
+
+.btnRevise:hover {
+  background-color: #7c3aed;
+}
+
+.btnClose {
+  background: transparent;
+  color: #94a3b8;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: 6px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btnClose:hover {
+  background-color: #334155;
+  color: #ffffff;
+}
+
+.previewScrollArea {
+  padding: 24px;
+  overflow-y: auto;
+  background-color: #0b1120;
+  display: flex;
+  justify-content: center;
+  min-height: 500px;
+}
+
+.sheetShadow {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+}
+
+.revisionBar {
+  padding: 8px 20px;
+  background-color: #1e293b;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.revSelect {
+  background-color: #0f172a;
+  color: #f8fafc;
+  border: 1px solid #475569;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  outline: none;
+}

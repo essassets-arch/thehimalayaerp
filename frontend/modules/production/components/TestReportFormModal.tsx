@@ -1,0 +1,560 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { X, Loader2, Save, Send } from 'lucide-react';
+import { toast } from 'sonner';
+import { backendFetch } from '../../../lib/backendFetch';
+import styles from './TestReportFormModal.module.css';
+import {
+  TestCertificateData,
+  defaultSpecifications,
+  defaultLoadTestingRows,
+  TestSpecificationRow,
+  LoadTestingRow,
+} from './TestCertificateDocument';
+
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: (savedReport: any) => void;
+  initialData?: TestCertificateData | null;
+  products?: any[];
+  customers?: any[];
+}
+
+export default function TestReportFormModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  initialData,
+  products = [],
+  customers = [],
+}: Props) {
+  const isEditing = !!initialData?.id;
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reportNumber, setReportNumber] = useState('');
+  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const [clientName, setClientName] = useState('');
+  const [poNumber, setPoNumber] = useState('');
+  const [productId, setProductId] = useState('');
+  const [productName, setProductName] = useState('');
+  const [clearOpening, setClearOpening] = useState('');
+  const [quantitySupply, setQuantitySupply] = useState('');
+  const [projectName, setProjectName] = useState('');
+  const [specs, setSpecs] = useState<TestSpecificationRow[]>(defaultSpecifications);
+  const [loadRows, setLoadRows] = useState<LoadTestingRow[]>(defaultLoadTestingRows);
+  const [cycleLoadsTon, setCycleLoadsTon] = useState('40');
+  const [finalLoadTon, setFinalLoadTon] = useState('40');
+  const [resultStatement, setResultStatement] = useState(
+    'Result:- No Cracks or Determination of FRP Cover observed after applying sequence of load and FRP Cover & frame were found satisfactory.'
+  );
+  const [testedByName, setTestedByName] = useState('Sana Konda Reddy');
+  const [testedByTitle, setTestedByTitle] = useState('Plant Head');
+  const [status, setStatus] = useState<'Draft' | 'Pending Approval'>('Draft');
+  const [remarks, setRemarks] = useState('');
+
+  useEffect(() => {
+    if (initialData) {
+      setReportNumber(initialData.reportNumber || '');
+      setReportDate(
+        initialData.reportDate
+          ? new Date(initialData.reportDate).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0]
+      );
+      setClientName(initialData.clientName || '');
+      setPoNumber(initialData.poNumber || '');
+      setProductName(initialData.productName || '');
+      setClearOpening(initialData.clearOpening || '');
+      setQuantitySupply(initialData.quantitySupply || '');
+      setProjectName(initialData.projectName || '');
+      if (initialData.specifications && initialData.specifications.length > 0) {
+        setSpecs(initialData.specifications);
+      } else {
+        setSpecs(defaultSpecifications);
+      }
+      if (initialData.loadTestingRows && initialData.loadTestingRows.length > 0) {
+        setLoadRows(initialData.loadTestingRows);
+      } else {
+        setLoadRows(defaultLoadTestingRows);
+      }
+      setCycleLoadsTon(initialData.cycleLoadsTon || '40');
+      setFinalLoadTon(initialData.finalLoadTon || '40');
+      setResultStatement(
+        initialData.resultStatement ||
+          'Result:- No Cracks or Determination of FRP Cover observed after applying sequence of load and FRP Cover & frame were found satisfactory.'
+      );
+      setTestedByName(initialData.testedByName || 'Sana Konda Reddy');
+      setTestedByTitle(initialData.testedByTitle || 'Plant Head');
+      setStatus(initialData.status === 'Pending Approval' ? 'Pending Approval' : 'Draft');
+      setRemarks(initialData.remarks || '');
+    } else {
+      // New report: generate fresh template defaults
+      const year = new Date().getFullYear();
+      const rand = Math.floor(1000 + Math.random() * 9000);
+      setReportNumber(`TC-${year}-${rand}`);
+      setReportDate(new Date().toISOString().split('T')[0]);
+      setClientName('');
+      setPoNumber('');
+      setProductId('');
+      setProductName('');
+      setClearOpening('');
+      setQuantitySupply('');
+      setProjectName('');
+      setSpecs(defaultSpecifications);
+      setLoadRows(defaultLoadTestingRows);
+      setCycleLoadsTon('40');
+      setFinalLoadTon('40');
+      setResultStatement(
+        'Result:- No Cracks or Determination of FRP Cover observed after applying sequence of load and FRP Cover & frame were found satisfactory.'
+      );
+      setTestedByName('Sana Konda Reddy');
+      setTestedByTitle('Plant Head');
+      setStatus('Draft');
+      setRemarks('');
+    }
+  }, [initialData, isOpen]);
+
+  const handleProductSelect = (selectedId: string) => {
+    setProductId(selectedId);
+    const prod = products.find((p) => p.id === selectedId);
+    if (prod) {
+      setProductName(prod.name || '');
+      if (prod.size) setClearOpening(prod.size);
+
+      // Update default specifications based on selected Product Master details
+      setSpecs((prev) =>
+        prev.map((s) => {
+          if (s.srNo === 1) return { ...s, description: 'FRP' };
+          if (s.srNo === 2 && prod.capacity) return { ...s, description: `${prod.capacity}` };
+          if (s.srNo === 3 && prod.type) return { ...s, description: 'Black' };
+          return s;
+        })
+      );
+
+      // If product has numeric capacity (e.g. 12.5, 25, 40), set cycle ton defaults
+      const capNum = parseFloat(prod.capacity || '');
+      if (!isNaN(capNum) && capNum > 0) {
+        setCycleLoadsTon(String(capNum));
+        setFinalLoadTon(String(capNum));
+      }
+    }
+  };
+
+  const handleSpecChange = (index: number, newDesc: string) => {
+    setSpecs((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], description: newDesc };
+      return copy;
+    });
+  };
+
+  const handleLoadRowChange = (index: number, field: keyof LoadTestingRow, value: string) => {
+    setLoadRows((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  const handleSubmit = async (targetStatus: 'Draft' | 'Pending Approval') => {
+    if (!clientName.trim()) {
+      toast.error('Client Name is required');
+      return;
+    }
+    if (!productName.trim()) {
+      toast.error('Product Name is required');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        reportNumber: reportNumber.trim(),
+        reportDate,
+        clientName: clientName.trim(),
+        poNumber: poNumber.trim() || undefined,
+        productName: productName.trim(),
+        productId: productId || undefined,
+        clearOpening: clearOpening.trim() || undefined,
+        quantitySupply: quantitySupply.trim() || undefined,
+        projectName: projectName.trim() || undefined,
+        specifications: specs,
+        loadTestingRows: loadRows,
+        cycleLoadsTon: cycleLoadsTon.trim() || undefined,
+        finalLoadTon: finalLoadTon.trim() || undefined,
+        resultStatement: resultStatement.trim(),
+        testedByName: testedByName.trim(),
+        testedByTitle: testedByTitle.trim(),
+        status: targetStatus,
+        remarks: remarks.trim() || undefined,
+      };
+
+      let res: any;
+      if (isEditing && initialData?.id) {
+        res = await backendFetch(`/api/backend/production/testing/reports/${initialData.id}`, {
+          method: 'PUT',
+          body: payload,
+        });
+        toast.success('Test Certificate updated successfully');
+      } else {
+        res = await backendFetch('/api/backend/production/testing/reports', {
+          method: 'POST',
+          body: payload,
+        });
+        toast.success('Test Certificate created successfully');
+      }
+
+      onSuccess(res?.data || res);
+      onClose();
+    } catch (err: any) {
+      console.error('[TestReportFormModal] Submission error:', err);
+      toast.error(err?.message || 'Failed to save test certificate');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className={styles.modalOverlay}>
+      <div className={styles.modalCard}>
+        {/* Header */}
+        <div className={styles.modalHeader}>
+          <h2 className={styles.modalTitle}>
+            {isEditing ? `Edit Test Certificate (${reportNumber})` : 'New Test Certificate'}
+          </h2>
+          <button className={styles.closeBtn} onClick={onClose} aria-label="Close">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <div className={styles.modalBody}>
+          {/* 1. Header Information */}
+          <div>
+            <div className={styles.sectionTitle}>1. Certificate &amp; Client Details</div>
+            <div className={styles.formGrid}>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Report / Certificate No. *</label>
+                <input
+                  type="text"
+                  required
+                  value={reportNumber}
+                  onChange={(e) => setReportNumber(e.target.value)}
+                  className={styles.formInput}
+                  placeholder="e.g. TC-2026-0001"
+                />
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Test Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={reportDate}
+                  onChange={(e) => setReportDate(e.target.value)}
+                  className={styles.formInput}
+                />
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Client / Customer Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  className={styles.formInput}
+                  placeholder="e.g. Larsen &amp; Toubro Ltd."
+                  list="client-suggestions"
+                />
+                {customers.length > 0 && (
+                  <datalist id="client-suggestions">
+                    {customers.map((c) => (
+                      <option key={c.id || c.companyName} value={c.companyName} />
+                    ))}
+                  </datalist>
+                )}
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>P.O. No.</label>
+                <input
+                  type="text"
+                  value={poNumber}
+                  onChange={(e) => setPoNumber(e.target.value)}
+                  className={styles.formInput}
+                  placeholder="e.g. PO/2026/089"
+                />
+              </div>
+
+              <div className={`${styles.formField} ${styles.fullWidth}`}>
+                <label className={styles.formLabel}>Select Product from Master (Auto-fills specifications)</label>
+                <select
+                  value={productId}
+                  onChange={(e) => handleProductSelect(e.target.value)}
+                  className={styles.formSelect}
+                >
+                  <option value="">-- Choose catalog product or enter custom name below --</option>
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} {p.size ? `(${p.size})` : ''} {p.capacity ? `[${p.capacity}]` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className={`${styles.formField} ${styles.fullWidth}`}>
+                <label className={styles.formLabel}>Name Of the Products *</label>
+                <input
+                  type="text"
+                  required
+                  value={productName}
+                  onChange={(e) => setProductName(e.target.value)}
+                  className={styles.formInput}
+                  placeholder="e.g. 600mm DIA FRP Manhole Cover &amp; Frame (E600 / 40 Ton)"
+                />
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Clear Opening</label>
+                <input
+                  type="text"
+                  value={clearOpening}
+                  onChange={(e) => setClearOpening(e.target.value)}
+                  className={styles.formInput}
+                  placeholder="e.g. 600 mm or 450x450 mm"
+                />
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Quantity Supply</label>
+                <input
+                  type="text"
+                  value={quantitySupply}
+                  onChange={(e) => setQuantitySupply(e.target.value)}
+                  className={styles.formInput}
+                  placeholder="e.g. 100 Nos / 50 Sets"
+                />
+              </div>
+
+              <div className={`${styles.formField} ${styles.fullWidth}`}>
+                <label className={styles.formLabel}>Project Name</label>
+                <input
+                  type="text"
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  className={styles.formInput}
+                  placeholder="e.g. Smart City Drainage &amp; Road Infrastructure"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Specifications Table (10 Rows) */}
+          <div>
+            <div className={styles.sectionTitle}>2. Product Specifications (10 ISO/EN Rows)</div>
+            <div className={styles.specTableWrap}>
+              <table className={styles.specTable}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '10%' }}>Sr. No.</th>
+                    <th style={{ width: '40%' }}>Specification</th>
+                    <th style={{ width: '50%' }}>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {specs.map((s, idx) => (
+                    <tr key={s.srNo || idx}>
+                      <td style={{ textAlign: 'center', fontWeight: 600 }}>{s.srNo}</td>
+                      <td style={{ fontWeight: 600, color: '#0b3c68' }}>{s.specification}</td>
+                      <td>
+                        <input
+                          type="text"
+                          value={s.description}
+                          onChange={(e) => handleSpecChange(idx, e.target.value)}
+                          className={styles.tableInput}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 3. Load Testing Section (6 Stages) */}
+          <div>
+            <div className={styles.sectionTitle}>3. Load Testing Measurements (6 Sequence Stages)</div>
+            <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>
+              Note: Enter the actual recorded test measurements and remarks for all six test sequences.
+            </p>
+            <div className={styles.specTableWrap}>
+              <table className={styles.specTable}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '10%' }}>No.</th>
+                    <th style={{ width: '30%' }}>Load Applied</th>
+                    <th style={{ width: '20%' }}>Load (Tons)</th>
+                    <th style={{ width: '22%' }}>Sequence</th>
+                    <th style={{ width: '18%' }}>Remark</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadRows.map((r, idx) => (
+                    <tr key={r.no || idx}>
+                      <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.no}</td>
+                      <td>
+                        <input
+                          type="text"
+                          value={r.loadApplied}
+                          onChange={(e) => handleLoadRowChange(idx, 'loadApplied', e.target.value)}
+                          className={styles.tableInput}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          placeholder="e.g. 10 / 20 / 40"
+                          value={r.load}
+                          onChange={(e) => handleLoadRowChange(idx, 'load', e.target.value)}
+                          className={styles.tableInput}
+                          style={{ fontWeight: 700 }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          value={r.sequence}
+                          onChange={(e) => handleLoadRowChange(idx, 'sequence', e.target.value)}
+                          className={styles.tableInput}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          placeholder="e.g. Satisfactory"
+                          value={r.remark}
+                          onChange={(e) => handleLoadRowChange(idx, 'remark', e.target.value)}
+                          className={styles.tableInput}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 4. Cycle & Holding Statement */}
+          <div>
+            <div className={styles.sectionTitle}>4. Five-Cycle &amp; Holding Statement</div>
+            <div className={styles.formGrid}>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Five Cycles Load (Tons)</label>
+                <input
+                  type="text"
+                  value={cycleLoadsTon}
+                  onChange={(e) => setCycleLoadsTon(e.target.value)}
+                  className={styles.formInput}
+                  placeholder="e.g. 40"
+                />
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Final Maintained Load (Tons for 30s)</label>
+                <input
+                  type="text"
+                  value={finalLoadTon}
+                  onChange={(e) => setFinalLoadTon(e.target.value)}
+                  className={styles.formInput}
+                  placeholder="e.g. 40"
+                />
+              </div>
+
+              <div className={`${styles.formField} ${styles.fullWidth}`}>
+                <label className={styles.formLabel}>Result Paragraph</label>
+                <textarea
+                  value={resultStatement}
+                  onChange={(e) => setResultStatement(e.target.value)}
+                  className={styles.formTextarea}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 5. Testing Signatures & Status */}
+          <div>
+            <div className={styles.sectionTitle}>5. Tester &amp; Status</div>
+            <div className={styles.formGrid}>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Tested By (Plant Head Name)</label>
+                <input
+                  type="text"
+                  value={testedByName}
+                  onChange={(e) => setTestedByName(e.target.value)}
+                  className={styles.formInput}
+                />
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Tester Designation</label>
+                <input
+                  type="text"
+                  value={testedByTitle}
+                  onChange={(e) => setTestedByTitle(e.target.value)}
+                  className={styles.formInput}
+                />
+              </div>
+
+              <div className={`${styles.formField} ${styles.fullWidth}`}>
+                <label className={styles.formLabel}>Internal Notes / Remarks</label>
+                <input
+                  type="text"
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  className={styles.formInput}
+                  placeholder="Optional audit or reference notes"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div className={styles.modalFooter}>
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnSecondary}`}
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnSecondary}`}
+            onClick={() => handleSubmit('Draft')}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? <Loader2 size={15} className={styles.spinner} /> : <Save size={15} />}
+            Save as Draft
+          </button>
+
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnPrimary}`}
+            onClick={() => handleSubmit('Pending Approval')}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? <Loader2 size={15} className={styles.spinner} /> : <Send size={15} />}
+            Submit for Approval
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

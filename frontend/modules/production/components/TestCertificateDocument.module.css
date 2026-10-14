@@ -1,0 +1,336 @@
+.certWrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  background-color: transparent;
+  padding: 0;
+  margin: 0;
+}
+
+.certSheet {
+  width: 100%;
+  max-width: 794px; /* Standard A4 portrait at 96dpi */
+  min-height: 1123px;
+  background: #ffffff;
+  color: #0b3c68; /* Authentic deep blue */
+  font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+  border: 1.5px solid #000000;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  margin: 0 auto;
+}
+
+/* ── Top Header ── */
+.certHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px 6px 14px;
+  border-bottom: 1.5px solid #000000;
+}
+
+.companyTitle {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #0b3c68;
+  text-transform: uppercase;
+  max-width: 65%;
+  line-height: 1.25;
+}
+
+.logoContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.himalayaLogo {
+  height: 48px;
+  width: auto;
+  object-fit: contain;
+}
+
+.logoTagline1 {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0b3c68;
+  margin-top: 1px;
+  letter-spacing: 0.3px;
+}
+
+.logoTagline2 {
+  font-size: 9.5px;
+  font-style: italic;
+  color: #0b3c68;
+  letter-spacing: 0.2px;
+}
+
+/* ── Test Certificate Heading ── */
+.headingBanner {
+  text-align: center;
+  padding: 6px 10px;
+  border-bottom: 1.5px solid #000000;
+}
+
+.certHeading {
+  font-size: 20px;
+  font-weight: 900;
+  color: #0b3c68;
+  letter-spacing: 1px;
+  margin: 0;
+}
+
+.revisionSubtitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* ── Metadata Info Section ── */
+.metaSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.metaRow {
+  display: flex;
+  align-items: flex-start;
+  padding: 4px 10px;
+  border-bottom: 1px solid #000000;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #0b3c68;
+  word-break: break-word;
+}
+
+.metaLabel {
+  font-weight: 700;
+  white-space: nowrap;
+  margin-right: 6px;
+  flex-shrink: 0;
+  color: #0b3c68;
+}
+
+.metaValue {
+  font-weight: 600;
+  color: #0b3c68;
+  flex-grow: 1;
+}
+
+/* ── Specification Table ── */
+.tableContainer {
+  width: 100%;
+}
+
+.certTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  color: #0b3c68;
+  table-layout: fixed;
+}
+
+.certTable th {
+  border: 1px solid #000000;
+  padding: 5px 6px;
+  font-weight: 800;
+  text-align: center;
+  color: #0b3c68;
+  background-color: #ffffff;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+.certTable td {
+  border: 1px solid #000000;
+  padding: 4px 8px;
+  color: #0b3c68;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.colSr {
+  width: 12%;
+  text-align: center !important;
+  font-weight: 600;
+}
+
+.colSpec {
+  width: 40%;
+  font-weight: 600;
+  text-align: center;
+}
+
+.colDesc {
+  width: 48%;
+  font-weight: 600;
+  text-align: left;
+}
+
+/* ── Load Testing Subheading ── */
+.loadTestingBanner {
+  text-align: center;
+  padding: 5px 10px;
+  border-top: 1px solid #000000;
+  border-bottom: 1px solid #000000;
+  font-size: 13px;
+  font-weight: 800;
+  color: #0b3c68;
+  letter-spacing: 0.5px;
+}
+
+/* ── Load Testing Table ── */
+.loadColNo {
+  width: 12%;
+  text-align: center !important;
+  font-weight: 600;
+}
+
+.loadColApplied {
+  width: 28%;
+  text-align: center !important;
+  font-weight: 600;
+}
+
+.loadColLoad {
+  width: 16%;
+  text-align: center !important;
+  font-weight: 700;
+}
+
+.loadColSequence {
+  width: 24%;
+  text-align: center !important;
+  font-weight: 600;
+}
+
+.loadColRemark {
+  width: 20%;
+  text-align: center !important;
+  font-weight: 600;
+}
+
+/* ── Cycle Statement ── */
+.cycleSection {
+  padding: 7px 12px;
+  text-align: center;
+  border-top: 1px solid #000000;
+  border-bottom: 1px solid #000000;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0b3c68;
+  line-height: 1.4;
+}
+
+/* ── Result Statement ── */
+.resultSection {
+  padding: 7px 12px;
+  border-bottom: 1.5px solid #000000;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0b3c68;
+  line-height: 1.4;
+}
+
+/* ── Two-Column Footer ── */
+.certFooter {
+  display: flex;
+  margin-top: auto;
+  border-top: 1.5px solid #000000;
+  min-height: 100px;
+}
+
+.footerLeft {
+  width: 50%;
+  border-right: 1.5px solid #000000;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.footerRight {
+  width: 50%;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.signerTitle {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0b3c68;
+}
+
+.signerContent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+.signerName {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0b3c68;
+}
+
+.stampImg {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  opacity: 0.95;
+  filter: contrast(1.15);
+}
+
+.signatureImg {
+  height: 48px;
+  width: auto;
+  max-width: 150px;
+  object-fit: contain;
+}
+
+.pendingNotice {
+  font-size: 12px;
+  font-style: italic;
+  color: #94a3b8;
+  margin-top: 8px;
+}
+
+.approvedMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.approvedDate {
+  font-size: 11px;
+  color: #0b3c68;
+}
+
+/* ── Print Media Optimization ── */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+
+  .certSheet {
+    background: #ffffff !important;
+    color: #0b3c68 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    border: 1.5px solid #000000 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+  }
+}
