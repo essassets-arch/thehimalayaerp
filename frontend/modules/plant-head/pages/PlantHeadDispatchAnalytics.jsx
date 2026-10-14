@@ -134,6 +134,7 @@ export const PlantHeadDispatchAnalytics = () => {
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [loadingAudit, setLoadingAudit] = useState(false);
   const [auditActiveTab, setAuditActiveTab] = useState('groups'); // 'groups' | 'benchmark' | 'findings'
+  const [selectedDailyReportModal, setSelectedDailyReportModal] = useState(null);
   const [mounted, setMounted] = useState(false);
   const requestSeq = useRef(0);
   const reportRef = useRef(null);
