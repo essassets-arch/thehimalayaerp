@@ -155,7 +155,7 @@ async function performBackendFetch<T = unknown>(
     throw new Error(`Empty response returned by backend bridge (${res.status})`);
   }
 
-  if (envelope && !envelope.success) {
+  if (envelope && envelope.success === false) {
     throw new Error(envelope?.error?.message || envelope.message || 'Operation failed.');
   }
 
