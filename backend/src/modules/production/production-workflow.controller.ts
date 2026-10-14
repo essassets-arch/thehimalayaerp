@@ -596,7 +596,7 @@ export class ProductionWorkflowController {
     return this.workflowService.sendToDispatch(
       ids,
       req.user?.sub || 'system',
-      req.user?.companyId,
+      this.getDispatchTenant(req),
     );
   }
 
@@ -615,7 +615,7 @@ export class ProductionWorkflowController {
     return this.workflowService.sendToDispatch(
       ids,
       req.user?.sub || 'system',
-      req.user?.companyId,
+      this.getDispatchTenant(req),
     );
   }
 
@@ -629,8 +629,22 @@ export class ProductionWorkflowController {
     return this.workflowService.sendToDispatch(
       [id],
       req.user?.sub || 'system',
-      req.user?.companyId,
+      this.getDispatchTenant(req),
     );
+  }
+
+  /**
+   * Super admins can switch the active tenant with x-company-id. For regular
+   * users the authenticated tenant remains authoritative, so a client header
+   * cannot be used to cross tenant boundaries.
+   */
+  private getDispatchTenant(req: any): string | null | undefined {
+    const role = String(req.user?.role || '').toUpperCase();
+    const isSuperAdmin = role === 'SUPER_ADMIN' || role === 'SUPERADMIN';
+    const requestedTenant = req.headers?.['x-company-id'];
+    return isSuperAdmin && typeof requestedTenant === 'string'
+      ? requestedTenant
+      : req.user?.companyId;
   }
 
   // ==========================================
