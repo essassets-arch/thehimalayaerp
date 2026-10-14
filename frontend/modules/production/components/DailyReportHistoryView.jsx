@@ -1589,7 +1589,7 @@ export default function DailyReportHistoryView({
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Report No</th>
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Date</th>
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Shift</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>{isDispatch ? 'Executive' : 'Supervisor'}</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>{isDispatch ? 'Dispatch User / Executive' : 'Supervisor'}</th>
                 <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Rows</th>
                 <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Covers</th>
                 <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Frames</th>
@@ -1617,6 +1617,7 @@ export default function DailyReportHistoryView({
                 reports.map((report, idx) => {
                   const d = report.reportDate ? report.reportDate.split('T')[0] : '—';
                   const w = Number(report.totalWeight || 0);
+                  const dispatchUserName = report.dispatchExecutive || report.createdBy?.name || report.supervisorName || '—';
 
                   return (
                     <tr
@@ -1659,7 +1660,22 @@ export default function DailyReportHistoryView({
 
                       {/* Supervisor / Executive */}
                       <td style={{ padding: '12px 16px', fontWeight: '600', color: '#334155' }}>
-                        {report.dispatchExecutive || report.supervisorName || '—'}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontWeight: '700', color: '#0f2e5a' }}>{dispatchUserName}</span>
+                          {isDispatch && (report.dispatchType === 'DISPATCH_2' || report.dispatchType === 'DISPATCH_1') && (
+                            <span style={{
+                              fontSize: '10px',
+                              fontWeight: '800',
+                              background: report.dispatchType === 'DISPATCH_2' ? '#fef3c7' : '#eff6ff',
+                              color: report.dispatchType === 'DISPATCH_2' ? '#b45309' : '#1d4ed8',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              border: report.dispatchType === 'DISPATCH_2' ? '1px solid #fde68a' : '1px solid #bfdbfe'
+                            }}>
+                              {report.dispatchType === 'DISPATCH_2' ? 'D2' : 'D1'}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Rows */}
@@ -1689,7 +1705,7 @@ export default function DailyReportHistoryView({
 
                       {/* Created By */}
                       <td style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>
-                        {report.createdBy?.name || 'User'}
+                        {report.createdBy?.name || report.dispatchExecutive || 'User'}
                       </td>
 
                       {/* Status */}
@@ -2084,7 +2100,7 @@ export default function DailyReportHistoryView({
                   )}
                 </div>
                 <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-                  Date: <strong>{selectedReportModal.reportDate ? selectedReportModal.reportDate.split('T')[0] : '—'}</strong> | Shift: <strong>{selectedReportModal.shift}</strong> | Supervisor: <strong>{selectedReportModal.supervisorName || '—'}</strong>
+                  Date: <strong>{selectedReportModal.reportDate ? selectedReportModal.reportDate.split('T')[0] : '—'}</strong> | Shift: <strong>{selectedReportModal.shift || 'Morning'}</strong> | {isDispatch ? 'Dispatch User:' : 'Supervisor:'} <strong>{selectedReportModal.dispatchExecutive || selectedReportModal.createdBy?.name || selectedReportModal.supervisorName || '—'}</strong>{isDispatch && selectedReportModal.dispatchType ? ` | Unit: ${selectedReportModal.dispatchType === 'DISPATCH_2' ? 'Dispatch Unit 2' : 'Dispatch Unit 1'}` : ''}
                 </div>
               </div>
 
@@ -2112,22 +2128,25 @@ export default function DailyReportHistoryView({
                 fontSize: '12.5px'
               }}>
                 <div>
-                  <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>Submitted By</span>
-                  <strong style={{ color: '#0f172a' }}>{selectedReportModal.createdBy?.name || 'Operator'}</strong>
+                  <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>{isDispatch ? 'Dispatch User / Created By' : 'Submitted By'}</span>
+                  <strong style={{ color: '#0f172a' }}>{selectedReportModal.createdBy?.name || selectedReportModal.dispatchExecutive || 'Operator'}</strong>
+                  {selectedReportModal.createdBy?.email && (
+                    <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>{selectedReportModal.createdBy.email}</span>
+                  )}
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>Approved By</span>
                   <strong style={{ color: '#0f172a' }}>{selectedReportModal.approvedBy?.name || (selectedReportModal.status === 'APPROVED' ? 'Plant Head' : 'Pending Approval')}</strong>
                 </div>
                 <div>
-                  <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>Total Net Production Weight</span>
+                  <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>{isDispatch ? 'Total Net Dispatched Weight' : 'Total Net Production Weight'}</span>
                   <strong style={{ color: '#7c3aed', fontSize: '14px' }}>{Number(selectedReportModal.totalWeight || 0).toLocaleString()} kg ({((selectedReportModal.totalWeight || 0)/1000).toFixed(2)} MT)</strong>
                 </div>
               </div>
 
               {/* Items Breakdown Table */}
               <div>
-                <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0 0 10px 0' }}>Production Items Breakdown</h3>
+                <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0 0 10px 0' }}>{isDispatch ? 'Dispatch Items Breakdown (Covers & Frames)' : 'Production Items Breakdown'}</h3>
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
                     <thead>

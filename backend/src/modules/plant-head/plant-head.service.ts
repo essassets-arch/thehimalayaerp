@@ -5435,29 +5435,183 @@ export class PlantHeadService {
       totalRemainingCount: mfgReadyOrders.length + mfgPlantApproved.length + draftOrdersCount,
     };
 
-    const dbDispatches = await this.prisma.dispatch.findMany({
-      where: { ...dispatchScope, ...(isAllTime ? {} : { dispatchedAt: { gte: startDate, lt: endDate } }) },
-      include: {
-        salesOrder: {
-          include: {
-            customer: true,
-            salesExecutive: true,
-            items: { include: { product: true } },
+    const [dbDispatches, dbDispatchDailyReports] = await Promise.all([
+      this.prisma.dispatch.findMany({
+        where: { ...dispatchScope, ...(isAllTime ? {} : { dispatchedAt: { gte: startDate, lt: endDate } }) },
+        include: {
+          salesOrder: {
+            include: {
+              customer: true,
+              salesExecutive: true,
+              items: { include: { product: true } },
+            },
+          },
+          items: {
+            include: {
+              salesOrderItem: { include: { product: true } },
+            },
           },
         },
-        items: {
-          include: {
-            salesOrderItem: { include: { product: true } },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: 'desc' },
+      }),
+      (this.prisma.dispatchDailyReport?.findMany
+        ? this.prisma.dispatchDailyReport.findMany({
+            where: {
+              ...customerCompanyFilter,
+              ...(isAllTime ? {} : { reportDate: { gte: startDate, lt: endDate } }),
+            },
+            include: {
+              createdBy: { select: { id: true, name: true, email: true } },
+              items: {
+                include: {
+                  product: {
+                    select: {
+                      id: true,
+                      name: true,
+                      sku: true,
+                      type: true,
+                      size: true,
+                      capacity: true,
+                    },
+                  },
+                },
+                orderBy: { srNo: 'asc' },
+              },
+            },
+            orderBy: { reportDate: 'desc' },
+          })
+        : Promise.resolve([])
+      ).catch(() => []),
+    ]);
+
+    // Aggregate Covers, Frames, Sets and Dispatch User Breakdown from Dispatch Daily Reports
+    const drTotalCovers = (dbDispatchDailyReports || []).reduce((s: number, r: any) => s + Number(r.totalCovers || 0), 0);
+    const drTotalFrames = (dbDispatchDailyReports || []).reduce((s: number, r: any) => s + Number(r.totalFrames || 0), 0);
+    const drTotalSets = (dbDispatchDailyReports || []).reduce((s: number, r: any) => s + Number(r.totalSets || 0), 0);
+    const drTotalWeight = Math.round((dbDispatchDailyReports || []).reduce((s: number, r: any) => s + Number(r.totalWeight || 0), 0) * 100) / 100;
+
+    // Dispatch User Breakdown (Shows which dispatch user logged the entries from /dispatch/daily-report)
+    const dispatchUserMap = new Map<string, any>();
+    for (const r of (dbDispatchDailyReports || [])) {
+      const uId = r.createdById || r.createdBy?.id || 'unknown';
+      const uName = r.createdBy?.name || r.dispatchExecutive || 'Dispatch User';
+      const uEmail = r.createdBy?.email || '';
+      const dType = r.dispatchType || 'DISPATCH_1';
+      const dTypeLabel = dType === 'DISPATCH_2' ? 'Dispatch Unit 2' : 'Dispatch Unit 1';
+      const rDate = r.reportDate ? (typeof r.reportDate === 'string' ? r.reportDate.slice(0, 10) : r.reportDate.toISOString().slice(0, 10)) : '';
+
+      if (!dispatchUserMap.has(uId)) {
+        dispatchUserMap.set(uId, {
+          userId: uId,
+          userName: uName,
+          userEmail: uEmail,
+          dispatchType: dType,
+          dispatchTypeLabel: dTypeLabel,
+          entriesCount: 0,
+          totalCovers: 0,
+          totalFrames: 0,
+          totalSets: 0,
+          totalWeight: 0,
+          lastDate: rDate,
+        });
+      }
+      const entry = dispatchUserMap.get(uId)!;
+      entry.entriesCount += 1;
+      entry.totalCovers += Number(r.totalCovers || 0);
+      entry.totalFrames += Number(r.totalFrames || 0);
+      entry.totalSets += Number(r.totalSets || 0);
+      entry.totalWeight += Math.round(Number(r.totalWeight || 0) * 100) / 100;
+      if (rDate && (!entry.lastDate || rDate > entry.lastDate)) {
+        entry.lastDate = rDate;
+      }
+    }
+    const dispatchUserBreakdown = Array.from(dispatchUserMap.values()).sort((a, b) => b.totalCovers - a.totalCovers);
+
+    // Product breakdown for covers and frames from daily reports
+    const drProdMap = new Map<string, any>();
+    for (const r of (dbDispatchDailyReports || [])) {
+      for (const it of r.items || []) {
+        const rawName = it.product?.name || it.customProductName || '';
+        const pKey = standardizeProduct(it.type, rawName);
+        if (!drProdMap.has(pKey)) {
+          drProdMap.set(pKey, {
+            product: pKey,
+            name:
+              pKey === 'MHC' ? 'Manhole Covers' :
+              pKey === 'RCS' ? 'Recessed Covers & Frames' :
+              pKey === 'ONGC' ? 'ONGC Specification Covers' :
+              pKey === 'WGC' ? 'Water Gully Covers' :
+              pKey === 'D MHC' ? 'Double Manhole Covers' :
+              pKey === 'FRP MOULDED GRATING' ? 'FRP Moulded Grating' :
+              pKey === 'COVER BLOCK' ? 'Cover Blocks & Spacers' : pKey,
+            covers: 0,
+            frames: 0,
+            sets: 0,
+            weight: 0,
+          });
+        }
+        const acc = drProdMap.get(pKey)!;
+        acc.covers += Number(it.coverQty || 0);
+        acc.frames += Number(it.frameQty || 0);
+        acc.sets += Number(it.setQty || 0);
+        acc.weight += Math.round(Number(it.totalWeight || 0) * 100) / 100;
+      }
+    }
+    const productCoversFrames = Array.from(drProdMap.values()).sort((a, b) => (b.covers + b.frames) - (a.covers + a.frames));
+
+    const formattedDailyReportsList = (dbDispatchDailyReports || []).map((r: any) => {
+      const repDate = r.reportDate ? (typeof r.reportDate === 'string' ? r.reportDate.slice(0, 10) : r.reportDate.toISOString().slice(0, 10)) : '';
+      const enteredByName = r.createdBy?.name || r.dispatchExecutive || 'Dispatch User';
+      return {
+        id: r.id,
+        reportNo: r.reportNo,
+        date: repDate,
+        shift: r.shift || 'Morning',
+        dispatchType: r.dispatchType || 'DISPATCH_1',
+        dispatchTypeLabel: r.dispatchType === 'DISPATCH_2' ? 'Dispatch Unit 2' : 'Dispatch Unit 1',
+        enteredBy: enteredByName,
+        enteredByEmail: r.createdBy?.email || '',
+        dispatchExecutive: r.dispatchExecutive || enteredByName,
+        status: r.status || 'DRAFT',
+        totalCovers: Number(r.totalCovers || 0),
+        totalFrames: Number(r.totalFrames || 0),
+        totalSets: Number(r.totalSets || 0),
+        totalWeight: Math.round(Number(r.totalWeight || 0) * 100) / 100,
+        itemsCount: r.items?.length || 0,
+        items: (r.items || []).map((it: any) => ({
+          id: it.id,
+          srNo: it.srNo,
+          productName: it.product?.name || it.customProductName || 'Product',
+          size: it.size || it.product?.size || '—',
+          type: it.type || it.product?.type || '—',
+          capacity: it.capacity || it.product?.capacity || '—',
+          coverQty: Number(it.coverQty || 0),
+          coverUnitWeight: Number(it.coverUnitWeight || 0),
+          coverWeight: Math.round(Number(it.coverWeight || 0) * 100) / 100,
+          frameQty: Number(it.frameQty || 0),
+          frameUnitWeight: Number(it.frameUnitWeight || 0),
+          frameWeight: Math.round(Number(it.frameWeight || 0) * 100) / 100,
+          setQty: Number(it.setQty || 0),
+          totalWeight: Math.round(Number(it.totalWeight || 0) * 100) / 100,
+        })),
+      };
     });
+
+    const dispatchDailyReportsPayload = {
+      totalReports: (dbDispatchDailyReports || []).length,
+      totalCovers: drTotalCovers,
+      totalFrames: drTotalFrames,
+      totalSets: drTotalSets,
+      totalWeight: drTotalWeight,
+      userBreakdown: dispatchUserBreakdown,
+      productBreakdown: productCoversFrames,
+      reports: formattedDailyReportsList,
+    };
 
     // 3. Handle Empty State Accurately (Zero Static Fallback)
     if (dbDispatches.length === 0) {
       return {
-        hasData: false,
+        hasData: (dbDispatchDailyReports || []).length > 0,
         summary: {
           period: periodLabel,
           totalQuantity: 0,
@@ -5472,6 +5626,12 @@ export class PlantHeadService {
           avgFreightPerPiece: 0,
           totalTrips: 0,
           avgPayloadPerTrip: 0,
+          totalCovers: drTotalCovers,
+          totalFrames: drTotalFrames,
+          totalSets: drTotalSets,
+          coversFramesRatio: drTotalFrames > 0 ? (drTotalCovers / drTotalFrames).toFixed(2) : (drTotalCovers > 0 ? '1.00' : '0.00'),
+          dailyReportWeight: drTotalWeight,
+          dailyReportsCount: (dbDispatchDailyReports || []).length,
           narrative: `No dispatches recorded in the database between ${periodLabel}.`,
         },
         products: [],
@@ -5538,6 +5698,7 @@ export class PlantHeadService {
         ],
         overallMeaning: `No outbound dispatches recorded for ${periodLabel}.`,
         dispatchOrders: [],
+        dispatchDailyReports: dispatchDailyReportsPayload,
         pendingOrders: pendingOrdersPayload,
         filterOptions: {
           months: discoveredMonths,
@@ -5924,24 +6085,30 @@ export class PlantHeadService {
       });
     }
 
-    // 6. Format Product Breakdown
+    // 6. Format Product Breakdown (Enriched with Covers & Frames from Daily Reports)
     const productsLive = Object.entries(prodMap)
-      .map(([product, val]) => ({
-        product,
-        name:
-          product === 'MHC' ? 'Manhole Covers' :
-          product === 'RCS' ? 'Recessed Covers & Frames' :
-          product === 'ONGC' ? 'ONGC Specification Covers' :
-          product === 'WGC' ? 'Water Gully Covers' :
-          product === 'D MHC' ? 'Double Manhole Covers' :
-          product === 'FRP MOULDED GRATING' ? 'FRP Moulded Grating' :
-          product === 'COVER BLOCK' ? 'Cover Blocks & Spacers' : product,
-        quantity: val.qty,
-        weight: Math.round(val.weight * 100) / 100,
-        share: totalWeight > 0 ? Math.round((val.weight / totalWeight) * 1000) / 10 : 0,
-        avgWeight: val.qty > 0 ? Math.round((val.weight / val.qty) * 100) / 100 : 0,
-        isDominant: false,
-      }))
+      .map(([product, val]) => {
+        const drMatch = drProdMap.get(product);
+        return {
+          product,
+          name:
+            product === 'MHC' ? 'Manhole Covers' :
+            product === 'RCS' ? 'Recessed Covers & Frames' :
+            product === 'ONGC' ? 'ONGC Specification Covers' :
+            product === 'WGC' ? 'Water Gully Covers' :
+            product === 'D MHC' ? 'Double Manhole Covers' :
+            product === 'FRP MOULDED GRATING' ? 'FRP Moulded Grating' :
+            product === 'COVER BLOCK' ? 'Cover Blocks & Spacers' : product,
+          quantity: val.qty,
+          covers: drMatch ? drMatch.covers : 0,
+          frames: drMatch ? drMatch.frames : 0,
+          sets: drMatch ? drMatch.sets : 0,
+          weight: Math.round(val.weight * 100) / 100,
+          share: totalWeight > 0 ? Math.round((val.weight / totalWeight) * 1000) / 10 : 0,
+          avgWeight: val.qty > 0 ? Math.round((val.weight / val.qty) * 100) / 100 : 0,
+          isDominant: false,
+        };
+      })
       .sort((a, b) => b.weight - a.weight);
 
     if (productsLive.length > 0) productsLive[0].isDominant = true;
@@ -6331,6 +6498,12 @@ export class PlantHeadService {
         avgFreightPerPiece: totalQty > 0 ? Math.round((totalFreight / totalQty) * 100) / 100 : 0,
         totalTrips: allFilteredDispatches.length,
         avgPayloadPerTrip: allFilteredDispatches.length > 0 ? Math.round((totalWeight / allFilteredDispatches.length) * 100) / 100 : 0,
+        totalCovers: drTotalCovers,
+        totalFrames: drTotalFrames,
+        totalSets: drTotalSets,
+        coversFramesRatio: drTotalFrames > 0 ? (drTotalCovers / drTotalFrames).toFixed(2) : (drTotalCovers > 0 ? '1.00' : '0.00'),
+        dailyReportWeight: drTotalWeight,
+        dailyReportsCount: (dbDispatchDailyReports || []).length,
         narrative: `During ${periodLabel}, Himalaya dispatched approximately ${Math.round(totalWeight / 1000)} tonnes (${totalWeight.toLocaleString()} kg) of material, consisting of ${totalQty.toLocaleString()} pieces, to ${clientSet.size} customers across ${Object.keys(datesMap).length} operational dispatch days.`,
       },
       products: productsLive,
@@ -6449,6 +6622,7 @@ export class PlantHeadService {
       keyHighlights,
       overallMeaning: `For ${periodLabel}, Himalaya dispatched ${(totalWeight / 1000).toFixed(1)} tonnes across ${totalQty.toLocaleString()} pieces to ${clientSet.size} unique customers. Core profile: ${leadProduct?.product || 'MHC'} + ${capacitiesLive[0]?.capacity || 'LD'} + ${sizesLive[0]?.size || '600×600'} + ${coloursLive[0]?.colour || 'Grey'}.`,
       dispatchOrders: allFilteredDispatches,
+      dispatchDailyReports: dispatchDailyReportsPayload,
       pendingOrders: pendingOrdersPayload,
       filterOptions,
       kpis: {

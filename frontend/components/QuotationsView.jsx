@@ -807,10 +807,20 @@ export default function QuotationsView({
     if (reminderModal.reminder && onUpdateReminder) {
       await onUpdateReminder(reminderModal.reminder.id, formData);
     } else if (onSaveReminder) {
+      const qCust = resolveQuotationCustomerName(reminderModal.quotation);
+      const resolvedCust =
+        (qCust && qCust !== '—')
+          ? qCust
+          : (reminderModal.quotation.customerName ||
+             reminderModal.quotation.lead?.companyName ||
+             reminderModal.quotation.lead?.projectName ||
+             reminderModal.quotation.customer?.name ||
+             reminderModal.quotation.siteInchargeName ||
+             '');
       await onSaveReminder({
         moduleType: 'Quotation',
         moduleId: reminderModal.quotation.id,
-        customerName: reminderModal.quotation.customerName,
+        customerName: resolvedCust,
         ...formData
       });
     }
@@ -2743,7 +2753,7 @@ export default function QuotationsView({
         open={!!reminderModal}
         onClose={() => setReminderModal(null)}
         onSave={handleSaveReminder}
-        customerName={reminderModal?.quotation?.customerName || ''}
+        customerName={(reminderModal?.quotation && resolveQuotationCustomerName(reminderModal.quotation) !== '—') ? resolveQuotationCustomerName(reminderModal.quotation) : (reminderModal?.quotation?.customerName || reminderModal?.quotation?.lead?.companyName || '')}
         title={reminderModal?.reminder ? 'Edit Quotation Reminder' : 'Quotation Reminder'}
         initialValues={reminderModal?.reminder || null}
       />

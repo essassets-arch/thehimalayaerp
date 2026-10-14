@@ -478,10 +478,17 @@ export default function LeadsView({
     if (reminderModal.reminder && onUpdateReminder) {
       await onUpdateReminder(reminderModal.reminder.id, formData);
     } else if (onSaveReminder) {
+      const resolvedCust =
+        reminderModal.lead.companyName ||
+        reminderModal.lead.projectName ||
+        reminderModal.lead.siteInchargeName ||
+        reminderModal.lead.contactPerson ||
+        reminderModal.lead.leadName ||
+        '';
       await onSaveReminder({
         moduleType: 'Lead',
         moduleId: reminderModal.lead.id,
-        customerName: reminderModal.lead.companyName,
+        customerName: resolvedCust,
         ...formData
       });
     }
@@ -2289,7 +2296,7 @@ export default function LeadsView({
         open={!!reminderModal}
         onClose={() => setReminderModal(null)}
         onSave={handleSaveReminder}
-        customerName={reminderModal?.lead?.companyName || ''}
+        customerName={reminderModal?.lead?.companyName || reminderModal?.lead?.projectName || reminderModal?.lead?.siteInchargeName || reminderModal?.lead?.contactPerson || ''}
         title={reminderModal?.reminder ? 'Edit Reminder' : 'Create Reminder'}
         initialValues={reminderModal?.reminder || null}
       />

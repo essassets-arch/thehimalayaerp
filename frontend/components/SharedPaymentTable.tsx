@@ -84,7 +84,7 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
         ...formData,
         moduleType: 'Payment',
         moduleId: reminderModal.order.id || reminderModal.order.orderNo,
-        customerName: reminderModal.order.customerName || reminderModal.order.customer || 'Customer',
+        customerName: reminderModal.order.customerName || reminderModal.order.customer?.companyName || reminderModal.order.customer?.name || (typeof reminderModal.order.customer === 'string' && reminderModal.order.customer) || 'Customer',
       });
       Swal.fire({ icon: 'success', title: 'Reminder saved', timer: 1500, showConfirmButton: false });
     } catch (err: any) {
@@ -692,7 +692,7 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
         open={!!reminderModal}
         onClose={() => setReminderModal(null)}
         onSave={handleSaveReminder}
-        customerName={reminderModal?.order?.customerName || reminderModal?.order?.customer || ''}
+        customerName={reminderModal?.order?.customerName || reminderModal?.order?.customer?.companyName || reminderModal?.order?.customer?.name || (typeof reminderModal?.order?.customer === 'string' && reminderModal?.order?.customer) || ''}
         title="Payment Reminder"
       />
     </div>

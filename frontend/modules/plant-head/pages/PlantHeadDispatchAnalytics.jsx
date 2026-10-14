@@ -2384,331 +2384,828 @@ export const PlantHeadDispatchAnalytics = () => {
             </div>
 
             {/* ─────────────────────────────────────────────────────────────
-                DAILY DISPATCH REPORT & OUTBOUND MANIFEST (WEIGHBRIDGE REGISTER)
+                DISPATCH REGISTERS: DUAL-TAB (FACTORY DAILY REPORTS & WEIGHBRIDGE MANIFEST)
             ───────────────────────────────────────────────────────────── */}
             <div id="daily-dispatch-report" className="prem-card print-card" style={{ padding: '14px', borderTop: '4px solid #0f2e5a' }}>
-              {/* Header Strip */}
+              {/* Header Strip with Tabs */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', paddingBottom: '10px', borderBottom: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#eff6ff', color: '#1e3a8a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Truck size={20} />
+                    <ClipboardList size={20} />
                   </div>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '14px', fontWeight: '900', color: '#0f2e5a', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                        Daily Dispatch Report &amp; Outbound Manifest
+                        Dispatch Operations Register
                       </span>
-                      <span style={{ fontSize: '9.5px', fontWeight: '800', background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', padding: '1px 6px', borderRadius: '4px' }}>
-                        Weighbridge Register
+                      <span style={{ fontSize: '9.5px', fontWeight: '800', background: activeRegisterTab === 'dailyReports' ? '#eff6ff' : '#f0fdf4', color: activeRegisterTab === 'dailyReports' ? '#1e40af' : '#15803d', border: `1px solid ${activeRegisterTab === 'dailyReports' ? '#bfdbfe' : '#86efac'}`, padding: '1px 6px', borderRadius: '4px' }}>
+                        {activeRegisterTab === 'dailyReports' ? 'Factory Daily Reports (Covers & Frames by User)' : 'Weighbridge Outbound Manifest'}
                       </span>
                     </div>
                     <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '500', marginTop: '2px' }}>
-                      Verified individual weighbridge dispatches for {summary.period} &bull; Factory Outbound Source of Truth
+                      {activeRegisterTab === 'dailyReports'
+                        ? `Shift-wise factory floor dispatch logs with covers & frames entered by dispatch executives for ${summary.period}`
+                        : `Verified individual weighbridge dispatches for ${summary.period} • Factory Outbound Source of Truth`}
                     </div>
                   </div>
                 </div>
 
-                {/* Right Badges & Link to Daily Reports */}
+                {/* Right Tab Switcher & Quick Links */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: '800' }}>
-                    <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                      {filteredDispatches.length} Shipments
-                    </span>
-                    <span style={{ background: '#eff6ff', color: '#1e40af', padding: '3px 8px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
-                      {fmtNum(filteredDispatchesStats.totalQty)} PCS
-                    </span>
-                    <span style={{ background: '#f0fdf4', color: '#15803d', padding: '3px 8px', borderRadius: '6px', border: '1px solid #86efac' }}>
-                      {fmtKg(filteredDispatchesStats.totalWeight)} KG
-                    </span>
+                  {/* Tab Switcher */}
+                  <div className="no-print" style={{ display: 'flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                    <button
+                      onClick={() => setActiveRegisterTab('dailyReports')}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        borderRadius: '6px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: activeRegisterTab === 'dailyReports' ? '#ffffff' : 'transparent',
+                        color: activeRegisterTab === 'dailyReports' ? '#0f2e5a' : '#64748b',
+                        boxShadow: activeRegisterTab === 'dailyReports' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                      }}
+                    >
+                      <Layers size={12} color={activeRegisterTab === 'dailyReports' ? '#0284c7' : '#94a3b8'} />
+                      <span>Daily Reports (Covers &amp; Frames)</span>
+                      <span style={{ fontSize: '9.5px', padding: '1px 5px', borderRadius: '10px', background: activeRegisterTab === 'dailyReports' ? '#eff6ff' : '#e2e8f0', color: activeRegisterTab === 'dailyReports' ? '#1e40af' : '#64748b', fontWeight: '800' }}>
+                        {dailyReportsList.length}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => setActiveRegisterTab('weighbridge')}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        borderRadius: '6px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: activeRegisterTab === 'weighbridge' ? '#ffffff' : 'transparent',
+                        color: activeRegisterTab === 'weighbridge' ? '#0f2e5a' : '#64748b',
+                        boxShadow: activeRegisterTab === 'weighbridge' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                      }}
+                    >
+                      <Truck size={12} color={activeRegisterTab === 'weighbridge' ? '#16a34a' : '#94a3b8'} />
+                      <span>Weighbridge Manifest</span>
+                      <span style={{ fontSize: '9.5px', padding: '1px 5px', borderRadius: '10px', background: activeRegisterTab === 'weighbridge' ? '#f0fdf4' : '#e2e8f0', color: activeRegisterTab === 'weighbridge' ? '#15803d' : '#64748b', fontWeight: '800' }}>
+                        {dispatchOrders.length}
+                      </span>
+                    </button>
                   </div>
+
+                  {/* Direct portal links */}
                   <a
-                    href="/plant-head/daily-reports"
+                    href="/dispatch/daily-report/history"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="prem-btn prem-btn-navy no-print"
-                    style={{ padding: '5px 10px', fontSize: '11px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                    title="Open Full Plant Head Daily Reports"
+                    style={{ padding: '5px 9px', fontSize: '10.5px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    title="Open Full Daily Report History (/dispatch/daily-report/history)"
                   >
-                    <FileSpreadsheet size={13} />
-                    <span>Daily Summary Portal</span>
-                    <ExternalLink size={11} />
+                    <FileSpreadsheet size={12} />
+                    <span>Daily History</span>
+                    <ExternalLink size={10} />
                   </a>
                 </div>
               </div>
 
-              {/* Filter & Search Toolbar (no-print) */}
-              <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginTop: '10px', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                {/* Search Input */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: '240px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '4px 8px' }}>
-                  <Search size={14} color="#64748b" />
-                  <input
-                    type="text"
-                    value={dispatchSearchQuery}
-                    onChange={(e) => {
-                      setDispatchSearchQuery(e.target.value);
-                      setDispatchCurrentPage(1);
-                    }}
-                    placeholder="Search dispatch #, SO #, client, vehicle, product, city..."
-                    style={{ border: 'none', outline: 'none', fontSize: '11px', width: '100%', color: '#1e293b' }}
-                  />
-                  {dispatchSearchQuery && (
-                    <X size={13} color="#94a3b8" style={{ cursor: 'pointer' }} onClick={() => { setDispatchSearchQuery(''); setDispatchCurrentPage(1); }} />
-                  )}
-                </div>
+              {/* ═════════════════════════════════════════════════════════════
+                  TAB 1: FACTORY DAILY DISPATCH REPORTS (COVERS & FRAMES BY USER)
+              ══════════════════════════════════════════════════════════════ */}
+              {activeRegisterTab === 'dailyReports' && (
+                <div>
+                  {/* Operator Breakdown Strip */}
+                  <div style={{ marginTop: '10px', padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: '900', color: '#0f2e5a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        <UserCheck size={13} color="#0284c7" style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+                        Dispatch Executives (Entered By Summary)
+                      </span>
+                      <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '600' }}>
+                        Click a user card below to filter the report table
+                      </span>
+                    </div>
 
-                {/* Date Dropdown */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Calendar size={13} color="#64748b" />
-                  <select
-                    value={dispatchDateFilter}
-                    onChange={(e) => {
-                      setDispatchDateFilter(e.target.value);
-                      setDispatchCurrentPage(1);
-                    }}
-                    className="prem-select"
-                    style={{ fontSize: '11px', padding: '4px 8px' }}
-                  >
-                    <option value="All">All Dispatch Dates ({dispatchDateOptions.length} operational days)</option>
-                    {dispatchDateOptions.map((opt) => (
-                      <option key={opt.date} value={opt.date}>
-                        {opt.date} ({opt.count} shipments &bull; {fmtKg(opt.weight)} KG)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Page Size Dropdown */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Show:</span>
-                  <select
-                    value={dispatchPageSize}
-                    onChange={(e) => {
-                      setDispatchPageSize(e.target.value === 'All' ? 'All' : Number(e.target.value));
-                      setDispatchCurrentPage(1);
-                    }}
-                    className="prem-select"
-                    style={{ fontSize: '11px', padding: '4px 8px' }}
-                  >
-                    <option value={10}>10</option>
-                    <option value={20}>20</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                    <option value="All">All ({filteredDispatches.length})</option>
-                  </select>
-                </div>
-
-                {(dispatchSearchQuery || dispatchDateFilter !== 'All') && (
-                  <button
-                    onClick={() => {
-                      setDispatchSearchQuery('');
-                      setDispatchDateFilter('All');
-                      setDispatchCurrentPage(1);
-                    }}
-                    className="prem-btn"
-                    style={{ padding: '4px 8px', fontSize: '10.5px', color: '#e11d48', background: '#ffe4e6', border: '1px solid #fecdd3' }}
-                  >
-                    <X size={12} /> Clear Filter
-                  </button>
-                )}
-              </div>
-
-              {/* Table Container */}
-              <div style={{ marginTop: '10px', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                <table className="prem-table" style={{ width: '100%', fontSize: '11px' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ width: '35px', textAlign: 'center' }}>#</th>
-                      <th style={{ width: '85px' }}>Date</th>
-                      <th style={{ width: '95px' }}>Dispatch No</th>
-                      <th style={{ width: '90px' }}>Order No</th>
-                      <th>Client / Customer</th>
-                      <th style={{ width: '65px' }}>Product</th>
-                      <th style={{ width: '55px' }}>Rating</th>
-                      <th style={{ width: '75px' }}>Size</th>
-                      <th style={{ width: '60px' }}>Colour</th>
-                      <th style={{ textAlign: 'right', width: '65px' }}>Qty (PCS)</th>
-                      <th style={{ textAlign: 'right', width: '85px' }}>Weight (KG)</th>
-                      <th style={{ width: '120px' }}>Vehicle / Transporter</th>
-                      <th style={{ width: '110px' }}>Destination</th>
-                      <th style={{ width: '75px', textAlign: 'center' }}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedDispatches.length === 0 ? (
-                      <tr>
-                        <td colSpan={14} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                            <Truck size={24} color="#94a3b8" />
-                            <span style={{ fontWeight: '700', fontSize: '12px', color: '#475569' }}>
-                              No dispatch records match the selected search or date criteria.
-                            </span>
-                            <button
-                              onClick={() => {
-                                setDispatchSearchQuery('');
-                                setDispatchDateFilter('All');
-                              }}
-                              className="prem-btn prem-btn-navy"
-                              style={{ padding: '4px 10px', fontSize: '10.5px', marginTop: '4px' }}
-                            >
-                              Reset Search Filters
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      paginatedDispatches.map((d, idx) => {
-                        const globalIdx = dispatchPageSize === 'All' ? idx + 1 : (dispatchCurrentPage - 1) * Number(dispatchPageSize) + idx + 1;
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '8px' }}>
+                      {(dispatchDailyReports.userBreakdown || uniqueDailyReportUsers).map((u, idx) => {
+                        const isSelected = dailyReportUserFilter === u.user || dailyReportUserFilter === u.name;
+                        const userName = u.user || u.name;
                         return (
-                          <tr key={d.id ? `${d.id}-${idx}` : idx}>
-                            <td style={{ textAlign: 'center', fontFamily: 'monospace', color: '#64748b', fontSize: '10px' }}>
-                              {globalIdx}
-                            </td>
-                            <td style={{ fontFamily: 'monospace', fontSize: '10.5px', whiteSpace: 'nowrap', color: '#334155' }}>
-                              {d.date || '—'}
-                            </td>
-                            <td>
-                              <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#0f2e5a', background: '#f8fafc', padding: '1px 5px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '10.5px' }}>
-                                {d.id}
-                              </span>
-                            </td>
-                            <td style={{ fontFamily: 'monospace', fontSize: '10.5px', color: '#475569' }}>
-                              {d.soNumber || '—'}
-                            </td>
-                            <td>
-                              <div style={{ fontWeight: '700', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }} title={d.customer}>
-                                {d.customer}
-                              </div>
-                              {d.city && d.city !== 'Not recorded' && (
-                                <div style={{ fontSize: '9.5px', color: '#64748b' }}>
-                                  {d.city}
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              setDailyReportUserFilter(isSelected ? 'All' : userName);
+                              setDailyReportCurrentPage(1);
+                            }}
+                            style={{
+                              background: isSelected ? '#eff6ff' : '#ffffff',
+                              border: `1.5px solid ${isSelected ? '#3b82f6' : '#cbd5e1'}`,
+                              borderRadius: '8px',
+                              padding: '8px 10px',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '6px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#0f2e5a', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '800' }}>
+                                  {userName.charAt(0).toUpperCase()}
                                 </div>
-                              )}
-                            </td>
-                            <td>
-                              <span style={{
-                                display: 'inline-block',
-                                padding: '1px 6px',
-                                borderRadius: '4px',
-                                fontSize: '10px',
-                                fontWeight: '800',
-                                background: d.product === 'MHC' ? '#eff6ff' : d.product === 'RCS' ? '#f0fdf4' : d.product === 'ONGC' ? '#fffbeb' : d.product === 'WGC' ? '#faf5ff' : '#f1f5f9',
-                                color: d.product === 'MHC' ? '#1e40af' : d.product === 'RCS' ? '#15803d' : d.product === 'ONGC' ? '#b45309' : d.product === 'WGC' ? '#6b21a8' : '#475569',
-                                border: d.product === 'MHC' ? '1px solid #bfdbfe' : d.product === 'RCS' ? '1px solid #bbf7d0' : d.product === 'ONGC' ? '1px solid #fde68a' : d.product === 'WGC' ? '1px solid #e9d5ff' : '1px solid #cbd5e1',
-                              }}>
-                                {d.product || 'Other'}
-                              </span>
-                            </td>
-                            <td>
-                              <span style={{
-                                display: 'inline-block',
-                                padding: '1px 5px',
-                                borderRadius: '4px',
-                                fontSize: '9.5px',
-                                fontWeight: '700',
-                                background: '#f8fafc',
-                                color: '#334155',
-                                border: '1px solid #e2e8f0',
-                              }}>
-                                {d.capacity || '—'}
-                              </span>
-                            </td>
-                            <td style={{ fontSize: '10px', color: '#334155', whiteSpace: 'nowrap' }}>
-                              {d.size || '—'}
-                            </td>
-                            <td style={{ fontSize: '10px', color: '#475569' }}>
-                              {d.colour || '—'}
-                            </td>
-                            <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f172a', fontFamily: 'monospace' }}>
-                              {fmtNum(d.quantity)}
-                            </td>
-                            <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f2e5a', fontFamily: 'monospace' }}>
-                              {fmtKg(d.weight)}
-                            </td>
-                            <td style={{ fontSize: '10px' }}>
-                              <div style={{ fontWeight: '700', color: '#1e293b' }}>
-                                {d.vehicle !== 'Not recorded' ? d.vehicle : 'Direct / Local'}
-                              </div>
-                              {d.transporter && d.transporter !== 'Not recorded' && (
-                                <div style={{ fontSize: '9px', color: '#64748b' }}>
-                                  {d.transporter}
+                                <div>
+                                  <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#0f2e5a' }}>
+                                    {userName}
+                                  </div>
+                                  {u.email && (
+                                    <div style={{ fontSize: '9px', color: '#64748b' }}>
+                                      {u.email}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </td>
-                            <td style={{ fontSize: '10px', color: '#475569', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.destination}>
-                              {d.destination || d.city || 'Factory Outbound'}
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <span style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '3px',
-                                padding: '1px 6px',
-                                borderRadius: '4px',
-                                fontSize: '9.5px',
-                                fontWeight: '800',
-                                background: '#f0fdf4',
-                                color: '#166534',
-                                border: '1px solid #86efac',
-                              }}>
-                                <Check size={10} color="#16a34a" />
-                                {d.status === 'READY_FOR_DISPATCH' ? 'Ready' : 'Dispatched'}
+                              </div>
+                              <span style={{ fontSize: '10px', fontWeight: '800', background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: '4px' }}>
+                                {u.reportCount || u.count} Reports
                               </span>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', background: '#f8fafc', padding: '4px 6px', borderRadius: '6px', fontSize: '9.5px', textAlign: 'center' }}>
+                              <div>
+                                <div style={{ color: '#64748b', fontSize: '8.5px', fontWeight: '700' }}>COVERS</div>
+                                <div style={{ fontWeight: '900', color: '#0284c7', fontFamily: 'monospace' }}>{fmtNum(u.totalCovers)}</div>
+                              </div>
+                              <div>
+                                <div style={{ color: '#64748b', fontSize: '8.5px', fontWeight: '700' }}>FRAMES</div>
+                                <div style={{ fontWeight: '900', color: '#7c3aed', fontFamily: 'monospace' }}>{fmtNum(u.totalFrames)}</div>
+                              </div>
+                              <div>
+                                <div style={{ color: '#64748b', fontSize: '8.5px', fontWeight: '700' }}>SETS</div>
+                                <div style={{ fontWeight: '900', color: '#16a34a', fontFamily: 'monospace' }}>{fmtNum(u.totalSets)}</div>
+                              </div>
+                              <div>
+                                <div style={{ color: '#64748b', fontSize: '8.5px', fontWeight: '700' }}>WEIGHT</div>
+                                <div style={{ fontWeight: '900', color: '#0f2e5a', fontFamily: 'monospace' }}>{fmtKg(u.totalWeight)}</div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Daily Reports Toolbar */}
+                  <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginTop: '10px', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    {/* Search Input */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: '220px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '4px 8px' }}>
+                      <Search size={14} color="#64748b" />
+                      <input
+                        type="text"
+                        value={dailyReportSearchQuery}
+                        onChange={(e) => {
+                          setDailyReportSearchQuery(e.target.value);
+                          setDailyReportCurrentPage(1);
+                        }}
+                        placeholder="Search report #, dispatch user, product, shift..."
+                        style={{ border: 'none', outline: 'none', fontSize: '11px', width: '100%', color: '#1e293b' }}
+                      />
+                      {dailyReportSearchQuery && (
+                        <X size={13} color="#94a3b8" style={{ cursor: 'pointer' }} onClick={() => { setDailyReportSearchQuery(''); setDailyReportCurrentPage(1); }} />
+                      )}
+                    </div>
+
+                    {/* Dispatch User Filter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <User size={13} color="#64748b" />
+                      <select
+                        value={dailyReportUserFilter}
+                        onChange={(e) => {
+                          setDailyReportUserFilter(e.target.value);
+                          setDailyReportCurrentPage(1);
+                        }}
+                        className="prem-select"
+                        style={{ fontSize: '11px', padding: '4px 8px' }}
+                      >
+                        <option value="All">All Dispatch Users ({uniqueDailyReportUsers.length})</option>
+                        {uniqueDailyReportUsers.map((u) => (
+                          <option key={u.name} value={u.name}>
+                            {u.name} ({u.count} reports • {u.totalCovers} covers)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Shift Filter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Clock size={13} color="#64748b" />
+                      <select
+                        value={dailyReportShiftFilter}
+                        onChange={(e) => {
+                          setDailyReportShiftFilter(e.target.value);
+                          setDailyReportCurrentPage(1);
+                        }}
+                        className="prem-select"
+                        style={{ fontSize: '11px', padding: '4px 8px' }}
+                      >
+                        <option value="All">All Shifts</option>
+                        <option value="Morning">Morning</option>
+                        <option value="Evening">Evening</option>
+                        <option value="Night">Night</option>
+                      </select>
+                    </div>
+
+                    {/* Unit Filter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Layers size={13} color="#64748b" />
+                      <select
+                        value={dailyReportUnitFilter}
+                        onChange={(e) => {
+                          setDailyReportUnitFilter(e.target.value);
+                          setDailyReportCurrentPage(1);
+                        }}
+                        className="prem-select"
+                        style={{ fontSize: '11px', padding: '4px 8px' }}
+                      >
+                        <option value="All">All Units</option>
+                        <option value="DISPATCH_1">Dispatch Unit 1 (D1)</option>
+                        <option value="DISPATCH_2">Dispatch Unit 2 (D2)</option>
+                      </select>
+                    </div>
+
+                    {/* Status Filter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Filter size={13} color="#64748b" />
+                      <select
+                        value={dailyReportStatusFilter}
+                        onChange={(e) => {
+                          setDailyReportStatusFilter(e.target.value);
+                          setDailyReportCurrentPage(1);
+                        }}
+                        className="prem-select"
+                        style={{ fontSize: '11px', padding: '4px 8px' }}
+                      >
+                        <option value="All">All Statuses</option>
+                        <option value="SUBMITTED">SUBMITTED</option>
+                        <option value="DRAFT">DRAFT</option>
+                      </select>
+                    </div>
+
+                    {/* Page Size Dropdown */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Show:</span>
+                      <select
+                        value={dailyReportPageSize}
+                        onChange={(e) => {
+                          setDailyReportPageSize(e.target.value === 'All' ? 'All' : Number(e.target.value));
+                          setDailyReportCurrentPage(1);
+                        }}
+                        className="prem-select"
+                        style={{ fontSize: '11px', padding: '4px 8px' }}
+                      >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                        <option value="All">All ({filteredDailyReports.length})</option>
+                      </select>
+                    </div>
+
+                    {(dailyReportSearchQuery || dailyReportUserFilter !== 'All' || dailyReportShiftFilter !== 'All' || dailyReportUnitFilter !== 'All' || dailyReportStatusFilter !== 'All') && (
+                      <button
+                        onClick={() => {
+                          setDailyReportSearchQuery('');
+                          setDailyReportUserFilter('All');
+                          setDailyReportShiftFilter('All');
+                          setDailyReportUnitFilter('All');
+                          setDailyReportStatusFilter('All');
+                          setDailyReportCurrentPage(1);
+                        }}
+                        className="prem-btn"
+                        style={{ padding: '4px 8px', fontSize: '10.5px', color: '#e11d48', background: '#ffe4e6', border: '1px solid #fecdd3' }}
+                      >
+                        <X size={12} /> Clear Filter
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Daily Reports Table */}
+                  <div style={{ marginTop: '10px', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                    <table className="prem-table" style={{ width: '100%', fontSize: '11px' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '35px', textAlign: 'center' }}>#</th>
+                          <th style={{ width: '110px' }}>Report No</th>
+                          <th style={{ width: '85px' }}>Date</th>
+                          <th style={{ width: '70px', textAlign: 'center' }}>Shift</th>
+                          <th>Dispatch User (Entered By)</th>
+                          <th style={{ textAlign: 'right', width: '85px', color: '#0284c7' }}>Covers (PCS)</th>
+                          <th style={{ textAlign: 'right', width: '85px', color: '#7c3aed' }}>Frames (PCS)</th>
+                          <th style={{ textAlign: 'right', width: '80px', color: '#16a34a' }}>Sets</th>
+                          <th style={{ textAlign: 'right', width: '95px' }}>Total Weight (KG)</th>
+                          <th style={{ textAlign: 'center', width: '60px' }}>Items</th>
+                          <th style={{ textAlign: 'center', width: '80px' }}>Status</th>
+                          <th style={{ textAlign: 'center', width: '90px' }} className="no-print">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedDailyReports.length === 0 ? (
+                          <tr>
+                            <td colSpan={12} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                                <ClipboardList size={24} color="#94a3b8" />
+                                <span style={{ fontWeight: '700', fontSize: '12px', color: '#475569' }}>
+                                  No factory daily dispatch reports match the selected filters.
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setDailyReportSearchQuery('');
+                                    setDailyReportUserFilter('All');
+                                    setDailyReportShiftFilter('All');
+                                    setDailyReportUnitFilter('All');
+                                    setDailyReportStatusFilter('All');
+                                  }}
+                                  className="prem-btn prem-btn-navy"
+                                  style={{ padding: '4px 10px', fontSize: '10.5px', marginTop: '4px' }}
+                                >
+                                  Reset Daily Report Filters
+                                </button>
+                              </div>
                             </td>
                           </tr>
-                        );
-                      })
-                    )}
+                        ) : (
+                          paginatedDailyReports.map((r, idx) => {
+                            const globalIdx = dailyReportPageSize === 'All' ? idx + 1 : (dailyReportCurrentPage - 1) * Number(dailyReportPageSize) + idx + 1;
+                            const isUnit2 = r.dispatchType === 'DISPATCH_2';
+                            return (
+                              <tr key={r.id || idx}>
+                                <td style={{ textAlign: 'center', fontFamily: 'monospace', color: '#64748b', fontSize: '10px' }}>
+                                  {globalIdx}
+                                </td>
+                                <td>
+                                  <button
+                                    onClick={() => setSelectedDailyReportModal(r)}
+                                    style={{
+                                      background: '#f8fafc',
+                                      border: '1px solid #cbd5e1',
+                                      borderRadius: '4px',
+                                      padding: '1px 6px',
+                                      fontFamily: 'monospace',
+                                      fontWeight: '800',
+                                      color: '#0f2e5a',
+                                      fontSize: '10.5px',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                    }}
+                                    title="Click to view full inspection of this daily report"
+                                  >
+                                    <span>{r.reportNo}</span>
+                                    <Eye size={10} color="#0284c7" />
+                                  </button>
+                                </td>
+                                <td style={{ fontFamily: 'monospace', fontSize: '10.5px', whiteSpace: 'nowrap', color: '#334155' }}>
+                                  {r.date || '—'}
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <span style={{
+                                    display: 'inline-block',
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    fontSize: '9.5px',
+                                    fontWeight: '700',
+                                    background: r.shift === 'Morning' ? '#ecfdf5' : r.shift === 'Evening' ? '#fffbeb' : '#f5f3ff',
+                                    color: r.shift === 'Morning' ? '#047857' : r.shift === 'Evening' ? '#b45309' : '#6d28d9',
+                                    border: `1px solid ${r.shift === 'Morning' ? '#a7f3d0' : r.shift === 'Evening' ? '#fde68a' : '#ddd6fe'}`,
+                                  }}>
+                                    {r.shift}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#0f2e5a', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9.5px', fontWeight: '800', flexShrink: 0 }}>
+                                      {(r.enteredBy || 'U').charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                      <div style={{ fontWeight: '800', color: '#0f2e5a', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <span>{r.enteredBy || r.dispatchExecutive}</span>
+                                        <span style={{
+                                          fontSize: '8.5px',
+                                          fontWeight: '800',
+                                          padding: '0 4px',
+                                          borderRadius: '3px',
+                                          background: isUnit2 ? '#faf5ff' : '#eff6ff',
+                                          color: isUnit2 ? '#7e22ce' : '#1d4ed8',
+                                          border: `1px solid ${isUnit2 ? '#e9d5ff' : '#bfdbfe'}`,
+                                        }}>
+                                          {isUnit2 ? 'D2' : 'D1'}
+                                        </span>
+                                      </div>
+                                      {r.enteredByEmail && (
+                                        <div style={{ fontSize: '9px', color: '#64748b' }}>
+                                          {r.enteredByEmail}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td style={{ textAlign: 'right', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>
+                                  {fmtNum(r.totalCovers)}
+                                </td>
+                                <td style={{ textAlign: 'right', fontWeight: '800', color: '#7c3aed', fontFamily: 'monospace' }}>
+                                  {fmtNum(r.totalFrames)}
+                                </td>
+                                <td style={{ textAlign: 'right', fontWeight: '800', color: '#16a34a', fontFamily: 'monospace' }}>
+                                  {fmtNum(r.totalSets)}
+                                </td>
+                                <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f2e5a', fontFamily: 'monospace' }}>
+                                  {fmtKg(r.totalWeight)}
+                                </td>
+                                <td style={{ textAlign: 'center', color: '#64748b', fontSize: '10px' }}>
+                                  {r.itemsCount} lines
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    fontSize: '9.5px',
+                                    fontWeight: '800',
+                                    background: r.status === 'SUBMITTED' ? '#f0fdf4' : '#fffbeb',
+                                    color: r.status === 'SUBMITTED' ? '#166534' : '#b45309',
+                                    border: `1px solid ${r.status === 'SUBMITTED' ? '#86efac' : '#fde68a'}`,
+                                  }}>
+                                    <Check size={9} color={r.status === 'SUBMITTED' ? '#16a34a' : '#d97706'} />
+                                    {r.status}
+                                  </span>
+                                </td>
+                                <td style={{ textAlign: 'center' }} className="no-print">
+                                  <button
+                                    onClick={() => setSelectedDailyReportModal(r)}
+                                    className="prem-btn"
+                                    style={{ padding: '2px 6px', fontSize: '10px', color: '#0f2e5a', background: '#f1f5f9' }}
+                                    title="View line-item breakdown of covers and frames"
+                                  >
+                                    <Eye size={11} /> Details
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
 
-                    {/* Table Totals Row */}
-                    {paginatedDispatches.length > 0 && (
-                      <tr style={{ background: '#f8fafc', fontWeight: '900', borderTop: '2px solid #cbd5e1', fontSize: '11px' }}>
-                        <td colSpan={9} style={{ textAlign: 'right', color: '#0f2e5a', letterSpacing: '0.03em' }}>
-                          FILTERED TOTAL ({filteredDispatches.length} SHIPMENTS):
-                        </td>
-                        <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#0f2e5a', fontWeight: '900' }}>
-                          {fmtNum(filteredDispatchesStats.totalQty)} PCS
-                        </td>
-                        <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#16a34a', fontWeight: '900' }}>
-                          {fmtKg(filteredDispatchesStats.totalWeight)} KG
-                        </td>
-                        <td colSpan={3} style={{ textAlign: 'left', fontSize: '10px', color: '#15803d', fontWeight: '700' }}>
-                          ~{(filteredDispatchesStats.totalWeight / 1000).toFixed(2)} MT &bull; 100% Weighbridge Certified
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                        {/* Table Totals Row */}
+                        {paginatedDailyReports.length > 0 && (
+                          <tr style={{ background: '#f8fafc', fontWeight: '900', borderTop: '2px solid #cbd5e1', fontSize: '11px' }}>
+                            <td colSpan={5} style={{ textAlign: 'right', color: '#0f2e5a', letterSpacing: '0.03em' }}>
+                              FILTERED TOTAL ({filteredDailyReports.length} DAILY REPORTS):
+                            </td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#0284c7', fontWeight: '900' }}>
+                              {fmtNum(filteredDailyReportsStats.totalCovers)}
+                            </td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#7c3aed', fontWeight: '900' }}>
+                              {fmtNum(filteredDailyReportsStats.totalFrames)}
+                            </td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#16a34a', fontWeight: '900' }}>
+                              {fmtNum(filteredDailyReportsStats.totalSets)}
+                            </td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#0f2e5a', fontWeight: '900' }}>
+                              {fmtKg(filteredDailyReportsStats.totalWeight)} KG
+                            </td>
+                            <td colSpan={3} style={{ textAlign: 'left', fontSize: '10px', color: '#15803d', fontWeight: '700' }}>
+                              Logged live from /dispatch/daily-report
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
 
-              {/* Pagination Strip (no-print) */}
-              {dispatchPageSize !== 'All' && totalDispatchPages > 1 && (
-                <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', paddingTop: '8px', borderTop: '1px solid #f1f5f9', fontSize: '11px', color: '#64748b' }}>
-                  <div>
-                    Showing <strong>{(dispatchCurrentPage - 1) * Number(dispatchPageSize) + 1}</strong> to{' '}
-                    <strong>{Math.min(dispatchCurrentPage * Number(dispatchPageSize), filteredDispatches.length)}</strong> of{' '}
-                    <strong>{filteredDispatches.length}</strong> dispatches
+                  {/* Pagination Strip (no-print) */}
+                  {dailyReportPageSize !== 'All' && totalDailyReportPages > 1 && (
+                    <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', paddingTop: '8px', borderTop: '1px solid #f1f5f9', fontSize: '11px', color: '#64748b' }}>
+                      <div>
+                        Showing <strong>{(dailyReportCurrentPage - 1) * Number(dailyReportPageSize) + 1}</strong> to{' '}
+                        <strong>{Math.min(dailyReportCurrentPage * Number(dailyReportPageSize), filteredDailyReports.length)}</strong> of{' '}
+                        <strong>{filteredDailyReports.length}</strong> reports
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          onClick={() => setDailyReportCurrentPage(prev => Math.max(1, prev - 1))}
+                          disabled={dailyReportCurrentPage === 1}
+                          className="prem-btn"
+                          style={{ padding: '3px 8px', fontSize: '11px', opacity: dailyReportCurrentPage === 1 ? 0.4 : 1, cursor: dailyReportCurrentPage === 1 ? 'not-allowed' : 'pointer' }}
+                        >
+                          <ChevronLeft size={13} /> Prev
+                        </button>
+                        <span style={{ fontWeight: '700', color: '#0f2e5a', padding: '0 4px' }}>
+                          Page {dailyReportCurrentPage} of {totalDailyReportPages}
+                        </span>
+                        <button
+                          onClick={() => setDailyReportCurrentPage(prev => Math.min(totalDailyReportPages, prev + 1))}
+                          disabled={dailyReportCurrentPage === totalDailyReportPages}
+                          className="prem-btn"
+                          style={{ padding: '3px 8px', fontSize: '11px', opacity: dailyReportCurrentPage === totalDailyReportPages ? 0.4 : 1, cursor: dailyReportCurrentPage === totalDailyReportPages ? 'not-allowed' : 'pointer' }}
+                        >
+                          Next <ChevronRight size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ═════════════════════════════════════════════════════════════
+                  TAB 2: WEIGHBRIDGE OUTBOUND MANIFEST
+              ══════════════════════════════════════════════════════════════ */}
+              {activeRegisterTab === 'weighbridge' && (
+                <div>
+                  {/* Filter & Search Toolbar (no-print) */}
+                  <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginTop: '10px', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    {/* Search Input */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: '240px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '4px 8px' }}>
+                      <Search size={14} color="#64748b" />
+                      <input
+                        type="text"
+                        value={dispatchSearchQuery}
+                        onChange={(e) => {
+                          setDispatchSearchQuery(e.target.value);
+                          setDispatchCurrentPage(1);
+                        }}
+                        placeholder="Search dispatch #, SO #, client, vehicle, product, city..."
+                        style={{ border: 'none', outline: 'none', fontSize: '11px', width: '100%', color: '#1e293b' }}
+                      />
+                      {dispatchSearchQuery && (
+                        <X size={13} color="#94a3b8" style={{ cursor: 'pointer' }} onClick={() => { setDispatchSearchQuery(''); setDispatchCurrentPage(1); }} />
+                      )}
+                    </div>
+
+                    {/* Date Dropdown */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Calendar size={13} color="#64748b" />
+                      <select
+                        value={dispatchDateFilter}
+                        onChange={(e) => {
+                          setDispatchDateFilter(e.target.value);
+                          setDispatchCurrentPage(1);
+                        }}
+                        className="prem-select"
+                        style={{ fontSize: '11px', padding: '4px 8px' }}
+                      >
+                        <option value="All">All Dispatch Dates ({dispatchDateOptions.length} operational days)</option>
+                        {dispatchDateOptions.map((opt) => (
+                          <option key={opt.date} value={opt.date}>
+                            {opt.date} ({opt.count} shipments &bull; {fmtKg(opt.weight)} KG)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Page Size Dropdown */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Show:</span>
+                      <select
+                        value={dispatchPageSize}
+                        onChange={(e) => {
+                          setDispatchPageSize(e.target.value === 'All' ? 'All' : Number(e.target.value));
+                          setDispatchCurrentPage(1);
+                        }}
+                        className="prem-select"
+                        style={{ fontSize: '11px', padding: '4px 8px' }}
+                      >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                        <option value="All">All ({filteredDispatches.length})</option>
+                      </select>
+                    </div>
+
+                    {(dispatchSearchQuery || dispatchDateFilter !== 'All') && (
+                      <button
+                        onClick={() => {
+                          setDispatchSearchQuery('');
+                          setDispatchDateFilter('All');
+                          setDispatchCurrentPage(1);
+                        }}
+                        className="prem-btn"
+                        style={{ padding: '4px 8px', fontSize: '10.5px', color: '#e11d48', background: '#ffe4e6', border: '1px solid #fecdd3' }}
+                      >
+                        <X size={12} /> Clear Filter
+                      </button>
+                    )}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <button
-                      onClick={() => setDispatchCurrentPage(prev => Math.max(1, prev - 1))}
-                      disabled={dispatchCurrentPage === 1}
-                      className="prem-btn"
-                      style={{ padding: '3px 8px', fontSize: '11px', opacity: dispatchCurrentPage === 1 ? 0.4 : 1, cursor: dispatchCurrentPage === 1 ? 'not-allowed' : 'pointer' }}
-                    >
-                      <ChevronLeft size={13} /> Prev
-                    </button>
-                    <span style={{ fontWeight: '700', color: '#0f2e5a', padding: '0 4px' }}>
-                      Page {dispatchCurrentPage} of {totalDispatchPages}
-                    </span>
-                    <button
-                      onClick={() => setDispatchCurrentPage(prev => Math.min(totalDispatchPages, prev + 1))}
-                      disabled={dispatchCurrentPage === totalDispatchPages}
-                      className="prem-btn"
-                      style={{ padding: '3px 8px', fontSize: '11px', opacity: dispatchCurrentPage === totalDispatchPages ? 0.4 : 1, cursor: dispatchCurrentPage === totalDispatchPages ? 'not-allowed' : 'pointer' }}
-                    >
-                      Next <ChevronRight size={13} />
-                    </button>
+
+                  {/* Table Container */}
+                  <div style={{ marginTop: '10px', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                    <table className="prem-table" style={{ width: '100%', fontSize: '11px' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '35px', textAlign: 'center' }}>#</th>
+                          <th style={{ width: '85px' }}>Date</th>
+                          <th style={{ width: '95px' }}>Dispatch No</th>
+                          <th style={{ width: '90px' }}>Order No</th>
+                          <th>Client / Customer</th>
+                          <th style={{ width: '65px' }}>Product</th>
+                          <th style={{ width: '55px' }}>Rating</th>
+                          <th style={{ width: '75px' }}>Size</th>
+                          <th style={{ width: '60px' }}>Colour</th>
+                          <th style={{ textAlign: 'right', width: '65px' }}>Qty (PCS)</th>
+                          <th style={{ textAlign: 'right', width: '85px' }}>Weight (KG)</th>
+                          <th style={{ width: '120px' }}>Vehicle / Transporter</th>
+                          <th style={{ width: '110px' }}>Destination</th>
+                          <th style={{ width: '75px', textAlign: 'center' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedDispatches.length === 0 ? (
+                          <tr>
+                            <td colSpan={14} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                                <Truck size={24} color="#94a3b8" />
+                                <span style={{ fontWeight: '700', fontSize: '12px', color: '#475569' }}>
+                                  No dispatch records match the selected search or date criteria.
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setDispatchSearchQuery('');
+                                    setDispatchDateFilter('All');
+                                  }}
+                                  className="prem-btn prem-btn-navy"
+                                  style={{ padding: '4px 10px', fontSize: '10.5px', marginTop: '4px' }}
+                                >
+                                  Reset Search Filters
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          paginatedDispatches.map((d, idx) => {
+                            const globalIdx = dispatchPageSize === 'All' ? idx + 1 : (dispatchCurrentPage - 1) * Number(dispatchPageSize) + idx + 1;
+                            return (
+                              <tr key={d.id ? `${d.id}-${idx}` : idx}>
+                                <td style={{ textAlign: 'center', fontFamily: 'monospace', color: '#64748b', fontSize: '10px' }}>
+                                  {globalIdx}
+                                </td>
+                                <td style={{ fontFamily: 'monospace', fontSize: '10.5px', whiteSpace: 'nowrap', color: '#334155' }}>
+                                  {d.date || '—'}
+                                </td>
+                                <td>
+                                  <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#0f2e5a', background: '#f8fafc', padding: '1px 5px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '10.5px' }}>
+                                    {d.id}
+                                  </span>
+                                </td>
+                                <td style={{ fontFamily: 'monospace', fontSize: '10.5px', color: '#475569' }}>
+                                  {d.soNumber || '—'}
+                                </td>
+                                <td>
+                                  <div style={{ fontWeight: '700', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }} title={d.customer}>
+                                    {d.customer}
+                                  </div>
+                                  {d.city && d.city !== 'Not recorded' && (
+                                    <div style={{ fontSize: '9.5px', color: '#64748b' }}>
+                                      {d.city}
+                                    </div>
+                                  )}
+                                </td>
+                                <td>
+                                  <span style={{
+                                    display: 'inline-block',
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    fontSize: '10px',
+                                    fontWeight: '800',
+                                    background: d.product === 'MHC' ? '#eff6ff' : d.product === 'RCS' ? '#f0fdf4' : d.product === 'ONGC' ? '#fffbeb' : d.product === 'WGC' ? '#faf5ff' : '#f1f5f9',
+                                    color: d.product === 'MHC' ? '#1e40af' : d.product === 'RCS' ? '#15803d' : d.product === 'ONGC' ? '#b45309' : d.product === 'WGC' ? '#6b21a8' : '#475569',
+                                    border: d.product === 'MHC' ? '1px solid #bfdbfe' : d.product === 'RCS' ? '1px solid #bbf7d0' : d.product === 'ONGC' ? '1px solid #fde68a' : d.product === 'WGC' ? '1px solid #e9d5ff' : '1px solid #cbd5e1',
+                                  }}>
+                                    {d.product || 'Other'}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span style={{
+                                    display: 'inline-block',
+                                    padding: '1px 5px',
+                                    borderRadius: '4px',
+                                    fontSize: '9.5px',
+                                    fontWeight: '700',
+                                    background: '#f8fafc',
+                                    color: '#334155',
+                                    border: '1px solid #e2e8f0',
+                                  }}>
+                                    {d.capacity || '—'}
+                                  </span>
+                                </td>
+                                <td style={{ fontSize: '10px', color: '#334155', whiteSpace: 'nowrap' }}>
+                                  {d.size || '—'}
+                                </td>
+                                <td style={{ fontSize: '10px', color: '#475569' }}>
+                                  {d.colour || '—'}
+                                </td>
+                                <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f2e5a', fontFamily: 'monospace' }}>
+                                  {fmtNum(d.quantity)}
+                                </td>
+                                <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f2e5a', fontFamily: 'monospace' }}>
+                                  {fmtKg(d.weight)}
+                                </td>
+                                <td style={{ fontSize: '10px' }}>
+                                  <div style={{ fontWeight: '700', color: '#1e293b' }}>
+                                    {d.vehicle !== 'Not recorded' ? d.vehicle : 'Direct / Local'}
+                                  </div>
+                                  {d.transporter && d.transporter !== 'Not recorded' && (
+                                    <div style={{ fontSize: '9px', color: '#64748b' }}>
+                                      {d.transporter}
+                                    </div>
+                                  )}
+                                </td>
+                                <td style={{ fontSize: '10px', color: '#475569', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.destination}>
+                                  {d.destination || d.city || 'Factory Outbound'}
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    fontSize: '9.5px',
+                                    fontWeight: '800',
+                                    background: '#f0fdf4',
+                                    color: '#166534',
+                                    border: '1px solid #86efac',
+                                  }}>
+                                    <Check size={10} color="#16a34a" />
+                                    {d.status === 'READY_FOR_DISPATCH' ? 'Ready' : 'Dispatched'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+
+                        {/* Table Totals Row */}
+                        {paginatedDispatches.length > 0 && (
+                          <tr style={{ background: '#f8fafc', fontWeight: '900', borderTop: '2px solid #cbd5e1', fontSize: '11px' }}>
+                            <td colSpan={9} style={{ textAlign: 'right', color: '#0f2e5a', letterSpacing: '0.03em' }}>
+                              FILTERED TOTAL ({filteredDispatches.length} SHIPMENTS):
+                            </td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#0f2e5a', fontWeight: '900' }}>
+                              {fmtNum(filteredDispatchesStats.totalQty)} PCS
+                            </td>
+                            <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#16a34a', fontWeight: '900' }}>
+                              {fmtKg(filteredDispatchesStats.totalWeight)} KG
+                            </td>
+                            <td colSpan={3} style={{ textAlign: 'left', fontSize: '10px', color: '#15803d', fontWeight: '700' }}>
+                              ~{(filteredDispatchesStats.totalWeight / 1000).toFixed(2)} MT &bull; 100% Weighbridge Certified
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
+
+                  {/* Pagination Strip (no-print) */}
+                  {dispatchPageSize !== 'All' && totalDispatchPages > 1 && (
+                    <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', paddingTop: '8px', borderTop: '1px solid #f1f5f9', fontSize: '11px', color: '#64748b' }}>
+                      <div>
+                        Showing <strong>{(dispatchCurrentPage - 1) * Number(dispatchPageSize) + 1}</strong> to{' '}
+                        <strong>{Math.min(dispatchCurrentPage * Number(dispatchPageSize), filteredDispatches.length)}</strong> of{' '}
+                        <strong>{filteredDispatches.length}</strong> dispatches
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          onClick={() => setDispatchCurrentPage(prev => Math.max(1, prev - 1))}
+                          disabled={dispatchCurrentPage === 1}
+                          className="prem-btn"
+                          style={{ padding: '3px 8px', fontSize: '11px', opacity: dispatchCurrentPage === 1 ? 0.4 : 1, cursor: dispatchCurrentPage === 1 ? 'not-allowed' : 'pointer' }}
+                        >
+                          <ChevronLeft size={13} /> Prev
+                        </button>
+                        <span style={{ fontWeight: '700', color: '#0f2e5a', padding: '0 4px' }}>
+                          Page {dispatchCurrentPage} of {totalDispatchPages}
+                        </span>
+                        <button
+                          onClick={() => setDispatchCurrentPage(prev => Math.min(totalDispatchPages, prev + 1))}
+                          disabled={dispatchCurrentPage === totalDispatchPages}
+                          className="prem-btn"
+                          style={{ padding: '3px 8px', fontSize: '11px', opacity: dispatchCurrentPage === totalDispatchPages ? 0.4 : 1, cursor: dispatchCurrentPage === totalDispatchPages ? 'not-allowed' : 'pointer' }}
+                        >
+                          Next <ChevronRight size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2876,6 +3373,254 @@ export const PlantHeadDispatchAnalytics = () => {
                 <span>Web: <a href="https://www.himalayacomposites.com" target="_blank" rel="noreferrer" style={{ color: '#0284c7', textDecoration: 'none', fontWeight: '700' }}>www.himalayacomposites.com</a></span>
                 <span>&bull;</span>
                 <span>ERP Node: <strong style={{ color: '#1e293b' }}>HCL-ERP-PROD-01</strong></span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═════════════════════════════════════════════════════════════════
+            DAILY REPORT ITEM INSPECTION MODAL (Triggered via "Details" button)
+        ══════════════════════════════════════════════════════════════════ */}
+        {selectedDailyReportModal && (
+          <div
+            className="no-print"
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 9999,
+              background: 'rgba(15, 23, 42, 0.72)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px'
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setSelectedDailyReportModal(null);
+            }}
+          >
+            <div
+              style={{
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '16px',
+                boxShadow: '0 25px 60px -15px rgba(15, 46, 90, 0.35), 0 10px 25px -5px rgba(0, 0, 0, 0.1)',
+                width: '100%',
+                maxWidth: '960px',
+                maxHeight: '90vh',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden'
+              }}
+            >
+              {/* Header */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #0f2e5a 0%, #1e3a8a 100%)',
+                  padding: '16px 22px',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div
+                    style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ffffff',
+                      border: '1px solid rgba(255, 255, 255, 0.25)'
+                    }}
+                  >
+                    <ClipboardList size={22} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '900', letterSpacing: '-0.01em', color: '#ffffff' }}>
+                      Daily Dispatch Shift Report: {selectedDailyReportModal.reportNo}
+                    </h3>
+                    <div style={{ fontSize: '11px', color: '#93c5fd', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span>Date: <strong style={{ color: '#ffffff' }}>{selectedDailyReportModal.date}</strong></span>
+                      <span>&bull;</span>
+                      <span>Shift: <strong style={{ color: '#ffffff' }}>{selectedDailyReportModal.shift}</strong></span>
+                      <span>&bull;</span>
+                      <span>Unit: <strong style={{ color: '#ffffff' }}>{selectedDailyReportModal.dispatchTypeLabel || selectedDailyReportModal.dispatchType}</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setSelectedDailyReportModal(null)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.12)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    color: '#ffffff',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                  }}
+                  title="Close Modal"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div style={{ padding: '18px 22px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {/* User & Dispatch Executive Info Card */}
+                <div style={{ padding: '12px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#0f2e5a', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '14px' }}>
+                      {(selectedDailyReportModal.enteredBy || 'U').charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>DISPATCH USER (ENTERED BY)</div>
+                      <div style={{ fontSize: '14px', fontWeight: '900', color: '#0f2e5a' }}>
+                        {selectedDailyReportModal.enteredBy || selectedDailyReportModal.dispatchExecutive}
+                      </div>
+                      {selectedDailyReportModal.enteredByEmail && (
+                        <div style={{ fontSize: '10.5px', color: '#64748b' }}>
+                          {selectedDailyReportModal.enteredByEmail}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '10.5px', fontWeight: '800', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '3px 8px', borderRadius: '6px' }}>
+                      Status: {selectedDailyReportModal.status}
+                    </span>
+                    <a
+                      href="/dispatch/daily-report/history"
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: '10.5px', fontWeight: '800', color: '#0284c7', textDecoration: 'none', background: '#f0f9ff', border: '1px solid #bae6fd', padding: '3px 8px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <span>Open in History Portal</span>
+                      <ExternalLink size={10} />
+                    </a>
+                  </div>
+                </div>
+
+                {/* 4 Summary Metric Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '8px 12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '10px', fontWeight: '700', color: '#1e40af' }}>COVERS DISPATCHED</div>
+                    <div style={{ fontSize: '18px', fontWeight: '900', color: '#0284c7', fontFamily: 'monospace', marginTop: '2px' }}>
+                      {fmtNum(selectedDailyReportModal.totalCovers)} PCS
+                    </div>
+                  </div>
+                  <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '8px', padding: '8px 12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '10px', fontWeight: '700', color: '#6d28d9' }}>FRAMES DISPATCHED</div>
+                    <div style={{ fontSize: '18px', fontWeight: '900', color: '#7c3aed', fontFamily: 'monospace', marginTop: '2px' }}>
+                      {fmtNum(selectedDailyReportModal.totalFrames)} PCS
+                    </div>
+                  </div>
+                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '8px 12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '10px', fontWeight: '700', color: '#15803d' }}>COMPLETE SETS</div>
+                    <div style={{ fontSize: '18px', fontWeight: '900', color: '#16a34a', fontFamily: 'monospace', marginTop: '2px' }}>
+                      {fmtNum(selectedDailyReportModal.totalSets)} SETS
+                    </div>
+                  </div>
+                  <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '8px 12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '10px', fontWeight: '700', color: '#334155' }}>TOTAL REPORT WEIGHT</div>
+                    <div style={{ fontSize: '18px', fontWeight: '900', color: '#0f2e5a', fontFamily: 'monospace', marginTop: '2px' }}>
+                      {fmtKg(selectedDailyReportModal.totalWeight)} KG
+                    </div>
+                  </div>
+                </div>
+
+                {/* Line Items Table */}
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: '800', color: '#0f2e5a', marginBottom: '6px' }}>
+                    Itemized Product Dispatch Manifest ({selectedDailyReportModal.items?.length || 0} line items)
+                  </div>
+                  <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                    <table className="prem-table" style={{ width: '100%', fontSize: '11px' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '35px', textAlign: 'center' }}>#</th>
+                          <th>Product Name</th>
+                          <th style={{ width: '85px' }}>Size</th>
+                          <th style={{ width: '60px' }}>Type</th>
+                          <th style={{ width: '65px' }}>Capacity</th>
+                          <th style={{ textAlign: 'right', width: '70px', color: '#0284c7' }}>Covers</th>
+                          <th style={{ textAlign: 'right', width: '85px', color: '#0284c7' }}>Cover Wt</th>
+                          <th style={{ textAlign: 'right', width: '70px', color: '#7c3aed' }}>Frames</th>
+                          <th style={{ textAlign: 'right', width: '85px', color: '#7c3aed' }}>Frame Wt</th>
+                          <th style={{ textAlign: 'right', width: '60px', color: '#16a34a' }}>Sets</th>
+                          <th style={{ textAlign: 'right', width: '90px' }}>Total Wt (KG)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(!selectedDailyReportModal.items || selectedDailyReportModal.items.length === 0) ? (
+                          <tr>
+                            <td colSpan={11} style={{ textAlign: 'center', padding: '16px', color: '#64748b' }}>
+                              No individual line items recorded for this shift report.
+                            </td>
+                          </tr>
+                        ) : (
+                          selectedDailyReportModal.items.map((it, idx) => (
+                            <tr key={it.id || idx}>
+                              <td style={{ textAlign: 'center', fontFamily: 'monospace', color: '#64748b' }}>{it.srNo || idx + 1}</td>
+                              <td style={{ fontWeight: '700', color: '#0f172a' }}>{it.productName}</td>
+                              <td style={{ fontFamily: 'monospace', color: '#475569' }}>{it.size}</td>
+                              <td style={{ color: '#475569' }}>{it.type}</td>
+                              <td>
+                                <span style={{ background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px', fontWeight: '700', color: '#334155', fontSize: '10px' }}>
+                                  {it.capacity}
+                                </span>
+                              </td>
+                              <td style={{ textAlign: 'right', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>{fmtNum(it.coverQty)}</td>
+                              <td style={{ textAlign: 'right', color: '#0369a1', fontFamily: 'monospace' }}>{fmtKg(it.coverWeight)}</td>
+                              <td style={{ textAlign: 'right', fontWeight: '800', color: '#7c3aed', fontFamily: 'monospace' }}>{fmtNum(it.frameQty)}</td>
+                              <td style={{ textAlign: 'right', color: '#6d28d9', fontFamily: 'monospace' }}>{fmtKg(it.frameWeight)}</td>
+                              <td style={{ textAlign: 'right', fontWeight: '800', color: '#16a34a', fontFamily: 'monospace' }}>{fmtNum(it.setQty)}</td>
+                              <td style={{ textAlign: 'right', fontWeight: '900', color: '#0f2e5a', fontFamily: 'monospace' }}>{fmtKg(it.totalWeight)}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div
+                style={{
+                  padding: '12px 22px',
+                  background: '#f8fafc',
+                  borderTop: '1px solid #e2e8f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  Entered via factory daily report portal &bull; Verified against production logs
+                </div>
+                <button
+                  onClick={() => setSelectedDailyReportModal(null)}
+                  className="prem-btn prem-btn-navy"
+                  style={{ padding: '7px 18px', fontSize: '12px' }}
+                >
+                  Close Inspection
+                </button>
               </div>
             </div>
           </div>

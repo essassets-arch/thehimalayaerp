@@ -141,8 +141,36 @@ export class SalesRemindersController {
       whereClause.reminderDate = dateQuery;
     }
 
+function isPlaceholderCustomerName(name: string | null | undefined): boolean {
+  if (!name || typeof name !== 'string') return true;
+  const n = name.trim().toLowerCase();
+  return [
+    '',
+    'lead',
+    'quotation',
+    'order',
+    'sample',
+    'client',
+    'customer',
+    'n/a',
+    'na',
+    '—',
+    '-',
+    'prospect',
+    'lead prospect',
+    'quotation prospect',
+    'order client',
+    'customer reminder',
+    'follow-up',
+    'sales follow-up',
+  ].includes(n);
+}
+
     const matchedReminders = await this.prisma.followUp.findMany({
       where: whereClause,
+      include: {
+        lead: true,
+      },
       orderBy: { reminderAt: 'asc' },
     });
 
@@ -161,44 +189,152 @@ export class SalesRemindersController {
       }
 
       let referenceNo = 'N/A';
-      if (r.moduleType === 'Lead' && r.moduleId && !String(r.moduleId).startsWith('MANUAL-')) {
-        const lead = await this.prisma.lead.findUnique({
-          where: { id: r.moduleId },
-        }).catch(() => null);
-        referenceNo = lead?.leadNumber || 'N/A';
+      let resolvedCustomerName = r.customerName || '';
+
+      const sType = (r.moduleType || '').toUpperCase();
+      if (sType === 'LEAD' || r.leadId) {
+        const lead =
+          r.lead ||
+          (r.leadId
+            ? await this.prisma.lead.findUnique({ where: { id: r.leadId } }).catch(() => null)
+            : (r.moduleId && !String(r.moduleId).startsWith('MANUAL-')
+                ? await this.prisma.lead.findFirst({
+                    where: {
+                      OR: [{ id: r.moduleId }, { leadNumber: r.moduleId }],
+                    },
+                  }).catch(() => null)
+                : null));
+
+        if (lead) {
+          referenceNo = lead.leadNumber || 'N/A';
+          if (isPlaceholderCustomerName(resolvedCustomerName)) {
+            resolvedCustomerName =
+              lead.companyName ||
+              lead.projectName ||
+              lead.siteInchargeName ||
+              lead.contactPerson ||
+              lead.gstName ||
+              '';
+          }
+        }
+      } else if (sType === 'QUOTATION') {
+        const quote =
+          r.moduleId && !String(r.moduleId).startsWith('MANUAL-')
+            ? await this.prisma.quotation.findFirst({
+                where: {
+                  OR: [{ id: r.moduleId }, { quotationNumber: r.moduleId }],
+                },
+                include: {
+                  lead: true,
+                },
+              }).catch(() => null)
+            : null;
+
+        if (quote) {
+          referenceNo = quote.quotationNumber || 'N/A';
+          if (isPlaceholderCustomerName(resolvedCustomerName)) {
+            let custName = '';
+            if (quote.customerId) {
+              const cust = await this.prisma.customer.findUnique({
+                where: { id: quote.customerId },
+                select: { name: true, companyName: true },
+              }).catch(() => null);
+              custName = cust?.name || cust?.companyName || '';
+            }
+            resolvedCustomerName =
+              custName ||
+              quote.lead?.companyName ||
+              quote.lead?.projectName ||
+              quote.siteInchargeName ||
+              quote.lead?.contactPerson ||
+              '';
+          }
+        }
+      } else if (sType === 'SAMPLE' || sType === 'SAMPLEREQUEST') {
+        const sample =
+          r.moduleId && !String(r.moduleId).startsWith('MANUAL-')
+            ? await this.prisma.sampleRequest.findFirst({
+                where: {
+                  OR: [{ id: r.moduleId }, { sampleNumber: r.moduleId }],
+                },
+                include: {
+                  lead: true,
+                },
+              }).catch(() => null)
+            : null;
+
+        if (sample) {
+          referenceNo = sample.sampleNumber || 'N/A';
+          if (isPlaceholderCustomerName(resolvedCustomerName)) {
+            let custName = '';
+            if (sample.customerId) {
+              const cust = await this.prisma.customer.findUnique({
+                where: { id: sample.customerId },
+                select: { name: true, companyName: true },
+              }).catch(() => null);
+              custName = cust?.name || cust?.companyName || '';
+            }
+            resolvedCustomerName =
+              custName ||
+              sample.lead?.companyName ||
+              sample.lead?.projectName ||
+              sample.contactPerson ||
+              '';
+          }
+        }
       } else if (
-        (r.moduleType === 'Sample' || r.moduleType === 'SampleRequest') &&
-        r.moduleId &&
-        !String(r.moduleId).startsWith('MANUAL-')
+        ['PAYMENT', 'PAYMENT_FOLLOWUP', 'PAYMENTFOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'].includes(sType)
       ) {
-        const sample = await this.prisma.sampleRequest.findUnique({
-          where: { id: r.moduleId },
-        }).catch(() => null);
-        referenceNo = sample?.sampleNumber || 'N/A';
-      } else if (
-        r.moduleType === 'Quotation' &&
-        r.moduleId &&
-        !String(r.moduleId).startsWith('MANUAL-')
+        const order =
+          r.moduleId && !String(r.moduleId).startsWith('MANUAL-')
+            ? await this.prisma.salesOrder.findFirst({
+                where: {
+                  OR: [
+                    { id: r.moduleId },
+                    { orderNumber: r.moduleId },
+                    { orderNumber: r.moduleId.replace(/^#/, '') },
+                    { orderNumber: `ORD-${r.moduleId}` },
+                  ],
+                },
+                include: {
+                  quotation: {
+                    include: { lead: true },
+                  },
+                },
+              }).catch(() => null)
+            : null;
+
+        if (order) {
+          referenceNo = order.orderNumber || 'N/A';
+          if (isPlaceholderCustomerName(resolvedCustomerName)) {
+            let custName = '';
+            if (order.customerId) {
+              const cust = await this.prisma.customer.findUnique({
+                where: { id: order.customerId },
+                select: { name: true, companyName: true },
+              }).catch(() => null);
+              custName = cust?.name || cust?.companyName || '';
+            }
+            resolvedCustomerName =
+              custName ||
+              order.quotation?.lead?.companyName ||
+              order.quotation?.lead?.projectName ||
+              order.quotation?.siteInchargeName ||
+              '';
+          }
+        }
+      }
+
+      // If we resolved the customer name and database had a placeholder/empty, heal the record
+      if (
+        resolvedCustomerName &&
+        !isPlaceholderCustomerName(resolvedCustomerName) &&
+        isPlaceholderCustomerName(r.customerName)
       ) {
-        const quote = await this.prisma.quotation.findUnique({
-          where: { id: r.moduleId },
-        }).catch(() => null);
-        referenceNo = quote?.quotationNumber || 'N/A';
-      } else if (
-        (r.moduleType === 'Payment' || r.moduleType === 'SalesOrder') &&
-        r.moduleId &&
-        !String(r.moduleId).startsWith('MANUAL-')
-      ) {
-        const order = await this.prisma.salesOrder.findFirst({
-          where: {
-            OR: [
-              { id: r.moduleId },
-              { orderNumber: r.moduleId },
-              { orderNumber: r.moduleId.replace(/^#/, '') },
-            ],
-          },
-        }).catch(() => null);
-        referenceNo = order?.orderNumber || 'N/A';
+        await this.prisma.followUp.update({
+          where: { id: r.id },
+          data: { customerName: resolvedCustomerName },
+        }).catch(() => {});
       }
 
       const creator = await this.prisma.user.findUnique({
@@ -206,12 +342,16 @@ export class SalesRemindersController {
         select: { id: true, name: true },
       });
 
+      const finalCustomer =
+        (!isPlaceholderCustomerName(resolvedCustomerName) ? resolvedCustomerName.trim() : '') ||
+        (referenceNo && referenceNo !== 'N/A' ? `${r.moduleType || 'Task'} (${referenceNo})` : 'Customer');
+
       items.push({
         id: r.id,
         sourceType: r.moduleType,
         sourceId: r.moduleId,
         referenceNo,
-        customerName: r.customerName || 'N/A',
+        customerName: finalCustomer,
         title: r.reminderType || 'Follow-up',
         description: r.notes || '',
         reminderAt: r.reminderAt,
@@ -309,32 +449,47 @@ export class SalesRemindersController {
 
     const reminders = await this.prisma.followUp.findMany({
       where: whereClause,
+      include: {
+        lead: true,
+      },
       orderBy: { reminderAt: 'asc' },
     });
 
-    return reminders.map((reminder) => ({
-      id: reminder.id,
-      title: reminder.entityType || 'Sales follow-up',
-      description: reminder.notes || '',
-      type: reminder.entityType || 'followup',
-      dueDate: reminder.reminderAt,
-      createdAt: reminder.createdAt,
-      createdBy: reminder.createdById,
-      leadId: reminder.leadId,
-      moduleId: reminder.moduleId || reminder.entityId || reminder.leadId,
-      customerName: reminder.customerName || '',
-      moduleType: reminder.moduleType || reminder.entityType || 'Lead',
-      reminderDate:
-        reminder.reminderDate ||
-        (reminder.reminderAt
-          ? reminder.reminderAt.toISOString().split('T')[0]
-          : null),
-      reminderTime: reminder.reminderTime || null,
-      reminderType: reminder.reminderType || 'Follow-up',
-      priority: reminder.priority || 'Medium',
-      remarks: reminder.remarks || reminder.notes || '',
-      status: reminder.status || 'Pending',
-    }));
+    return reminders.map((reminder) => {
+      let cust = reminder.customerName || '';
+      if (isPlaceholderCustomerName(cust) && reminder.lead) {
+        cust =
+          reminder.lead.companyName ||
+          reminder.lead.projectName ||
+          reminder.lead.siteInchargeName ||
+          reminder.lead.contactPerson ||
+          reminder.lead.gstName ||
+          '';
+      }
+      return {
+        id: reminder.id,
+        title: reminder.entityType || 'Sales follow-up',
+        description: reminder.notes || '',
+        type: reminder.entityType || 'followup',
+        dueDate: reminder.reminderAt,
+        createdAt: reminder.createdAt,
+        createdBy: reminder.createdById,
+        leadId: reminder.leadId,
+        moduleId: reminder.moduleId || reminder.entityId || reminder.leadId,
+        customerName: !isPlaceholderCustomerName(cust) ? cust : '',
+        moduleType: reminder.moduleType || reminder.entityType || 'Lead',
+        reminderDate:
+          reminder.reminderDate ||
+          (reminder.reminderAt
+            ? reminder.reminderAt.toISOString().split('T')[0]
+            : null),
+        reminderTime: reminder.reminderTime || null,
+        reminderType: reminder.reminderType || 'Follow-up',
+        priority: reminder.priority || 'Medium',
+        remarks: reminder.remarks || reminder.notes || '',
+        status: reminder.status || 'Pending',
+      };
+    });
   }
 
   @Post()
@@ -388,9 +543,9 @@ export class SalesRemindersController {
         userRole,
       );
       const customerName =
-        dto.customerName ||
+        (!isPlaceholderCustomerName(dto.customerName) ? dto.customerName : null) ||
         (await getCustomerNameForSource(tx, moduleType, source)) ||
-        'Client';
+        'Customer';
 
       let validLeadId: string | null = null;
       if (moduleType.toUpperCase() === 'LEAD') {
@@ -398,8 +553,10 @@ export class SalesRemindersController {
           validLeadId = source.id;
         } else if (moduleId && !String(moduleId).startsWith('MANUAL-')) {
           try {
-            const leadExists = await tx.lead.findUnique({
-              where: { id: moduleId },
+            const leadExists = await tx.lead.findFirst({
+              where: {
+                OR: [{ id: moduleId }, { leadNumber: moduleId }],
+              },
               select: { id: true },
             });
             if (leadExists) validLeadId = leadExists.id;
@@ -797,13 +954,26 @@ async function validateSourceOwnership(
 
   try {
     if (typeUpper === 'LEAD') {
-      sourceRecord = await tx.lead.findUnique({ where: { id: moduleId } });
+      sourceRecord = await tx.lead.findFirst({
+        where: {
+          OR: [{ id: moduleId }, { leadNumber: moduleId }],
+        },
+      });
     } else if (typeUpper === 'SAMPLE' || typeUpper === 'SAMPLEREQUEST') {
-      sourceRecord = await tx.sampleRequest.findUnique({
-        where: { id: moduleId },
+      sourceRecord = await tx.sampleRequest.findFirst({
+        where: {
+          OR: [{ id: moduleId }, { sampleNumber: moduleId }],
+        },
       });
     } else if (typeUpper === 'QUOTATION') {
-      sourceRecord = await tx.quotation.findUnique({ where: { id: moduleId } });
+      sourceRecord = await tx.quotation.findFirst({
+        where: {
+          OR: [{ id: moduleId }, { quotationNumber: moduleId }],
+        },
+        include: {
+          lead: true,
+        },
+      });
     } else if (
       typeUpper === 'PAYMENT_FOLLOWUP' ||
       typeUpper === 'PAYMENT' ||
@@ -818,6 +988,11 @@ async function validateSourceOwnership(
             { orderNumber: moduleId.replace(/^#/, '') },
             { orderNumber: `ORD-${moduleId}` },
           ],
+        },
+        include: {
+          quotation: {
+            include: { lead: true },
+          },
         },
       });
     }
@@ -848,11 +1023,19 @@ async function getCustomerNameForSource(
   moduleType: string,
   sourceRecord: any,
 ) {
-  if (!sourceRecord) return 'Client';
+  if (!sourceRecord) return 'Customer';
 
   const typeUpper = moduleType.toUpperCase();
   if (typeUpper === 'LEAD') {
-    return sourceRecord.companyName || sourceRecord.customerName || 'Lead';
+    return (
+      sourceRecord.companyName ||
+      sourceRecord.projectName ||
+      sourceRecord.siteInchargeName ||
+      sourceRecord.contactPerson ||
+      sourceRecord.gstName ||
+      sourceRecord.customerName ||
+      'Customer'
+    );
   }
 
   const customerId = sourceRecord.customerId;
@@ -861,7 +1044,16 @@ async function getCustomerNameForSource(
       const lead = await tx.lead.findUnique({
         where: { id: sourceRecord.leadId },
       });
-      if (lead) return lead.companyName || lead.customerName || 'Client';
+      if (lead) {
+        return (
+          lead.companyName ||
+          lead.projectName ||
+          lead.siteInchargeName ||
+          lead.contactPerson ||
+          lead.gstName ||
+          'Customer'
+        );
+      }
     } catch {}
   }
 
@@ -870,11 +1062,30 @@ async function getCustomerNameForSource(
       const customer = await tx.customer.findUnique({
         where: { id: customerId },
       });
-      if (customer) return customer.name || customer.companyName || 'Client';
+      if (customer) return customer.name || customer.companyName || 'Customer';
     } catch {}
   }
 
-  return 'Client';
+  if (sourceRecord.lead) {
+    return (
+      sourceRecord.lead.companyName ||
+      sourceRecord.lead.projectName ||
+      sourceRecord.lead.siteInchargeName ||
+      sourceRecord.lead.contactPerson ||
+      'Customer'
+    );
+  }
+
+  if (sourceRecord.quotation?.lead) {
+    return (
+      sourceRecord.quotation.lead.companyName ||
+      sourceRecord.quotation.lead.projectName ||
+      sourceRecord.quotation.lead.siteInchargeName ||
+      'Customer'
+    );
+  }
+
+  return sourceRecord.customerName || 'Customer';
 }
 
 async function recalculateNextReminder(

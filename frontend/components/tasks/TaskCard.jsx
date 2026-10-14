@@ -74,6 +74,21 @@ export default function TaskCard({ task, onDone, onReschedule }) {
     return dStr;
   };
 
+  const displayClientName = (() => {
+    const raw = (task.clientName || '').trim();
+    const isGeneric = !raw || ['lead', 'quotation', 'order', 'sample', 'customer', 'client', 'n/a', 'na', '—', '-'].includes(raw.toLowerCase());
+    if (isGeneric) {
+      if (task.referenceNo && task.referenceNo !== 'N/A') {
+        return `${task.type} (${task.referenceNo})`;
+      }
+      if (task.sourceId && !String(task.sourceId).startsWith('MANUAL-') && !String(task.sourceId).startsWith('CUSTOM-')) {
+        return `${task.type} #${task.sourceId}`;
+      }
+      return `${task.type} Customer`;
+    }
+    return raw;
+  })();
+
   return (
     <div 
       className={`app-card task-card ${isOverdue ? 'task-card-overdue' : ''}`}
@@ -166,7 +181,7 @@ export default function TaskCard({ task, onDone, onReschedule }) {
             justifyContent: 'space-between'
           }}
         >
-          <span>{task.clientName}</span>
+          <span>{displayClientName}</span>
           {task.amount > 0 && (
             <span style={{ fontSize: '13px', fontWeight: '800', color: config.color }}>
               {formatAmount(task.amount)}

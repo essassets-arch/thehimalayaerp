@@ -106,4 +106,53 @@ describe('Dispatch analytics aggregation', () => {
     expect(audit.reconciliation).toHaveLength(9);
     expect(audit.chartFeasibility.product.feasible).toBe(true);
   });
+  it('aggregates covers, frames, sets and tracks dispatch user entries from dispatch daily reports', async () => {
+    const dailyReportRows = [
+      {
+        id: 'dr-1',
+        reportNo: 'DR-2026-000001',
+        reportDate: new Date('2026-09-10T00:00:00Z'),
+        shift: 'Morning',
+        dispatchType: 'DISPATCH_1',
+        createdById: 'user-1',
+        createdBy: { id: 'user-1', name: 'Ravikant T', email: 'ravikant@himalaya.com' },
+        dispatchExecutive: 'Ravikant T',
+        status: 'SUBMITTED',
+        totalCovers: 50,
+        totalFrames: 45,
+        totalSets: 45,
+        totalWeight: 1200,
+        items: [
+          {
+            id: 'it-1',
+            srNo: 1,
+            coverQty: 50,
+            frameQty: 45,
+            setQty: 45,
+            coverWeight: 600,
+            frameWeight: 600,
+            totalWeight: 1200,
+            product: { name: 'MHC 600x600', type: 'MHC' },
+          },
+        ],
+      },
+    ];
+
+    const prisma = {
+      dispatch: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
+      salesOrder: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
+      dispatchDailyReport: { findMany: jest.fn().mockResolvedValue(dailyReportRows) },
+    };
+    const service = new PlantHeadService(prisma as any, {} as any);
+    const result = await service.getDispatchAnalytics('tenant', undefined, undefined, undefined, '2026-09');
+
+    expect(result.summary.totalCovers).toBe(50);
+    expect(result.summary.totalFrames).toBe(45);
+    expect(result.summary.totalSets).toBe(45);
+    expect(result.dispatchDailyReports.totalReports).toBe(1);
+    expect(result.dispatchDailyReports.userBreakdown).toHaveLength(1);
+    expect(result.dispatchDailyReports.userBreakdown[0].userName).toBe('Ravikant T');
+    expect(result.dispatchDailyReports.userBreakdown[0].totalCovers).toBe(50);
+    expect(result.dispatchDailyReports.reports[0].enteredBy).toBe('Ravikant T');
+  });
 });

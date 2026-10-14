@@ -123,11 +123,221 @@ export default function DailyTaskView({
 
   const selectedDateKey = toDateKey(targetDate) || todayKey;
 
+  // Helper to check if a customer name is generic/placeholder
+  const isPlaceholderName = (name) => {
+    if (!name || typeof name !== 'string') return true;
+    const n = name.trim().toLowerCase();
+    return [
+      '',
+      'lead',
+      'quotation',
+      'order',
+      'sample',
+      'customer',
+      'client',
+      'n/a',
+      'na',
+      '—',
+      '-',
+      'prospect',
+      'lead prospect',
+      'quotation prospect',
+      'order client',
+      'customer reminder',
+      'follow-up',
+      'sales follow-up'
+    ].includes(n);
+  };
+
   // ── 1. Unified Task Synthesis (Backend DB Reminders + Dynamic State Pipeline) ──
   const unifiedTasks = useMemo(() => {
     const tasks = [];
     const seenIds = new Set();
     const seenSourceMap = new Map(); // to deduplicate if both DB reminder and state item exist
+
+    // Fast indexed lookups for leads, quotations, orders, customers, and samples
+    const leadsMap = new Map();
+    (state?.leads || []).forEach(l => {
+      if (!l) return;
+      if (l.id) leadsMap.set(String(l.id), l);
+      if (l.leadNumber) leadsMap.set(String(l.leadNumber), l);
+      if (l.lead_number) leadsMap.set(String(l.lead_number), l);
+    });
+
+    const quotesMap = new Map();
+    (state?.quotations || []).forEach(q => {
+      if (!q) return;
+      if (q.id) quotesMap.set(String(q.id), q);
+      if (q.quotationNumber) quotesMap.set(String(q.quotationNumber), q);
+      const cleanNum = resolveQuotationNumber(q).replace(/^#/, '');
+      if (cleanNum && cleanNum !== '—') quotesMap.set(cleanNum, q);
+    });
+
+    const ordersMap = new Map();
+    (state?.orders || []).forEach(o => {
+      if (!o) return;
+      if (o.id) ordersMap.set(String(o.id), o);
+      if (o.orderNumber) ordersMap.set(String(o.orderNumber), o);
+      if (o.orderNo) ordersMap.set(String(o.orderNo), o);
+    });
+
+    const customersMap = new Map();
+    (state?.customers || []).forEach(c => {
+      if (!c) return;
+      if (c.id) customersMap.set(String(c.id), c);
+      if (c.name) customersMap.set(String(c.name).toLowerCase(), c);
+      if (c.companyName) customersMap.set(String(c.companyName).toLowerCase(), c);
+    });
+
+    const samplesMap = new Map();
+    (state?.samples || []).forEach(s => {
+      if (!s) return;
+      if (s.id) samplesMap.set(String(s.id), s);
+      if (s.sampleNumber) samplesMap.set(String(s.sampleNumber), s);
+    });
+
+    // Helper to extract customer name for a lead
+    const getLeadPartyName = (lead) => {
+      if (!lead) return '';
+      const candidate = lead.companyName || lead.projectName || lead.siteInchargeName || lead.contactPerson || lead.leadName || lead.gstName;
+      return (candidate && !isPlaceholderName(candidate)) ? candidate.trim() : '';
+    };
+
+    // Helper to extract customer name for a quotation
+    const getQuotePartyName = (quote) => {
+      if (!quote) return '';
+      const qCust = resolveQuotationCustomerName(quote);
+      if (qCust && qCust !== '—' && !isPlaceholderName(qCust)) return qCust.trim();
+      if (quote.leadId && leadsMap.has(String(quote.leadId))) {
+        const lName = getLeadPartyName(leadsMap.get(String(quote.leadId)));
+        if (lName) return lName;
+      }
+      if (quote.customerId && customersMap.has(String(quote.customerId))) {
+        const c = customersMap.get(String(quote.customerId));
+        const cName = c.companyName || c.name;
+        if (cName && !isPlaceholderName(cName)) return cName.trim();
+      }
+      if (quote.siteInchargeName && !isPlaceholderName(quote.siteInchargeName)) return quote.siteInchargeName.trim();
+      return '';
+    };
+
+    // Helper to extract customer name for an order
+    const getOrderPartyName = (order) => {
+      if (!order) return '';
+      const oCust = order.customer?.companyName || order.customer?.name || (typeof order.customer === 'string' && order.customer) || order.customerName || order.partyName || order.clientName;
+      if (oCust && !isPlaceholderName(oCust)) return oCust.trim();
+      if (order.customerId && customersMap.has(String(order.customerId))) {
+        const c = customersMap.get(String(order.customerId));
+        const cName = c.companyName || c.name;
+        if (cName && !isPlaceholderName(cName)) return cName.trim();
+      }
+      if (order.quotationId && quotesMap.has(String(order.quotationId))) {
+        const qName = getQuotePartyName(quotesMap.get(String(order.quotationId)));
+        if (qName) return qName;
+      }
+      return '';
+    };
+
+    // Helper to extract customer name for a sample
+    const getSamplePartyName = (sample) => {
+      if (!sample) return '';
+      const sCust = sample.companyName || sample.customerName || sample.leadName || sample.lead?.companyName || sample.lead?.projectName || sample.contactPerson || sample.dispatchDetails?.customer;
+      if (sCust && !isPlaceholderName(sCust)) return sCust.trim();
+      if (sample.leadId && leadsMap.has(String(sample.leadId))) {
+        const lName = getLeadPartyName(leadsMap.get(String(sample.leadId)));
+        if (lName) return lName;
+      }
+      return '';
+    };
+
+    // Helper to resolve client name for explicit backend/state reminders
+    const resolveItemClientName = (item, type) => {
+      const explicit = item.customerName || item.clientName;
+      if (explicit && !isPlaceholderName(explicit)) return explicit.trim();
+
+      const sid = String(item.sourceId || item.moduleId || item.id || '').trim();
+      const ref = String(item.referenceNo || item.refNo || '').trim();
+
+      if (type === 'Lead') {
+        const lead = (item.leadId && leadsMap.get(String(item.leadId))) ||
+                     (sid && leadsMap.get(sid)) ||
+                     (ref && leadsMap.get(ref)) ||
+                     (state?.leads || []).find(l => (item.leadId && String(l.id) === String(item.leadId)) || (sid && (String(l.id) === sid || String(l.leadNumber) === sid)) || (ref && String(l.leadNumber) === ref));
+        const lName = getLeadPartyName(lead);
+        if (lName) return lName;
+      } else if (type === 'Quotation') {
+        const quote = (sid && quotesMap.get(sid)) ||
+                      (ref && quotesMap.get(ref)) ||
+                      (state?.quotations || []).find(q => (sid && (String(q.id) === sid || String(q.quotationNumber) === sid)) || (ref && String(q.quotationNumber) === ref));
+        const qName = getQuotePartyName(quote);
+        if (qName) return qName;
+      } else if (type === 'Order') {
+        const order = (sid && ordersMap.get(sid)) ||
+                      (ref && ordersMap.get(ref)) ||
+                      (state?.orders || []).find(o => (sid && (String(o.id) === sid || String(o.orderNumber) === sid || String(o.orderNo) === sid)) || (ref && (String(o.orderNumber) === ref || String(o.orderNo) === ref)));
+        const oName = getOrderPartyName(order);
+        if (oName) return oName;
+      } else if (type === 'Sample') {
+        const sample = (sid && samplesMap.get(sid)) ||
+                       (ref && samplesMap.get(ref)) ||
+                       (state?.samples || []).find(s => (sid && (String(s.id) === sid || String(s.sampleNumber) === sid)) || (ref && String(s.sampleNumber) === ref));
+        const sName = getSamplePartyName(sample);
+        if (sName) return sName;
+      } else if (type === 'Payment') {
+        const payment = (sid && (state?.payments || []).find(p => String(p.id) === sid || String(p.invoiceNo) === sid));
+        if (payment) {
+          const pCust = payment.customerName || payment.partyName || payment.customer?.companyName || payment.customer?.name;
+          if (pCust && !isPlaceholderName(pCust)) return pCust.trim();
+        }
+      }
+
+      // Check rawEntity
+      const raw = item.rawEntity || {};
+      const rawCandidate = raw.companyName || raw.projectName || raw.customerName || raw.leadName || raw.contactPerson || raw.siteInchargeName || raw.lead?.companyName || raw.customer?.name;
+      if (rawCandidate && !isPlaceholderName(rawCandidate)) return rawCandidate.trim();
+
+      // Meaningful identifier fallback instead of bare "Lead" or "Customer"
+      if (ref && ref !== 'N/A') return `${type} (${ref})`;
+      if (sid && !sid.startsWith('MANUAL-') && !sid.startsWith('CUSTOM-')) return `${type} (${sid})`;
+
+      return `${type} Prospect`;
+    };
+
+    // Helper to resolve phone number
+    const resolveItemPhone = (item, type) => {
+      if (item.phone) return item.phone;
+      const sid = String(item.sourceId || item.moduleId || item.id || '').trim();
+      const ref = String(item.referenceNo || item.refNo || '').trim();
+      if (type === 'Lead') {
+        const lead = (item.leadId && leadsMap.get(String(item.leadId))) || (sid && leadsMap.get(sid)) || (ref && leadsMap.get(ref));
+        if (lead) return lead.phone || lead.mobile || lead.siteInchargeMobile || lead.officeContact || '';
+      } else if (type === 'Quotation') {
+        const quote = (sid && quotesMap.get(sid)) || (ref && quotesMap.get(ref));
+        if (quote) return quote.phone || quote.siteInchargeMobile || quote.lead?.phone || '';
+      } else if (type === 'Order') {
+        const order = (sid && ordersMap.get(sid)) || (ref && ordersMap.get(ref));
+        if (order) return order.customer?.phone || order.phone || '';
+      }
+      return '';
+    };
+
+    // Helper to resolve amount
+    const resolveItemAmount = (item, type) => {
+      if (Number(item.amount) > 0) return Number(item.amount);
+      const sid = String(item.sourceId || item.moduleId || item.id || '').trim();
+      const ref = String(item.referenceNo || item.refNo || '').trim();
+      if (type === 'Quotation') {
+        const quote = (sid && quotesMap.get(sid)) || (ref && quotesMap.get(ref));
+        if (quote) return Number(quote.totalAmount || quote.grandTotal || quote.total || 0);
+      } else if (type === 'Order') {
+        const order = (sid && ordersMap.get(sid)) || (ref && ordersMap.get(ref));
+        if (order) return Number(order.payment?.totalAmount || order.totalValue || order.grandTotal || 0);
+      } else if (type === 'Lead') {
+        const lead = (sid && leadsMap.get(sid)) || (ref && leadsMap.get(ref));
+        if (lead) return Number(lead.budget || lead.estimatedValue || 0);
+      }
+      return 0;
+    };
 
     // A. Explicit Backend FollowUp / Reminders
     (dailyData.items || []).forEach(item => {
@@ -154,13 +364,14 @@ export default function DailyTaskView({
       tasks.push({
         id,
         sourceId: item.sourceId || item.id,
-        clientName: item.customerName || 'Customer',
+        referenceNo: item.referenceNo || '',
+        clientName: resolveItemClientName(item, type),
         type,
         status: isCompleted ? 'Completed' : (isOverdue ? 'Overdue' : 'Pending'),
         followUpDate: taskDateKey,
         notes: item.description ? `${item.title || 'Follow-up'}: ${item.description}` : (item.title || 'Follow-up required'),
-        amount: Number(item.amount || 0),
-        phone: item.phone || '',
+        amount: resolveItemAmount(item, type),
+        phone: resolveItemPhone(item, type),
         rawEntity: item,
         isExplicitReminder: true
       });
@@ -192,13 +403,14 @@ export default function DailyTaskView({
         id,
         reminderId: r.id,
         sourceId: r.moduleId || r.id,
-        clientName: r.customerName || r.title || 'Customer Reminder',
+        referenceNo: r.referenceNo || '',
+        clientName: resolveItemClientName(r, type),
         type,
         status: isCompleted ? 'Completed' : (isOverdue ? 'Overdue' : 'Pending'),
         followUpDate: taskDateKey,
         notes: r.remarks || r.notes || r.description || `Scheduled follow-up for ${type}`,
-        amount: Number(r.amount || 0),
-        phone: r.phone || '',
+        amount: resolveItemAmount(r, type),
+        phone: resolveItemPhone(r, type),
         rawEntity: r,
         isExplicitReminder: true
       });
@@ -219,16 +431,18 @@ export default function DailyTaskView({
           const id = `LD-${l.id}`;
           const isCompleted = Boolean(completedTaskMap[id]) || Boolean(completedTaskMap[sourceKey]);
           const isOverdue = !isCompleted && taskDateKey < todayKey;
+          const lPartyName = getLeadPartyName(l) || (l.leadNumber ? `Lead (${l.leadNumber})` : 'Lead Prospect');
           tasks.push({
             id,
             sourceId: l.id,
-            clientName: l.companyName || l.leadName || 'Lead Prospect',
+            referenceNo: l.leadNumber || '',
+            clientName: lPartyName,
             type: 'Lead',
             status: isCompleted ? 'Completed' : (isOverdue ? 'Overdue' : 'Pending'),
             followUpDate: taskDateKey,
             notes: l.notes || l.requirements || 'Follow up on lead requirement and next steps',
             amount: Number(l.budget || l.estimatedValue || 0),
-            phone: l.phone || l.mobile || l.siteInchargeMobile || '',
+            phone: l.phone || l.mobile || l.siteInchargeMobile || l.officeContact || '',
             rawEntity: l
           });
         }
@@ -247,10 +461,12 @@ export default function DailyTaskView({
           const id = `SMP-${s.id}`;
           const isCompleted = s.status === 'Approved' || Boolean(completedTaskMap[id]) || Boolean(completedTaskMap[sourceKey]);
           const isOverdue = !isCompleted && taskDateKey < todayKey && s.status !== 'Rejected';
+          const sPartyName = getSamplePartyName(s) || (s.sampleNumber ? `Sample (${s.sampleNumber})` : 'Sample Request');
           tasks.push({
             id,
             sourceId: s.id,
-            clientName: s.leadName || s.customerName || 'Sample Request',
+            referenceNo: s.sampleNumber || '',
+            clientName: sPartyName,
             type: 'Sample',
             status: isCompleted ? 'Completed' : (isOverdue ? 'Overdue' : 'Pending'),
             followUpDate: taskDateKey,
@@ -278,16 +494,17 @@ export default function DailyTaskView({
           const isOverdue = !isCompleted && taskDateKey < todayKey;
           const qNum = resolveQuotationNumber(q).replace(/^#/, '');
           const expiryDate = toDateKey(q.validTill) || taskDateKey;
+          const qPartyName = getQuotePartyName(q) || (qNum && qNum !== '—' ? `Quotation (${qNum})` : 'Quotation Prospect');
           tasks.push({
             id,
             sourceId: q.id,
-            clientName: resolveQuotationCustomerName(q) !== '—' ? resolveQuotationCustomerName(q) : (q.customerName || 'Quotation Prospect'),
+            clientName: qPartyName,
             type: 'Quotation',
             status: isCompleted ? 'Completed' : (isOverdue ? 'Overdue' : 'Pending'),
             followUpDate: taskDateKey,
             notes: `Quotation #${qNum}: Follow-up on proposal valid till ${expiryDate}`,
             amount: Number(q.totalAmount || q.grandTotal || 0),
-            phone: q.phone || '',
+            phone: q.phone || q.siteInchargeMobile || q.lead?.phone || '',
             referenceNo: qNum,
             rawEntity: q
           });
@@ -303,13 +520,14 @@ export default function DailyTaskView({
       const sourceKey = `Order-${orderId}`;
       if (seenSourceMap.has(sourceKey)) return;
 
-      const clientName = o.customer?.name || o.customerName || 'Order Client';
+      const clientName = getOrderPartyName(o) || (orderId ? `Order (${orderId})` : 'Order Client');
       if (o.status === 'Pending' || o.salesStatus === 'Pending' || o.status === 'PENDING_PLANT_HEAD' || o.status === 'Pending Confirmation') {
         const id = `ORD-${orderId}`;
         const isCompleted = Boolean(completedTaskMap[id]) || Boolean(completedTaskMap[sourceKey]);
         tasks.push({
           id,
           sourceId: orderId,
+          referenceNo: o.orderNumber || o.orderNo || '',
           clientName,
           type: 'Order',
           status: isCompleted ? 'Completed' : 'Pending',
@@ -337,10 +555,13 @@ export default function DailyTaskView({
         const isCompleted = Boolean(completedTaskMap[id]) || Boolean(completedTaskMap[sourceKey]);
         const isOverdue = !isCompleted && taskDateKey < todayKey;
         const remaining = (Number(p.totalAmount || 0) - Number(p.paidAmount || 0));
+        const pCust = p.customerName || p.partyName || p.customer?.companyName || p.customer?.name;
+        const clientName = (pCust && !isPlaceholderName(pCust)) ? pCust.trim() : `Payment (${p.invoiceNo || pId})`;
         tasks.push({
           id,
           sourceId: pId,
-          clientName: p.customerName || 'Payment Follow-up',
+          referenceNo: p.invoiceNo || '',
+          clientName,
           type: 'Payment',
           status: isCompleted ? 'Completed' : (isOverdue ? 'Overdue' : 'Pending'),
           followUpDate: taskDateKey,
@@ -1445,7 +1666,7 @@ export default function DailyTaskView({
                   }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <span style={{ fontSize: '13px', fontWeight: '800', color: '#991b1b', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {lead.companyName || lead.leadName || 'Lead'}
+                        {lead.companyName || lead.projectName || lead.siteInchargeName || lead.contactPerson || lead.leadName || (lead.leadNumber ? `Lead (${lead.leadNumber})` : 'Lead Customer')}
                       </span>
                       <span style={{ fontSize: '11px', color: '#dc2626', display: 'block', marginTop: '2px' }}>
                         Follow-up due: {lead.followUpDate}

@@ -397,6 +397,8 @@ export class DispatchDailyReportService {
       },
       items: items.map((r) => ({
         ...r,
+        dispatchExecutive:
+          r.dispatchExecutive || r.createdBy?.name || 'Dispatch User',
         rowCount: r._count.items,
       })),
     };
@@ -455,7 +457,11 @@ export class DispatchDailyReportService {
       );
     }
 
-    return report;
+    return {
+      ...report,
+      dispatchExecutive:
+        report.dispatchExecutive || report.createdBy?.name || 'Dispatch User',
+    };
   }
 
   async createReport(
@@ -486,13 +492,23 @@ export class DispatchDailyReportService {
         totalWeight,
       } = await this.processItemsData(dto.items || [], companyId);
 
+      let executiveName = dto.dispatchExecutive || dto.supervisorName || null;
+      if (!executiveName && userId) {
+        const creatorUser = await tx.user.findUnique({
+          where: { id: userId },
+          select: { name: true },
+        });
+        if (creatorUser?.name) {
+          executiveName = creatorUser.name;
+        }
+      }
+
       const report = await tx.dispatchDailyReport.create({
         data: {
           reportNo,
           reportDate,
           shift: dto.shift || 'Morning',
-          dispatchExecutive:
-            dto.dispatchExecutive || dto.supervisorName || null,
+          dispatchExecutive: executiveName,
           dispatchType,
           status: 'DRAFT',
           totalCovers,
