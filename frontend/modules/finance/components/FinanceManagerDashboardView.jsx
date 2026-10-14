@@ -59,6 +59,8 @@ export default function FinanceManagerDashboardView({
     salesOrders: [],
     applArInvoices: [],
     hcpplArInvoices: [],
+    hcpplRegInvoices: [],
+    financeArInvoices: [],
     purchaseOrders: [],
     expenses: [],
     brandRequests: [],
@@ -73,10 +75,22 @@ export default function FinanceManagerDashboardView({
   const fetchAllFinanceData = useCallback(async () => {
     try {
       setIsRefreshing(true);
-      const [ordersRes, applArRes, hcpplArRes, poRes, expRes, brandRes, usersRes] = await Promise.allSettled([
+      const [
+        ordersRes,
+        applArRes,
+        hcpplArRes,
+        hcpplRegRes,
+        finArRes,
+        poRes,
+        expRes,
+        brandRes,
+        usersRes
+      ] = await Promise.allSettled([
         backendFetch('/api/backend/sales/orders?limit=1000'),
         backendFetch('/api/backend/back-office/appl-ar?limit=1000'),
         backendFetch('/api/backend/back-office/hcppl-ar/entries?limit=1000'),
+        backendFetch('/api/backend/back-office/hcppl-ar/register?limit=1000'),
+        backendFetch('/api/backend/reports/finance/ar-invoices?limit=1000'),
         backendFetch('/api/backend/purchase-orders?limit=1000'),
         backendFetch('/api/backend/expenses?limit=1000'),
         backendFetch('/api/backend/brand-analysis-requests?limit=1000'),
@@ -98,6 +112,8 @@ export default function FinanceManagerDashboardView({
         salesOrders: parseItems(ordersRes),
         applArInvoices: parseItems(applArRes),
         hcpplArInvoices: parseItems(hcpplArRes),
+        hcpplRegInvoices: parseItems(hcpplRegRes),
+        financeArInvoices: parseItems(finArRes),
         purchaseOrders: parseItems(poRes),
         expenses: parseItems(expRes),
         brandRequests: parseItems(brandRes),
@@ -134,14 +150,31 @@ export default function FinanceManagerDashboardView({
     return `₹${num.toFixed(0)}`;
   }, []);
 
-  // Combined AR Invoices (APPL + HCPPL)
+  // Combined AR Invoices (APPL + HCPPL + Finance AR)
   const allArInvoices = useMemo(() => {
-    const combined = [...(liveData.applArInvoices || []), ...(liveData.hcpplArInvoices || [])];
-    if (combined.length > 0) return combined;
+    const combined = [
+      ...(liveData.applArInvoices || []),
+      ...(liveData.hcpplArInvoices || []),
+      ...(liveData.hcpplRegInvoices || []),
+      ...(liveData.financeArInvoices || [])
+    ];
+    // Deduplicate by unique invoice key
+    const seen = new Set();
+    const unique = [];
+    for (const inv of combined) {
+      const key = String(inv.invoiceNumber || inv.invoiceNo || inv.id || '');
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        unique.push(inv);
+      } else if (!key) {
+        unique.push(inv);
+      }
+    }
+    if (unique.length > 0) return unique;
     if (Array.isArray(propPayments) && propPayments.length > 0) return propPayments;
     if (Array.isArray(state.invoices) && state.invoices.length > 0) return state.invoices;
     return [];
-  }, [liveData.applArInvoices, liveData.hcpplArInvoices, propPayments, state.invoices]);
+  }, [liveData.applArInvoices, liveData.hcpplArInvoices, liveData.hcpplRegInvoices, liveData.financeArInvoices, propPayments, state.invoices]);
 
   // Combined Sales Orders
   const salesOrders = useMemo(() => {
@@ -214,7 +247,8 @@ export default function FinanceManagerDashboardView({
         return !isNaN(d.getTime()) && d >= cutoff && d <= endOfToday;
       });
 
-      if (dateMatches.length > 0) {
+      const dateMatchesColl = dateMatches.reduce((s, i) => s + Number(i.amtRcvd || 0), 0);
+      if (dateMatches.length > 0 && dateMatchesColl > 0) {
         return dateMatches;
       }
 
@@ -1158,7 +1192,7 @@ export default function FinanceManagerDashboardView({
             </div>
             <div style={{ margin: '12px 0 6px 0' }}>
               <div style={{ fontSize: '24px', fontWeight: '800', color: PALETTE.slate, lineHeight: 1.1 }}>
-                {dynamicMetrics.totalRevenueStr}
+                {loadingLive && !dynamicMetrics.totalRevenueRaw ? 'Syncing...' : dynamicMetrics.totalRevenueStr}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '700', color: '#16A34A' }}>
@@ -1192,7 +1226,7 @@ export default function FinanceManagerDashboardView({
             </div>
             <div style={{ margin: '12px 0 6px 0' }}>
               <div style={{ fontSize: '24px', fontWeight: '800', color: '#059669', lineHeight: 1.1 }}>
-                {dynamicMetrics.totalCollectionsStr}
+                {loadingLive && !dynamicMetrics.totalRevenueRaw ? 'Syncing...' : dynamicMetrics.totalCollectionsStr}
               </div>
             </div>
             <div style={{ fontSize: '12px', fontWeight: '600', color: '#059669' }}>
@@ -1224,7 +1258,7 @@ export default function FinanceManagerDashboardView({
             </div>
             <div style={{ margin: '12px 0 6px 0' }}>
               <div style={{ fontSize: '24px', fontWeight: '800', color: '#D97706', lineHeight: 1.1 }}>
-                {dynamicMetrics.outstandingReceivablesStr}
+                {loadingLive && !dynamicMetrics.totalRevenueRaw ? 'Syncing...' : dynamicMetrics.outstandingReceivablesStr}
               </div>
             </div>
             <div style={{ fontSize: '12px', fontWeight: '700', color: '#D97706' }}>
@@ -1256,7 +1290,7 @@ export default function FinanceManagerDashboardView({
             </div>
             <div style={{ margin: '12px 0 6px 0' }}>
               <div style={{ fontSize: '24px', fontWeight: '800', color: '#DC2626', lineHeight: 1.1 }}>
-                {dynamicMetrics.overdueAmountStr}
+                {loadingLive && !dynamicMetrics.totalRevenueRaw ? 'Syncing...' : dynamicMetrics.overdueAmountStr}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '700', color: '#DC2626' }}>
@@ -1289,7 +1323,7 @@ export default function FinanceManagerDashboardView({
             </div>
             <div style={{ margin: '12px 0 6px 0' }}>
               <div style={{ fontSize: '24px', fontWeight: '800', color: '#0891B2', lineHeight: 1.1 }}>
-                {dynamicMetrics.collectionEfficiencyStr}
+                {loadingLive && !dynamicMetrics.totalRevenueRaw ? '...' : dynamicMetrics.collectionEfficiencyStr}
               </div>
             </div>
             <div>

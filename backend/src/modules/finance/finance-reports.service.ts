@@ -201,4 +201,46 @@ export class FinanceReportsService {
       summary,
     };
   }
+
+  async getArInvoices(query: any) {
+    const limit = Math.max(1, Math.min(2000, Number(query?.limit) || 1000));
+    const where: any = {};
+    if (query?.quarter && query.quarter !== 'ALL') {
+      where.quarter = query.quarter;
+    }
+    if (query?.entity && query.entity !== 'ALL') {
+      where.entity = query.entity;
+    }
+
+    const invoices = await (this.prisma as any).backOfficeArInvoice.findMany({
+      where,
+      orderBy: { invoiceDate: 'desc' },
+      take: limit,
+    });
+
+    return invoices.map((r: any) => ({
+      id: r.id,
+      srNo: r.srNo,
+      invoiceNumber: r.invoiceNumber,
+      invoiceNo: r.invoiceNumber,
+      invoiceDate: r.invoiceDate,
+      basicAmount: Number(r.basicAmount || 0),
+      invoiceAmount: Number(r.invoiceAmount || 0),
+      companyName: r.companyName,
+      salesPerson: r.salesPerson,
+      salesType: r.salesType,
+      paymentTermDays: r.paymentTermDays,
+      dueDate: r.dueDate,
+      status: r.status,
+      amtRcvd: Number(r.amtRcvd || 0),
+      amtRcvdDate: r.amtRcvdDate,
+      completePaymentDate: r.completePaymentDate,
+      outstanding: Number(r.outstanding || 0),
+      quarter: r.quarter,
+      ageingDays: Number(r.ageingDays || 0),
+      ageingBucket: r.ageingBucket,
+      remarks: r.remarks,
+      entity: r.entity,
+    }));
+  }
 }

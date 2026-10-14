@@ -33,7 +33,12 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('Insufficient role privileges');
     }
 
-    let normalizedRole = String(user.role || '')
+    const rawRole =
+      typeof user.role === 'object' && user.role !== null
+        ? (user.role as any).code || (user.role as any).name || ''
+        : user.role;
+
+    let normalizedRole = String(rawRole || '')
       .toUpperCase()
       .replace(/[\s-]+/g, '_');
     if (

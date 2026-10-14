@@ -65,4 +65,18 @@ export class FinanceReportsController {
 
     return this.service.getCashFlow(dateFrom, dateTo, targetCompanyId);
   }
+
+  @Get('ar-invoices')
+  @RequirePermissions('finance.reports.read', 'finance.invoice.read', 'finance.payment.read')
+  @Roles(
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'FINANCE_EXECUTIVE',
+    'ADMIN',
+    'SUPER_ADMIN',
+    'SUPERADMIN',
+  )
+  async getArInvoices(@Query() query: any) {
+    return this.service.getArInvoices(query);
+  }
 }

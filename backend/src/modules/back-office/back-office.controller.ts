@@ -164,7 +164,7 @@ export class BackOfficeController {
    * AR — APPL SHEET (Invoice-level register, 21 columns)
    */
   @Get('appl-ar')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Finance', 'FINANCE', 'Super Admin', 'SUPER_ADMIN')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Finance Executive', 'FINANCE_EXECUTIVE', 'Finance', 'FINANCE', 'Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN')
   async getApplAr(@Query() query: any) {
     return this.backOfficeService.getApplArRegister(query);
   }
@@ -191,13 +191,13 @@ export class BackOfficeController {
    * AR — HCPPL SHEET (Summary sheet & 21-column register)
    */
   @Get('hcppl-ar/register')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Finance', 'FINANCE', 'Super Admin', 'SUPER_ADMIN')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Finance Executive', 'FINANCE_EXECUTIVE', 'Finance', 'FINANCE', 'Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN')
   async getHcpplArRegister(@Query() query: any) {
     return this.backOfficeService.getHcpplArRegister(query);
   }
 
   @Get('hcppl-ar')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Finance', 'FINANCE', 'Super Admin', 'SUPER_ADMIN')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Finance Executive', 'FINANCE_EXECUTIVE', 'Finance', 'FINANCE', 'Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN')
   async getHcpplAr(@Query() query: any) {
     if (query?.sheet === 'true' || query?.register === 'true' || query?.search || query?.page || query?.quarter || query?.status) {
       return this.backOfficeService.getHcpplArRegister(query);
@@ -206,7 +206,7 @@ export class BackOfficeController {
   }
 
   @Get('hcppl-ar/entries')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Finance', 'FINANCE', 'Super Admin', 'SUPER_ADMIN')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Finance Executive', 'FINANCE_EXECUTIVE', 'Finance', 'FINANCE', 'Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN')
   async getHcpplArEntries(@Query() query: any) {
     return this.backOfficeService.getHcpplArRegister(query);
   }
