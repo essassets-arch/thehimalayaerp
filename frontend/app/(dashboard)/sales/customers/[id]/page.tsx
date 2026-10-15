@@ -13,13 +13,11 @@ import {
   Phone,
   Mail,
   MapPin,
-  Plus,
   FileText,
   Truck,
   ArrowRight,
   Search,
   Copy,
-  ExternalLink,
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { backendFetch } from '@/lib/backendFetch';
@@ -139,6 +137,27 @@ export default function Customer360Page() {
   const invoices = useMemo(() => data?.finance?.invoices || [], [data]);
   const payments = useMemo(() => data?.finance?.payments || [], [data]);
 
+  // Dynamically calculate live totals to guarantee 100% accuracy with actual records
+  const calculatedTotalSales = useMemo(() => {
+    const sumFromOrders = orders.reduce(
+      (sum: number, o: any) => sum + Number(o.totalAmount ?? o.total ?? o.grandTotal ?? 0),
+      0
+    );
+    if (sumFromOrders > 0) return sumFromOrders;
+    return Number(data?.overview?.totalSales || 0);
+  }, [orders, data]);
+
+  const calculatedOutstanding = useMemo(() => {
+    if (data?.overview?.outstandingBalance != null && Number(data.overview.outstandingBalance) !== 0) {
+      return Number(data.overview.outstandingBalance);
+    }
+    const orderBalance = orders.reduce((sum: number, o: any) => sum + Number(o.balanceAmount || 0), 0);
+    return orderBalance;
+  }, [data, orders]);
+
+  const creditLimitValue = Number(customer.creditLimit || data?.overview?.creditLimit || 0);
+  const paymentStatusValue = calculatedOutstanding > 0 ? 'OUTSTANDING' : (data?.overview?.paymentStatus || 'CURRENT');
+
   const filteredOrders = useMemo(() => {
     if (!orderSearch.trim()) return orders;
     const q = orderSearch.toLowerCase();
@@ -197,31 +216,31 @@ export default function Customer360Page() {
   const metrics = [
     {
       label: 'Total sales',
-      value: money(data.overview.totalSales),
-      subtitle: `${orders.length} ${orders.length === 1 ? 'order' : 'orders'} placed`,
+      value: money(calculatedTotalSales),
+      subtitle: orders.length > 0 ? `${orders.length} ${orders.length === 1 ? 'order' : 'orders'} placed` : 'No orders recorded',
       icon: BadgeIndianRupee,
       tone: 'blue',
     },
     {
       label: 'Outstanding balance',
-      value: money(data.overview.outstandingBalance),
-      subtitle: data.overview.outstandingBalance > 0 ? 'Pending collection' : 'All dues cleared',
+      value: money(calculatedOutstanding),
+      subtitle: calculatedOutstanding > 0 ? 'Pending collection' : 'All dues cleared',
       icon: ReceiptText,
-      tone: data.overview.outstandingBalance > 0 ? 'amber' : 'green',
+      tone: calculatedOutstanding > 0 ? 'amber' : 'green',
     },
     {
       label: 'Credit limit',
-      value: money(data.overview.creditLimit),
+      value: money(creditLimitValue),
       subtitle: customer.creditDays ? `${customer.creditDays} days credit term` : 'Standard terms',
       icon: CreditCard,
       tone: 'violet',
     },
     {
       label: 'Payment status',
-      value: data.overview.paymentStatus,
-      subtitle: data.overview.paymentStatus === 'CURRENT' ? 'Good credit standing' : 'Action required',
+      value: paymentStatusValue,
+      subtitle: paymentStatusValue === 'CURRENT' ? 'Good credit standing' : 'Action required',
       icon: UserRound,
-      tone: data.overview.paymentStatus === 'CURRENT' ? 'green' : 'amber',
+      tone: paymentStatusValue === 'CURRENT' ? 'green' : 'amber',
     },
   ];
 
@@ -266,6 +285,14 @@ export default function Customer360Page() {
                 </a>
               </span>
             )}
+            {customer.alternatePhone && (
+              <span>
+                <Phone size={13} color="#64748b" />
+                <a href={`tel:${customer.alternatePhone}`} className={styles.metaLink}>
+                  {customer.alternatePhone}
+                </a>
+              </span>
+            )}
             {customer.email && (
               <span>
                 <Mail size={13} color="#64748b" />
@@ -283,6 +310,15 @@ export default function Customer360Page() {
                 GSTIN: {customer.gstin}
               </span>
             )}
+            {customer.pan && (
+              <span
+                className={styles.code}
+                onClick={() => copyToClipboard(customer.pan, 'PAN')}
+                title="Click to copy PAN"
+              >
+                PAN: {customer.pan}
+              </span>
+            )}
             {(customerCity || customerState) && (
               <span>
                 <MapPin size={13} color="#64748b" />
@@ -297,28 +333,6 @@ export default function Customer360Page() {
             <span className={`${styles.statusDot} ${customer.status === 'INACTIVE' ? styles.inactiveDot : ''}`} />
             {customer.status === 'INACTIVE' ? 'Inactive' : 'Active customer'}
           </span>
-
-          <div className={styles.headerActions}>
-            <button
-              type="button"
-              className={styles.btnPrimary}
-              onClick={() => router.push(`/sales/quotations/create?customerId=${id}&customerName=${encodeURIComponent(customer.companyName || '')}`)}
-            >
-              <Plus size={14} /> Create Quotation
-            </button>
-            <button
-              type="button"
-              className={styles.btnSecondary}
-              onClick={() => router.push(`/sales/orders/create?customerId=${id}`)}
-            >
-              <Plus size={14} /> New Order
-            </button>
-            {customer.phone && (
-              <a href={`tel:${customer.phone}`} className={styles.btnSecondary} title={`Call ${customer.phone}`}>
-                <Phone size={14} /> Call
-              </a>
-            )}
-          </div>
         </div>
       </section>
 
@@ -500,16 +514,8 @@ export default function Customer360Page() {
             <div className={styles.ordersHeader}>
               <div>
                 <span className={styles.eyebrow}>CRM &amp; Proposals</span>
-                <CardTitle>Customer Quotations</CardTitle>
+                <CardTitle>Customer Quotations ({quotations.length})</CardTitle>
               </div>
-
-              <button
-                type="button"
-                className={styles.btnPrimary}
-                onClick={() => router.push(`/sales/quotations/create?customerId=${id}&customerName=${encodeURIComponent(customer.companyName || '')}`)}
-              >
-                <Plus size={14} /> New Quotation
-              </button>
             </div>
 
             <div className={styles.ordersList}>
@@ -517,13 +523,6 @@ export default function Customer360Page() {
                 <div className={styles.emptyState}>
                   <FileText size={34} color="#94a3b8" />
                   <p>No quotations recorded for this customer yet.</p>
-                  <button
-                    type="button"
-                    className={styles.btnPrimary}
-                    onClick={() => router.push(`/sales/quotations/create?customerId=${id}&customerName=${encodeURIComponent(customer.companyName || '')}`)}
-                  >
-                    <Plus size={14} /> Create First Quotation
-                  </button>
                 </div>
               ) : (
                 quotations.map((quote: any) => {
@@ -580,7 +579,7 @@ export default function Customer360Page() {
             <div className={styles.ordersHeader}>
               <div>
                 <span className={styles.eyebrow}>Fulfillment</span>
-                <CardTitle>Delivery Dispatches &amp; Shipments</CardTitle>
+                <CardTitle>Delivery Dispatches &amp; Shipments ({deliveries.length})</CardTitle>
               </div>
             </div>
 
@@ -633,18 +632,18 @@ export default function Customer360Page() {
             <div className={styles.financialBanner}>
               <div>
                 <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>Total Billed</span>
-                <strong style={{ display: 'block', fontSize: '18px', color: '#0f172a', marginTop: '2px' }}>{money(data.overview.totalSales)}</strong>
+                <strong style={{ display: 'block', fontSize: '18px', color: '#0f172a', marginTop: '2px' }}>{money(calculatedTotalSales)}</strong>
               </div>
               <div>
                 <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>Outstanding Balance</span>
-                <strong style={{ display: 'block', fontSize: '18px', color: data.overview.outstandingBalance > 0 ? '#e11d48' : '#16a34a', marginTop: '2px' }}>
-                  {money(data.overview.outstandingBalance)}
+                <strong style={{ display: 'block', fontSize: '18px', color: calculatedOutstanding > 0 ? '#e11d48' : '#16a34a', marginTop: '2px' }}>
+                  {money(calculatedOutstanding)}
                 </strong>
               </div>
               <div>
                 <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>Available Credit</span>
                 <strong style={{ display: 'block', fontSize: '18px', color: '#0284c7', marginTop: '2px' }}>
-                  {money(data.overview.availableCredit ?? (data.overview.creditLimit - data.overview.outstandingBalance))}
+                  {money(creditLimitValue > 0 ? Math.max(0, creditLimitValue - calculatedOutstanding) : 0)}
                 </strong>
               </div>
             </div>

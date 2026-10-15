@@ -84,47 +84,6 @@
 .inactive { border-color: #e4e7ec; background: #f5f6f8; color: #697586; }
 .inactiveDot { background: #94a3b8; box-shadow: none; }
 
-.headerActions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.btnPrimary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 15px;
-  border: 1px solid #0284c7;
-  background: #0284c7;
-  color: #ffffff;
-  font-size: 12.5px;
-  font-weight: 700;
-  border-radius: 8px;
-  cursor: pointer;
-  text-decoration: none;
-  transition: all 0.15s ease;
-}
-.btnPrimary:hover { background: #0369a1; }
-
-.btnSecondary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #1e293b;
-  font-size: 12.5px;
-  font-weight: 700;
-  border-radius: 8px;
-  cursor: pointer;
-  text-decoration: none;
-  transition: all 0.15s ease;
-}
-.btnSecondary:hover { background: #f8fafc; border-color: #94a3b8; }
-
 .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 15px; margin: 18px 0; }
 .metric { border: 1px solid #e4eaf2; border-radius: 15px; background: #fff; box-shadow: 0 3px 12px rgb(35 63 100 / 4%); }
 .metricHead { display: flex; align-items: center; justify-content: space-between; padding: 16px 17px 0; }
