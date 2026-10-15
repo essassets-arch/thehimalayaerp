@@ -103,8 +103,10 @@ export default function TestCertificateDocument({ report, id = 'test-certificate
       <div id={id} className={styles.certSheet}>
         {/* ── Top Header ── */}
         <div className={styles.certHeader}>
+          <div className={styles.brandMark} aria-hidden="true">H</div>
           <div className={styles.companyTitle}>
             HIMALAYA COMPOSITE &amp; PRECAST PVT. LTD
+            <span className={styles.companySubtitle}>QUALITY ASSURANCE • PRODUCT TESTING</span>
           </div>
 
           <div className={styles.logoContainer}>
@@ -171,6 +173,10 @@ export default function TestCertificateDocument({ report, id = 'test-certificate
             <span className={styles.metaLabel}>Project Name :-</span>
             <span className={styles.metaValue}>{report.projectName || '-'}</span>
           </div>
+          <div className={styles.metaRow}>
+            <span className={styles.metaLabel}>Certificate No. :-</span>
+            <span className={styles.metaValue}>{report.reportNumber || '-'}</span>
+          </div>
         </div>
 
         {/* ── Specifications Table (10 Rows) ── */}
@@ -197,7 +203,7 @@ export default function TestCertificateDocument({ report, id = 'test-certificate
 
         {/* ── Load Testing Subheading ── */}
         <div className={styles.loadTestingBanner}>
-          LOAD TESTING (Testing Code 124 -2015 )
+          LOAD TESTING <span>(Testing Code 124-2015)</span>
         </div>
 
         {/* ── Load Testing Table (6 Rows) ── */}
