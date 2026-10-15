@@ -25,7 +25,7 @@ fi
 echo ""
 echo "📦 Step 2: Rebuilding images..."
 docker compose build --no-cache backend
-docker compose build frontend
+docker compose build --no-cache frontend
 
 echo ""
 echo "⚙️ Step 3: Executing database migrations..."
