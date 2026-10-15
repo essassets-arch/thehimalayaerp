@@ -571,7 +571,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   const now = new Date();
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const mKey = d.toISOString().slice(0, 7);
+    const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     if (monthlySales[mKey] === undefined) {
       monthlySales[mKey] = 0;
     }
@@ -1801,7 +1801,19 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                         const paidAmt = Number(order.verifiedPaidAmount || order.paidAmount || order.payment?.paidAmount || order.payment?.paid || 0);
                         const payStatus = order.paymentStatus || order.payment?.status || (paidAmt >= orderVal && orderVal > 0 ? 'Paid' : paidAmt > 0 ? 'Partial' : 'Unpaid');
                         const rawDate = order.orderDate || order.createdAt || order.date;
-                        const dateFormatted = rawDate ? (typeof rawDate === 'string' && rawDate.length >= 10 ? rawDate.slice(0, 10) : new Date(rawDate).toISOString().slice(0, 10)) : '—';
+                        let dateFormatted = '—';
+                        if (rawDate) {
+                          if (typeof rawDate === 'string' && rawDate.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(rawDate)) {
+                            dateFormatted = rawDate.slice(0, 10);
+                          } else {
+                            try {
+                              const d = new Date(rawDate);
+                              if (!isNaN(d.getTime())) {
+                                dateFormatted = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                              }
+                            } catch (_) {}
+                          }
+                        }
                         const custName = order.customer?.name || order.customer?.companyName || order.customerName || order.companyName || 'Valued Customer';
                         const prodSummary = order.products || order.productsSummary || (Array.isArray(order.items) && order.items.length > 0 ? order.items.map(it => it.product?.name || it.productName || it.name).filter(Boolean).join(', ') : 'Order Items');
                         

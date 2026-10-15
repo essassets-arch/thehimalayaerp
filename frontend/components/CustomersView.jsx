@@ -100,15 +100,15 @@ export default function CustomersView({
   const filteredCust = enrichedCustomers.filter(c => {
     const q = (search || '').trim().toLowerCase();
     const matchesSearch = !q || 
-      (c.displayName || '').toLowerCase().includes(q) || 
-      (c.displayEmail || '').toLowerCase().includes(q) ||
-      (c.displayPhone || '').toLowerCase().includes(q) ||
-      (c.contactPerson || c.contact_person || '').toLowerCase().includes(q) ||
-      (c.customerCode || c.customer_code || c.code || '').toLowerCase().includes(q) ||
-      (c.gstin || c.gst || '').toLowerCase().includes(q) ||
-      (c.pan || '').toLowerCase().includes(q) ||
-      (c.city || c.billingAddress?.city || c.shippingAddress?.city || '').toLowerCase().includes(q) ||
-      (c.state || c.billingAddress?.state || c.shippingAddress?.state || '').toLowerCase().includes(q);
+      String(c.displayName || '').toLowerCase().includes(q) || 
+      String(c.displayEmail || '').toLowerCase().includes(q) ||
+      String(c.displayPhone || '').toLowerCase().includes(q) ||
+      String(c.contactPerson || c.contact_person || '').toLowerCase().includes(q) ||
+      String(c.customerCode || c.customer_code || c.code || '').toLowerCase().includes(q) ||
+      String(c.gstin || c.gst || '').toLowerCase().includes(q) ||
+      String(c.pan || '').toLowerCase().includes(q) ||
+      String(typeof c.city === 'string' ? c.city : c.billingAddress?.city || c.shippingAddress?.city || '').toLowerCase().includes(q) ||
+      String(typeof c.state === 'string' ? c.state : c.billingAddress?.state || c.shippingAddress?.state || '').toLowerCase().includes(q);
     
     let matchesFilter = false;
     if (filter === 'All') {
