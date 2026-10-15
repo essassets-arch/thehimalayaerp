@@ -92,30 +92,38 @@ export async function downloadTestCertificatePdf(report: any, targetElementId = 
     const contentHeight = pageHeight - margin * 2;
     const pixelsPerMm = canvasWidth / contentWidth;
     const sourcePageHeight = Math.floor(contentHeight * pixelsPerMm);
-    const sourceCanvas = document.createElement('canvas');
-    const sourceContext = sourceCanvas.getContext('2d');
-    if (!sourceContext) throw new Error('Could not prepare certificate pages.');
-    sourceCanvas.width = canvasWidth;
-    const sourceImage = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => resolve(image);
-      image.onerror = reject;
-      image.src = imgData;
-    });
+    const singlePageMaxHeightPx = contentHeight * pixelsPerMm;
 
-    let sourceTop = 0;
-    let pageIndex = 0;
-    while (sourceTop < canvasHeight) {
-      const sliceHeight = Math.min(sourcePageHeight, canvasHeight - sourceTop);
-      sourceCanvas.height = sliceHeight;
-      sourceContext.clearRect(0, 0, canvasWidth, sliceHeight);
-      sourceContext.drawImage(sourceImage, 0, sourceTop, canvasWidth, sliceHeight, 0, 0, canvasWidth, sliceHeight);
-      if (pageIndex > 0) pdf.addPage();
-      const sliceData = sourceCanvas.toDataURL('image/png', 1);
-      const sliceHeightMm = sliceHeight / pixelsPerMm;
-      pdf.addImage(sliceData, 'PNG', margin, margin, contentWidth, sliceHeightMm, undefined, 'FAST');
-      sourceTop += sliceHeight;
-      pageIndex += 1;
+    // If standard certificate height fits on 1 page (up to 8% margin tolerance), render as a seamless single page
+    if (canvasHeight <= singlePageMaxHeightPx * 1.08) {
+      const finalHeightMm = Math.min(contentHeight, (canvasHeight / canvasWidth) * contentWidth);
+      pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, finalHeightMm, undefined, 'FAST');
+    } else {
+      const sourceCanvas = document.createElement('canvas');
+      const sourceContext = sourceCanvas.getContext('2d');
+      if (!sourceContext) throw new Error('Could not prepare certificate pages.');
+      sourceCanvas.width = canvasWidth;
+      const sourceImage = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = imgData;
+      });
+
+      let sourceTop = 0;
+      let pageIndex = 0;
+      while (sourceTop < canvasHeight) {
+        const sliceHeight = Math.min(sourcePageHeight, canvasHeight - sourceTop);
+        sourceCanvas.height = sliceHeight;
+        sourceContext.clearRect(0, 0, canvasWidth, sliceHeight);
+        sourceContext.drawImage(sourceImage, 0, sourceTop, canvasWidth, sliceHeight, 0, 0, canvasWidth, sliceHeight);
+        if (pageIndex > 0) pdf.addPage();
+        const sliceData = sourceCanvas.toDataURL('image/png', 1);
+        const sliceHeightMm = sliceHeight / pixelsPerMm;
+        pdf.addImage(sliceData, 'PNG', margin, margin, contentWidth, sliceHeightMm, undefined, 'FAST');
+        sourceTop += sliceHeight;
+        pageIndex += 1;
+      }
     }
 
     const safeNumber = String(report.reportNumber || report.id || 'Report')
