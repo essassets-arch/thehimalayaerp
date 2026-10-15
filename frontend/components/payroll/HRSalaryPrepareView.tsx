@@ -26,21 +26,91 @@ export default function HRSalaryPrepareView() {
   const [error, setError] = useState<string>('');
   const [search, setSearch] = useState<string>('');
   const [historySearch, setHistorySearch] = useState<string>('');
-  const now = new Date();
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const now = useMemo(() => new Date(), []);
   const [historyMonth, setHistoryMonth] = useState(String(now.getMonth() + 1));
   const [historyYear, setHistoryYear] = useState(String(now.getFullYear()));
   const [viewingSlipStructure, setViewingSlipStructure] = useState<any | null>(null);
+
+  // Month navigation helpers & options (past 36 months + upcoming 2 months)
+  const monthOptions = useMemo(() => {
+    const list: { value: string; label: string; year: string; month: string }[] = [];
+    const baseDate = new Date();
+    for (let index = -2; index < 36; index++) {
+      const date = new Date(baseDate.getFullYear(), baseDate.getMonth() - index, 1);
+      const year = String(date.getFullYear());
+      const month = String(date.getMonth() + 1);
+      const value = `${year}-${month.padStart(2, '0')}`;
+      const label = date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+      list.push({ value, label, year, month });
+    }
+    return list;
+  }, []);
+
+  const handlePrevMonth = () => {
+    if (historyMonth === 'ALL') {
+      const d = new Date();
+      setHistoryYear(String(d.getFullYear()));
+      setHistoryMonth(String(d.getMonth() + 1));
+      return;
+    }
+    const currentYear = Number(historyYear);
+    const currentMonth = Number(historyMonth);
+    const prevDate = new Date(currentYear, currentMonth - 2, 1);
+    setHistoryYear(String(prevDate.getFullYear()));
+    setHistoryMonth(String(prevDate.getMonth() + 1));
+  };
+
+  const handleNextMonth = () => {
+    if (historyMonth === 'ALL') {
+      const d = new Date();
+      setHistoryYear(String(d.getFullYear()));
+      setHistoryMonth(String(d.getMonth() + 1));
+      return;
+    }
+    const currentYear = Number(historyYear);
+    const currentMonth = Number(historyMonth);
+    const nextDate = new Date(currentYear, currentMonth, 1);
+    setHistoryYear(String(nextDate.getFullYear()));
+    setHistoryMonth(String(nextDate.getMonth() + 1));
+  };
+
+  const handleCurrentMonth = () => {
+    const d = new Date();
+    setHistoryYear(String(d.getFullYear()));
+    setHistoryMonth(String(d.getMonth() + 1));
+  };
+
+  const selectedMonthLabel = useMemo(() => {
+    if (historyMonth === 'ALL') return 'All Months';
+    const m = Number(historyMonth);
+    const y = Number(historyYear);
+    if (!m || !y) return 'Selected Month';
+    const d = new Date(y, m - 1, 1);
+    return d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  }, [historyMonth, historyYear]);
 
   // Load salary structures, employees, and payroll records
   const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
+      const recordsParams: any = { page: 1, pageSize: 100 };
+      const summaryParams: any = {};
+      if (historyMonth !== 'ALL') {
+        recordsParams.month = historyMonth;
+        recordsParams.year = historyYear;
+        summaryParams.month = Number(historyMonth);
+        summaryParams.year = Number(historyYear);
+      }
+
       const [structRes, empRes, recordsRes, summaryRes] = await Promise.all([
         payrollService.getSalaryStructures().catch(() => []),
         employeesService.listEmployees({ page: 1, limit: 100 }).catch(() => ({ items: [] })),
-        payrollService.getPayrollRecords({ page: 1, pageSize: 100, month: historyMonth, year: historyYear }).catch(() => ({ items: [] })),
-        payrollService.getSubmissionSummary({ month: Number(historyMonth), year: Number(historyYear) }).catch(() => null),
+        payrollService.getPayrollRecords(recordsParams).catch(() => ({ items: [] })),
+        historyMonth !== 'ALL'
+          ? payrollService.getSubmissionSummary(summaryParams).catch(() => null)
+          : Promise.resolve(null),
       ]);
 
       const structList = Array.isArray(structRes) ? structRes : (structRes as any)?.items || [];
@@ -130,16 +200,26 @@ export default function HRSalaryPrepareView() {
 
   // Filtered payroll history records (History Tab)
   const filteredHistory = useMemo(() => {
-    if (!historySearch.trim()) return payrollRecords;
+    let list = payrollRecords;
+    if (statusFilter !== 'ALL') {
+      if (statusFilter === 'PAID') {
+        list = list.filter((r) => r.status === 'PAID' || r.status === 'SALARY_PAID');
+      } else if (statusFilter === 'RETURNED_TO_HR') {
+        list = list.filter((r) => r.status === 'RETURNED_TO_HR' || r.status === 'REJECTED');
+      } else {
+        list = list.filter((r) => r.status === statusFilter);
+      }
+    }
+    if (!historySearch.trim()) return list;
     const q = historySearch.toLowerCase();
-    return payrollRecords.filter((r) => {
+    return list.filter((r) => {
       const name = (r.employeeName || r.employee?.fullName || '').toLowerCase();
       const code = (r.employeeCode || r.employee?.employeeCode || '').toLowerCase();
       const dept = (r.department || r.employee?.department?.name || '').toLowerCase();
       const status = (r.status || '').toLowerCase();
       return name.includes(q) || code.includes(q) || dept.includes(q) || status.includes(q);
     });
-  }, [payrollRecords, historySearch]);
+  }, [payrollRecords, historySearch, statusFilter]);
 
   // Overall totals for Active Structures
   const totals = useMemo(() => {
@@ -644,27 +724,49 @@ export default function HRSalaryPrepareView() {
               </div>
 
               <div className="salary-toolbar-actions">
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '13px', fontWeight: 700 }}>
-                  Payroll month
-                  <select
-                    aria-label="Filter submission history by month"
-                    value={`${historyYear}-${historyMonth.padStart(2, '0')}`}
-                    onChange={(e) => {
-                      const [year, month] = e.target.value.split('-');
-                      setHistoryYear(year);
-                      setHistoryMonth(String(Number(month)));
-                    }}
-                    style={{ padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#fff', color: '#0f172a', fontWeight: 600 }}
-                  >
-                    {Array.from({ length: 36 }, (_, index) => {
-                      const date = new Date(now.getFullYear(), now.getMonth() - index, 1);
-                      const year = String(date.getFullYear());
-                      const month = String(date.getMonth() + 1);
-                      const value = `${year}-${month.padStart(2, '0')}`;
-                      return <option key={value} value={value}>{date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</option>;
-                    })}
-                  </select>
-                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ color: '#475569', fontSize: '13px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    📅 Payroll Month:
+                  </span>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+                    <button
+                      type="button"
+                      onClick={handlePrevMonth}
+                      title="Previous Month"
+                      style={{ border: 'none', background: 'transparent', padding: '8px 10px', cursor: 'pointer', fontSize: '12px', color: '#475569', fontWeight: 700, borderRight: '1px solid #e2e8f0' }}
+                    >
+                      ◀
+                    </button>
+                    <select
+                      aria-label="Filter payroll month"
+                      value={historyMonth === 'ALL' ? 'ALL' : `${historyYear}-${historyMonth.padStart(2, '0')}`}
+                      onChange={(e) => {
+                        if (e.target.value === 'ALL') {
+                          setHistoryMonth('ALL');
+                        } else {
+                          const [year, month] = e.target.value.split('-');
+                          setHistoryYear(year);
+                          setHistoryMonth(String(Number(month)));
+                        }
+                      }}
+                      style={{ padding: '8px 12px', border: 'none', background: 'transparent', color: '#0f172a', fontWeight: 700, fontSize: '13px', outline: 'none', cursor: 'pointer' }}
+                    >
+                      {monthOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleNextMonth}
+                      title="Next Month"
+                      style={{ border: 'none', background: 'transparent', padding: '8px 10px', cursor: 'pointer', fontSize: '12px', color: '#475569', fontWeight: 700, borderLeft: '1px solid #e2e8f0' }}
+                    >
+                      ▶
+                    </button>
+                  </div>
+                </div>
                 {/* Search Box */}
                 <div className="salary-search-box">
                   <span className="salary-search-icon">🔍</span>
@@ -980,27 +1082,40 @@ export default function HRSalaryPrepareView() {
             {/* History Toolbar Header */}
             <div className="salary-toolbar">
               <div className="salary-toolbar-info">
-                <h2>Payroll Submission History &amp; Approval Tracking</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <h2>Payroll Submission History &amp; Approval Tracking</h2>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '3px 10px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    background: '#e0f2fe',
+                    color: '#0369a1',
+                    border: '1px solid #bae6fd'
+                  }}>
+                    🗓️ {selectedMonthLabel}
+                  </span>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '3px 10px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    background: '#f1f5f9',
+                    color: '#475569',
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    {filteredHistory.length} of {payrollRecords.length} records
+                  </span>
+                </div>
                 <p>Live status of monthly payrolls sent to Super Admin and Finance disbursement workflow</p>
               </div>
 
               <div className="salary-toolbar-actions">
-                {/* Search Box */}
-                <div className="salary-search-box">
-                  <span className="salary-search-icon">🔍</span>
-                  <input
-                    type="text"
-                    placeholder="Search by employee, code, department, status..."
-                    value={historySearch}
-                    onChange={(e) => setHistorySearch(e.target.value)}
-                  />
-                </div>
-
-                {/* Refresh Button */}
-                <button onClick={loadData} disabled={loading} className="btn-salary-refresh" title="Reload History">
-                  🔄 {loading ? 'Loading...' : 'Refresh'}
-                </button>
-
                 {/* Switch back to Active Register */}
                 <button
                   onClick={() => setActiveTab('register')}
@@ -1008,6 +1123,162 @@ export default function HRSalaryPrepareView() {
                   style={{ background: '#f8fafc', color: '#0f172a', fontWeight: 700 }}
                 >
                   📋 Back to Active Register
+                </button>
+              </div>
+            </div>
+
+            {/* Dedicated Month & Approval Status Filter Bar */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap',
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '12px',
+              padding: '12px 16px',
+              marginBottom: '20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+            }}>
+              {/* Left group: Month Stepper & Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  📅 Month:
+                </span>
+                <div style={{ display: 'inline-flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+                  <button
+                    type="button"
+                    onClick={handlePrevMonth}
+                    title="Previous Month"
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      padding: '8px 10px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      color: '#475569',
+                      fontWeight: 700,
+                      borderRight: '1px solid #e2e8f0'
+                    }}
+                  >
+                    ◀ Prev
+                  </button>
+                  <select
+                    aria-label="Filter submission history by month"
+                    value={historyMonth === 'ALL' ? 'ALL' : `${historyYear}-${historyMonth.padStart(2, '0')}`}
+                    onChange={(e) => {
+                      if (e.target.value === 'ALL') {
+                        setHistoryMonth('ALL');
+                      } else {
+                        const [year, month] = e.target.value.split('-');
+                        setHistoryYear(year);
+                        setHistoryMonth(String(Number(month)));
+                      }
+                    }}
+                    style={{
+                      padding: '8px 12px',
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#0f172a',
+                      fontWeight: 700,
+                      fontSize: '13px',
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="ALL">🌐 All Months</option>
+                    {monthOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleNextMonth}
+                    title="Next Month"
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      padding: '8px 10px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      color: '#475569',
+                      fontWeight: 700,
+                      borderLeft: '1px solid #e2e8f0'
+                    }}
+                  >
+                    Next ▶
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleCurrentMonth}
+                  style={{
+                    padding: '7px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f0f9ff',
+                    color: '#0284c7',
+                    fontWeight: 700,
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                  title="Jump to Current Month"
+                >
+                  ⚡ Current Month
+                </button>
+              </div>
+
+              {/* Middle group: Status Filter */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569' }}>
+                  Status:
+                </span>
+                <select
+                  aria-label="Filter submission history by approval status"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="ALL">All Statuses ({payrollRecords.length})</option>
+                  <option value="PENDING_SUPER_ADMIN_APPROVAL">⏳ Pending Super Admin</option>
+                  <option value="SUPER_ADMIN_APPROVED">✅ Approved by Super Admin</option>
+                  <option value="PENDING_FINANCE">💳 Pending Finance</option>
+                  <option value="PROCESSING">⚡ Processing</option>
+                  <option value="PAID">💰 Paid / Disbursed</option>
+                  <option value="ON_HOLD">⏸️ On Hold</option>
+                  <option value="RETURNED_TO_HR">↩️ Returned to HR / Rejected</option>
+                </select>
+              </div>
+
+              {/* Right group: Search & Refresh */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px', justifyContent: 'flex-end' }}>
+                <div className="salary-search-box" style={{ minWidth: '200px', flex: 1 }}>
+                  <span className="salary-search-icon">🔍</span>
+                  <input
+                    type="text"
+                    placeholder="Search by employee, code, dept..."
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                  />
+                </div>
+                <button onClick={loadData} disabled={loading} className="btn-salary-refresh" title="Reload History" style={{ whiteSpace: 'nowrap' }}>
+                  🔄 {loading ? 'Loading...' : 'Refresh'}
                 </button>
               </div>
             </div>
@@ -1140,16 +1411,36 @@ export default function HRSalaryPrepareView() {
                   {!loading && filteredHistory.length === 0 && (
                     <tr>
                       <td colSpan={9} style={{ textAlign: 'center', padding: '48px 20px', color: '#64748b' }}>
-                        <div style={{ fontSize: '28px', marginBottom: '8px' }}>📜</div>
-                        <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '15px' }}>
-                          No payroll submission records found
+                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>📜</div>
+                        <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '16px' }}>
+                          No payroll submission records found for {selectedMonthLabel}
+                          {statusFilter !== 'ALL' && ` matching status`}
                         </div>
-                        <p style={{ fontSize: '13px', margin: '4px 0 16px', color: '#64748b' }}>
-                          Submit your first prepared salary structure to Super Admin to begin approval tracking.
+                        <p style={{ fontSize: '13px', margin: '6px auto 18px', color: '#64748b', maxWidth: '520px', lineHeight: 1.5 }}>
+                          {statusFilter !== 'ALL'
+                            ? 'No submission records match the selected status filter. You can clear the filter or select a different month.'
+                            : `No salaries have been submitted to Super Admin for ${selectedMonthLabel}. Switch to Active Register to submit prepared salary structures.`}
                         </p>
-                        <button onClick={() => setActiveTab('register')} className="btn-salary-primary">
-                          Go to Active Register
-                        </button>
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+                          {statusFilter !== 'ALL' && (
+                            <button
+                              type="button"
+                              onClick={() => setStatusFilter('ALL')}
+                              className="btn-salary-refresh"
+                              style={{ fontWeight: 700, padding: '9px 16px', background: '#f1f5f9' }}
+                            >
+                              ✖ Clear Status Filter
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('register')}
+                            className="btn-salary-primary"
+                            style={{ padding: '9px 18px' }}
+                          >
+                            📋 Go to Active Register
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -1282,6 +1573,39 @@ export default function HRSalaryPrepareView() {
 
             {/* ── Mobile History Cards (< 768px) ── */}
             <div className="salary-mobile-cards">
+              {!loading && filteredHistory.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748b', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+                  <div style={{ fontSize: '28px', marginBottom: '6px' }}>📜</div>
+                  <strong style={{ color: '#0f172a', display: 'block', fontSize: '15px' }}>
+                    No submission records found for {selectedMonthLabel}
+                  </strong>
+                  <p style={{ fontSize: '12.5px', margin: '4px 0 14px', color: '#64748b' }}>
+                    {statusFilter !== 'ALL'
+                      ? 'No records match the active status filter.'
+                      : 'Switch to Active Register to submit prepared salary structures.'}
+                  </p>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    {statusFilter !== 'ALL' && (
+                      <button
+                        type="button"
+                        onClick={() => setStatusFilter('ALL')}
+                        className="btn-salary-refresh"
+                        style={{ padding: '8px 14px', fontSize: '12px', fontWeight: 700 }}
+                      >
+                        ✖ Clear Filter
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('register')}
+                      className="btn-salary-primary"
+                      style={{ padding: '8px 16px', fontSize: '12px' }}
+                    >
+                      📋 Go to Active Register
+                    </button>
+                  </div>
+                </div>
+              )}
               {!loading &&
                 filteredHistory.map((rec) => {
                   const empName = rec.employeeName || rec.employee?.fullName || 'Staff Member';
