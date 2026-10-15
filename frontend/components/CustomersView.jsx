@@ -15,9 +15,24 @@ export default function CustomersView({
 }) {
   const router = useRouter();
   const isCompact = useMediaQuery('(max-width: 1024px)');
-  const [localSearch, setLocalSearch] = useState('');
-  const search = searchQuery !== undefined ? searchQuery : localSearch;
-  const setSearch = setSearchQuery !== undefined ? setSearchQuery : setLocalSearch;
+  const [localSearch, setLocalSearch] = useState(searchQuery || '');
+
+  // Synchronize when parent passes a new searchQuery value
+  useEffect(() => {
+    if (searchQuery !== undefined) {
+      setLocalSearch(searchQuery || '');
+    }
+  }, [searchQuery]);
+
+  const search = localSearch;
+
+  const handleSearchChange = (val) => {
+    setLocalSearch(val);
+    if (typeof setSearchQuery === 'function') {
+      setSearchQuery(val);
+    }
+  };
+
   const [selectedCust, setSelectedCust] = useState(null);
   const [filter, setFilter] = useState('All');
 
@@ -83,9 +98,17 @@ export default function CustomersView({
   }, [search, filter]);
 
   const filteredCust = enrichedCustomers.filter(c => {
-    const matchesSearch = (c.displayName || '').toLowerCase().includes(search.toLowerCase()) || 
-                          (c.displayEmail || '').toLowerCase().includes(search.toLowerCase()) ||
-                          (c.displayPhone || '').toLowerCase().includes(search.toLowerCase());
+    const q = (search || '').trim().toLowerCase();
+    const matchesSearch = !q || 
+      (c.displayName || '').toLowerCase().includes(q) || 
+      (c.displayEmail || '').toLowerCase().includes(q) ||
+      (c.displayPhone || '').toLowerCase().includes(q) ||
+      (c.contactPerson || c.contact_person || '').toLowerCase().includes(q) ||
+      (c.customerCode || c.customer_code || c.code || '').toLowerCase().includes(q) ||
+      (c.gstin || c.gst || '').toLowerCase().includes(q) ||
+      (c.pan || '').toLowerCase().includes(q) ||
+      (c.city || c.billingAddress?.city || c.shippingAddress?.city || '').toLowerCase().includes(q) ||
+      (c.state || c.billingAddress?.state || c.shippingAddress?.state || '').toLowerCase().includes(q);
     
     let matchesFilter = false;
     if (filter === 'All') {
@@ -158,7 +181,7 @@ export default function CustomersView({
             type="text" 
             placeholder="Search customers..." 
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             style={{
               width: '100%',
               padding: '10px 14px 10px 36px',
@@ -174,7 +197,7 @@ export default function CustomersView({
           />
           {search && (
             <button 
-              onClick={() => setSearch('')} 
+              onClick={() => handleSearchChange('')} 
               style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
             >
               <X size={15} />

@@ -136,16 +136,25 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   const fetchReports = async () => {
     setIsReportsLoading(true);
     try {
-      const summaryRes = await apiClient.get(`/reports/sales/summary?date_from=${dateFrom}&date_to=${dateTo}`);
-      const productsRes = await apiClient.get(`/reports/sales/top-products?date_from=${dateFrom}&date_to=${dateTo}&limit=10`);
-      const customersRes = await apiClient.get(`/reports/sales/customer-performance?date_from=${dateFrom}&date_to=${dateTo}`);
+      const summaryRes = await apiClient.get(`/reports/sales/summary?date_from=${dateFrom}&date_to=${dateTo}`).catch(() => null);
+      const productsRes = await apiClient.get(`/reports/sales/top-products?date_from=${dateFrom}&date_to=${dateTo}&limit=10`).catch(() => null);
+      const customersRes = await apiClient.get(`/reports/sales/customer-performance?date_from=${dateFrom}&date_to=${dateTo}`).catch(() => null);
       const targetRes = await apiClient.get('/backend/sales-targets/dashboard').catch(() => null);
       
-      setSalesSummaryData(summaryRes.data || []);
-      setTopProductsData(productsRes.data || []);
-      setCustomerPerformanceData(customersRes.data || []);
+      const safeArray = (res) => {
+        if (!res) return [];
+        if (Array.isArray(res)) return res;
+        if (Array.isArray(res.data)) return res.data;
+        if (Array.isArray(res.data?.items)) return res.data.items;
+        if (Array.isArray(res.items)) return res.items;
+        return [];
+      };
+
+      setSalesSummaryData(safeArray(summaryRes));
+      setTopProductsData(safeArray(productsRes));
+      setCustomerPerformanceData(safeArray(customersRes));
       if (targetRes) {
-        setTargetData(targetRes.data || targetRes);
+        setTargetData(targetRes?.data || targetRes);
       }
     } catch (err) {
       console.error('Failed to fetch reports data', err);
@@ -296,11 +305,22 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   }, [payments, myOrders, dateFrom, dateTo]);
 
   const myCustomers = useMemo(() => {
-    return customers.filter(c => 
-      myOrders.some(o => o.customer?.id === c.id || o.customerName === c.name) || 
-      myLeads.some(l => l.companyName === c.name)
-    );
-  }, [customers, myOrders, myLeads]);
+    if (!Array.isArray(customers)) return [];
+    if (!isSalesAdmin && effectiveSalesperson !== 'ALL') {
+      return customers.filter(c => {
+        const cName = (c.companyName || c.name || c.company_name || '').trim().toLowerCase();
+        return (
+          myOrders.some(o => 
+            (o.customerId && String(o.customerId) === String(c.id)) || 
+            (o.customer?.id && String(o.customer.id) === String(c.id)) || 
+            (o.customerName && cName && o.customerName.trim().toLowerCase() === cName)
+          ) || 
+          myLeads.some(l => (l.companyName && cName && l.companyName.trim().toLowerCase() === cName))
+        );
+      });
+    }
+    return customers;
+  }, [customers, myOrders, myLeads, isSalesAdmin, effectiveSalesperson]);
 
   // Common calculations & formatting helpers
   const formatINR = (value) => {
@@ -522,21 +542,43 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
     return acc;
   }, {});
 
+  // Helper to safely extract YYYY-MM
+  const getSafeYearMonth = (dateVal) => {
+    if (!dateVal) return null;
+    try {
+      if (typeof dateVal === 'string' && /^\d{4}-\d{2}/.test(dateVal)) {
+        return dateVal.slice(0, 7);
+      }
+      const d = new Date(dateVal);
+      if (!isNaN(d.getTime())) {
+        return d.toISOString().slice(0, 7);
+      }
+    } catch (e) {}
+    return null;
+  };
+
   // Monthly Sales calculation
   const monthlySales = {};
   myOrders.forEach(o => {
-    if (!o.date) return;
-    const mStr = o.date.slice(0, 7); // YYYY-MM
-    const amt = o.payment?.totalAmount || o.totalValue || 0;
+    const rawDate = o.orderDate || o.createdAt || o.date;
+    const mStr = getSafeYearMonth(rawDate);
+    if (!mStr) return;
+    const amt = Number(o.payment?.totalAmount || o.totalAmount || o.grandTotal || o.totalValue || 0);
     monthlySales[mStr] = (monthlySales[mStr] || 0) + amt;
   });
 
-  const monthsList = Object.keys(monthlySales).sort().slice(-6); // last 6 months
-  if (monthsList.length === 0) {
-    monthsList.push('2026-06');
-    monthlySales['2026-06'] = 0;
+  // Ensure last 6 calendar months are represented so graph always displays nicely
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const mKey = d.toISOString().slice(0, 7);
+    if (monthlySales[mKey] === undefined) {
+      monthlySales[mKey] = 0;
+    }
   }
-  const maxMonthlySales = Math.max(...monthsList.map(m => monthlySales[m]), 1);
+
+  const monthsList = Object.keys(monthlySales).sort().slice(-6); // last 6 months
+  const maxMonthlySales = Math.max(...monthsList.map(m => monthlySales[m] || 0), 1);
 
   const monthNames = {
     '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'May', '06': 'Jun',
@@ -544,26 +586,41 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   };
 
   const getMonthLabel = (mStr) => {
-    const [yr, mn] = mStr.split('-');
-    return `${monthNames[mn] || mn} '${yr.slice(-2)}`;
+    if (!mStr || typeof mStr !== 'string') return '—';
+    const parts = mStr.split('-');
+    if (parts.length >= 2) {
+      const yr = parts[0] || '';
+      const mn = parts[1] || '';
+      const yrSuffix = yr.length >= 2 ? yr.slice(-2) : yr;
+      return `${monthNames[mn] || mn} '${yrSuffix}`;
+    }
+    return mStr;
   };
 
   // Product Wise sales breakdown
   const productStats = {};
   myOrders.forEach(o => {
-    if (Array.isArray(o.detailedItems)) {
-      o.detailedItems.forEach(item => {
-        const name = item.productName || item.name || 'Other Products';
-        const qty = item.quantity || 0;
-        const val = qty * (item.unitPrice || 0);
+    const items = Array.isArray(o.detailedItems) && o.detailedItems.length > 0
+      ? o.detailedItems
+      : Array.isArray(o.items) && o.items.length > 0
+        ? o.items
+        : Array.isArray(o.orderItems) && o.orderItems.length > 0
+          ? o.orderItems
+          : null;
+
+    if (items) {
+      items.forEach(item => {
+        const name = item.productName || item.product?.name || item.name || 'Other Products';
+        const qty = Number(item.quantity || item.qty || 0);
+        const val = Number(item.totalPrice || item.totalAmount || (qty * Number(item.unitPrice || item.price || 0)));
         if (!productStats[name]) productStats[name] = { qty: 0, revenue: 0 };
         productStats[name].qty += qty;
         productStats[name].revenue += val;
       });
     } else {
-      const name = o.products || 'Other Products';
-      const qty = o.quantity || o.totalQty || 1;
-      const val = o.payment?.totalAmount || o.totalValue || 0;
+      const name = o.products || o.productName || 'General Products';
+      const qty = Number(o.quantity || o.totalQty || 1);
+      const val = Number(o.payment?.totalAmount || o.totalAmount || o.grandTotal || o.totalValue || 0);
       if (!productStats[name]) productStats[name] = { qty: 0, revenue: 0 };
       productStats[name].qty += qty;
       productStats[name].revenue += val;
@@ -573,17 +630,25 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   // Customer wise sales
   const customerStats = {};
   myOrders.forEach(o => {
-    const name = o.customer?.name || o.customerName || 'Unknown Customer';
-    const val = o.payment?.totalAmount || o.totalValue || 0;
+    const name = o.customer?.name || o.customer?.companyName || o.customerName || o.companyName || 'Valued Customer';
+    const val = Number(o.payment?.totalAmount || o.totalAmount || o.grandTotal || o.totalValue || 0);
     customerStats[name] = (customerStats[name] || 0) + val;
   });
 
   // Follow Ups calculations
-  const followUpLeads = myLeads.filter(l => 
-    ['New', 'Follow-up', 'Sample Stage', 'Quotation'].includes(l.status) && l.followUpDate
-  );
-  const overdueFollowUps = followUpLeads.filter(l => l.followUpDate < TODAY_STR);
-  const upcomingFollowUps = followUpLeads.filter(l => l.followUpDate >= TODAY_STR);
+  const followUpLeads = myLeads.filter(l => {
+    const st = String(l.status || l.stage || '').toLowerCase();
+    const fDate = l.followUpDate || l.nextFollowUpDate || l.nextFollowupDate || l.followupDate;
+    return Boolean(fDate) && !['converted', 'lost'].includes(st);
+  });
+  const overdueFollowUps = followUpLeads.filter(l => {
+    const fDate = String(l.followUpDate || l.nextFollowUpDate || l.nextFollowupDate || l.followupDate || '').slice(0, 10);
+    return Boolean(fDate && fDate < TODAY_STR);
+  });
+  const upcomingFollowUps = followUpLeads.filter(l => {
+    const fDate = String(l.followUpDate || l.nextFollowUpDate || l.nextFollowupDate || l.followupDate || '').slice(0, 10);
+    return Boolean(fDate && fDate >= TODAY_STR);
+  });
 
   // Contextual CSV Exporter
   const handleExportCSV = () => {
@@ -667,7 +732,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
       }));
       exportToCSV(data, `customers-report-${dateFrom}-to-${dateTo}.csv`);
     } else {
-      if (salesSummaryData.length > 0) {
+      if (Array.isArray(salesSummaryData) && salesSummaryData.length > 0) {
         exportToCSV(salesSummaryData.map(item => ({
           Month: item.month,
           Orders: item.order_count,
@@ -1530,7 +1595,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                   scrollbarWidth: 'none',
                   WebkitOverflowScrolling: 'touch'
                 }}>
-                  {salesSummaryData.length > 0 ? (
+                  {Array.isArray(salesSummaryData) && salesSummaryData.length > 0 ? (
                     [...salesSummaryData].slice(0, 6).reverse().map(d => {
                       const val = parseFloat(d.total_revenue || 0);
                       const maxVal = Math.max(...salesSummaryData.map(item => parseFloat(item.total_revenue || 0)), 1);
@@ -1655,7 +1720,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                   <ClipboardList size={16} color="#0284c7" /> Product Performance Breakdown
                 </div>
                 
-                {topProductsData.length > 0 ? (
+                {Array.isArray(topProductsData) && topProductsData.length > 0 ? (
                   topProductsData.map(prod => {
                     const revenue = parseFloat(prod.total_revenue || 0);
                     const quantity = parseFloat(prod.total_quantity || 0);
@@ -1732,12 +1797,13 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                       </tr>
                     ) : (
                       myOrders.map(order => {
-                        const orderVal = order.payment?.totalAmount || order.totalValue || 0;
-                        const payStatus = order.payment?.paid === order.payment?.totalAmount && order.payment?.totalAmount > 0 
-                          ? 'Paid' 
-                          : order.payment?.paid > 0 
-                            ? 'Partial' 
-                            : 'Unpaid';
+                        const orderVal = Number(order.payment?.totalAmount || order.totalAmount || order.grandTotal || order.totalValue || 0);
+                        const paidAmt = Number(order.verifiedPaidAmount || order.paidAmount || order.payment?.paidAmount || order.payment?.paid || 0);
+                        const payStatus = order.paymentStatus || order.payment?.status || (paidAmt >= orderVal && orderVal > 0 ? 'Paid' : paidAmt > 0 ? 'Partial' : 'Unpaid');
+                        const rawDate = order.orderDate || order.createdAt || order.date;
+                        const dateFormatted = rawDate ? (typeof rawDate === 'string' && rawDate.length >= 10 ? rawDate.slice(0, 10) : new Date(rawDate).toISOString().slice(0, 10)) : '—';
+                        const custName = order.customer?.name || order.customer?.companyName || order.customerName || order.companyName || 'Valued Customer';
+                        const prodSummary = order.products || order.productsSummary || (Array.isArray(order.items) && order.items.length > 0 ? order.items.map(it => it.product?.name || it.productName || it.name).filter(Boolean).join(', ') : 'Order Items');
                         
                         return (
                           <tr key={order.orderNo || order.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -1758,16 +1824,16 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                                 !order.quotationNumber && !order.quotationNo && !order.quotation ? <span style={{ color: '#94a3b8' }}>—</span> : null
                               )}
                             </td>
-                            <td style={{ padding: '10px 14px' }}>{order.date || order.orderDate}</td>
-                            <td style={{ fontWeight: '700', padding: '10px 14px', color: '#002e5d' }}>{order.customer?.name || order.customerName}</td>
-                            <td style={{ padding: '10px 14px' }}>{order.products}</td>
+                            <td style={{ padding: '10px 14px', fontSize: '12px', color: '#64748b' }}>{dateFormatted}</td>
+                            <td style={{ fontWeight: '700', padding: '10px 14px', color: '#002e5d' }}>{custName}</td>
+                            <td style={{ padding: '10px 14px', fontSize: '12px' }}>{prodSummary}</td>
                             <td style={{ fontWeight: '800', padding: '10px 14px', color: '#0284c7' }}>{formatINR(orderVal)}</td>
                             <td style={{ padding: '10px 14px' }}>
                               <span className={`badge badge-${
                                 order.status === 'Closed' ? 'success' : 
                                 order.status === 'Cancelled' ? 'danger' : 'info'
                               }`}>
-                                {order.status}
+                                {order.status || 'CONFIRMED'}
                               </span>
                             </td>
                             <td style={{ padding: '10px 14px' }}>
@@ -2266,11 +2332,11 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                     </tr>
                   </thead>
                   <tbody>
-                    {customerPerformanceData.length > 0 ? (
+                    {Array.isArray(customerPerformanceData) && customerPerformanceData.length > 0 ? (
                       customerPerformanceData.map(customer => {
-                        const totalOrders = customer.order_count;
+                        const totalOrders = customer.order_count || 0;
                         const totalRevenue = parseFloat(customer.total_spent || 0);
-                        const completed = customer.completed_orders;
+                        const completed = customer.completed_orders || 0;
                         return (
                           <tr key={customer.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                             <td style={{ fontWeight: '700', padding: '10px 14px' }}>
@@ -2299,14 +2365,24 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                     ) : myCustomers.length === 0 ? (
                       <tr>
                         <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
-                          No customer associations.
+                          No customer associations found.
                         </td>
                       </tr>
                     ) : (
                       myCustomers.map(customer => {
-                        const totalOrders = customer.totalOrders || (customer.ordersHistory?.length) || 0;
-                        const totalRevenue = customer.totalRevenue || customer.ordersHistory?.reduce((s, h) => s + (h.val || 0), 0) || 0;
-                        const outstanding = customer.outstanding || 0;
+                        const custName = customer.companyName || customer.name || customer.company_name || 'Customer';
+                        const custOrders = (myOrders || []).filter(o => 
+                          (o.customerId && String(o.customerId) === String(customer.id)) ||
+                          (o.customer?.id && String(o.customer.id) === String(customer.id)) ||
+                          (o.customerName && custName && o.customerName.trim().toLowerCase() === custName.trim().toLowerCase())
+                        );
+                        const totalOrders = customer.totalOrders || custOrders.length || 0;
+                        const totalRevenue = customer.totalRevenue || custOrders.reduce((s, o) => s + Number(o.payment?.totalAmount || o.totalAmount || o.grandTotal || o.totalValue || 0), 0);
+                        const outstanding = customer.outstanding || custOrders.reduce((s, o) => {
+                          const tot = Number(o.payment?.totalAmount || o.totalAmount || o.grandTotal || o.totalValue || 0);
+                          const paid = Number(o.verifiedPaidAmount || o.paidAmount || o.payment?.paidAmount || 0);
+                          return s + Math.max(0, tot - paid);
+                        }, 0);
                         const latestComm = customer.communicationLogs && customer.communicationLogs.length > 0 
                           ? customer.communicationLogs[customer.communicationLogs.length - 1] 
                           : null;
@@ -2314,14 +2390,14 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                         return (
                           <tr key={customer.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                             <td style={{ fontWeight: '700', padding: '10px 14px' }}>
-                              <div style={{ color: '#002e5d' }}>{customer.name}</div>
+                              <div style={{ color: '#002e5d' }}>{custName}</div>
                               {getCleanCustomerCode(customer) && (
                                 <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>Code: {getCleanCustomerCode(customer)}</span>
                               )}
                             </td>
                             <td style={{ padding: '10px 14px' }}>
-                              <div>{customer.email}</div>
-                              <div style={{ fontSize: '11px', color: '#64748b' }}>{customer.phone}</div>
+                              <div>{customer.email || customer.emailAddress || 'N/A'}</div>
+                              <div style={{ fontSize: '11px', color: '#64748b' }}>{customer.phone || customer.mobile || customer.contactNumber || 'N/A'}</div>
                             </td>
                             <td style={{ fontWeight: '800', padding: '10px 14px' }}>{totalOrders}</td>
                             <td style={{ fontWeight: '800', padding: '10px 14px', color: '#0284c7' }}>{formatINR(totalRevenue)}</td>
@@ -2331,7 +2407,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                             <td style={{ padding: '10px 14px' }}>
                               {latestComm ? (
                                 <div style={{ fontSize: '12px' }}>
-                                  <strong style={{ color: '#475569' }}>[{latestComm.type}]</strong> {latestComm.summary}
+                                  <strong style={{ color: '#475569' }}>[{latestComm.type || 'Log'}]</strong> {latestComm.summary || latestComm.notes}
                                 </div>
                               ) : 'No communications recorded.'}
                             </td>

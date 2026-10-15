@@ -1,18 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { backendFetch } from '@/lib/backendFetch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function Customer360Page() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    backendFetch(`/api/backend/customers/${id}/360`)
+    backendFetch(`/api/backend/customers/${encodeURIComponent(id)}/360`)
       .then(setData)
       .catch((reason) => setError(reason.message));
   }, [id]);
@@ -24,9 +24,13 @@ export default function Customer360Page() {
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value || 0);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
       <div>
+        <button type="button" onClick={() => router.push('/sales/customers')} className="mb-3 text-sm font-medium text-blue-700 hover:underline">
+          Back to customers
+        </button>
         <h1 className="text-2xl font-semibold">{data?.customer?.companyName || data?.customer?.name || 'Customer Details'}</h1>
+        {data?.customer?.contactPerson && <p className="mt-1 text-sm text-muted-foreground">Contact: {data.customer.contactPerson}</p>}
         <p className="text-sm text-muted-foreground">{data?.customer?.customerCode || '—'}</p>
       </div>
       <div className="grid gap-4 md:grid-cols-4">
@@ -42,46 +46,31 @@ export default function Customer360Page() {
           </Card>
         ))}
       </div>
-      <Tabs defaultValue="crm">
-        <TabsList>
-          <TabsTrigger value="crm">CRM</TabsTrigger>
-          <TabsTrigger value="sales">Sales</TabsTrigger>
-          <TabsTrigger value="finance">Finance</TabsTrigger>
-          <TabsTrigger value="timeline">Timeline</TabsTrigger>
-        </TabsList>
-        <TabsContent value="crm">
-          <RecordSection title="Leads" records={data.crm.leads} label="leadNumber" />
-          <RecordSection title="Quotations" records={data.crm.quotations} label="quotationNumber" />
-        </TabsContent>
-        <TabsContent value="sales">
-          <RecordSection title="Orders" records={data.sales.orders} label="orderNumber" />
-          <RecordSection title="Deliveries" records={data.sales.deliveries} label="dispatchNo" />
-        </TabsContent>
-        <TabsContent value="finance">
-          <RecordSection title="Invoices" records={data.finance.invoices} label="invoiceNumber" />
-          <RecordSection title="Payments" records={data.finance.payments} label="paymentNo" />
-          <RecordSection title="Ledger" records={data.finance.ledger} label="description" />
-        </TabsContent>
-        <TabsContent value="timeline">
-          <RecordSection title="Complete history" records={data.timeline} label="action" />
-        </TabsContent>
-      </Tabs>
+      <RecordSection title={`Orders for this customer (${data.sales.orders.length})`} records={data.sales.orders} label="orderNumber" />
     </div>
   );
 }
 
 function RecordSection({ title, records, label }: { title: string; records: any[]; label: string }) {
+  const money = (value: unknown) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(value) || 0);
   return (
     <Card className="mb-4">
       <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
       <CardContent className="space-y-2">
         {!records.length && <p className="text-sm text-muted-foreground">No records</p>}
         {records.map((record) => (
-          <div key={record.id} className="flex justify-between border-b py-2 text-sm">
-            <span>{record[label] || record.entityType || record.id}</span>
-            <span className="text-muted-foreground">
-              {record.workflowState?.name || record.status || record.type || ''}
-            </span>
+          <div key={record.id} className="flex flex-wrap items-center justify-between gap-3 border-b py-3 text-sm">
+            <div>
+              <div className="font-medium">{record[label] || record.entityType || record.id}</div>
+              {record.orderDate && <div className="text-xs text-muted-foreground">{new Date(record.orderDate).toLocaleDateString('en-IN')}</div>}
+            </div>
+            <div className="text-right">
+              {(record.totalAmount != null || record.total != null || record.grandTotal != null) && <div className="font-semibold">{money(record.totalAmount ?? record.total ?? record.grandTotal)}</div>}
+              <div className="text-xs text-muted-foreground">
+                {record.workflowState?.name || record.status || record.type || ''}
+                {record.balanceAmount != null && ` · Balance ${money(record.balanceAmount)}`}
+              </div>
+            </div>
           </div>
         ))}
       </CardContent>

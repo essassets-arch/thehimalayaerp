@@ -324,6 +324,14 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     if (currentView === 'customers' && loadOrders) {
       void loadOrders({ page: 1, pageSize: 500 });
     }
+    // Load data for reports view
+    if (currentView === 'reports') {
+      if (loadOrders) void loadOrders({ page: 1, pageSize: 500 });
+      if (loadLeads) void loadLeads();
+      if (loadCustomers) void loadCustomers();
+      if (loadQuotations) void loadQuotations();
+      if (refreshSamples) void refreshSamples();
+    }
     // Load other modules on dashboard or daily-task view for dynamic metrics & tasks
     if (currentView === 'dashboard' || currentView === 'daily-task') {
       if (loadLeads) void loadLeads();
@@ -1493,7 +1501,13 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     case 'customers':
       return (
         <div data-testid="sales-customers-page" className="sales-portal-view">
-          <CustomersView customers={customers} orders={orders} searchQuery={globalSearch} basePath={basePath} />
+          <CustomersView
+            customers={customers}
+            orders={orders}
+            searchQuery={globalSearch}
+            setSearchQuery={setGlobalSearch}
+            basePath={basePath}
+          />
         </div>
       );
 
