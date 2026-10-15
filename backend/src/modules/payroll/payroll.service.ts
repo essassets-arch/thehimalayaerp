@@ -3479,44 +3479,8 @@ export class PayrollService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // If no records for selected month, fallback to most recent period that has records
-    let effectiveMonth = qMonth;
-    let effectiveYear = qYear;
-    if (records.length === 0) {
-      const latestRec = await this.prisma.payrollRecord.findFirst({
-        where: { companyId },
-        include: { payrollPeriod: true },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (latestRec) {
-        effectiveMonth = latestRec.payrollPeriod.month;
-        effectiveYear = latestRec.payrollPeriod.year;
-        records = await this.prisma.payrollRecord.findMany({
-          where: {
-            companyId,
-            payrollPeriodId: latestRec.payrollPeriodId,
-          },
-          include: {
-            employee: {
-              select: {
-                id: true,
-                employeeCode: true,
-                fullName: true,
-                department: { select: { name: true } },
-                jobTitle: true,
-              },
-            },
-            payrollPeriod: true,
-            payment: true,
-            salarySlip: {
-              select: { id: true, slipNumber: true, availableToEmployee: true },
-            },
-            statusHistory: { orderBy: { changedAt: 'desc' } },
-          },
-          orderBy: { createdAt: 'desc' },
-        });
-      }
-    }
+    const effectiveMonth = qMonth;
+    const effectiveYear = qYear;
 
     // Collect actor user IDs from status histories to resolve User name and Role
     const actorIds = new Set<string>();

@@ -19,6 +19,7 @@ import {
 import { useERP } from '../shared/context/ERPContext';
 import { apiClient } from '../lib/apiClient';
 import { exportSalesReportPDF, exportToCSV } from '../services/export.service';
+import { withErrorBoundary } from './ui/ErrorBoundary';
 
 /**
  * Universal ID Resolvers for Sales Reports
@@ -112,7 +113,13 @@ export const getCleanCustomerCode = (c) => {
   return null;
 };
 
-export default function ReportsView({ leads = [], orders = [], payments = [], customers = [], quotations = [], user }) {
+function ReportsViewInner({ leads = [], orders = [], payments = [], customers = [], quotations = [], user }) {
+  const safeOrders = Array.isArray(orders) ? orders : [];
+  const safeLeads = Array.isArray(leads) ? leads : [];
+  const safePayments = Array.isArray(payments) ? payments : [];
+  const safeCustomers = Array.isArray(customers) ? customers : [];
+  const safeQuotations = Array.isArray(quotations) ? quotations : [];
+
   const { state } = useERP();
   const settings = state?.settings || {};
 
@@ -144,16 +151,16 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
       const safeArray = (res) => {
         if (!res) return [];
         if (Array.isArray(res)) return res;
-        if (Array.isArray(res.data)) return res.data;
-        if (Array.isArray(res.data?.items)) return res.data.items;
-        if (Array.isArray(res.items)) return res.items;
+        if (res.data && Array.isArray(res.data)) return res.data;
+        if (res.data?.items && Array.isArray(res.data.items)) return res.data.items;
+        if (res.items && Array.isArray(res.items)) return res.items;
         return [];
       };
 
       setSalesSummaryData(safeArray(summaryRes));
       setTopProductsData(safeArray(productsRes));
       setCustomerPerformanceData(safeArray(customersRes));
-      if (targetRes) {
+      if (targetRes && targetRes.success !== false) {
         setTargetData(targetRes?.data || targetRes);
       }
     } catch (err) {
@@ -200,10 +207,10 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   };
 
   const allQuotations = useMemo(() => {
-    if (Array.isArray(quotations) && quotations.length > 0) return quotations;
+    if (safeQuotations.length > 0) return safeQuotations;
     if (Array.isArray(state?.sales?.quotations) && state.sales.quotations.length > 0) return state.sales.quotations;
     return [];
-  }, [quotations, state?.sales?.quotations]);
+  }, [safeQuotations, state?.sales?.quotations]);
 
   // Discover all distinct salespeople across orders, leads, quotations, settings, and team
   const discoveredSalespeople = useMemo(() => {
@@ -214,12 +221,12 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
     const namesSet = new Set();
     if (myName) namesSet.add(myName);
 
-    orders.forEach(o => {
+    safeOrders.forEach(o => {
       const n = getSalespersonName(o);
       if (n && n !== 'Sales' && n !== 'Salesperson') namesSet.add(n);
     });
 
-    leads.forEach(l => {
+    safeLeads.forEach(l => {
       const n = getSalespersonName(l);
       if (n && n !== 'Sales' && n !== 'Salesperson') namesSet.add(n);
     });
@@ -236,7 +243,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
     }
 
     return Array.from(namesSet);
-  }, [isSalesAdmin, orders, leads, allQuotations, settings, myName]);
+  }, [isSalesAdmin, safeOrders, safeLeads, allQuotations, settings, myName]);
 
   const [selectedSalesperson, setSelectedSalesperson] = useState(() => {
     if (!isSalesAdmin && myName) return myName;
@@ -272,16 +279,16 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   };
 
   const activeOrdersList = useMemo(() => {
-    return orders.filter(o => !isLostOrder(o));
-  }, [orders]);
+    return safeOrders.filter(o => !isLostOrder(o));
+  }, [safeOrders]);
 
   // Current scope filtered data
   const myLeads = useMemo(() => {
-    return leads.filter(l => 
+    return safeLeads.filter(l => 
       matchesSalesperson(l, effectiveSalesperson) && 
       isDateInRange(l.createdAt || l.date)
     );
-  }, [leads, effectiveSalesperson, dateFrom, dateTo]);
+  }, [safeLeads, effectiveSalesperson, dateFrom, dateTo]);
 
   const myQuotations = useMemo(() => {
     return allQuotations.filter(q => 
@@ -298,16 +305,16 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   }, [activeOrdersList, effectiveSalesperson, dateFrom, dateTo]);
 
   const myPayments = useMemo(() => {
-    return payments.filter(p => 
+    return safePayments.filter(p => 
       myOrders.some(o => (o.orderNo || o.id) === (p.orderNo || p.orderId)) && 
       isDateInRange(p.date || p.createdAt)
     );
-  }, [payments, myOrders, dateFrom, dateTo]);
+  }, [safePayments, myOrders, dateFrom, dateTo]);
 
   const myCustomers = useMemo(() => {
-    if (!Array.isArray(customers)) return [];
+    if (!safeCustomers.length) return [];
     if (!isSalesAdmin && effectiveSalesperson !== 'ALL') {
-      return customers.filter(c => {
+      return safeCustomers.filter(c => {
         const cName = (c.companyName || c.name || c.company_name || '').trim().toLowerCase();
         return (
           myOrders.some(o => 
@@ -319,8 +326,8 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
         );
       });
     }
-    return customers;
-  }, [customers, myOrders, myLeads, isSalesAdmin, effectiveSalesperson]);
+    return safeCustomers;
+  }, [safeCustomers, myOrders, myLeads, isSalesAdmin, effectiveSalesperson]);
 
   // Common calculations & formatting helpers
   const formatINR = (value) => {
@@ -373,7 +380,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
       );
       const achieved = repOrders.reduce((sum, o) => sum + Number(o.payment?.totalAmount || o.totalAmount || o.grandTotal || o.totalValue || 0), 0);
       
-      const repLeads = leads.filter(l => 
+      const repLeads = safeLeads.filter(l => 
         matchesSalesperson(l, name) && 
         isDateInRange(l.createdAt || l.date)
       );
@@ -402,7 +409,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
         }
       }
 
-      const repPayments = payments.filter(p => repOrders.some(o => (o.orderNo || o.id) === (p.orderNo || p.orderId)) && isDateInRange(p.date || p.createdAt));
+      const repPayments = safePayments.filter(p => repOrders.some(o => (o.orderNo || o.id) === (p.orderNo || p.orderId)) && isDateInRange(p.date || p.createdAt));
       const repOutstanding = repPayments.reduce((sum, p) => sum + (p.status !== 'Paid' ? (Number(p.totalAmount || 0) - Number(p.paidAmount || 0)) : 0), 0);
 
       return {
@@ -421,7 +428,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
         revenue: achieved
       };
     }).sort((a, b) => b.achieved - a.achieved);
-  }, [isSalesAdmin, discoveredSalespeople, activeOrdersList, leads, payments, settings, targetData, effectiveSalesperson, dateFrom, dateTo, myName]);
+  }, [isSalesAdmin, discoveredSalespeople, activeOrdersList, safeLeads, safePayments, settings, targetData, effectiveSalesperson, dateFrom, dateTo, myName]);
 
   // Target metrics scoped to the active logged-in user (Target Tracker focus)
   const currentTargetMetrics = useMemo(() => {
@@ -1596,12 +1603,12 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                   WebkitOverflowScrolling: 'touch'
                 }}>
                   {Array.isArray(salesSummaryData) && salesSummaryData.length > 0 ? (
-                    [...salesSummaryData].slice(0, 6).reverse().map(d => {
+                    [...salesSummaryData].slice(0, 6).reverse().map((d, idx) => {
                       const val = parseFloat(d.total_revenue || 0);
                       const maxVal = Math.max(...salesSummaryData.map(item => parseFloat(item.total_revenue || 0)), 1);
                       const pct = maxVal > 0 ? Math.max(5, Math.round((val / maxVal) * 100)) : 5;
                       return (
-                        <div key={d.month} style={{ 
+                        <div key={d.month || idx} style={{ 
                           display: 'flex', 
                           flexDirection: 'column', 
                           alignItems: 'center', 
@@ -1721,13 +1728,13 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                 </div>
                 
                 {Array.isArray(topProductsData) && topProductsData.length > 0 ? (
-                  topProductsData.map(prod => {
+                  topProductsData.map((prod, idx) => {
                     const revenue = parseFloat(prod.total_revenue || 0);
                     const quantity = parseFloat(prod.total_quantity || 0);
                     const maxRev = Math.max(...topProductsData.map(p => parseFloat(p.total_revenue || 0)), 1);
                     const pct = Math.round((revenue / maxRev) * 100);
                     return (
-                      <div key={prod.id} className="report-bar-row" style={{ marginBottom: '12px' }}>
+                      <div key={prod.id || prod.product_id || prod.product_name || idx} className="report-bar-row" style={{ marginBottom: '12px' }}>
                         <div className="report-bar-label-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px', color: '#475569' }}>
                           <span style={{ fontWeight: '700', color: '#002e5d' }}>
                             {prod.product_name} {prod.product_code && !isUUID(prod.product_code) ? `(${prod.product_code})` : ''}
@@ -2345,12 +2352,12 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                   </thead>
                   <tbody>
                     {Array.isArray(customerPerformanceData) && customerPerformanceData.length > 0 ? (
-                      customerPerformanceData.map(customer => {
+                      customerPerformanceData.map((customer, idx) => {
                         const totalOrders = customer.order_count || 0;
                         const totalRevenue = parseFloat(customer.total_spent || 0);
                         const completed = customer.completed_orders || 0;
                         return (
-                          <tr key={customer.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <tr key={customer.id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                             <td style={{ fontWeight: '700', padding: '10px 14px' }}>
                               <div style={{ color: '#002e5d' }}>{customer.customer_name}</div>
                               {getCleanCustomerCode(customer) && (
@@ -2445,7 +2452,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
               {teamStats.map((rep, idx) => {
                 const sharePct = Math.round((rep.revenue / totalTeamRevenue) * 100);
                 return (
-                  <div key={rep.name} style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '18px', borderBottom: idx < teamStats.length - 1 ? '1px solid #f1f5f9' : 'none', paddingBottom: '14px' }}>
+                  <div key={rep.name || idx} style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '18px', borderBottom: idx < teamStats.length - 1 ? '1px solid #f1f5f9' : 'none', paddingBottom: '14px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{ 
@@ -2522,8 +2529,8 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                     </tr>
                   </thead>
                   <tbody>
-                    {teamStats.map(rep => (
-                      <tr key={rep.name} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    {teamStats.map((rep, idx) => (
+                      <tr key={rep.name || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                         <td style={{ fontWeight: '800', padding: '10px 14px', color: '#002e5d' }}>{rep.name}</td>
                         <td style={{ padding: '10px 14px' }}>{rep.leadsCount} leads</td>
                         <td style={{ padding: '10px 14px' }}>{rep.ordersCount} orders</td>
@@ -2544,3 +2551,9 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
     </div>
   );
 }
+
+export default withErrorBoundary(ReportsViewInner, {
+  title: 'Sales Reports & Analytics',
+  message: 'Unable to render sales reports. Please retry to load your data.',
+});
+

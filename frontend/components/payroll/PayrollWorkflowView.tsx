@@ -36,7 +36,17 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
         : await payrollService.getPayrollRecords(params);
       const items = Array.isArray(result) ? result : (result?.items || []);
       setRecords(items);
-    } catch (cause: any) { setError(cause.message); setRecords([]); }
+    } catch (cause: any) {
+      // Some deployments return the single-record 404 message for an empty paid-history query.
+      // Treat that as an empty month so users can still navigate history without a false retry error.
+      if ((mode === 'history' || mode === 'payslips') && /payroll record not found/i.test(cause?.message || '')) {
+        setError('');
+        setRecords([]);
+      } else {
+        setError(cause.message || 'Unable to load payroll records.');
+        setRecords([]);
+      }
+    }
     finally { setLoading(false); }
   }, [mode, month]);
   useEffect(() => { void load(); }, [load]);

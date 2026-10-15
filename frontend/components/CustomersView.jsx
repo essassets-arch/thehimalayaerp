@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Eye, Phone, Mail, FileText, ClipboardList, ChevronLeft, ChevronRight, Users, X } from 'lucide-react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useSearchStore } from '../store/searchStore';
 
 export default function CustomersView({ 
   customers = [],
@@ -15,14 +16,19 @@ export default function CustomersView({
 }) {
   const router = useRouter();
   const isCompact = useMediaQuery('(max-width: 1024px)');
-  const [localSearch, setLocalSearch] = useState(searchQuery || '');
+  const storeSearch = useSearchStore((s) => s.globalSearch);
+  const setStoreSearch = useSearchStore((s) => s.setGlobalSearch);
 
-  // Synchronize when parent passes a new searchQuery value
+  const [localSearch, setLocalSearch] = useState(searchQuery !== undefined ? (searchQuery || '') : (storeSearch || ''));
+
+  // Synchronize when parent passes a new searchQuery value or store changes
   useEffect(() => {
     if (searchQuery !== undefined) {
       setLocalSearch(searchQuery || '');
+    } else if (storeSearch !== undefined) {
+      setLocalSearch(storeSearch || '');
     }
-  }, [searchQuery]);
+  }, [searchQuery, storeSearch]);
 
   const search = localSearch;
 
@@ -30,6 +36,9 @@ export default function CustomersView({
     setLocalSearch(val);
     if (typeof setSearchQuery === 'function') {
       setSearchQuery(val);
+    }
+    if (setStoreSearch) {
+      setStoreSearch(val);
     }
   };
 
@@ -99,16 +108,25 @@ export default function CustomersView({
 
   const filteredCust = enrichedCustomers.filter(c => {
     const q = (search || '').trim().toLowerCase();
+    const cityStr = typeof c.city === 'string' ? c.city : (c.billingAddress?.city || c.shippingAddress?.city || '');
+    const stateStr = typeof c.state === 'string' ? c.state : (c.billingAddress?.state || c.shippingAddress?.state || '');
+    const addressStr = typeof c.address === 'string' ? c.address : (c.billingAddress?.addressLine1 || c.shippingAddress?.addressLine1 || '');
     const matchesSearch = !q || 
       String(c.displayName || '').toLowerCase().includes(q) || 
+      String(c.companyName || '').toLowerCase().includes(q) || 
+      String(c.name || '').toLowerCase().includes(q) || 
       String(c.displayEmail || '').toLowerCase().includes(q) ||
+      String(c.email || '').toLowerCase().includes(q) ||
       String(c.displayPhone || '').toLowerCase().includes(q) ||
+      String(c.phone || '').toLowerCase().includes(q) ||
+      String(c.alternatePhone || '').toLowerCase().includes(q) ||
       String(c.contactPerson || c.contact_person || '').toLowerCase().includes(q) ||
       String(c.customerCode || c.customer_code || c.code || '').toLowerCase().includes(q) ||
-      String(c.gstin || c.gst || '').toLowerCase().includes(q) ||
+      String(c.gstin || c.gst || c.gstNumber || '').toLowerCase().includes(q) ||
       String(c.pan || '').toLowerCase().includes(q) ||
-      String(typeof c.city === 'string' ? c.city : c.billingAddress?.city || c.shippingAddress?.city || '').toLowerCase().includes(q) ||
-      String(typeof c.state === 'string' ? c.state : c.billingAddress?.state || c.shippingAddress?.state || '').toLowerCase().includes(q);
+      String(cityStr).toLowerCase().includes(q) ||
+      String(stateStr).toLowerCase().includes(q) ||
+      String(addressStr).toLowerCase().includes(q);
     
     let matchesFilter = false;
     if (filter === 'All') {

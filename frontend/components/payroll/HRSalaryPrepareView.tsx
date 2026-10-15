@@ -26,6 +26,9 @@ export default function HRSalaryPrepareView() {
   const [error, setError] = useState<string>('');
   const [search, setSearch] = useState<string>('');
   const [historySearch, setHistorySearch] = useState<string>('');
+  const now = new Date();
+  const [historyMonth, setHistoryMonth] = useState(String(now.getMonth() + 1));
+  const [historyYear, setHistoryYear] = useState(String(now.getFullYear()));
   const [viewingSlipStructure, setViewingSlipStructure] = useState<any | null>(null);
 
   // Load salary structures, employees, and payroll records
@@ -36,8 +39,8 @@ export default function HRSalaryPrepareView() {
       const [structRes, empRes, recordsRes, summaryRes] = await Promise.all([
         payrollService.getSalaryStructures().catch(() => []),
         employeesService.listEmployees({ page: 1, limit: 100 }).catch(() => ({ items: [] })),
-        payrollService.getPayrollRecords({ page: 1, pageSize: 100 }).catch(() => ({ items: [] })),
-        payrollService.getSubmissionSummary().catch(() => null),
+        payrollService.getPayrollRecords({ page: 1, pageSize: 100, month: historyMonth, year: historyYear }).catch(() => ({ items: [] })),
+        payrollService.getSubmissionSummary({ month: Number(historyMonth), year: Number(historyYear) }).catch(() => null),
       ]);
 
       const structList = Array.isArray(structRes) ? structRes : (structRes as any)?.items || [];
@@ -74,7 +77,7 @@ export default function HRSalaryPrepareView() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [historyMonth, historyYear]);
 
   useEffect(() => {
     void loadData();
@@ -641,6 +644,27 @@ export default function HRSalaryPrepareView() {
               </div>
 
               <div className="salary-toolbar-actions">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '13px', fontWeight: 700 }}>
+                  Payroll month
+                  <select
+                    aria-label="Filter submission history by month"
+                    value={`${historyYear}-${historyMonth.padStart(2, '0')}`}
+                    onChange={(e) => {
+                      const [year, month] = e.target.value.split('-');
+                      setHistoryYear(year);
+                      setHistoryMonth(String(Number(month)));
+                    }}
+                    style={{ padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#fff', color: '#0f172a', fontWeight: 600 }}
+                  >
+                    {Array.from({ length: 36 }, (_, index) => {
+                      const date = new Date(now.getFullYear(), now.getMonth() - index, 1);
+                      const year = String(date.getFullYear());
+                      const month = String(date.getMonth() + 1);
+                      const value = `${year}-${month.padStart(2, '0')}`;
+                      return <option key={value} value={value}>{date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</option>;
+                    })}
+                  </select>
+                </label>
                 {/* Search Box */}
                 <div className="salary-search-box">
                   <span className="salary-search-icon">🔍</span>

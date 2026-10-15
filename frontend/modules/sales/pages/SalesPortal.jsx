@@ -280,7 +280,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
   const { quotations, createQuotation, updateQuotation, confirmOrder, loadQuotations, deleteQuotation, restoreQuotation } = useQuotations(
     showToast,
-    currentView === 'quotations' || currentView === 'create-quotation' || currentView === 'dashboard'
+    currentView === 'quotations' || currentView === 'create-quotation' || currentView === 'dashboard' || currentView === 'reports'
   );
 
   const { reminders, createReminder, updateReminder, completeReminder } = useReminders(showToast);

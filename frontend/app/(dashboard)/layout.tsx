@@ -10,6 +10,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useERPStore } from '@/store/erpStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useBadgeStore } from '@/store/badgeStore';
+import { useSearchStore } from '@/store/searchStore';
 import { ERPProvider } from '@/shared/context/ERPContext';
 import { NotificationProvider } from '@/shared/context/NotificationContext';
 import MockDataSeeder from '@/components/MockDataSeeder';
@@ -85,7 +86,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const showToast = useNotificationStore((s: any) => s.showToast);
   const dismissToast = useNotificationStore((s: any) => s.dismissToast);
   
-  const [globalSearch, setGlobalSearch] = useState('');
+  const globalSearch = useSearchStore((s: any) => s.globalSearch);
+  const setGlobalSearch = useSearchStore((s: any) => s.setGlobalSearch);
 
   const removeToast = (id: number) => {
     if (dismissToast) dismissToast(id);
