@@ -13,7 +13,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AttendanceService } from '../attendance/attendance.service';
-import { createSalarySlipPdf } from './salary-slip.pdf';
+import { createSalarySlipPdf, numberToWords } from './salary-slip.pdf';
 import { calculateSalaryStructure } from './salary-calculation';
 
 export const ALLOWED_PAYROLL_TRANSITIONS: Record<string, string[]> = {
@@ -1315,6 +1315,7 @@ export class PayrollService {
   }
 
   // Helper to build standardized JSON snapshot for salary slips
+  // Helper to build standardized JSON snapshot for salary slips
   buildSnapshotForSlip(
     month: number,
     year: number,
@@ -1327,18 +1328,21 @@ export class PayrollService {
     employee: any,
     calc: any,
   ) {
-    const calendarDays = month === 9 ? 30 : 31;
-    const workingDays = month === 8 ? 25 : 26;
-    const presentDays = month === 8 ? 24 : month === 7 ? 25 : 26;
-    const paidLeaveDays = month === 9 ? 0 : 1;
+    const calendarDays = [4, 6, 9, 11].includes(month) ? 30 : month === 2 ? 28 : 31;
+    const workingDays = 25;
+    const presentDays = calc.presentDays !== undefined ? Number(calc.presentDays) : 25;
+    const paidLeaveDays = calc.paidLeaveDays !== undefined ? Number(calc.paidLeaveDays) : 0;
+    const unpaidLeaveDays = calc.unpaidLeaveDays !== undefined ? Number(calc.unpaidLeaveDays) : 0;
+    const payableDays = calc.payableDays !== undefined ? Number(calc.payableDays) : (presentDays + paidLeaveDays);
 
     return {
       snapshotVersion: 2,
       company: {
         name: 'HIMALAYA FRP & CONSTRUCTION PRODUCTS',
-        address: 'Plot No. 42, GIDC Industrial Estate, Haridwar, Uttarakhand',
-        email: 'accounts@himalayaerp.com',
-        phone: '+91 98765 00000',
+        address:
+          'Besides Anand Niketan School, Opp. Shyam Village Hotel, Mehmedabad Highway, Hathijan, Ahmedabad – 382445, Gujarat, India.',
+        email: 'info@thehimalaya.co.in',
+        phone: '+91 84888 11630 / +91 90335 16045',
       },
       employee: {
         fullName: empName,
@@ -1347,11 +1351,15 @@ export class PayrollService {
         code: empCode,
         jobTitle: empJob,
         department: { name: empDept },
-        panNumber: employee?.panNumber || 'ABCDE1008F',
-        bankName: 'HDFC Bank Ltd',
-        bankAccountLastFour: '5008',
-        ifsc: 'HDFC0001234',
-        joiningDate: employee?.joiningDate || '2024-04-01',
+        panNumber: employee?.panNumber || 'N/A',
+        uanNumber: employee?.uanNumber || 'N/A',
+        esicNumber: employee?.esicNumber || 'N/A',
+        bankName: employee?.bankName || 'HDFC Bank Ltd',
+        bankAccountLastFour: employee?.bankAccountLastFour || '****',
+        ifsc: employee?.ifscCode || 'HDFC0001234',
+        joiningDate: employee?.joiningDate
+          ? new Date(employee.joiningDate).toISOString().slice(0, 10)
+          : '2024-04-01',
       },
       payment: {
         utrNumber: utr,
@@ -1363,11 +1371,11 @@ export class PayrollService {
         standardWorkingDays: workingDays,
         presentDays,
         paidLeaveDays,
-        unpaidLeaveDays: 0,
+        unpaidLeaveDays,
         halfDays: 0,
         weeklyOffDays: 4,
         holidays: 1,
-        payableDays: presentDays + paidLeaveDays,
+        payableDays,
         overtimeHours: 0,
       },
       basicSalary: calc.basicSalary,
@@ -1390,6 +1398,7 @@ export class PayrollService {
       professionalTax: calc.professionalTaxAmount,
       tdsAmount: calc.tdsAmount,
       tdsDeduction: calc.tdsAmount,
+      leaveDeduction: calc.leaveDeduction || 0,
       totalDeduction: calc.totalDeductionB,
       totalDeductions: calc.totalDeductionB,
       netTakeHome: calc.netTakeHomeC,
@@ -1421,11 +1430,14 @@ export class PayrollService {
         ...(calc.tdsAmount > 0
           ? [{ key: 'tds', title: 'TDS / Income Tax', label: 'TDS / Income Tax', amount: calc.tdsAmount }]
           : []),
+        ...(calc.leaveDeduction > 0
+          ? [{ key: 'lop', title: 'Loss of Pay / Leave Deduction', label: 'Loss of Pay / Leave Deduction', amount: calc.leaveDeduction }]
+          : []),
       ],
     };
   }
 
-  // Cascading sync: updates all payroll records and salary slips for this employee when HR prepares/edits structure
+  // Cascading sync: updates only open DRAFT records for this employee when HR prepares/edits structure
   async syncEmployeePayrollAndSlips(employeeId: string, calc: any, structure: any) {
     try {
       const employee = await this.prisma.employee.findUnique({
@@ -1439,9 +1451,13 @@ export class PayrollService {
       const empDept = structure?.departmentSnapshot || employee.department?.name || 'Operations';
       const empJob = structure?.designationSnapshot || employee.jobTitle || 'Executive';
 
-      // 1. Update all PayrollRecords for this employee to match new structure
+      // 1. Update ONLY DRAFT PayrollRecords for this employee to match new structure.
+      // Already approved, submitted, processing, or paid records are frozen and MUST NOT be overwritten!
       const records = await this.prisma.payrollRecord.findMany({
-        where: { employeeId },
+        where: {
+          employeeId,
+          status: 'DRAFT',
+        },
         include: { payrollPeriod: true, payment: true, salarySlip: true },
       });
 
@@ -1466,7 +1482,7 @@ export class PayrollService {
               tdsDeduction: calc.tdsAmount,
               totalDeductions: calc.totalDeductionB,
               netPayable: calc.netTakeHomeC,
-              paidAmount: rec.status === 'PAID' ? calc.netTakeHomeC : rec.paidAmount,
+              paidAmount: 0,
               employerPf: calc.companyEpfAmount,
               employerEsic: calc.companyEsicAmount,
               employerTotalCost: calc.totalCompanyContributionD,
@@ -1475,41 +1491,8 @@ export class PayrollService {
           .catch(() => {});
       }
 
-      // 2. Update all SalarySlips for this employee
-      const slips = await this.prisma.salarySlip.findMany({
-        where: { employeeId },
-        include: { payrollRecord: true },
-      });
-
-      for (const s of slips) {
-        const utr = (s.snapshotJson as any)?.payment?.utrNumber || (s.payrollRecord as any)?.payment?.utrNumber || '—';
-        const pDate = (s.snapshotJson as any)?.payment?.paymentDate || s.payrollRecord?.paidAt || s.generatedAt;
-        const snap = this.buildSnapshotForSlip(
-          s.salaryMonth,
-          s.salaryYear,
-          utr,
-          pDate,
-          empName,
-          empCode,
-          empDept,
-          empJob,
-          employee,
-          calc,
-        );
-
-        await this.prisma.salarySlip
-          .update({
-            where: { id: s.id },
-            data: {
-              grossEarnings: calc.grossTotalA,
-              totalDeductions: calc.totalDeductionB,
-              netPaid: calc.netTakeHomeC,
-              availableToEmployee: true,
-              snapshotJson: snap,
-            },
-          })
-          .catch(() => {});
-      }
+      // 2. Already issued SalarySlips are immutable snapshots of disbursed months.
+      // Do NOT bulk-overwrite historical slips!
     } catch (e) {
       console.error('Failed to sync employee payroll and slips:', e);
     }
@@ -1522,12 +1505,13 @@ export class PayrollService {
       return [];
     }
 
-    const structure = await this.getOrCreateActiveSalaryStructure(employee);
+    const companyId = this.getCompanyId(user);
 
     // If there are paid payroll records without slips, ensure slips exist
     const paidRecords = await this.prisma.payrollRecord.findMany({
       where: {
         employeeId: employee.id,
+        companyId,
         status: 'PAID',
         salarySlip: null,
       },
@@ -1563,8 +1547,9 @@ export class PayrollService {
             employeeEsicAmount: Number(pr.esicDeduction || 0),
             professionalTaxAmount: Number(pr.professionalTax || 0),
             tdsAmount: Number(pr.tdsDeduction || 0),
+            leaveDeduction: Number(pr.leaveDeduction || 0),
             totalDeductionB: Number(pr.totalDeductions || 0),
-            netTakeHomeC: Number(pr.netPayable || 0),
+            netTakeHomeC: Number(pr.paidAmount || pr.netPayable || 0),
             ctcPerMonthE: Number(pr.grossEarnings || 0),
           },
         );
@@ -1592,6 +1577,7 @@ export class PayrollService {
       where: {
         employeeId: employee.id,
         availableToEmployee: true,
+        payrollRecord: { status: 'PAID' },
       },
       include: {
         payrollRecord: {
@@ -1606,32 +1592,34 @@ export class PayrollService {
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
 
-    return slips.map((s) => {
+    return slips.map((s: any) => {
       const snap = (s.snapshotJson as any) || {};
-      const paidDate = s.payrollRecord?.paidAt || snap.payment?.paymentDate || s.generatedAt;
+      const pr = s.payrollRecord;
+      const paidDate = pr?.paidAt || snap.payment?.paymentDate || s.generatedAt;
       const utr =
-        s.payrollRecord?.payment?.utrNumber ||
+        pr?.payment?.utrNumber ||
         snap.payment?.utrNumber ||
         null;
 
-      const basicSalary = Number(snap.basicSalary || s.payrollRecord?.basicSalary || structure?.basicSalary || 0);
-      const hraAmount = Number(snap.hraAmount || snap.hra || s.payrollRecord?.hra || structure?.hra || 0);
-      const convAmount = Number(snap.conveyanceAmount || snap.conveyanceAllowance || s.payrollRecord?.conveyanceAllowance || structure?.conveyanceAllowance || 0);
-      const specialAllowance = Number(snap.ltaAmount || snap.specialAllowance || s.payrollRecord?.specialAllowance || structure?.specialAllowance || structure?.ltaAmount || 0);
-      const otherAllowance = Number(snap.educationAllowanceAmount || snap.otherAllowance || s.payrollRecord?.otherAllowance || structure?.otherAllowance || 0);
-      const grossSalary = Number(s.grossEarnings || snap.grossSalary || snap.grossEarnings || s.payrollRecord?.grossEarnings || structure?.grossSalary || 0);
-      const epfAmount = Number(snap.employeeEpfAmount || snap.pfDeduction || s.payrollRecord?.pfDeduction || structure?.employeeEpfAmount || 0);
-      const esicAmount = Number(snap.employeeEsicAmount || snap.esicDeduction || s.payrollRecord?.esicDeduction || structure?.employeeEsicAmount || 0);
-      const ptAmount = Number(snap.professionalTaxAmount || snap.professionalTax || s.payrollRecord?.professionalTax || structure?.professionalTaxAmount || 0);
-      const tdsAmount = Number(snap.tdsAmount || snap.tdsDeduction || s.payrollRecord?.tdsDeduction || structure?.tdsAmount || 0);
-      const totalDeduction = Number(s.totalDeductions || snap.totalDeduction || snap.totalDeductions || s.payrollRecord?.totalDeductions || structure?.totalDeduction || 0);
-      const netTakeHome = Number(s.netPaid || snap.netTakeHome || snap.netPaid || s.payrollRecord?.netPayable || structure?.netTakeHome || 0);
-      const ctcPerMonth = Number(snap.ctcPerMonth || structure?.ctcPerMonth || grossSalary);
+      const basicSalary = Number(pr?.basicSalary ?? snap.basicSalary ?? snap.basic ?? snap.earnings?.basic ?? 0);
+      const hraAmount = Number(pr?.hra ?? snap.hraAmount ?? snap.hra ?? snap.earnings?.hra ?? 0);
+      const convAmount = Number(pr?.conveyanceAllowance ?? snap.conveyanceAmount ?? snap.conveyanceAllowance ?? snap.earnings?.conveyance ?? 0);
+      const specialAllowance = Number(pr?.specialAllowance ?? snap.ltaAmount ?? snap.specialAllowance ?? snap.earnings?.special ?? 0);
+      const otherAllowance = Number(pr?.otherAllowance ?? snap.educationAllowanceAmount ?? snap.otherAllowance ?? snap.earnings?.other ?? 0);
+      const grossSalary = Number(s.grossEarnings ?? pr?.grossEarnings ?? snap.grossSalary ?? snap.grossEarnings ?? 0);
+      const epfAmount = Number(pr?.pfDeduction ?? snap.employeeEpfAmount ?? snap.pfDeduction ?? snap.deductions?.pf ?? 0);
+      const esicAmount = Number(pr?.esicDeduction ?? snap.employeeEsicAmount ?? snap.esicDeduction ?? snap.deductions?.esic ?? 0);
+      const ptAmount = Number(pr?.professionalTax ?? snap.professionalTaxAmount ?? snap.professionalTax ?? snap.deductions?.pt ?? 0);
+      const tdsAmount = Number(pr?.tdsDeduction ?? snap.tdsAmount ?? snap.tdsDeduction ?? snap.deductions?.tds ?? 0);
+      const leaveDeduction = Number(pr?.leaveDeduction ?? snap.leaveDeduction ?? snap.lopDeduction ?? snap.deductions?.lop ?? 0);
+      const totalDeduction = Number(s.totalDeductions ?? pr?.totalDeductions ?? snap.totalDeduction ?? snap.totalDeductions ?? (epfAmount + esicAmount + ptAmount + tdsAmount + leaveDeduction));
+      const netTakeHome = Number(s.netPaid ?? pr?.paidAmount ?? pr?.netPayable ?? snap.netTakeHome ?? snap.netPaid ?? (grossSalary - totalDeduction));
+      const ctcPerMonth = Number(snap.ctcPerMonth || grossSalary);
 
-      const empCode = snap.employee?.code || snap.employee?.employeeCode || s.payrollRecord?.employeeCodeSnapshot || employee.employeeCode || '—';
-      const empName = snap.employee?.name || snap.employee?.fullName || s.payrollRecord?.employeeNameSnapshot || employee.fullName || 'Staff Member';
-      const empDept = snap.employee?.department?.name || s.payrollRecord?.departmentSnapshot || employee.department?.name || 'Operations';
-      const empJob = snap.employee?.jobTitle || s.payrollRecord?.jobTitleSnapshot || employee.jobTitle || 'Staff Member';
+      const empCode = pr?.employeeCodeSnapshot || snap.employee?.code || snap.employee?.employeeCode || employee.employeeCode || '—';
+      const empName = pr?.employeeNameSnapshot || snap.employee?.name || snap.employee?.fullName || employee.fullName || 'Staff Member';
+      const empDept = pr?.departmentSnapshot || snap.employee?.department?.name || snap.employee?.department || employee.department?.name || 'Operations';
+      const empJob = pr?.jobTitleSnapshot || snap.employee?.jobTitle || employee.jobTitle || 'Staff Member';
 
       return {
         id: s.id,
@@ -1671,6 +1659,7 @@ export class PayrollService {
         professionalTax: ptAmount,
         tdsAmount,
         tdsDeduction: tdsAmount,
+        leaveDeduction,
         totalDeduction,
         netTakeHome,
         ctcPerMonth,
@@ -1678,7 +1667,6 @@ export class PayrollService {
         employeeName: empName,
         designation: empJob,
         department: empDept,
-        wef: structure?.wef || null,
       };
     });
   }
@@ -1688,6 +1676,11 @@ export class PayrollService {
     const userId = user.sub || user.id;
     const companyId = this.getCompanyId(user);
     const normRole = (user.role?.code || user.role || '').toUpperCase();
+
+    // Cross-tenant payroll isolation
+    if (record?.companyId && companyId && record.companyId !== companyId) {
+      throw new ForbiddenException('Cross-tenant payroll access is prohibited.');
+    }
 
     // Check administrative permissions / roles
     const isPrivileged =
@@ -1899,73 +1892,85 @@ export class PayrollService {
     const comp = snap.company || {};
 
     const gross = Number(
-      activeStruct?.grossSalary ||
-        slip.grossEarnings ||
-        earn.gross ||
-        record?.grossEarnings ||
+      slip.grossEarnings ??
+        record?.grossEarnings ??
+        earn.gross ??
+        activeStruct?.grossSalary ??
         0,
     );
     const totalDed = Number(
-      activeStruct?.totalDeduction ||
-        slip.totalDeductions ||
-        ded.total ||
-        record?.totalDeductions ||
+      slip.totalDeductions ??
+        record?.totalDeductions ??
+        ded.total ??
+        activeStruct?.totalDeduction ??
         0,
     );
     const net = Number(
-      activeStruct?.netTakeHome ||
-        slip.netPaid ||
-        record?.netPayable ||
-        gross - totalDed,
+      slip.netPaid ??
+        record?.netPayable ??
+        (gross > 0 ? gross - totalDed : 0),
     );
 
     const basicSalary = Number(
-      activeStruct?.basicSalary ||
-        earn.basic ||
-        record?.basicSalary ||
-        gross * 0.55,
+      earn.basic ??
+        record?.basicSalary ??
+        activeStruct?.basicSalary ??
+        (gross > 0 ? Math.round(gross * 0.55) : 0),
     );
     const hra = Number(
-      activeStruct?.hra || earn.hra || record?.hra || gross * 0.25,
+      earn.hra ??
+        record?.hra ??
+        activeStruct?.hra ??
+        (gross > 0 ? Math.round(gross * 0.25) : 0),
     );
     const conveyance = Number(
-      activeStruct?.conveyanceAllowance || earn.conveyance || 0,
+      earn.conveyance ??
+        activeStruct?.conveyanceAllowance ??
+        0,
     );
     const special = Number(
-      activeStruct?.specialAllowance ||
-        activeStruct?.ltaAmount ||
-        earn.special ||
+      earn.special ??
+        record?.specialAllowance ??
+        activeStruct?.specialAllowance ??
+        activeStruct?.ltaAmount ??
         0,
     );
     const other = Number(
-      activeStruct?.otherAllowance ||
-        activeStruct?.educationAllowanceAmount ||
-        earn.other ||
+      earn.other ??
+        activeStruct?.otherAllowance ??
+        activeStruct?.educationAllowanceAmount ??
         0,
     );
 
     const epf = Number(
-      activeStruct?.employeeEpfAmount ||
-        ded.pf ||
-        record?.pfDeduction ||
-        1800,
+      ded.pf ??
+        record?.pfDeduction ??
+        activeStruct?.employeeEpfAmount ??
+        0,
     );
     const esic = Number(
-      activeStruct?.employeeEsicAmount ||
-        ded.esic ||
-        record?.esicDeduction ||
+      ded.esic ??
+        record?.esicDeduction ??
+        activeStruct?.employeeEsicAmount ??
         0,
     );
     const pt = Number(
-      activeStruct?.professionalTaxAmount ||
-        ded.pt ||
-        record?.professionalTax ||
-        200,
+      ded.pt ??
+        record?.professionalTax ??
+        activeStruct?.professionalTaxAmount ??
+        0,
     );
     const tds = Number(
-      activeStruct?.tdsAmount || ded.tds || record?.tdsDeduction || 0,
+      ded.tds ??
+        record?.tdsDeduction ??
+        activeStruct?.tdsAmount ??
+        0,
     );
-    const lop = Number(ded.lop || record?.leaveDeduction || 0);
+    const lop = Number(
+      ded.lop ??
+        record?.leaveDeduction ??
+        0,
+    );
 
     const earnings = [
       { label: 'Basic Salary', amount: basicSalary },
@@ -1989,6 +1994,12 @@ export class PayrollService {
       ...(lop > 0 ? [{ label: 'Loss of Pay (LOP)', amount: lop }] : []),
     ];
 
+    const netWords =
+      slip.netPaidInWords ||
+      (typeof numberToWords === 'function'
+        ? numberToWords(net)
+        : `Rupees ${net} Only`);
+
     return {
       company: {
         name: comp.name || 'HIMALAYA FRP & CONSTRUCTION PRODUCTS',
@@ -2008,10 +2019,10 @@ export class PayrollService {
       payrollNumber: record?.payrollNumber || `PAY-${slip.slipNumber}`,
       employee: {
         fullName:
-          activeStruct?.employeeNameSnapshot ||
           emp.name ||
           record?.employeeNameSnapshot ||
           record?.employee?.fullName ||
+          activeStruct?.employeeNameSnapshot ||
           'Staff Member',
         employeeId:
           emp.code ||
@@ -2024,19 +2035,23 @@ export class PayrollService {
           record?.employee?.employeeCode ||
           'EMP-001',
         department:
-          activeStruct?.departmentSnapshot ||
           emp.department ||
           record?.departmentSnapshot ||
           record?.employee?.department?.name ||
+          activeStruct?.departmentSnapshot ||
           'Operations',
         designation:
-          activeStruct?.designationSnapshot ||
           emp.jobTitle ||
           record?.jobTitleSnapshot ||
+          activeStruct?.designationSnapshot ||
           'Employee',
-        location: 'Main Plant',
-        joiningDate: record?.employee?.joiningDate || '2025-01-01',
-        panNumber: 'N/A',
+        location: emp.location || 'Main Plant',
+        joiningDate:
+          emp.joiningDate ||
+          (record?.employee?.joiningDate
+            ? new Date(record.employee.joiningDate).toISOString().slice(0, 10)
+            : '2025-01-01'),
+        panNumber: emp.panNumber || 'N/A',
         bankName: emp.bankName || record?.bankNameSnapshot || 'HDFC Bank',
         maskedAccountNumber: emp.accountLast4
           ? `****${emp.accountLast4}`
@@ -2056,17 +2071,17 @@ export class PayrollService {
           att.unpaidLeaveDays || record?.unpaidLeaveDays || 0,
         ),
         halfDays: Number(att.halfDays || record?.halfDays || 0),
-        weeklyOffDays: 4,
-        holidays: 1,
+        weeklyOffDays: Number(att.weeklyOffDays || 4),
+        holidays: Number(att.holidays || 1),
         payableDays: Number(att.payableDays || record?.payableDays || 25),
-        overtimeHours: 0,
+        overtimeHours: Number(att.overtimeHours || 0),
       },
       earnings,
       grossEarnings: gross,
       deductions,
       totalDeductions: totalDed,
       netPaid: net,
-      netPaidInWords: `Rupees ${net} Only`,
+      netPaidInWords: netWords,
       payment: {
         paymentDate: record?.paidAt || slip.generatedAt || new Date(),
         paymentMode: 'NEFT / Bank Transfer',
@@ -2199,12 +2214,14 @@ export class PayrollService {
     const comp = snap.company || {};
 
     const gross = Number(
-      slip.grossEarnings || earn.gross || record?.grossEarnings || 0,
+      slip.grossEarnings ?? record?.grossEarnings ?? earn.gross ?? 0,
     );
     const totalDed = Number(
-      slip.totalDeductions || ded.total || record?.totalDeductions || 0,
+      slip.totalDeductions ?? record?.totalDeductions ?? ded.total ?? 0,
     );
-    const net = Number(slip.netPaid || record?.netPayable || gross - totalDed);
+    const net = Number(
+      slip.netPaid ?? record?.netPayable ?? (gross > 0 ? gross - totalDed : 0),
+    );
 
     const monthNum = Number(
       slip.salaryMonth || record?.payrollPeriod?.month || 8,
@@ -2217,13 +2234,13 @@ export class PayrollService {
     );
 
     const basicAmt = Number(
-      earn.basic || record?.basicSalary || (gross > 0 ? gross * 0.6 : 0),
+      earn.basic ?? record?.basicSalary ?? (gross > 0 ? Math.round(gross * 0.55) : 0),
     );
     const hraAmt = Number(
-      earn.hra || record?.hra || (gross > 0 ? gross * 0.2 : 0),
+      earn.hra ?? record?.hra ?? (gross > 0 ? Math.round(gross * 0.25) : 0),
     );
     const specialAmt = Number(
-      earn.special || record?.specialAllowance || (gross > 0 ? gross * 0.2 : 0),
+      earn.special ?? record?.specialAllowance ?? (gross > 0 && gross > (basicAmt + hraAmt) ? gross - basicAmt - hraAmt : 0),
     );
 
     const earningsRows = [
@@ -2236,9 +2253,9 @@ export class PayrollService {
       },
     ].filter((r) => r.amount > 0 || r.key === 'basic');
 
-    const lopAmt = Number(ded.lop || record?.leaveDeduction || 0);
-    const pfAmt = Number(ded.pf || record?.pfDeduction || 0);
-    const ptAmt = Number(ded.pt || record?.professionalTax || 0);
+    const lopAmt = Number(ded.lop ?? record?.leaveDeduction ?? 0);
+    const pfAmt = Number(ded.pf ?? record?.pfDeduction ?? 0);
+    const ptAmt = Number(ded.pt ?? record?.professionalTax ?? 0);
 
     const deductionsRows = [
       { key: 'lop', label: 'Leave Deduction (LOP)', amount: lopAmt },
@@ -2249,6 +2266,12 @@ export class PayrollService {
     const rawPaidAt =
       record?.paidAt || slip.generatedAt || new Date().toISOString();
     const formattedPaidDate = String(rawPaidAt).slice(0, 10);
+
+    const netWords =
+      slip.netPaidInWords ||
+      (typeof numberToWords === 'function'
+        ? numberToWords(net)
+        : `Rupees ${net.toLocaleString('en-IN')} Only`);
 
     return {
       ...slip,
@@ -2325,16 +2348,19 @@ export class PayrollService {
       deductions: deductionsRows,
       totalDeductions: totalDed,
       netPaid: net,
-      netPaidInWords:
-        net === 0
-          ? 'Rupees Zero Only'
-          : `Rupees ${net.toLocaleString('en-IN')} Only`,
+      netPaidInWords: netWords,
       payment: {
         paidAmount: net,
         paymentDate: formattedPaidDate,
         paymentMode: 'NEFT / Bank Transfer',
-        utrNumber: record?.payment?.utrNumber || 'HDFC20260820ABC123',
-        transactionReference: record?.payment?.paymentNumber || 'PAY-REF-001',
+        utrNumber:
+          record?.payment?.utrNumber ||
+          snap.payment?.utrNumber ||
+          '—',
+        transactionReference:
+          record?.payment?.paymentNumber ||
+          snap.payment?.transactionReference ||
+          '—',
         processedBy: 'Finance Manager',
         processedAt: formattedPaidDate,
       },

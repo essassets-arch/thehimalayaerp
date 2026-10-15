@@ -2046,6 +2046,16 @@ export default function MyProfileView() {
           </div>
         </div>
       )}
+
+      {/* ── SALARY SLIP VIEWER MODAL ── */}
+      {viewingSlip && (
+        <SalarySlipDocument
+          slip={viewingSlip}
+          isModal={true}
+          allowDownload={true}
+          onClose={() => setViewingSlip(null)}
+        />
+      )}
     </div>
   );
 }

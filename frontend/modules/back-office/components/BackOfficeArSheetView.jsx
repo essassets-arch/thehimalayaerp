@@ -1669,7 +1669,7 @@ export default function BackOfficeArSheetView({
                 style={{ width: '100%', padding: isMobile ? '9px 10px' : '7px 8px', fontSize: isMobile ? '16px' : '12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', outline: 'none' }}
               >
                 <option value="ALL">All Sales Types</option>
-                {Array.from(new Set(['Regular', 'RT', 'Project', 'Trading', ...(filterOptions?.salesTypes || [])])).map((st) => (
+                {Array.from(new Set(['MGMT', 'NMGMT', 'Regular', 'RT', 'Project', 'Trading', ...(filterOptions?.salesTypes || [])])).map((st) => (
                   <option key={st} value={st}>{st}</option>
                 ))}
               </select>

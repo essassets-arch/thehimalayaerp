@@ -177,9 +177,14 @@ export function SalarySlipDocument({
     ? Number(data.conveyanceAllowance ?? data.conveyanceAmount ?? data.conveyance)
     : Math.round((basicSalary * convPct) / 100);
 
-  // Total Gross Salary (A) is ALWAYS strictly equal to sum of basic and allowances
+  // Total Gross Salary (A) is strictly equal to authoritative gross or sum of basic and allowances
   const componentsSum = basicSalary + hraAmount + ltaAmount + eduAmount + convAmount;
-  const totalGross = componentsSum > 0 ? componentsSum : rawGross;
+  const totalGross = Number(
+    data.grossEarnings ??
+      data.grossSalary ??
+      data.grossTotal ??
+      (componentsSum > 0 ? componentsSum : rawGross),
+  );
 
   // 2. Deductions (B)
   const hasEmpEpfPct = data.employeeEpfPercentage !== undefined && data.employeeEpfPercentage !== null && data.employeeEpfPercentage !== '';
@@ -235,11 +240,21 @@ export function SalarySlipDocument({
         ? Math.round(((totalGross - statutoryDeductionsWithoutLeave) - rawNet) * 100) / 100
         : 0);
 
-  // Total Deductions (B) is ALWAYS strictly the sum of all deduction line items in Table B:
-  const totalDeductions = statutoryDeductionsWithoutLeave + leaveDeduction;
+  // Total Deductions (B) is strictly equal to authoritative deductions or computed sum:
+  const computedDeductions = statutoryDeductionsWithoutLeave + leaveDeduction;
+  const totalDeductions = Number(
+    data.totalDeductions ??
+      data.totalDeduction ??
+      computedDeductions,
+  );
 
-  // Net Take Home Pay (C = A - B) is ALWAYS strictly totalGross - totalDeductions:
-  const netTakeHome = Math.max(0, totalGross - totalDeductions);
+  // Net Take Home Pay (C = A - B) is strictly equal to authoritative net or totalGross - totalDeductions:
+  const netTakeHome = Number(
+    data.netPaid ??
+      data.netTakeHome ??
+      data.netPayable ??
+      Math.max(0, totalGross - totalDeductions),
+  );
 
   // 3. Employer Contributions & CTC (D & E)
   const hasCompEpfPct = data.companyEpfPercentage !== undefined && data.companyEpfPercentage !== null && data.companyEpfPercentage !== '';
@@ -271,6 +286,57 @@ export function SalarySlipDocument({
   // Total Cost to Company - CTC (E = A + D) is ALWAYS strictly totalGross + totalCompanyCost:
   const ctcPerMonth = totalGross + totalCompanyCost;
   const ctcPerAnnum = ctcPerMonth * 12;
+
+  // Authoritative Backend PDF Download function
+  const handleDownloadPdf = async () => {
+    if (data.id) {
+      setDownloading(true);
+      try {
+        let token = null;
+        if (typeof window !== 'undefined') {
+          const authStorageStr = window.localStorage.getItem('auth-storage');
+          if (authStorageStr) {
+            try {
+              const parsed = JSON.parse(authStorageStr);
+              token = parsed?.state?.accessToken;
+            } catch (_) {}
+          }
+          if (!token) {
+            token =
+              window.sessionStorage.getItem('token') ||
+              window.sessionStorage.getItem('himalaya_token') ||
+              window.localStorage.getItem('token') ||
+              window.localStorage.getItem('himalaya_token');
+          }
+        }
+        const targetUrl = `/api/backend/hr/salary-slips/${data.id}/pdf`;
+        const res = await fetch(targetUrl, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const blob = await res.blob();
+          const safeName = (empName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_');
+          const safeCode = (empCode || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+          const filename = `Salary_Slip_${safeName}_${safeCode}.pdf`;
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+          setDownloading(false);
+          return;
+        }
+      } catch (e) {
+        console.warn('Direct PDF download failed, falling back to image export:', e);
+      } finally {
+        setDownloading(false);
+      }
+    }
+    await handleDownloadImage();
+  };
 
   // High-Resolution Image Download function with native Tailwind v4 oklch support
   const handleDownloadImage = async () => {
@@ -580,15 +646,27 @@ export function SalarySlipDocument({
 
             <div className="salary-slip-toolbar-actions">
               {allowDownload && (
-                <button
-                  type="button"
-                  onClick={handleDownloadImage}
-                  disabled={downloading}
-                  className="btn-slip-action btn-slip-download"
-                  title="Download Salary Slip as Image"
-                >
-                  {downloading ? '⏳ Generating Image...' : '🖼️ Download Image'}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={handleDownloadPdf}
+                    disabled={downloading}
+                    className="btn-slip-action btn-slip-download"
+                    style={{ background: '#2563eb', color: '#ffffff', borderColor: '#1d4ed8', fontWeight: 600 }}
+                    title="Download Official Salary Slip PDF"
+                  >
+                    {downloading ? '⏳ Downloading...' : '📄 Download PDF'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadImage}
+                    disabled={downloading}
+                    className="btn-slip-action btn-slip-download"
+                    title="Download Salary Slip as Image"
+                  >
+                    🖼️ Image
+                  </button>
+                </>
               )}
 
               {data.id && (
@@ -629,15 +707,27 @@ export function SalarySlipDocument({
 
         <div className="salary-slip-toolbar-actions">
           {allowDownload && (
-            <button
-              type="button"
-              onClick={handleDownloadImage}
-              disabled={downloading}
-              className="btn-slip-action btn-slip-download"
-              title="Download Salary Slip as Image"
-            >
-              {downloading ? '⏳ Generating Image...' : '🖼️ Download Image'}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={downloading}
+                className="btn-slip-action btn-slip-download"
+                style={{ background: '#2563eb', color: '#ffffff', borderColor: '#1d4ed8', fontWeight: 600 }}
+                title="Download Official Salary Slip PDF"
+              >
+                {downloading ? '⏳ Downloading...' : '📄 Download PDF'}
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadImage}
+                disabled={downloading}
+                className="btn-slip-action btn-slip-download"
+                title="Download Salary Slip as Image"
+              >
+                🖼️ Image
+              </button>
+            </>
           )}
 
           {data.id && (

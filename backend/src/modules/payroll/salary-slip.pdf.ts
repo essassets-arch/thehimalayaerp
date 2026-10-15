@@ -8,6 +8,46 @@ const formatMoney = (val: any) => {
   return `INR ${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
+export function numberToWords(num: number): string {
+  const a = [
+    '', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ',
+    'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ',
+    'Seventeen ', 'Eighteen ', 'Nineteen ',
+  ];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const n = Math.floor(Math.abs(num));
+  if (n === 0) return 'Rupees Zero Only';
+
+  const inWords = (n: number): string => {
+    let str = '';
+    const crore = Math.floor(n / 10000000);
+    const lakh = Math.floor((n % 10000000) / 100000);
+    const thousand = Math.floor((n % 100000) / 1000);
+    const hundred = Math.floor((n % 1000) / 100);
+    const rest = Math.floor(n % 100);
+
+    if (crore > 0) str += inWords(crore) + 'Crore ';
+    if (lakh > 0) str += inWords(lakh) + 'Lakh ';
+    if (thousand > 0) str += inWords(thousand) + 'Thousand ';
+    if (hundred > 0) str += inWords(hundred) + 'Hundred ';
+    if (rest > 0) {
+      if (rest < 20) {
+        str += a[rest];
+      } else {
+        str += b[Math.floor(rest / 10)] + ' ' + a[rest % 10];
+      }
+    }
+    return str;
+  };
+
+  const rupees = inWords(n).trim();
+  const paiseVal = Math.round((Math.abs(num) - n) * 100);
+  const paise = paiseVal > 0 ? ` and ${inWords(paiseVal).trim()} Paise` : '';
+
+  return `Rupees ${rupees}${paise} Only`;
+}
+
 export function createSalarySlipPdf(slip: any): Buffer {
   const commands: string[] = [];
 
@@ -246,7 +286,7 @@ export function createSalarySlipPdf(slip: any): Buffer {
   drawBox(48, y - 40, 499, 48, 1.25);
   drawText('NET SALARY PAID', 245, y - 5, 9, true);
   drawText(formatMoney(slip.netPaid), 220, y - 22, 14, true);
-  drawText(slip.netPaidInWords || 'Rupees Zero Only', 215, y - 34, 8, false);
+  drawText(slip.netPaidInWords || numberToWords(slip.netPaid), 215, y - 34, 8, false);
 
   y -= 60;
 

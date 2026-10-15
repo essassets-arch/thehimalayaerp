@@ -183,12 +183,12 @@ export class PayrollController {
   // EMPLOYEE PROFILE SELF-SERVICE ENDPOINTS
   // ==========================================
 
-  @Get(['payroll/me', 'hr/salary-slips/mine'])
+  @Get(['payroll/me', 'hr/salary-slips/mine', 'profile/salary-slips'])
   getOwnSalarySlips(@Req() req: any) {
     return this.service.getOwnSalarySlips(req.user);
   }
 
-  @Get(['payroll/me/:id/slip', 'payroll/me/:id'])
+  @Get(['payroll/me/:id/slip', 'payroll/me/:id', 'profile/salary-slips/:id'])
   getOwnSalarySlipDetail(@Param('id') id: string, @Req() req: any) {
     return this.service.getSalarySlipPdf(id, req.user);
   }
@@ -214,6 +214,7 @@ export class PayrollController {
     'payroll/salary-slips/:id/pdf',
     'salary-slips/:id/pdf',
     'hr/salary-slips/:id/pdf',
+    'profile/salary-slips/:id/pdf',
   ])
   async getSalarySlipPdfFile(
     @Param('id') id: string,
