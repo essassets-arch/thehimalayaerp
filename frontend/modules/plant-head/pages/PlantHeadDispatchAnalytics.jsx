@@ -666,22 +666,45 @@ export const PlantHeadDispatchAnalytics = () => {
 
   const uniqueDailyReportUsers = useMemo(() => {
     if (Array.isArray(dispatchDailyReports.userBreakdown) && dispatchDailyReports.userBreakdown.length > 0) {
-      return dispatchDailyReports.userBreakdown.map(u => ({
-        name: u.user || u.name,
-        user: u.user || u.name,
-        email: u.email || '',
-        count: u.reportCount || u.count || 0,
-        totalCovers: u.totalCovers || 0,
-        totalFrames: u.totalFrames || 0,
-        totalSets: u.totalSets || 0,
-        totalWeight: u.totalWeight || 0
-      }));
+      return dispatchDailyReports.userBreakdown.map(u => {
+        const uName = u.userName || u.user || u.name || 'Dispatch User';
+        return {
+          id: u.userId || u.id || uName,
+          userId: u.userId || u.id || uName,
+          name: uName,
+          user: uName,
+          userName: uName,
+          email: u.userEmail || u.email || '',
+          count: u.entriesCount ?? u.reportCount ?? u.count ?? 0,
+          totalCovers: Number(u.totalCovers) || 0,
+          totalFrames: Number(u.totalFrames) || 0,
+          totalSets: Number(u.totalSets) || 0,
+          totalWeight: Number(u.totalWeight) || 0,
+          dispatchType: u.dispatchType || 'DISPATCH_1',
+          dispatchTypeLabel: u.dispatchTypeLabel || 'Dispatch Unit 1',
+        };
+      });
     }
     const userMap = {};
-    dailyReportsList.forEach(r => {
-      const u = r.enteredBy || r.dispatchExecutive || 'Unknown';
+    (dailyReportsList || []).forEach(r => {
+      if (!r) return;
+      const u = r.enteredBy || r.dispatchExecutive || 'Dispatch User';
       if (!userMap[u]) {
-        userMap[u] = { name: u, user: u, email: r.enteredByEmail || '', count: 0, totalCovers: 0, totalFrames: 0, totalSets: 0, totalWeight: 0 };
+        userMap[u] = {
+          id: u,
+          userId: u,
+          name: u,
+          user: u,
+          userName: u,
+          email: r.enteredByEmail || '',
+          count: 0,
+          totalCovers: 0,
+          totalFrames: 0,
+          totalSets: 0,
+          totalWeight: 0,
+          dispatchType: r.dispatchType || 'DISPATCH_1',
+          dispatchTypeLabel: r.dispatchTypeLabel || 'Dispatch Unit 1',
+        };
       }
       userMap[u].count += 1;
       userMap[u].totalCovers += Number(r.totalCovers) || 0;
@@ -693,7 +716,7 @@ export const PlantHeadDispatchAnalytics = () => {
   }, [dispatchDailyReports, dailyReportsList]);
 
   const filteredDailyReports = useMemo(() => {
-    let list = dailyReportsList;
+    let list = Array.isArray(dailyReportsList) ? dailyReportsList.filter(Boolean) : [];
     if (dailyReportUserFilter && dailyReportUserFilter !== 'All') {
       list = list.filter(r => (r.enteredBy === dailyReportUserFilter || r.dispatchExecutive === dailyReportUserFilter));
     }
@@ -714,7 +737,7 @@ export const PlantHeadDispatchAnalytics = () => {
         (r.dispatchExecutive && String(r.dispatchExecutive).toLowerCase().includes(q)) ||
         (r.shift && String(r.shift).toLowerCase().includes(q)) ||
         (r.date && String(r.date).toLowerCase().includes(q)) ||
-        (Array.isArray(r.items) && r.items.some(it => (it.productName && it.productName.toLowerCase().includes(q)) || (it.size && it.size.toLowerCase().includes(q))))
+        (Array.isArray(r.items) && r.items.some(it => (it && ((it.productName && String(it.productName).toLowerCase().includes(q)) || (it.size && String(it.size).toLowerCase().includes(q))))))
       );
     }
     return list;
@@ -2601,12 +2624,14 @@ export const PlantHeadDispatchAnalytics = () => {
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '8px' }}>
-                      {(dispatchDailyReports.userBreakdown || uniqueDailyReportUsers).map((u, idx) => {
-                        const isSelected = dailyReportUserFilter === u.user || dailyReportUserFilter === u.name;
-                        const userName = u.user || u.name;
+                      {uniqueDailyReportUsers.map((u, idx) => {
+                        const userName = u.userName || u.user || u.name || 'Dispatch User';
+                        const isSelected = dailyReportUserFilter === userName || dailyReportUserFilter === u.user || dailyReportUserFilter === u.name;
+                        const initial = (userName || 'U').trim().charAt(0).toUpperCase() || 'U';
+                        const reportCount = u.count ?? u.reportCount ?? u.entriesCount ?? 0;
                         return (
                           <div
-                            key={idx}
+                            key={u.userId || u.name || userName || idx}
                             onClick={() => {
                               setDailyReportUserFilter(isSelected ? 'All' : userName);
                               setDailyReportCurrentPage(1);
@@ -2626,7 +2651,7 @@ export const PlantHeadDispatchAnalytics = () => {
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#0f2e5a', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '800' }}>
-                                  {userName.charAt(0).toUpperCase()}
+                                  {initial}
                                 </div>
                                 <div>
                                   <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#0f2e5a' }}>
@@ -2640,7 +2665,7 @@ export const PlantHeadDispatchAnalytics = () => {
                                 </div>
                               </div>
                               <span style={{ fontSize: '10px', fontWeight: '800', background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: '4px' }}>
-                                {u.reportCount || u.count} Reports
+                                {reportCount} Reports
                               </span>
                             </div>
 
@@ -2701,11 +2726,15 @@ export const PlantHeadDispatchAnalytics = () => {
                         style={{ fontSize: '11px', padding: '4px 8px' }}
                       >
                         <option value="All">All Dispatch Users ({uniqueDailyReportUsers.length})</option>
-                        {uniqueDailyReportUsers.map((u) => (
-                          <option key={u.name} value={u.name}>
-                            {u.name} ({u.count} reports • {u.totalCovers} covers)
-                          </option>
-                        ))}
+                        {uniqueDailyReportUsers.map((u, idx) => {
+                          const userName = u.userName || u.user || u.name || 'Dispatch User';
+                          const count = u.count ?? u.reportCount ?? u.entriesCount ?? 0;
+                          return (
+                            <option key={u.userId || u.name || userName || idx} value={userName}>
+                              {userName} ({count} reports • {fmtNum(u.totalCovers)} covers)
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
 
