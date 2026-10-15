@@ -61,6 +61,7 @@ export default function Customer360Page() {
   const [orderSearch, setOrderSearch] = useState('');
 
   useEffect(() => {
+    if (!id) return;
     let active = true;
     setLoading(true);
     backendFetch<CustomerDetail>(`/api/backend/customers/${encodeURIComponent(id)}/360`)

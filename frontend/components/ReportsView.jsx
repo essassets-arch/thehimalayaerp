@@ -20,6 +20,7 @@ import { useERP } from '../shared/context/ERPContext';
 import { apiClient } from '../lib/apiClient';
 import { exportSalesReportPDF, exportToCSV } from '../services/export.service';
 import { withErrorBoundary } from './ui/ErrorBoundary';
+import { resolveQuotationNumber, resolveQuotationCustomerName } from '../shared/utils/quotationUtils.js';
 
 /**
  * Universal ID Resolvers for Sales Reports
@@ -62,7 +63,7 @@ export const resolveLeadNumber = (lead) => {
   return '—';
 };
 
-export { resolveQuotationNumber } from '../shared/utils/quotationUtils.js';
+export { resolveQuotationNumber, resolveQuotationCustomerName };
 
 export const resolveOrderNumber = (order) => {
   if (!order) return '—';
