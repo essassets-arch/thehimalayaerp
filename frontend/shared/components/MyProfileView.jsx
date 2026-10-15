@@ -19,305 +19,8 @@ import { useSearchParams } from 'next/navigation';
 import { loadPunchHistory, filterPunchHistory, countPunches } from '../../lib/profilePunchHistory.mjs';
 
 
-const getDefaultAttendance = (isBackOffice) => isBackOffice ? [
-  { month: 'September 2026', present: 24, absent: 0, leave: 1, holiday: 2 },
-  { month: 'August 2026', present: 23, absent: 1, leave: 0, holiday: 2 },
-  { month: 'July 2026', present: 24, absent: 0, leave: 1, holiday: 2 },
-  { month: 'June 2026', present: 23, absent: 1, leave: 0, holiday: 2 }
-] : [
-  { month: 'September 2026', present: 23, absent: 0, leave: 1, holiday: 2 },
-  { month: 'August 2026', present: 24, absent: 1, leave: 0, holiday: 2 },
-  { month: 'July 2026', present: 23, absent: 0, leave: 1, holiday: 2 },
-  { month: 'June 2026', present: 22, absent: 1, leave: 1, holiday: 2 }
-];
-
-const getDefaultSlips = () => [];
 
 
-const getDefaultExpenses = (isBackOffice) => isBackOffice ? [
-  {
-    id: 'exp-bo-1',
-    claimNumber: 'EXP-2026-0911',
-    expenseName: 'Client Site Transport & Local Fuel',
-    amount: 1450,
-    expenseDate: '2026-09-18',
-    status: 'FINANCE_PROCESSED',
-    hrRemarks: 'Approved for official logistics dispatch review.',
-    superAdminRemarks: 'Approved as per company travel policy.',
-    financeRemarks: 'Reimbursement disbursed via NEFT.',
-    paymentReference: 'UTR-EXP-982104',
-    receiptUrl: '/himalaya-logo-trimmed.png'
-  },
-  {
-    id: 'exp-bo-2',
-    claimNumber: 'EXP-2026-0823',
-    expenseName: 'Office Technical Supplies & Stationery',
-    amount: 820,
-    expenseDate: '2026-08-25',
-    status: 'FINANCE_PROCESSED',
-    hrRemarks: 'Verified stationery receipt invoice.',
-    superAdminRemarks: 'Approved.',
-    financeRemarks: 'Processed with monthly payroll.',
-    paymentReference: 'UTR-EXP-872109',
-    receiptUrl: '/himalaya-logo-trimmed.png'
-  },
-  {
-    id: 'exp-bo-3',
-    claimNumber: 'EXP-2026-1005',
-    expenseName: 'Field Inspection Hardware Adapter & Cabling',
-    amount: 1200,
-    expenseDate: '2026-10-04',
-    status: 'PENDING_HR',
-    hrRemarks: 'Under review by HR coordinator.',
-    receiptUrl: '/himalaya-logo-trimmed.png'
-  }
-] : [
-  {
-    id: 'exp-abb-1',
-    claimNumber: 'EXP-2026-0910',
-    expenseName: 'Client Site Transport & Local Fuel',
-    amount: 1450,
-    expenseDate: '2026-09-18',
-    status: 'FINANCE_PROCESSED',
-    hrRemarks: 'Approved for official logistics dispatch review.',
-    superAdminRemarks: 'Approved as per company travel policy.',
-    financeRemarks: 'Reimbursement disbursed via NEFT.',
-    paymentReference: 'UTR-EXP-982104',
-    receiptUrl: '/himalaya-logo-trimmed.png'
-  },
-  {
-    id: 'exp-abb-2',
-    claimNumber: 'EXP-2026-0822',
-    expenseName: 'Office Technical Supplies & Stationery',
-    amount: 820,
-    expenseDate: '2026-08-25',
-    status: 'FINANCE_PROCESSED',
-    hrRemarks: 'Verified stationery receipt invoice.',
-    superAdminRemarks: 'Approved.',
-    financeRemarks: 'Processed with monthly payroll.',
-    paymentReference: 'UTR-EXP-872109',
-    receiptUrl: '/himalaya-logo-trimmed.png'
-  },
-  {
-    id: 'exp-abb-3',
-    claimNumber: 'EXP-2026-1004',
-    expenseName: 'Field Inspection Hardware Adapter & Cabling',
-    amount: 1200,
-    expenseDate: '2026-10-04',
-    status: 'PENDING_HR',
-    hrRemarks: 'Under review by HR coordinator.',
-    receiptUrl: '/himalaya-logo-trimmed.png'
-  }
-];
-
-const getDefaultLeaves = (isBackOffice) => isBackOffice ? [
-  {
-    id: 'leave-bo-1',
-    leaveType: 'CASUAL',
-    totalDays: 2,
-    fromDate: '2026-09-08',
-    toDate: '2026-09-09',
-    reason: 'Family function in Roorkee',
-    status: 'APPROVED',
-    remarks: 'Approved by Back Office Operations Lead',
-    createdAt: '2026-09-04'
-  },
-  {
-    id: 'leave-bo-2',
-    leaveType: 'SICK',
-    totalDays: 2,
-    fromDate: '2026-08-11',
-    toDate: '2026-08-12',
-    reason: 'Viral fever recovery',
-    status: 'APPROVED',
-    remarks: 'Approved with prescription',
-    createdAt: '2026-08-10'
-  },
-  {
-    id: 'leave-bo-3',
-    leaveType: 'CASUAL',
-    totalDays: 1,
-    fromDate: '2026-10-18',
-    toDate: '2026-10-18',
-    reason: 'Personal banking & documentation',
-    status: 'PENDING_HR',
-    createdAt: '2026-10-06'
-  }
-] : [
-  {
-    id: 'leave-abb-1',
-    leaveType: 'CASUAL',
-    totalDays: 2,
-    fromDate: '2026-08-14',
-    toDate: '2026-08-15',
-    reason: 'Personal travel & family event',
-    status: 'APPROVED',
-    remarks: 'Approved by Plant HR',
-    createdAt: '2026-08-10'
-  },
-  {
-    id: 'leave-abb-2',
-    leaveType: 'SICK',
-    totalDays: 2,
-    fromDate: '2026-07-20',
-    toDate: '2026-07-21',
-    reason: 'Medical consultation & recovery',
-    status: 'APPROVED',
-    remarks: 'Approved with medical certificate',
-    createdAt: '2026-07-19'
-  },
-  {
-    id: 'leave-abb-3',
-    leaveType: 'CASUAL',
-    totalDays: 1,
-    fromDate: '2026-10-15',
-    toDate: '2026-10-15',
-    reason: 'Festival celebration with family',
-    status: 'PENDING_HR',
-    createdAt: '2026-10-05'
-  }
-];
-
-const getDefaultComplaints = (isBackOffice) => isBackOffice ? [
-  {
-    id: 'comp-bo-1',
-    ticketCode: 'CMP-2026-0104',
-    category: 'Logistics & Systems',
-    priority: 'HIGH',
-    subject: 'Thermal Shipping Label Printer Roller Jam',
-    description: 'Label printer in dispatch bay requires roller cleaning/service.',
-    status: 'RESOLVED',
-    hrRemarks: 'IT facility tech replaced roller assembly on Sep 14.',
-    createdAt: '2026-09-12'
-  },
-  {
-    id: 'comp-bo-2',
-    ticketCode: 'CMP-2026-0158',
-    category: 'Office Supplies',
-    priority: 'MEDIUM',
-    subject: 'Back Office Barcode Scanner USB Cable Loose',
-    description: 'Secondary handheld scanner port has intermittent disconnect.',
-    status: 'IN_REVIEW',
-    hrRemarks: 'Spare scanner issued from warehouse stock.',
-    createdAt: '2026-09-28'
-  }
-] : [
-  {
-    id: 'comp-abb-1',
-    ticketCode: 'CMP-2026-0042',
-    category: 'Workplace Environment',
-    priority: 'MEDIUM',
-    subject: 'Air Conditioning Maintenance in Office Bay',
-    description: 'AC unit servicing requested for workstation zone.',
-    status: 'RESOLVED',
-    hrRemarks: 'Maintenance carried out by facilities team on Aug 7. Temperature optimized.',
-    createdAt: '2026-08-05'
-  },
-  {
-    id: 'comp-abb-2',
-    ticketCode: 'CMP-2026-0089',
-    category: 'IT & Systems',
-    priority: 'LOW',
-    subject: 'Dual Monitor Display Port Adapter Replacement',
-    description: 'Workstation graphics output requires replacement active DisplayPort cable.',
-    status: 'IN_REVIEW',
-    hrRemarks: 'Hardware team has dispatched replacement adapter from store inventory.',
-    createdAt: '2026-09-12'
-  }
-];
-
-const getDefaultPunches = (isBackOffice) => {
-  const empId = isBackOffice ? 'EMP-BO-001' : 'EMP-8';
-  const empName = isBackOffice ? 'Back Office Executive' : 'Abbas Baman';
-  const plantLocation = isBackOffice
-    ? 'Himalaya FRP Plant, Industrial Area, Haridwar (Terminal BO-1)'
-    : 'Himalaya FRP Plant, Industrial Area, Haridwar (Super Admin Bay)';
-  const list = [];
-
-  // 1. Today: Oct 9, 2026 (punch in only -> active)
-  list.push({
-    id: isBackOffice ? 'att-2026-10-09-bo' : 'att-2026-10-09-abb',
-    empId,
-    name: empName,
-    date: 'Friday, October 9, 2026',
-    attendanceDate: '2026-10-09T00:00:00.000Z',
-    punchInAt: isBackOffice ? '2026-10-09T09:02:00.000Z' : '2026-10-09T09:14:00.000Z',
-    punchOutAt: null,
-    punchInTime: isBackOffice ? '09:02 AM' : '09:14 AM',
-    punchOutTime: '—',
-    location: plantLocation,
-    coords: '29.9457, 78.1642',
-    selfieUrl: '/himalaya-logo-trimmed.png',
-    status: 'PRESENT',
-    timestamp: isBackOffice ? '2026-10-09T09:02:00.000Z' : '2026-10-09T09:14:00.000Z'
-  });
-
-  // 2. Yesterday: Oct 8, 2026 (punch in only)
-  list.push({
-    id: isBackOffice ? 'att-2026-10-08-bo' : 'att-2026-10-08-abb',
-    empId,
-    name: empName,
-    date: 'Thursday, October 8, 2026',
-    attendanceDate: '2026-10-08T00:00:00.000Z',
-    punchInAt: isBackOffice ? '2026-10-08T08:58:00.000Z' : '2026-10-08T09:07:00.000Z',
-    punchOutAt: null,
-    punchInTime: isBackOffice ? '08:58 AM' : '09:07 AM',
-    punchOutTime: '—',
-    location: plantLocation,
-    coords: '29.9457, 78.1642',
-    selfieUrl: '/himalaya-logo-trimmed.png',
-    status: 'PRESENT',
-    timestamp: isBackOffice ? '2026-10-08T08:58:00.000Z' : '2026-10-08T09:07:00.000Z'
-  });
-
-  // 3. Exactly 22 completed days with BOTH punch in and punch out (22 + 22 = 44 punches)
-  // Total across all days = 24 punch ins + 22 punch outs = 46 TOTAL PUNCHES
-  const completedDays = [
-    { d: '2026-10-07', label: 'Wednesday, October 7, 2026', inT: '09:11 AM', outT: '06:18 PM' },
-    { d: '2026-10-06', label: 'Tuesday, October 6, 2026', inT: '09:14 AM', outT: '06:25 PM' },
-    { d: '2026-10-05', label: 'Monday, October 5, 2026', inT: '09:08 AM', outT: '06:10 PM' },
-    { d: '2026-10-03', label: 'Saturday, October 3, 2026', inT: '09:15 AM', outT: '06:05 PM' },
-    { d: '2026-10-02', label: 'Friday, October 2, 2026', inT: '09:10 AM', outT: '06:20 PM' },
-    { d: '2026-10-01', label: 'Thursday, October 1, 2026', inT: '09:12 AM', outT: '06:15 PM' },
-    { d: '2026-09-30', label: 'Wednesday, September 30, 2026', inT: '09:10 AM', outT: '06:20 PM' },
-    { d: '2026-09-29', label: 'Tuesday, September 29, 2026', inT: '09:05 AM', outT: '06:15 PM' },
-    { d: '2026-09-28', label: 'Monday, September 28, 2026', inT: '09:12 AM', outT: '06:18 PM' },
-    { d: '2026-09-26', label: 'Saturday, September 26, 2026', inT: '09:15 AM', outT: '06:10 PM' },
-    { d: '2026-09-25', label: 'Friday, September 25, 2026', inT: '09:08 AM', outT: '06:25 PM' },
-    { d: '2026-09-24', label: 'Thursday, September 24, 2026', inT: '09:11 AM', outT: '06:14 PM' },
-    { d: '2026-09-23', label: 'Wednesday, September 23, 2026', inT: '09:07 AM', outT: '06:20 PM' },
-    { d: '2026-09-22', label: 'Tuesday, September 22, 2026', inT: '09:14 AM', outT: '06:15 PM' },
-    { d: '2026-09-21', label: 'Monday, September 21, 2026', inT: '09:09 AM', outT: '06:12 PM' },
-    { d: '2026-09-19', label: 'Saturday, September 19, 2026', inT: '09:16 AM', outT: '06:15 PM' },
-    { d: '2026-09-18', label: 'Friday, September 18, 2026', inT: '09:10 AM', outT: '06:22 PM' },
-    { d: '2026-09-17', label: 'Thursday, September 17, 2026', inT: '09:08 AM', outT: '06:19 PM' },
-    { d: '2026-09-16', label: 'Wednesday, September 16, 2026', inT: '09:12 AM', outT: '06:25 PM' },
-    { d: '2026-09-15', label: 'Tuesday, September 15, 2026', inT: '09:06 AM', outT: '06:10 PM' },
-    { d: '2026-09-14', label: 'Monday, September 14, 2026', inT: '09:11 AM', outT: '06:18 PM' },
-    { d: '2026-09-12', label: 'Saturday, September 12, 2026', inT: '09:15 AM', outT: '06:20 PM' }
-  ];
-
-  for (const item of completedDays) {
-    list.push({
-      id: `att-${item.d}`,
-      empId,
-      name: empName,
-      date: item.label,
-      attendanceDate: `${item.d}T00:00:00.000Z`,
-      punchInAt: `${item.d}T09:10:00.000Z`,
-      punchOutAt: `${item.d}T18:15:00.000Z`,
-      punchInTime: item.inT,
-      punchOutTime: item.outT,
-      location: 'Himalaya FRP Plant, Industrial Area, Haridwar',
-      coords: '29.9457, 78.1642',
-      selfieUrl: '/himalaya-logo-trimmed.png',
-      status: 'PRESENT',
-      timestamp: `${item.d}T09:10:00.000Z`
-    });
-  }
-
-  return list;
-};
 
 export default function MyProfileView() {
   const searchParams = useSearchParams();
@@ -328,50 +31,24 @@ export default function MyProfileView() {
     (requestedTab === 'expenses' || deepLinkedExpenseId) ? 'expenses' : 'attendance'
   );
   const [profile, setProfile] = useState(null);
-  let initialIsBackOffice = false;
-  let initialIsAbbas = false;
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = localStorage.getItem('auth-storage');
-      const u = raw ? JSON.parse(raw)?.state?.user : null;
-      if (u?.email?.toLowerCase().includes('backoffice') || u?.name?.toLowerCase().includes('back office')) {
-        initialIsBackOffice = true;
-      }
-      if (u?.email?.toLowerCase().includes('abbas') || u?.name?.toLowerCase().includes('abbas')) {
-        initialIsAbbas = true;
-      }
-    } catch (_) {}
-  }
 
-  const [attendance, setAttendance] = useState(() => getDefaultAttendance(initialIsBackOffice));
+  const [attendance, setAttendance] = useState([]);
   const [salarySlips, setSalarySlips] = useState([]);
   const [viewingSlip, setViewingSlip] = useState(null);
-  const [expenses, setExpenses] = useState(() => getDefaultExpenses(initialIsBackOffice));
+  const [expenses, setExpenses] = useState([]);
 
   // Full attendance history from the database, shared by every role's profile.
-  const [localPunchLog, setLocalPunchLog] = useState(() => getDefaultPunches(initialIsBackOffice));
+  const [localPunchLog, setLocalPunchLog] = useState([]);
   const [filterPeriod, setFilterPeriod] = useState('today');
   const [loadingPunchLogs, setLoadingPunchLogs] = useState(false);
   const [punchLogError, setPunchLogError] = useState('');
-
-  // Dynamically synchronize isolated defaults when profile loads
-  useEffect(() => {
-    if (profile) {
-      const isBO = profile.email?.toLowerCase().includes('backoffice') || profile.name?.toLowerCase().includes('back office');
-      setExpenses(prev => (!prev || prev.length === 0 || (prev[0]?.id && String(prev[0].id).startsWith('exp-')) ? getDefaultExpenses(isBO) : prev));
-      setLeaves(prev => (!prev || prev.length === 0 || (prev[0]?.id && String(prev[0].id).startsWith('leave-')) ? getDefaultLeaves(isBO) : prev));
-      setComplaints(prev => (!prev || prev.length === 0 || (prev[0]?.id && String(prev[0].id).startsWith('comp-')) ? getDefaultComplaints(isBO) : prev));
-      setLocalPunchLog(prev => (!prev || prev.length === 0 || (prev[0]?.id && String(prev[0].id).startsWith('att-')) ? getDefaultPunches(isBO) : prev));
-      setAttendance(prev => (!prev || prev.length === 0 ? getDefaultAttendance(isBO) : prev));
-    }
-  }, [profile]);
 
   const fetchPunchLogsFromDB = useCallback(async () => {
     setLoadingPunchLogs(true);
     setPunchLogError('');
     try {
       const punches = await loadPunchHistory(apiClient);
-      setLocalPunchLog(Array.isArray(punches) && punches.length > 0 ? punches : getDefaultPunches(initialIsBackOffice));
+      setLocalPunchLog(Array.isArray(punches) ? punches : []);
     } catch (e) {
       console.error('Failed to fetch punch logs:', e);
       setPunchLogError('Unable to refresh punch records. Please try again.');
@@ -379,6 +56,7 @@ export default function MyProfileView() {
       setLoadingPunchLogs(false);
     }
   }, []);
+
 
   const filteredPunchLogs = React.useMemo(() => {
     const list = filterPunchHistory(localPunchLog, filterPeriod);
@@ -395,8 +73,8 @@ export default function MyProfileView() {
 
   const formattedLogs = React.useMemo(() => {
     return filteredPunchLogs.map(item => ({
-      id: profile?.employee?.employeeCode || profile?.employeeId || (initialIsBackOffice ? 'EMP-BO-001' : 'EMP-8'),
-      name: profile?.name || (initialIsBackOffice ? 'Back Office Executive' : 'Abbas Baman'),
+      id: profile?.employee?.employeeCode || profile?.employeeId || '—',
+      name: profile?.name || 'Staff Member',
       date: item.date,
       punchIn: item.punchInTime || '—',
       punchOut: item.punchOutTime || '—',
@@ -406,8 +84,7 @@ export default function MyProfileView() {
       status: item.status,
       timestamp: item.timestamp
     }));
-
-  }, [filteredPunchLogs, profile, initialIsBackOffice]);
+  }, [filteredPunchLogs, profile]);
 
   useEffect(() => {
     if (profile) {
@@ -436,7 +113,7 @@ export default function MyProfileView() {
   const [submittingManual, setSubmittingManual] = useState(false);
 
   // Leaves states
-  const [leaves, setLeaves] = useState(() => getDefaultLeaves(initialIsBackOffice));
+  const [leaves, setLeaves] = useState([]);
   const [leaveBalance, setLeaveBalance] = useState({ total: 24, used: 0, remaining: 24 });
   const [loadingLeaves, setLoadingLeaves] = useState(false);
   const [submittingLeave, setSubmittingLeave] = useState(false);
@@ -449,7 +126,7 @@ export default function MyProfileView() {
   });
 
   // Complaints states
-  const [complaints, setComplaints] = useState(() => getDefaultComplaints(initialIsBackOffice));
+  const [complaints, setComplaints] = useState([]);
   const [loadingComplaints, setLoadingComplaints] = useState(false);
   const [submittingComplaint, setSubmittingComplaint] = useState(false);
   const [showComplaintModal, setShowComplaintModal] = useState(false);
@@ -467,13 +144,14 @@ export default function MyProfileView() {
       while (data && data.data && (Array.isArray(data.data) || typeof data.data === 'object')) {
         data = data.data;
       }
-      setComplaints(Array.isArray(data) && data.length > 0 ? data : getDefaultComplaints(initialIsBackOffice));
+      setComplaints(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error('Failed to load my complaints', e);
     } finally {
       setLoadingComplaints(false);
     }
   }, []);
+
 
   const handleSubmitComplaint = async (e) => {
     e.preventDefault();
@@ -559,7 +237,7 @@ export default function MyProfileView() {
           arr = arr.data;
         }
         if (Array.isArray(arr)) {
-          setAttendance(Array.isArray(arr) && arr.length > 0 ? arr : getDefaultAttendance(initialIsBackOffice));
+          setAttendance(arr);
         }
       }
     } catch (e) {
@@ -567,7 +245,8 @@ export default function MyProfileView() {
     } finally {
       setLoadingAttendance(false);
     }
-  }, [initialIsBackOffice]);
+  }, []);
+
 
   const fetchManualRequests = useCallback(async () => {
     try {
@@ -663,7 +342,7 @@ export default function MyProfileView() {
     } finally {
       setLoadingSalary(false);
     }
-  }, [initialIsBackOffice]);
+  }, []);
 
   const fetchExpenses = useCallback(async () => {
     try {
@@ -672,13 +351,13 @@ export default function MyProfileView() {
       while (data && data.data && (Array.isArray(data.data) || typeof data.data === 'object')) {
         data = data.data;
       }
-      setExpenses(Array.isArray(data) && data.length > 0 ? data : getDefaultExpenses(initialIsBackOffice));
+      setExpenses(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error('Failed to load expense history', e);
     } finally {
       setLoadingExpenses(false);
     }
-  }, [initialIsBackOffice]);
+  }, []);
 
   const fetchLeaves = useCallback(async () => {
     try {
@@ -689,16 +368,14 @@ export default function MyProfileView() {
         while (arr && arr.data && (Array.isArray(arr.data) || typeof arr.data === 'object')) {
           arr = arr.data;
         }
-        if (Array.isArray(arr)) {
-          setLeaves(Array.isArray(arr) && arr.length > 0 ? arr : getDefaultLeaves(initialIsBackOffice));
-        }
+        setLeaves(Array.isArray(arr) ? arr : []);
       }
     } catch (e) {
       console.error('Failed to load leave history', e);
     } finally {
       setLoadingLeaves(false);
     }
-  }, [initialIsBackOffice]);
+  }, []);
 
   const fetchLeaveBalance = useCallback(async () => {
     try {
@@ -959,22 +636,15 @@ export default function MyProfileView() {
   }
 
   const rawP = profile || storedUser || {};
-  const isAbbas =
-    rawP.email?.toLowerCase().includes('abbas') ||
-    rawP.name?.toLowerCase().includes('abbas');
-
-  const isBackOffice =
-    rawP.email?.toLowerCase().includes('backoffice') ||
-    rawP.name?.toLowerCase().includes('back office');
 
   const pData = {
-    name: isAbbas ? 'Abbas Baman' : isBackOffice ? 'Back Office Executive' : (rawP.name || 'Member'),
-    employeeId: rawP.employeeId || (isAbbas ? 'EMP-10' : isBackOffice ? 'EMP-BO-001' : 'EMP-001'),
-    email: isAbbas ? 'abbas.baman@himalayaerp.com' : isBackOffice ? 'backoffice@himalayaerp.com' : (rawP.email || 'N/A'),
-    phone: rawP.phone || (isBackOffice ? '+91 98765 43999' : '+91 98765 10008'),
-    department: rawP.department || (isAbbas ? 'Super Admin Department' : isBackOffice ? 'Back Office Operations' : 'Operations'),
-    designation: rawP.designation || (isAbbas ? 'Data Analyst & Back Office Lead' : isBackOffice ? 'Back Office Executive' : 'Staff Member'),
-    joiningDate: rawP.joiningDate || new Date('2024-01-01'),
+    name: rawP.name || (rawP.employee ? `${rawP.employee.firstName || ''} ${rawP.employee.lastName || ''}`.trim() : '') || 'Staff Member',
+    employeeId: rawP.employee?.employeeCode || rawP.employeeId || '—',
+    email: rawP.email || rawP.employee?.workEmail || rawP.employee?.personalEmail || '—',
+    phone: rawP.phone || rawP.employee?.phone || '—',
+    department: rawP.department || rawP.employee?.department?.name || rawP.employee?.department || '—',
+    designation: rawP.designation || rawP.employee?.designation?.title || rawP.employee?.designation || '—',
+    joiningDate: rawP.joiningDate || rawP.employee?.dateOfJoining || null,
     location: rawP.location || 'Haridwar Plant'
   };
 

@@ -319,6 +319,11 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     if ((currentView === 'orders' || currentView === 'dashboard' || currentView === 'daily-task' || currentView === 'payment-followup') && loadOrders) {
       void loadOrders();
     }
+    // The customer portfolio aggregates metrics across every order, not just the
+    // first page used by the orders screen.
+    if (currentView === 'customers' && loadOrders) {
+      void loadOrders({ page: 1, pageSize: 500 });
+    }
     // Load other modules on dashboard or daily-task view for dynamic metrics & tasks
     if (currentView === 'dashboard' || currentView === 'daily-task') {
       if (loadLeads) void loadLeads();
@@ -1488,7 +1493,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     case 'customers':
       return (
         <div data-testid="sales-customers-page" className="sales-portal-view">
-          <CustomersView customers={customers} orders={orders} searchQuery={globalSearch} />
+          <CustomersView customers={customers} orders={orders} searchQuery={globalSearch} basePath={basePath} />
         </div>
       );
 

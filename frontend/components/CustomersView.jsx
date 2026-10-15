@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Search, Eye, Phone, Mail, FileText, ClipboardList, ChevronLeft, ChevronRight, Users, X } from 'lucide-react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 
@@ -9,8 +10,10 @@ export default function CustomersView({
   orders = [],
   searchQuery,
   setSearchQuery,
-  flat = false
+  flat = false,
+  basePath = '/sales'
 }) {
+  const router = useRouter();
   const isCompact = useMediaQuery('(max-width: 1024px)');
   const [localSearch, setLocalSearch] = useState('');
   const search = searchQuery !== undefined ? searchQuery : localSearch;
@@ -22,24 +25,33 @@ export default function CustomersView({
   const enrichedCustomers = (customers || []).map(c => {
     const custName = c.companyName || c.name || c.company_name || c.customerName || c.customer_name || c.contactPerson || c.contact_person || c.leadName || 'Customer';
     
-    const custOrders = (orders || []).filter(o => 
-      String(o.customerId) === String(c.id) || 
-      (o.customer?.id && String(o.customer.id) === String(c.id)) ||
-      (o.customerName && custName !== 'Unknown Customer' && o.customerName.toLowerCase() === custName.toLowerCase())
-    );
+    const custOrders = (orders || []).filter(o => {
+      const status = String(o.status || o.orderStatus || '').toUpperCase();
+      if (o.deletedAt || status === 'LOST' || o.lossRecord || o.lostReason) return false;
+      return String(o.customerId || o.customer?.id || '') === String(c.id) ||
+        (!o.customerId && !o.customer?.id && o.customerName && custName !== 'Unknown Customer' && o.customerName.trim().toLowerCase() === custName.trim().toLowerCase());
+    });
+
+    const amountOf = (...values) => {
+      const value = values.find(v => v !== null && v !== undefined && v !== '');
+      const amount = Number(value);
+      return Number.isFinite(amount) ? amount : 0;
+    };
 
     const totalOrders = custOrders.length;
     const totalRevenue = custOrders.reduce((sum, o) => {
-      return sum + Number(o.grand_total || o.total_amount || o.totalAmount || o.totalValue || o.payment?.totalAmount || 0);
+      return sum + amountOf(o.totalAmount, o.grandTotal, o.grand_total, o.total_amount, o.totalValue, o.payment?.totalAmount);
     }, 0);
     const outstanding = custOrders.reduce((sum, o) => {
-      const pending = o.pendingAmount !== undefined ? o.pendingAmount : (o.payment?.pendingAmount || 0);
-      return sum + Number(pending || 0);
+      const total = amountOf(o.totalAmount, o.grandTotal, o.grand_total, o.total_amount, o.totalValue, o.payment?.totalAmount);
+      const pending = o.balanceAmount ?? o.outstandingAmount ?? o.pendingAmount ?? o.payment?.pendingAmount;
+      const paid = amountOf(o.verifiedPaidAmount, o.paidAmount, o.payment?.paidAmount);
+      return sum + Math.max(0, pending !== null && pending !== undefined ? amountOf(pending) : total - paid);
     }, 0);
 
     const ordersHistory = custOrders.map(o => ({
       product: o.products || o.productsSummary || `Order ${o.orderNo || ''}`,
-      val: Number(o.grand_total || o.total_amount || o.totalAmount || o.totalValue || o.payment?.totalAmount || 0)
+      val: amountOf(o.totalAmount, o.grandTotal, o.grand_total, o.total_amount, o.totalValue, o.payment?.totalAmount)
     }));
 
     const communicationLogs = c.communicationLogs || c.followups || c.logs || [];
@@ -59,8 +71,8 @@ export default function CustomersView({
 
   const formatINR = (value) => {
     const num = Number(value || 0);
-    if (isNaN(num)) return '₹0';
-    return `₹${Math.round(num).toLocaleString('en-IN')}`;
+    if (!Number.isFinite(num)) return String.fromCharCode(0x20B9) + '0';
+    return `${String.fromCharCode(0x20B9)}${Math.round(num).toLocaleString('en-IN')}`;
   };
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -222,7 +234,7 @@ export default function CustomersView({
                 {/* View Details action */}
                 <button 
                   className="customer-card-view-btn"
-                  onClick={() => setSelectedCust(c)}
+                  onClick={() => router.push(`${basePath}/customers/${encodeURIComponent(c.id)}`)}
                 >
                   <Eye size={14} /> View Details
                 </button>
@@ -279,7 +291,7 @@ export default function CustomersView({
                       <button 
                         className="btn-small btn-outline-small"
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '8px', fontWeight: '600', fontSize: '12px' }}
-                        onClick={() => setSelectedCust(c)}
+                        onClick={() => router.push(`${basePath}/customers/${encodeURIComponent(c.id)}`)}
                       >
                         <Eye size={13} /> View Details
                       </button>

@@ -1185,12 +1185,6 @@ export class PayrollService {
   // Helper to find employee from user session / token
   async findEmployeeForUser(user: any) {
     const userId = user?.sub || user?.id;
-    const isAbbas =
-      user?.email?.toLowerCase().includes('abbas') ||
-      user?.name?.toLowerCase().includes('abbas');
-    const isBackOffice =
-      user?.email?.toLowerCase().includes('backoffice') ||
-      user?.name?.toLowerCase().includes('back office');
 
     let employee = userId
       ? await this.prisma.employee.findFirst({
@@ -1211,35 +1205,14 @@ export class PayrollService {
       });
     }
 
-    if (!employee && isAbbas) {
-      employee = await this.prisma.employee.findFirst({
-        where: {
-          OR: [
-            { workEmail: { contains: 'abbas', mode: 'insensitive' } },
-            { employeeCode: { in: ['EMP-10', 'EMP-08', 'EMP-8'] } },
-            { fullName: { contains: 'Abbas', mode: 'insensitive' } },
-          ],
-        },
-        include: { department: true },
-      });
-    }
-
-    if (!employee && isBackOffice) {
-      employee = await this.prisma.employee.findFirst({
-        where: {
-          OR: [
-            { workEmail: { contains: 'backoffice', mode: 'insensitive' } },
-            { employeeCode: 'EMP-BO-001' },
-            { fullName: { contains: 'Back Office', mode: 'insensitive' } },
-          ],
-        },
-        include: { department: true },
-      });
-    }
-
     if (!employee && user?.name) {
       employee = await this.prisma.employee.findFirst({
-        where: { fullName: { contains: user.name, mode: 'insensitive' } },
+        where: {
+          OR: [
+            { fullName: { equals: user.name, mode: 'insensitive' } },
+            { firstName: { equals: user.name.split(' ')[0], mode: 'insensitive' } },
+          ],
+        },
         include: { department: true },
       });
     }
@@ -1257,7 +1230,7 @@ export class PayrollService {
   }
 
   // Helper to get or create authoritative active salary structure for employee
-  async getOrCreateActiveSalaryStructure(employee: any, isAbbas = false, isBackOffice = false) {
+  async getOrCreateActiveSalaryStructure(employee: any) {
     if (!employee) return null;
 
     let structure = await this.prisma.employeeSalaryStructure.findFirst({
@@ -1274,8 +1247,8 @@ export class PayrollService {
       });
     }
 
-    if (!structure) {
-      const base = Number(employee.baseSalary) || (isBackOffice ? 35000 : 45000);
+    if (!structure && Number(employee.baseSalary) > 0) {
+      const base = Number(employee.baseSalary);
       const calc = calculateSalaryStructure({
         basicSalary: Math.round(base * 0.55),
         hraPercentage: 25,
@@ -1296,8 +1269,8 @@ export class PayrollService {
             employeeId: employee.id,
             effectiveFrom: new Date('2026-04-01'),
             employeeNameSnapshot: employee.fullName,
-            designationSnapshot: employee.jobTitle || (isBackOffice ? 'Back Office Executive' : isAbbas ? 'Data Analyst & Back Office Lead' : 'Executive'),
-            departmentSnapshot: employee.department?.name || (isBackOffice ? 'Back Office Operations' : isAbbas ? 'Super Admin Department' : 'Operations'),
+            designationSnapshot: employee.jobTitle || 'Executive',
+            departmentSnapshot: employee.department?.name || 'Operations',
             wef: '2026-04-01',
             basicSalary: calc.basicSalary,
             hraPercentage: calc.hraPercentage,
@@ -1509,8 +1482,8 @@ export class PayrollService {
       });
 
       for (const s of slips) {
-        const utr = (s.snapshotJson as any)?.payment?.utrNumber || `HDFC2026${String(s.salaryMonth).padStart(2, '0')}9821034`;
-        const pDate = (s.snapshotJson as any)?.payment?.paymentDate || `2026-${String(s.salaryMonth + 1).padStart(2, '0')}-01`;
+        const utr = (s.snapshotJson as any)?.payment?.utrNumber || (s.payrollRecord as any)?.payment?.utrNumber || '—';
+        const pDate = (s.snapshotJson as any)?.payment?.paymentDate || s.payrollRecord?.paidAt || s.generatedAt;
         const snap = this.buildSnapshotForSlip(
           s.salaryMonth,
           s.salaryYear,
@@ -1544,203 +1517,74 @@ export class PayrollService {
 
   // 14. Employee Profile Self-Service: Fetch Own Paid Salary Slips
   async getOwnSalarySlips(user: any) {
-    const isAbbas =
-      user?.email?.toLowerCase().includes('abbas') ||
-      user?.name?.toLowerCase().includes('abbas');
-    const isBackOffice =
-      user?.email?.toLowerCase().includes('backoffice') ||
-      user?.name?.toLowerCase().includes('back office');
-
     const employee = await this.findEmployeeForUser(user);
     if (!employee) {
       return [];
     }
 
-    const structure = await this.getOrCreateActiveSalaryStructure(employee, isAbbas, isBackOffice);
-    const basicSalary = Number(structure?.basicSalary || 25000);
-    const hraAmount = Number(structure?.hra || Math.round(basicSalary * 0.4));
-    const convAmount = Number(structure?.conveyanceAllowance || 0);
-    const specialAllowance = Number(structure?.specialAllowance || structure?.ltaAmount || 0);
-    const otherAllowance = Number(structure?.otherAllowance || structure?.educationAllowanceAmount || 0);
-    const grossSalary = Number(structure?.grossSalary || basicSalary + hraAmount + convAmount + specialAllowance + otherAllowance);
-    const epfAmount = Number(structure?.employeeEpfAmount || 1800);
-    const esicAmount = Number(structure?.employeeEsicAmount || 0);
-    const ptAmount = Number(structure?.professionalTaxAmount || 200);
-    const tdsAmount = Number(structure?.tdsAmount || 0);
-    const totalDeduction = Number(structure?.totalDeduction || epfAmount + esicAmount + ptAmount + tdsAmount);
-    const netTakeHome = Number(structure?.netTakeHome || grossSalary - totalDeduction);
-    const ctcPerMonth = Number(structure?.ctcPerMonth || grossSalary + Number(structure?.totalCompanyContribution || 0));
+    const structure = await this.getOrCreateActiveSalaryStructure(employee);
 
-    const empCode = employee.employeeCode || (isBackOffice ? 'EMP-BO-001' : isAbbas ? 'EMP-10' : 'EMP-001');
-    const empName = structure?.employeeNameSnapshot || employee.fullName || (isBackOffice ? 'Back Office Executive' : isAbbas ? 'Abbas Baman' : 'Staff Member');
-    const empDept = structure?.departmentSnapshot || employee.department?.name || (isBackOffice ? 'Back Office Operations' : isAbbas ? 'Super Admin Department' : 'Operations');
-    const empJob = structure?.designationSnapshot || employee.jobTitle || (isBackOffice ? 'Back Office Executive' : isAbbas ? 'Data Analyst & Back Office Lead' : 'Staff Member');
+    // If there are paid payroll records without slips, ensure slips exist
+    const paidRecords = await this.prisma.payrollRecord.findMany({
+      where: {
+        employeeId: employee.id,
+        status: 'PAID',
+        salarySlip: null,
+      },
+      include: {
+        payrollPeriod: true,
+        payment: true,
+      },
+    });
 
-    const monthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-
-    // Ensure months 7, 8, 9 (July, August, September 2026) exist in DB with status PAID
-    const targetMonths = [
-      { month: 9, year: 2026, pDate: '2026-10-01T10:00:00.000Z', utr: `HDFC202609${isAbbas ? '9821034' : '8732091'}` },
-      { month: 8, year: 2026, pDate: '2026-09-01T10:00:00.000Z', utr: `HDFC202608${isAbbas ? '9821034' : '8732091'}` },
-      { month: 7, year: 2026, pDate: '2026-08-01T10:00:00.000Z', utr: `HDFC202607${isAbbas ? '9821034' : '8732091'}` },
-    ];
-
-    const companyId = employee.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
-
-    for (const tm of targetMonths) {
-      const slipNumber = `HCPPL/SLIP/${tm.year}/${String(tm.month).padStart(2, '0')}-${empCode}`;
-      let slip = await this.prisma.salarySlip.findFirst({
-        where: {
-          employeeId: employee.id,
-          salaryMonth: tm.month,
-          salaryYear: tm.year,
-        },
-        include: { payrollRecord: true },
-      });
-
-      const snap = this.buildSnapshotForSlip(
-        tm.month,
-        tm.year,
-        tm.utr,
-        tm.pDate,
-        empName,
-        empCode,
-        empDept,
-        empJob,
-        employee,
-        {
-          basicSalary,
-          hraAmount,
-          conveyanceAmount: convAmount,
-          ltaAmount: specialAllowance,
-          educationAllowanceAmount: otherAllowance,
-          grossTotalA: grossSalary,
-          employeeEpfAmount: epfAmount,
-          employeeEsicAmount: esicAmount,
-          professionalTaxAmount: ptAmount,
-          tdsAmount,
-          totalDeductionB: totalDeduction,
-          netTakeHomeC: netTakeHome,
-          ctcPerMonthE: ctcPerMonth,
-        },
-      );
-
-      if (!slip) {
-        let period = await this.prisma.payrollPeriod.findUnique({
-          where: { companyId_month_year: { companyId, month: tm.month, year: tm.year } },
-        });
-        if (!period) {
-          period = await this.prisma.payrollPeriod.create({
-            data: {
-              companyId,
-              month: tm.month,
-              year: tm.year,
-              startDate: new Date(tm.year, tm.month - 1, 1),
-              endDate: new Date(tm.year, tm.month, 0),
-              status: 'CLOSED',
-            },
-          });
-        }
-
-        const payrollNumber = `PR-${tm.year}-${String(tm.month).padStart(2, '0')}-${empCode}`;
-        let pr = await this.prisma.payrollRecord.findUnique({
-          where: { payrollNumber },
-        });
-
-        if (!pr) {
-          pr = await this.prisma.payrollRecord.create({
-            data: {
-              payrollNumber,
-              companyId,
-              employeeId: employee.id,
-              payrollPeriodId: period.id,
-              status: 'PAID',
-              employeeCodeSnapshot: empCode,
-              employeeNameSnapshot: empName,
-              departmentSnapshot: empDept,
-              jobTitleSnapshot: empJob,
-              basicSalary,
-              hra: hraAmount,
-              conveyanceAllowance: convAmount,
-              specialAllowance,
-              otherAllowance,
-              grossEarnings: grossSalary,
-              pfDeduction: epfAmount,
-              esicDeduction: esicAmount,
-              professionalTax: ptAmount,
-              tdsDeduction: tdsAmount,
-              totalDeductions: totalDeduction,
-              netPayable: netTakeHome,
-              paidAmount: netTakeHome,
-              bankNameSnapshot: 'HDFC Bank Ltd',
-              accountNumberLast4: '5008',
-              ifscCodeSnapshot: 'HDFC0001234',
-              paidAt: new Date(tm.pDate),
-            },
-          });
-        }
-
-        slip = await this.prisma.salarySlip.create({
-          data: {
-            payrollRecordId: pr.id,
-            slipNumber,
-            employeeId: employee.id,
-            salaryMonth: tm.month,
-            salaryYear: tm.year,
-            grossEarnings: grossSalary,
-            totalDeductions: totalDeduction,
-            netPaid: netTakeHome,
-            availableToEmployee: true,
-            snapshotJson: snap,
+    for (const pr of paidRecords) {
+      if (pr.payrollPeriod) {
+        const slipNumber = `HCPPL/SLIP/${pr.payrollPeriod.year}/${String(pr.payrollPeriod.month).padStart(2, '0')}-${pr.employeeCodeSnapshot || employee.employeeCode || 'EMP'}`;
+        const utr = pr.payment?.utrNumber || '—';
+        const pDate = pr.paidAt?.toISOString() || pr.createdAt.toISOString();
+        const snap = this.buildSnapshotForSlip(
+          pr.payrollPeriod.month,
+          pr.payrollPeriod.year,
+          utr,
+          pDate,
+          pr.employeeNameSnapshot || employee.fullName || 'Staff Member',
+          pr.employeeCodeSnapshot || employee.employeeCode || 'EMP',
+          pr.departmentSnapshot || employee.department?.name || 'Operations',
+          pr.jobTitleSnapshot || employee.jobTitle || 'Staff Member',
+          employee,
+          {
+            basicSalary: Number(pr.basicSalary || 0),
+            hraAmount: Number(pr.hra || 0),
+            conveyanceAmount: Number(pr.conveyanceAllowance || 0),
+            ltaAmount: Number(pr.specialAllowance || 0),
+            educationAllowanceAmount: Number(pr.otherAllowance || 0),
+            grossTotalA: Number(pr.grossEarnings || 0),
+            employeeEpfAmount: Number(pr.pfDeduction || 0),
+            employeeEsicAmount: Number(pr.esicDeduction || 0),
+            professionalTaxAmount: Number(pr.professionalTax || 0),
+            tdsAmount: Number(pr.tdsDeduction || 0),
+            totalDeductionB: Number(pr.totalDeductions || 0),
+            netTakeHomeC: Number(pr.netPayable || 0),
+            ctcPerMonthE: Number(pr.grossEarnings || 0),
           },
-          include: { payrollRecord: true },
-        });
-      } else {
+        );
+
         await this.prisma.salarySlip
-          .update({
-            where: { id: slip.id },
+          .create({
             data: {
+              payrollRecordId: pr.id,
               slipNumber,
-              grossEarnings: grossSalary,
-              totalDeductions: totalDeduction,
-              netPaid: netTakeHome,
+              employeeId: employee.id,
+              salaryMonth: pr.payrollPeriod.month,
+              salaryYear: pr.payrollPeriod.year,
+              grossEarnings: pr.grossEarnings,
+              totalDeductions: pr.totalDeductions,
+              netPaid: pr.paidAmount || pr.netPayable,
               availableToEmployee: true,
               snapshotJson: snap,
             },
           })
           .catch(() => {});
-
-        if (slip.payrollRecordId) {
-          await this.prisma.payrollRecord
-            .update({
-              where: { id: slip.payrollRecordId },
-              data: {
-                employeeCodeSnapshot: empCode,
-                employeeNameSnapshot: empName,
-                departmentSnapshot: empDept,
-                jobTitleSnapshot: empJob,
-                basicSalary,
-                hra: hraAmount,
-                conveyanceAllowance: convAmount,
-                specialAllowance,
-                otherAllowance,
-                grossEarnings: grossSalary,
-                pfDeduction: epfAmount,
-                esicDeduction: esicAmount,
-                professionalTax: ptAmount,
-                tdsDeduction: tdsAmount,
-                totalDeductions: totalDeduction,
-                netPayable: netTakeHome,
-                paidAmount: netTakeHome,
-                paidAt: slip.payrollRecord?.paidAt || new Date(tm.pDate),
-                status: 'PAID',
-              },
-            })
-            .catch(() => {});
-        }
       }
     }
 
@@ -1751,11 +1595,16 @@ export class PayrollService {
       },
       include: {
         payrollRecord: {
-          select: { payrollNumber: true, paidAt: true, payment: true, status: true },
+          include: { payment: true, payrollPeriod: true },
         },
       },
       orderBy: [{ salaryYear: 'desc' }, { salaryMonth: 'desc' }],
     });
+
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
 
     return slips.map((s) => {
       const snap = (s.snapshotJson as any) || {};
@@ -1763,7 +1612,26 @@ export class PayrollService {
       const utr =
         s.payrollRecord?.payment?.utrNumber ||
         snap.payment?.utrNumber ||
-        `HDFC2026${String(s.salaryMonth).padStart(2, '0')}9821034`;
+        null;
+
+      const basicSalary = Number(snap.basicSalary || s.payrollRecord?.basicSalary || structure?.basicSalary || 0);
+      const hraAmount = Number(snap.hraAmount || snap.hra || s.payrollRecord?.hra || structure?.hra || 0);
+      const convAmount = Number(snap.conveyanceAmount || snap.conveyanceAllowance || s.payrollRecord?.conveyanceAllowance || structure?.conveyanceAllowance || 0);
+      const specialAllowance = Number(snap.ltaAmount || snap.specialAllowance || s.payrollRecord?.specialAllowance || structure?.specialAllowance || structure?.ltaAmount || 0);
+      const otherAllowance = Number(snap.educationAllowanceAmount || snap.otherAllowance || s.payrollRecord?.otherAllowance || structure?.otherAllowance || 0);
+      const grossSalary = Number(s.grossEarnings || snap.grossSalary || snap.grossEarnings || s.payrollRecord?.grossEarnings || structure?.grossSalary || 0);
+      const epfAmount = Number(snap.employeeEpfAmount || snap.pfDeduction || s.payrollRecord?.pfDeduction || structure?.employeeEpfAmount || 0);
+      const esicAmount = Number(snap.employeeEsicAmount || snap.esicDeduction || s.payrollRecord?.esicDeduction || structure?.employeeEsicAmount || 0);
+      const ptAmount = Number(snap.professionalTaxAmount || snap.professionalTax || s.payrollRecord?.professionalTax || structure?.professionalTaxAmount || 0);
+      const tdsAmount = Number(snap.tdsAmount || snap.tdsDeduction || s.payrollRecord?.tdsDeduction || structure?.tdsAmount || 0);
+      const totalDeduction = Number(s.totalDeductions || snap.totalDeduction || snap.totalDeductions || s.payrollRecord?.totalDeductions || structure?.totalDeduction || 0);
+      const netTakeHome = Number(s.netPaid || snap.netTakeHome || snap.netPaid || s.payrollRecord?.netPayable || structure?.netTakeHome || 0);
+      const ctcPerMonth = Number(snap.ctcPerMonth || structure?.ctcPerMonth || grossSalary);
+
+      const empCode = snap.employee?.code || snap.employee?.employeeCode || s.payrollRecord?.employeeCodeSnapshot || employee.employeeCode || '—';
+      const empName = snap.employee?.name || snap.employee?.fullName || s.payrollRecord?.employeeNameSnapshot || employee.fullName || 'Staff Member';
+      const empDept = snap.employee?.department?.name || s.payrollRecord?.departmentSnapshot || employee.department?.name || 'Operations';
+      const empJob = snap.employee?.jobTitle || s.payrollRecord?.jobTitleSnapshot || employee.jobTitle || 'Staff Member';
 
       return {
         id: s.id,
@@ -1784,7 +1652,6 @@ export class PayrollService {
         snapshot: s.snapshotJson,
         snapshotJson: s.snapshotJson,
         payrollRecordId: s.payrollRecordId,
-        // Component fields directly for SalarySlipDocument
         basicSalary,
         basic: basicSalary,
         hra: hraAmount,
@@ -1811,7 +1678,7 @@ export class PayrollService {
         employeeName: empName,
         designation: empJob,
         department: empDept,
-        wef: structure?.wef || '2026-04-01',
+        wef: structure?.wef || null,
       };
     });
   }
@@ -2206,8 +2073,8 @@ export class PayrollService {
         utrNumber:
           record?.payment?.utrNumber ||
           snap.payment?.utrNumber ||
-          'HDFC20260820ABC123',
-        transactionReference: record?.payment?.paymentNumber || 'PAY-REF-001',
+          '—',
+        transactionReference: record?.payment?.paymentNumber || '—',
       },
       generatedAt: slip.generatedAt || new Date(),
     };
@@ -2282,98 +2149,7 @@ export class PayrollService {
       };
     }
 
-    // Dynamic resolution for virtual slip IDs or slips not found by ID
-    const isAbbas = user?.email?.toLowerCase().includes('abbas') || user?.name?.toLowerCase().includes('abbas');
-    const isBackOffice = user?.email?.toLowerCase().includes('backoffice') || user?.name?.toLowerCase().includes('back office');
-    const employee = await this.findEmployeeForUser(user);
-    const structure = await this.getOrCreateActiveSalaryStructure(employee, isAbbas, isBackOffice);
-
-    const empCode = employee?.employeeCode || (isBackOffice ? 'EMP-BO-001' : isAbbas ? 'EMP-10' : 'EMP-001');
-    const empName = structure?.employeeNameSnapshot || employee?.fullName || (isBackOffice ? 'Back Office Executive' : isAbbas ? 'Abbas Baman' : 'Staff Member');
-    const empDept = structure?.departmentSnapshot || employee?.department?.name || (isBackOffice ? 'Back Office Operations' : isAbbas ? 'Super Admin Department' : 'Operations');
-    const empJob = structure?.designationSnapshot || employee?.jobTitle || (isBackOffice ? 'Back Office Executive' : isAbbas ? 'Data Analyst & Back Office Lead' : 'Staff Member');
-
-    const monthPart = id.includes('aug') ? '08' : id.includes('jul') ? '07' : '09';
-    const monthName = id.includes('aug') ? 'August' : id.includes('jul') ? 'July' : 'September';
-    const monthNum = Number(monthPart);
-    const slipNumber = `HCPPL/SLIP/2026/${monthPart}-${empCode}`;
-
-    const basicSalary = Number(structure?.basicSalary || 25000);
-    const hraAmount = Number(structure?.hra || Math.round(basicSalary * 0.4));
-    const convAmount = Number(structure?.conveyanceAllowance || 0);
-    const specialAllowance = Number(structure?.specialAllowance || structure?.ltaAmount || 0);
-    const otherAllowance = Number(structure?.otherAllowance || structure?.educationAllowanceAmount || 0);
-    const grossSalary = Number(structure?.grossSalary || basicSalary + hraAmount + convAmount + specialAllowance + otherAllowance);
-    const epfAmount = Number(structure?.employeeEpfAmount || 1800);
-    const esicAmount = Number(structure?.employeeEsicAmount || 0);
-    const ptAmount = Number(structure?.professionalTaxAmount || 200);
-    const tdsAmount = Number(structure?.tdsAmount || 0);
-    const totalDeduction = Number(structure?.totalDeduction || epfAmount + esicAmount + ptAmount + tdsAmount);
-    const netTakeHome = Number(structure?.netTakeHome || grossSalary - totalDeduction);
-
-    const payload = {
-      company: {
-        name: 'HIMALAYA FRP & CONSTRUCTION PRODUCTS',
-        address: 'Plot No. 42, GIDC Industrial Estate, Haridwar, Uttarakhand',
-        email: 'accounts@himalayaerp.com',
-        phone: '+91 98765 00000',
-      },
-      salaryMonthName: monthName,
-      salaryYear: 2026,
-      slipNumber,
-      payrollNumber: `PR-2026-${monthPart}-${empCode}`,
-      employee: {
-        fullName: empName,
-        employeeCode: empCode,
-        employeeId: empCode,
-        department: empDept,
-        designation: empJob,
-        location: 'Main Plant',
-        joiningDate: employee?.joiningDate || '2024-04-01',
-        panNumber: employee?.panNumber || 'ABCDE1008F',
-        bankName: 'HDFC Bank Ltd',
-        maskedAccountNumber: '****5008',
-        ifscCode: 'HDFC0001234',
-      },
-      attendance: {
-        calendarDays: monthNum === 9 ? 30 : 31,
-        standardWorkingDays: monthNum === 8 ? 25 : 26,
-        presentDays: monthNum === 8 ? 24 : monthNum === 7 ? 25 : 26,
-        paidLeaveDays: monthNum === 9 ? 0 : 1,
-        unpaidLeaveDays: 0,
-        payableDays: monthNum === 8 ? 25 : 26,
-      },
-      earnings: [
-        { label: 'Basic Salary', amount: basicSalary },
-        { label: 'House Rent Allowance (HRA)', amount: hraAmount },
-        ...(convAmount > 0 ? [{ label: 'Conveyance Allowance', amount: convAmount }] : []),
-        ...(specialAllowance > 0 ? [{ label: 'Special Allowance / LTA', amount: specialAllowance }] : []),
-        ...(otherAllowance > 0 ? [{ label: 'Education Allowance', amount: otherAllowance }] : []),
-      ],
-      grossEarnings: grossSalary,
-      deductions: [
-        ...(epfAmount > 0 ? [{ label: 'Provident Fund (EPF)', amount: epfAmount }] : []),
-        ...(esicAmount > 0 ? [{ label: 'Employee ESIC', amount: esicAmount }] : []),
-        ...(ptAmount > 0 ? [{ label: 'Professional Tax (PT)', amount: ptAmount }] : []),
-        ...(tdsAmount > 0 ? [{ label: 'TDS / Income Tax', amount: tdsAmount }] : []),
-      ],
-      totalDeductions: totalDeduction,
-      netPaid: netTakeHome,
-      netPaidInWords: `Rupees ${netTakeHome} Only`,
-      payment: {
-        paymentDate: `2026-${String(monthNum + 1).padStart(2, '0')}-01`,
-        paymentMode: 'NEFT / Bank Transfer',
-        utrNumber: `HDFC2026${monthPart}9821034`,
-        transactionReference: `PAY-2026-${monthPart}-${empCode}`,
-      },
-      generatedAt: new Date(),
-    };
-
-    const pdfBuffer = createSalarySlipPdf(payload);
-    return {
-      filename: `Salary_Slip_${slipNumber}.pdf`,
-      buffer: pdfBuffer,
-    };
+    throw new NotFoundException('Salary slip not found.');
   }
 
   async createSalarySlipShare(slipId: string, input: any, user: any) {
