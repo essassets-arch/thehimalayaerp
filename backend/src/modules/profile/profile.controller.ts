@@ -34,8 +34,9 @@ export class ProfileController {
       req.headers['x-company-id'] ||
       req.user?.companyId ||
       'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
-    return this.profileService.getSalarySlips(userId, companyId);
+    return this.profileService.getSalarySlips(userId, companyId, req.user);
   }
+
 
   @Get('my-expenses')
   getMyExpenses(@Req() req: any) {

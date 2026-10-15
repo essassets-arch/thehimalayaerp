@@ -31,104 +31,8 @@ const getDefaultAttendance = (isBackOffice) => isBackOffice ? [
   { month: 'June 2026', present: 22, absent: 1, leave: 1, holiday: 2 }
 ];
 
-const getDefaultSlips = (isBackOffice) => [
-  {
-    id: isBackOffice ? 'slip-sep-2026-bo' : 'slip-sep-2026-abb',
-    slipNumber: isBackOffice ? 'HCPPL/SLIP/2026/09-EMP-BO-001' : 'HCPPL/SLIP/2026/09-EMP-8',
-    month: 9,
-    year: 2026,
-    monthName: 'September',
-    grossEarnings: isBackOffice ? 35000 : 45000,
-    totalDeductions: isBackOffice ? 2100 : 2400,
-    netPaid: isBackOffice ? 32900 : 42600,
-    paidDate: '2026-10-01T10:00:00.000Z',
-    paymentDate: '2026-10-01T10:00:00.000Z',
-    utrNumber: isBackOffice ? 'HDFC202698732091' : 'HDFC98210394812',
-    status: 'PAID',
-    snapshot: {
-      employee: {
-        fullName: isBackOffice ? 'Back Office Executive' : 'Abbas Baman',
-        employeeCode: isBackOffice ? 'EMP-BO-001' : 'EMP-8',
-        jobTitle: isBackOffice ? 'Back Office Executive' : 'Data Analyst & Back Office Lead',
-        department: { name: isBackOffice ? 'Back Office Operations' : 'Super Admin Department' }
-      },
-      earnings: [
-        { title: 'Basic Salary', amount: isBackOffice ? 19250 : 25000 },
-        { title: 'HRA', amount: isBackOffice ? 8750 : 12000 },
-        { title: 'Special Allowance', amount: isBackOffice ? 7000 : 8000 }
-      ],
-      deductions: [
-        { title: 'Provident Fund', amount: 1800 },
-        { title: 'Professional Tax', amount: isBackOffice ? 300 : 600 }
-      ]
-    },
-    payrollRecordId: 'pr-sep-2026'
-  },
-  {
-    id: isBackOffice ? 'slip-aug-2026-bo' : 'slip-aug-2026-abb',
-    slipNumber: isBackOffice ? 'HCPPL/SLIP/2026/08-EMP-BO-001' : 'HCPPL/SLIP/2026/08-EMP-8',
-    month: 8,
-    year: 2026,
-    monthName: 'August',
-    grossEarnings: isBackOffice ? 35000 : 45000,
-    totalDeductions: isBackOffice ? 2100 : 2400,
-    netPaid: isBackOffice ? 32900 : 42600,
-    paidDate: '2026-09-01T10:00:00.000Z',
-    paymentDate: '2026-09-01T10:00:00.000Z',
-    utrNumber: isBackOffice ? 'HDFC202688732091' : 'HDFC87210384721',
-    status: 'PAID',
-    snapshot: {
-      employee: {
-        fullName: isBackOffice ? 'Back Office Executive' : 'Abbas Baman',
-        employeeCode: isBackOffice ? 'EMP-BO-001' : 'EMP-8',
-        jobTitle: isBackOffice ? 'Back Office Executive' : 'Data Analyst & Back Office Lead',
-        department: { name: isBackOffice ? 'Back Office Operations' : 'Super Admin Department' }
-      },
-      earnings: [
-        { title: 'Basic Salary', amount: isBackOffice ? 19250 : 25000 },
-        { title: 'HRA', amount: isBackOffice ? 8750 : 12000 },
-        { title: 'Special Allowance', amount: isBackOffice ? 7000 : 8000 }
-      ],
-      deductions: [
-        { title: 'Provident Fund', amount: 1800 },
-        { title: 'Professional Tax', amount: isBackOffice ? 300 : 600 }
-      ]
-    },
-    payrollRecordId: 'pr-aug-2026'
-  },
-  {
-    id: isBackOffice ? 'slip-jul-2026-bo' : 'slip-jul-2026-abb',
-    slipNumber: isBackOffice ? 'HCPPL/SLIP/2026/07-EMP-BO-001' : 'HCPPL/SLIP/2026/07-EMP-8',
-    month: 7,
-    year: 2026,
-    monthName: 'July',
-    grossEarnings: isBackOffice ? 35000 : 45000,
-    totalDeductions: isBackOffice ? 2100 : 2400,
-    netPaid: isBackOffice ? 32900 : 42600,
-    paidDate: '2026-08-01T10:00:00.000Z',
-    paymentDate: '2026-08-01T10:00:00.000Z',
-    utrNumber: isBackOffice ? 'HDFC202678732091' : 'HDFC76210373610',
-    status: 'PAID',
-    snapshot: {
-      employee: {
-        fullName: isBackOffice ? 'Back Office Executive' : 'Abbas Baman',
-        employeeCode: isBackOffice ? 'EMP-BO-001' : 'EMP-8',
-        jobTitle: isBackOffice ? 'Back Office Executive' : 'Data Analyst & Back Office Lead',
-        department: { name: isBackOffice ? 'Back Office Operations' : 'Super Admin Department' }
-      },
-      earnings: [
-        { title: 'Basic Salary', amount: isBackOffice ? 19250 : 25000 },
-        { title: 'HRA', amount: isBackOffice ? 8750 : 12000 },
-        { title: 'Special Allowance', amount: isBackOffice ? 7000 : 8000 }
-      ],
-      deductions: [
-        { title: 'Provident Fund', amount: 1800 },
-        { title: 'Professional Tax', amount: isBackOffice ? 300 : 600 }
-      ]
-    },
-    payrollRecordId: 'pr-jul-2026'
-  }
-];
+const getDefaultSlips = () => [];
+
 
 const getDefaultExpenses = (isBackOffice) => isBackOffice ? [
   {
@@ -440,7 +344,7 @@ export default function MyProfileView() {
   }
 
   const [attendance, setAttendance] = useState(() => getDefaultAttendance(initialIsBackOffice));
-  const [salarySlips, setSalarySlips] = useState(() => getDefaultSlips(initialIsBackOffice));
+  const [salarySlips, setSalarySlips] = useState([]);
   const [viewingSlip, setViewingSlip] = useState(null);
   const [expenses, setExpenses] = useState(() => getDefaultExpenses(initialIsBackOffice));
 
@@ -454,7 +358,6 @@ export default function MyProfileView() {
   useEffect(() => {
     if (profile) {
       const isBO = profile.email?.toLowerCase().includes('backoffice') || profile.name?.toLowerCase().includes('back office');
-      setSalarySlips(prev => (!prev || prev.length === 0 || (prev[0]?.id && String(prev[0].id).startsWith('slip-')) ? getDefaultSlips(isBO) : prev));
       setExpenses(prev => (!prev || prev.length === 0 || (prev[0]?.id && String(prev[0].id).startsWith('exp-')) ? getDefaultExpenses(isBO) : prev));
       setLeaves(prev => (!prev || prev.length === 0 || (prev[0]?.id && String(prev[0].id).startsWith('leave-')) ? getDefaultLeaves(isBO) : prev));
       setComplaints(prev => (!prev || prev.length === 0 || (prev[0]?.id && String(prev[0].id).startsWith('comp-')) ? getDefaultComplaints(isBO) : prev));
@@ -754,7 +657,7 @@ export default function MyProfileView() {
           data = sData;
         }
       }
-      setSalarySlips(Array.isArray(data) && data.length > 0 ? data : getDefaultSlips(initialIsBackOffice));
+      setSalarySlips(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error('Failed to load salary slips', e);
     } finally {
@@ -1066,7 +969,7 @@ export default function MyProfileView() {
 
   const pData = {
     name: isAbbas ? 'Abbas Baman' : isBackOffice ? 'Back Office Executive' : (rawP.name || 'Member'),
-    employeeId: rawP.employeeId || (isAbbas ? 'EMP-8' : isBackOffice ? 'EMP-BO-001' : 'EMP-MOCK-001'),
+    employeeId: rawP.employeeId || (isAbbas ? 'EMP-10' : isBackOffice ? 'EMP-BO-001' : 'EMP-001'),
     email: isAbbas ? 'abbas.baman@himalayaerp.com' : isBackOffice ? 'backoffice@himalayaerp.com' : (rawP.email || 'N/A'),
     phone: rawP.phone || (isBackOffice ? '+91 98765 43999' : '+91 98765 10008'),
     department: rawP.department || (isAbbas ? 'Super Admin Department' : isBackOffice ? 'Back Office Operations' : 'Operations'),

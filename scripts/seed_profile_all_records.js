@@ -226,7 +226,59 @@ async function main() {
       }
     }
 
-    // 4. Salary Slips & Payroll Records
+    // 4. Ensure EmployeeSalaryStructure exists and derive dynamic components
+    let struct = await prisma.employeeSalaryStructure.findFirst({
+      where: { employeeId, isActive: true },
+      orderBy: { effectiveFrom: 'desc' }
+    });
+
+    if (!struct) {
+      const basic = Math.round(u.baseSalary * 0.55);
+      const hra = Math.round(u.baseSalary * 0.25);
+      const sa = u.baseSalary - basic - hra;
+      const epf = 1800;
+      const pt = u.deductions - 1800;
+      const totalDed = epf + pt;
+      const net = u.baseSalary - totalDed;
+
+      struct = await prisma.employeeSalaryStructure.create({
+        data: {
+          employeeId,
+          effectiveFrom: new Date('2026-04-01T00:00:00.000Z'),
+          employeeNameSnapshot: u.empName,
+          designationSnapshot: u.jobTitle,
+          departmentSnapshot: u.deptName,
+          wef: '2026-04-01',
+          basicSalary: basic,
+          hra,
+          specialAllowance: sa,
+          grossSalary: u.baseSalary,
+          employeeEpfAmount: epf,
+          professionalTaxAmount: pt,
+          totalDeduction: totalDed,
+          netTakeHome: net,
+          ctcPerMonth: u.baseSalary + 1800,
+          pfApplicable: true,
+          professionalTax: true,
+          status: 'ACTIVE',
+          isActive: true
+        }
+      });
+    }
+
+    const basicSalary = Number(struct.basicSalary);
+    const hraAmount = Number(struct.hra);
+    const specialAllowance = Number(struct.specialAllowance || struct.ltaAmount || 0);
+    const convAmount = Number(struct.conveyanceAllowance || 0);
+    const otherAllowance = Number(struct.otherAllowance || struct.educationAllowanceAmount || 0);
+    const grossSalary = Number(struct.grossSalary);
+    const epfAmount = Number(struct.employeeEpfAmount || 1800);
+    const esicAmount = Number(struct.employeeEsicAmount || 0);
+    const ptAmount = Number(struct.professionalTaxAmount || 200);
+    const tdsAmount = Number(struct.tdsAmount || 0);
+    const totalDeductions = Number(struct.totalDeduction);
+    const netPaid = Number(struct.netTakeHome);
+
     for (const sm of summariesData) {
       const period = periods[sm.month];
       const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -250,10 +302,19 @@ async function main() {
             employeeNameSnapshot: u.empName,
             departmentSnapshot: u.deptName,
             jobTitleSnapshot: u.jobTitle,
-            grossEarnings: u.baseSalary,
-            totalDeductions: u.deductions,
-            netPayable: u.netPaid,
-            paidAmount: u.netPaid,
+            basicSalary,
+            hra: hraAmount,
+            conveyanceAllowance: convAmount,
+            specialAllowance,
+            otherAllowance,
+            grossEarnings: grossSalary,
+            pfDeduction: epfAmount,
+            esicDeduction: esicAmount,
+            professionalTax: ptAmount,
+            tdsDeduction: tdsAmount,
+            totalDeductions,
+            netPayable: netPaid,
+            paidAmount: netPaid,
             bankNameSnapshot: 'HDFC Bank Ltd',
             accountNumberLast4: '5008',
             ifscCodeSnapshot: 'HDFC0001234',
@@ -266,7 +327,7 @@ async function main() {
                 paymentNumber: `PAY-${sm.year}-${sm.month}-${u.empCode}`,
                 paymentDate: new Date(`${sm.year}-${String(sm.month + 1).padStart(2, '0')}-01T10:00:00.000Z`),
                 paymentMode: 'BANK_TRANSFER',
-                paidAmount: u.netPaid,
+                paidAmount: netPaid,
                 utrNumber: `HDFC${sm.year}${sm.month}${u.isAbbas ? '9821034' : '8732091'}`,
                 paidById: userId,
                 remarks: 'Salary disbursement via Corporate Net Banking'
@@ -274,11 +335,57 @@ async function main() {
             }
           }
         });
+      } else {
+        await prisma.payrollRecord.update({
+          where: { id: pr.id },
+          data: {
+            basicSalary,
+            hra: hraAmount,
+            conveyanceAllowance: convAmount,
+            specialAllowance,
+            otherAllowance,
+            grossEarnings: grossSalary,
+            pfDeduction: epfAmount,
+            esicDeduction: esicAmount,
+            professionalTax: ptAmount,
+            tdsDeduction: tdsAmount,
+            totalDeductions,
+            netPayable: netPaid,
+            paidAmount: netPaid,
+            status: 'PAID',
+          }
+        }).catch(() => {});
       }
 
       const existingSlip = await prisma.salarySlip.findUnique({
         where: { slipNumber }
       });
+
+      const slipSnapshot = {
+        employee: {
+          fullName: u.empName,
+          employeeCode: u.empCode,
+          jobTitle: u.jobTitle,
+          department: { name: u.deptName }
+        },
+        earnings: [
+          { title: 'Basic Salary', amount: basicSalary },
+          { title: 'HRA', amount: hraAmount },
+          ...(convAmount > 0 ? [{ title: 'Conveyance Allowance', amount: convAmount }] : []),
+          ...(specialAllowance > 0 ? [{ title: 'Special Allowance', amount: specialAllowance }] : []),
+          ...(otherAllowance > 0 ? [{ title: 'Education Allowance', amount: otherAllowance }] : [])
+        ],
+        deductions: [
+          ...(epfAmount > 0 ? [{ title: 'Provident Fund', amount: epfAmount }] : []),
+          ...(esicAmount > 0 ? [{ title: 'Employee ESIC', amount: esicAmount }] : []),
+          ...(ptAmount > 0 ? [{ title: 'Professional Tax', amount: ptAmount }] : []),
+          ...(tdsAmount > 0 ? [{ title: 'TDS / Income Tax', amount: tdsAmount }] : [])
+        ],
+        payment: {
+          utrNumber: `HDFC${sm.year}${sm.month}${u.isAbbas ? '9821034' : '8732091'}`,
+          paymentDate: `${sm.year}-${String(sm.month + 1).padStart(2, '0')}-01`
+        }
+      };
 
       if (!existingSlip) {
         await prisma.salarySlip.create({
@@ -288,35 +395,27 @@ async function main() {
             employeeId,
             salaryMonth: sm.month,
             salaryYear: sm.year,
-            grossEarnings: u.baseSalary,
-            totalDeductions: u.deductions,
-            netPaid: u.netPaid,
+            grossEarnings: grossSalary,
+            totalDeductions,
+            netPaid,
             availableToEmployee: true,
-            snapshotJson: {
-              employee: {
-                fullName: u.empName,
-                employeeCode: u.empCode,
-                jobTitle: u.jobTitle,
-                department: { name: u.deptName }
-              },
-              earnings: [
-                { title: 'Basic Salary', amount: Math.round(u.baseSalary * 0.55) },
-                { title: 'HRA', amount: Math.round(u.baseSalary * 0.25) },
-                { title: 'Special Allowance', amount: Math.round(u.baseSalary * 0.20) }
-              ],
-              deductions: [
-                { title: 'Provident Fund', amount: 1800 },
-                { title: 'Professional Tax', amount: u.deductions - 1800 }
-              ],
-              payment: {
-                utrNumber: `HDFC${sm.year}${sm.month}${u.isAbbas ? '9821034' : '8732091'}`,
-                paymentDate: `${sm.year}-${String(sm.month + 1).padStart(2, '0')}-01`
-              }
-            }
+            snapshotJson: slipSnapshot
           }
         });
+      } else {
+        await prisma.salarySlip.update({
+          where: { id: existingSlip.id },
+          data: {
+            grossEarnings: grossSalary,
+            totalDeductions,
+            netPaid,
+            availableToEmployee: true,
+            snapshotJson: slipSnapshot
+          }
+        }).catch(() => {});
       }
     }
+
 
     // 5. Expense Claims
     const existingClaimsCount = await prisma.expenseClaim.count({

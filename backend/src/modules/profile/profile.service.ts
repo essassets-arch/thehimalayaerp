@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { PayrollService } from '../payroll/payroll.service';
 
 @Injectable()
 export class ProfileService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly payrollService: PayrollService,
+  ) {}
 
   async getProfile(userId: string, companyId: string) {
     const user = await this.prisma.user.findUnique({
@@ -76,7 +80,7 @@ export class ProfileService {
     return {
       id: employee?.id || user.id,
       userId: user.id,
-      employeeId: employee?.employeeCode || (isAbbas ? 'EMP-8' : isBackOffice ? 'EMP-BO-001' : 'EMP-MOCK-001'),
+      employeeId: employee?.employeeCode || (isAbbas ? 'EMP-10' : isBackOffice ? 'EMP-BO-001' : 'EMP-001'),
       name: displayedName,
       email: displayedEmail,
       phone: employee?.phoneNumber || (isBackOffice ? '+91 98765 43999' : '+91 98765 10008'),
@@ -215,212 +219,18 @@ export class ProfileService {
     return formatted;
   }
 
-  async getSalarySlips(userId: string, companyId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+  async getSalarySlips(userId: string, companyId: string, reqUser?: any) {
+    const user =
+      reqUser ||
+      (await this.prisma.user.findUnique({
+        where: { id: userId },
+      }));
 
-    const isAbbas =
-      user?.email?.toLowerCase().includes('abbas') ||
-      user?.name?.toLowerCase().includes('abbas');
-
-    const isBackOffice =
-      user?.email?.toLowerCase().includes('backoffice') ||
-      user?.name?.toLowerCase().includes('back office');
-
-    let employee = await this.prisma.employee.findFirst({
-      where: { userId },
-    });
-
-    if (!employee) {
-      if (isBackOffice) {
-        employee = await this.prisma.employee.findFirst({
-          where: {
-            OR: [
-              { workEmail: { contains: 'backoffice', mode: 'insensitive' } },
-              { employeeCode: 'EMP-BO-001' },
-              { fullName: { contains: 'Back Office', mode: 'insensitive' } },
-            ],
-          },
-        });
-      } else if (isAbbas) {
-        employee = await this.prisma.employee.findFirst({
-          where: {
-            OR: [
-              { workEmail: { contains: 'abbas', mode: 'insensitive' } },
-              { employeeCode: { in: ['EMP-8', 'EMP-08', 'EMP-10'] } },
-              { fullName: { contains: 'Abbas', mode: 'insensitive' } },
-            ],
-          },
-        });
-      } else if (user?.email) {
-        employee = await this.prisma.employee.findFirst({
-          where: { workEmail: user.email },
-        });
-      }
-    }
-
-    const slips = employee
-      ? await this.prisma.salarySlip.findMany({
-          where: {
-            employeeId: employee.id,
-            availableToEmployee: true,
-            payrollRecord: { status: 'PAID' },
-          },
-          include: {
-            payrollRecord: {
-              select: { payrollNumber: true, paidAt: true, payment: true },
-            },
-          },
-          orderBy: [{ salaryYear: 'desc' }, { salaryMonth: 'desc' }],
-        })
-      : [];
-
-    const monthNames = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-
-    if (!slips || slips.length === 0) {
-      const empCode = isBackOffice
-        ? (employee?.employeeCode || 'EMP-BO-001')
-        : isAbbas
-        ? (employee?.employeeCode || 'EMP-8')
-        : (employee?.employeeCode || 'EMP-MOCK-001');
-      const empName = isBackOffice
-        ? 'Back Office Executive'
-        : isAbbas
-        ? 'Abbas Baman'
-        : (employee?.fullName || user?.name || 'Staff Member');
-      const empDept = isBackOffice
-        ? 'Back Office Operations'
-        : isAbbas
-        ? 'Super Admin Department'
-        : 'Operations';
-      const empJob = isBackOffice
-        ? 'Back Office Executive'
-        : isAbbas
-        ? 'Data Analyst & Back Office Lead'
-        : 'Staff Member';
-      const gross = isBackOffice ? 35000 : 45000;
-      const ded = isBackOffice ? 2100 : 2400;
-      const net = gross - ded;
-
-      return [
-        {
-          id: `slip-sep-2026-${userId}`,
-          slipNumber: `HCPPL/SLIP/2026/09-${empCode}`,
-          month: 9,
-          year: 2026,
-          monthName: 'September',
-          grossEarnings: gross,
-          totalDeductions: ded,
-          netPaid: net,
-          paidDate: '2026-10-01T10:00:00.000Z',
-          paymentDate: '2026-10-01T10:00:00.000Z',
-          utrNumber: isBackOffice ? 'HDFC202698732091' : 'HDFC98210394812',
-          status: 'PAID',
-          snapshot: {
-            employee: { fullName: empName, employeeCode: empCode, jobTitle: empJob, department: { name: empDept } },
-            earnings: [
-              { title: 'Basic Salary', amount: isBackOffice ? Math.round(gross * 0.55) : 25000 },
-              { title: 'HRA', amount: isBackOffice ? Math.round(gross * 0.25) : 12000 },
-              { title: 'Special Allowance', amount: isBackOffice ? Math.round(gross * 0.20) : 8000 }
-            ],
-            deductions: [
-              { title: 'Provident Fund', amount: 1800 },
-              { title: 'Professional Tax', amount: ded - 1800 }
-            ]
-          },
-          payrollRecordId: 'pr-sep-2026'
-        },
-        {
-          id: `slip-aug-2026-${userId}`,
-          slipNumber: `HCPPL/SLIP/2026/08-${empCode}`,
-          month: 8,
-          year: 2026,
-          monthName: 'August',
-          grossEarnings: gross,
-          totalDeductions: ded,
-          netPaid: net,
-          paidDate: '2026-09-01T10:00:00.000Z',
-          paymentDate: '2026-09-01T10:00:00.000Z',
-          utrNumber: isBackOffice ? 'HDFC202688732091' : 'HDFC87210384721',
-          status: 'PAID',
-          snapshot: {
-            employee: { fullName: empName, employeeCode: empCode, jobTitle: empJob, department: { name: empDept } },
-            earnings: [
-              { title: 'Basic Salary', amount: isBackOffice ? Math.round(gross * 0.55) : 25000 },
-              { title: 'HRA', amount: isBackOffice ? Math.round(gross * 0.25) : 12000 },
-              { title: 'Special Allowance', amount: isBackOffice ? Math.round(gross * 0.20) : 8000 }
-            ],
-            deductions: [
-              { title: 'Provident Fund', amount: 1800 },
-              { title: 'Professional Tax', amount: ded - 1800 }
-            ]
-          },
-          payrollRecordId: 'pr-aug-2026'
-        },
-        {
-          id: `slip-jul-2026-${userId}`,
-          slipNumber: `HCPPL/SLIP/2026/07-${empCode}`,
-          month: 7,
-          year: 2026,
-          monthName: 'July',
-          grossEarnings: gross,
-          totalDeductions: ded,
-          netPaid: net,
-          paidDate: '2026-08-01T10:00:00.000Z',
-          paymentDate: '2026-08-01T10:00:00.000Z',
-          utrNumber: isBackOffice ? 'HDFC202678732091' : 'HDFC76210373610',
-          status: 'PAID',
-          snapshot: {
-            employee: { fullName: empName, employeeCode: empCode, jobTitle: empJob, department: { name: empDept } },
-            earnings: [
-              { title: 'Basic Salary', amount: isBackOffice ? Math.round(gross * 0.55) : 25000 },
-              { title: 'HRA', amount: isBackOffice ? Math.round(gross * 0.25) : 12000 },
-              { title: 'Special Allowance', amount: isBackOffice ? Math.round(gross * 0.20) : 8000 }
-            ],
-            deductions: [
-              { title: 'Provident Fund', amount: 1800 },
-              { title: 'Professional Tax', amount: ded - 1800 }
-            ]
-          },
-          payrollRecordId: 'pr-jul-2026'
-        }
-      ];
-    }
-
-    return slips.map((s) => {
-      const snap = (s.snapshotJson as any) || {};
-      return {
-        id: s.id,
-        slipNumber: s.slipNumber,
-        month: s.salaryMonth,
-        year: s.salaryYear,
-        monthName: monthNames[s.salaryMonth - 1] || 'Month',
-        grossEarnings: Number(s.grossEarnings),
-        totalDeductions: Number(s.totalDeductions),
-        netPaid: Number(s.netPaid),
-        paidDate: s.payrollRecord?.paidAt || snap.payment?.paymentDate || s.generatedAt,
-        paymentDate: s.payrollRecord?.paidAt || snap.payment?.paymentDate || s.generatedAt,
-        utrNumber: s.payrollRecord?.payment?.utrNumber || snap.payment?.utrNumber || '—',
-        status: 'PAID',
-        snapshot: s.snapshotJson,
-        payrollRecordId: s.payrollRecordId,
-      };
-    });
+    return this.payrollService.getOwnSalarySlips(
+      user || { id: userId, sub: userId, companyId },
+    );
   }
+
 
   async getMyExpenses(userId: string, companyId: string) {
     const user = await this.prisma.user.findUnique({
