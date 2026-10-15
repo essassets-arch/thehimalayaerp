@@ -5,7 +5,7 @@ import { apiClient } from '../../lib/apiClient';
 import StatusBadge from './StatusBadge';
 import { 
   User, Calendar, CalendarDays, FileText, CreditCard, 
-  Upload, FileDown, PlusCircle, RefreshCw,
+  Upload, PlusCircle, RefreshCw,
   Mail, Phone, ShieldCheck, MapPin, LogIn, LogOut, Clock, Fingerprint, Camera, ShieldAlert, Send, X
 } from 'lucide-react';
 import Swal from 'sweetalert2';
@@ -651,14 +651,6 @@ export default function MyProfileView() {
   return (
     <div className="hr-page my-profile-root" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%', maxWidth: '100%', overflowX: 'hidden', paddingBottom: '32px', boxSizing: 'border-box' }}>
       
-      {/* ── Official Salary Slip Modal ── */}
-      {viewingSlip && (
-        <SalarySlipDocument
-          slip={viewingSlip}
-          onClose={() => setViewingSlip(null)}
-          isModal={true}
-        />
-      )}
       
       {/* 1. Header Profile Info Card (Proper Visual Section Isolation) */}
       <div 
@@ -1245,11 +1237,12 @@ export default function MyProfileView() {
                       </div>
 
                       {/* Actions */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', paddingTop: '4px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px', paddingTop: '4px' }}>
                         <button
                           type="button"
                           onClick={() => setViewingSlip(slip)}
                           style={{
+                            width: '100%',
                             background: '#f1f5f9',
                             color: '#0f172a',
                             border: '1px solid #cbd5e1',
@@ -1264,27 +1257,7 @@ export default function MyProfileView() {
                             gap: '6px'
                           }}
                         >
-                          👁 View
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadPdf(slip.id, slip.slipNumber)}
-                          style={{
-                            background: '#0f172a',
-                            color: '#ffffff',
-                            border: 'none',
-                            padding: '8px 12px',
-                            borderRadius: '8px',
-                            fontSize: '12px',
-                            fontWeight: '700',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '6px'
-                          }}
-                        >
-                          <FileDown size={14} /> Download PDF
+                          👁 View Salary Slip
                         </button>
                       </div>
                     </div>
@@ -2052,7 +2025,7 @@ export default function MyProfileView() {
         <SalarySlipDocument
           slip={viewingSlip}
           isModal={true}
-          allowDownload={true}
+          allowDownload={false}
           onClose={() => setViewingSlip(null)}
         />
       )}
