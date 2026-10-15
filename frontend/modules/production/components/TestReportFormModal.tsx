@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, Loader2, Save, Send } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { X, Loader2, Save, Send, Search, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { backendFetch } from '../../../lib/backendFetch';
 import styles from './TestReportFormModal.module.css';
@@ -38,6 +38,10 @@ export default function TestReportFormModal({
   const [clientName, setClientName] = useState('');
   const [poNumber, setPoNumber] = useState('');
   const [productId, setProductId] = useState('');
+  const [productSearch, setProductSearch] = useState('');
+  const [isProductListOpen, setIsProductListOpen] = useState(false);
+  const [activeProductIndex, setActiveProductIndex] = useState(0);
+  const productPickerRef = useRef<HTMLDivElement>(null);
   const [productName, setProductName] = useState('');
   const [clearOpening, setClearOpening] = useState('');
   const [quantitySupply, setQuantitySupply] = useState('');
@@ -53,6 +57,43 @@ export default function TestReportFormModal({
   const [testedByTitle, setTestedByTitle] = useState('Plant Head');
   const [status, setStatus] = useState<'Draft' | 'Pending Approval'>('Draft');
   const [remarks, setRemarks] = useState('');
+
+  const filteredProducts = useMemo(() => {
+    const query = productSearch.trim().toLocaleLowerCase();
+    const searchableProducts = products.map((product) => ({
+      product,
+      label: `${product.name || ''} ${product.size || ''} ${product.capacity || ''}`.trim(),
+    }));
+    if (!query) return searchableProducts;
+
+    const terms = query.split(/\s+/);
+    return searchableProducts
+      .map((item) => {
+        const name = String(item.product.name || '').toLocaleLowerCase();
+        const size = String(item.product.size || '').toLocaleLowerCase();
+        const capacity = String(item.product.capacity || '').toLocaleLowerCase();
+        const searchable = `${name} ${size} ${capacity}`;
+        const matches = terms.every((term) => searchable.includes(term));
+        if (!matches) return null;
+
+        // Put direct name matches before matches found only in size/capacity.
+        const score = name.startsWith(query) ? 0 : name.includes(query) ? 1 : 2;
+        return { ...item, score };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .sort((a, b) => a.score - b.score || a.label.localeCompare(b.label));
+  }, [products, productSearch]);
+
+  useEffect(() => {
+    if (!isProductListOpen) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!productPickerRef.current?.contains(event.target as Node)) {
+        setIsProductListOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [isProductListOpen]);
 
   useEffect(() => {
     if (initialData) {
@@ -97,6 +138,8 @@ export default function TestReportFormModal({
       setClientName('');
       setPoNumber('');
       setProductId('');
+      setProductSearch('');
+      setIsProductListOpen(false);
       setProductName('');
       setClearOpening('');
       setQuantitySupply('');
@@ -119,6 +162,9 @@ export default function TestReportFormModal({
     setProductId(selectedId);
     const prod = products.find((p) => p.id === selectedId);
     if (prod) {
+      setProductSearch(`${prod.name || ''}${prod.size ? ` (${prod.size})` : ''}${prod.capacity ? ` [${prod.capacity}]` : ''}`);
+      setIsProductListOpen(false);
+      setActiveProductIndex(0);
       setProductName(prod.name || '');
       if (prod.size) setClearOpening(prod.size);
 
@@ -290,20 +336,65 @@ export default function TestReportFormModal({
                 />
               </div>
 
-              <div className={`${styles.formField} ${styles.fullWidth}`}>
+              <div className={`${styles.formField} ${styles.fullWidth}`} ref={productPickerRef}>
                 <label className={styles.formLabel}>Select Product from Master (Auto-fills specifications)</label>
-                <select
-                  value={productId}
-                  onChange={(e) => handleProductSelect(e.target.value)}
-                  className={styles.formSelect}
-                >
-                  <option value="">-- Choose catalog product or enter custom name below --</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} {p.size ? `(${p.size})` : ''} {p.capacity ? `[${p.capacity}]` : ''}
-                    </option>
-                  ))}
-                </select>
+                <div className={styles.productPicker}>
+                  <Search size={16} aria-hidden="true" className={styles.productSearchIcon} />
+                  <input
+                    type="text"
+                    value={productSearch}
+                    onChange={(e) => {
+                      setProductSearch(e.target.value);
+                      setProductId('');
+                      setIsProductListOpen(true);
+                      setActiveProductIndex(0);
+                    }}
+                    onFocus={() => setIsProductListOpen(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowDown' && filteredProducts.length) {
+                        e.preventDefault();
+                        setIsProductListOpen(true);
+                        setActiveProductIndex((index) => Math.min(index + 1, filteredProducts.length - 1));
+                      } else if (e.key === 'ArrowUp' && filteredProducts.length) {
+                        e.preventDefault();
+                        setActiveProductIndex((index) => Math.max(index - 1, 0));
+                      } else if (e.key === 'Enter' && isProductListOpen && filteredProducts[activeProductIndex]) {
+                        e.preventDefault();
+                        handleProductSelect(filteredProducts[activeProductIndex].product.id);
+                      } else if (e.key === 'Escape') {
+                        setIsProductListOpen(false);
+                      }
+                    }}
+                    className={`${styles.formInput} ${styles.productSearchInput}`}
+                    placeholder="Search by product name, size, or capacity…"
+                    role="combobox"
+                    aria-label="Search master products"
+                    aria-autocomplete="list"
+                    aria-expanded={isProductListOpen}
+                    aria-controls="master-product-options"
+                  />
+                  {isProductListOpen && (
+                    <div className={styles.productOptions} id="master-product-options" role="listbox">
+                      {filteredProducts.length ? filteredProducts.map(({ product, label }, index) => (
+                        <button
+                          type="button"
+                          key={product.id}
+                          role="option"
+                          aria-selected={product.id === productId}
+                          className={`${styles.productOption} ${index === activeProductIndex ? styles.productOptionActive : ''}`}
+                          onMouseEnter={() => setActiveProductIndex(index)}
+                          onClick={() => handleProductSelect(product.id)}
+                        >
+                          <span>{product.name}{product.size ? ` (${product.size})` : ''}{product.capacity ? ` [${product.capacity}]` : ''}</span>
+                          {product.id === productId && <Check size={16} aria-hidden="true" />}
+                        </button>
+                      )) : (
+                        <div className={styles.productEmpty}>No matching products. You can enter a custom name below.</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <span className={styles.productHint}>Search across product names, sizes, and capacities.</span>
               </div>
 
               <div className={`${styles.formField} ${styles.fullWidth}`}>
