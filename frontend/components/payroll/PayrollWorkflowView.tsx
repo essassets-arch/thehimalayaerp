@@ -37,9 +37,13 @@ export default function PayrollWorkflowView({ mode }: { mode: Mode }) {
       const items = Array.isArray(result) ? result : (result?.items || []);
       setRecords(items);
     } catch (cause: any) {
-      // Some deployments return the single-record 404 message for an empty paid-history query.
-      // Treat that as an empty month so users can still navigate history without a false retry error.
-      if ((mode === 'history' || mode === 'payslips') && /payroll record not found/i.test(cause?.message || '')) {
+      // If no records are found or backend returns 404 for an empty month query,
+      // treat that as an empty month so users can still navigate history without a false retry error.
+      if (
+        /payroll record not found/i.test(cause?.message || '') ||
+        cause?.status === 404 ||
+        cause?.statusCode === 404
+      ) {
         setError('');
         setRecords([]);
       } else {

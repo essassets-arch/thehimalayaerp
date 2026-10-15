@@ -29,9 +29,43 @@ export class PayrollController {
     return this.service.generate(body, req.user);
   }
 
-  @Get('hr/payroll')
+  @Get(['hr/payroll', 'payroll'])
   listHrPayroll(@Query() query: any, @Req() req: any) {
     return this.service.list(query, req.user);
+  }
+
+  @Get(['hr/payroll/status', 'payroll/status'])
+  listHrPayrollStatus(@Query() query: any, @Req() req: any) {
+    return this.service.list(query, req.user);
+  }
+
+  @Get([
+    'finance/payroll/paid',
+    'hr/payroll/finance/history',
+    'hr/payroll/history',
+    'hr/payroll/paid',
+    'payroll/history',
+  ])
+  listFinancePaidHistory(@Query() query: any, @Req() req: any) {
+    return this.service.list(query, req.user, ['PAID']);
+  }
+
+  @Get(['finance/payroll/pending', 'hr/payroll/finance/pending'])
+  listFinancePending(@Query() query: any, @Req() req: any) {
+    return this.service.list(query, req.user, ['PENDING_FINANCE']);
+  }
+
+  @Get(['finance/payroll/processing', 'hr/payroll/finance/processing'])
+  listFinanceProcessing(@Query() query: any, @Req() req: any) {
+    return this.service.list(query, req.user, ['PROCESSING']);
+  }
+
+  @Get(['super-admin/payroll/pending', 'hr/payroll/approvals/pending'])
+  listSuperAdminPending(@Query() query: any, @Req() req: any) {
+    return this.service.list(query, req.user, [
+      'PENDING_SUPER_ADMIN_APPROVAL',
+      'ON_HOLD',
+    ]);
   }
 
   @Get('hr/payroll/submissions/summary')
@@ -39,13 +73,43 @@ export class PayrollController {
     return this.service.getSubmissionSummary(query, req.user);
   }
 
+  @Get([
+    'hr/payroll/attendance-summary/:employeeId',
+    'payroll/attendance-summary/:employeeId',
+  ])
+  getPayrollAttendanceSummary(
+    @Param('employeeId') employeeId: string,
+    @Query('month') month: string,
+    @Req() req: any,
+  ) {
+    return this.service.getPayrollAttendanceSummary(
+      employeeId,
+      month,
+      req.user,
+    );
+  }
+
   @Get('hr/payroll/:id/history')
-  getPayrollRecordHistory(@Param('id') id: string, @Req() req: any) {
+  getPayrollRecordHistory(
+    @Param('id') id: string,
+    @Query() query: any,
+    @Req() req: any,
+  ) {
+    if (id === 'finance' || id === 'all') {
+      return this.service.list(query, req.user, ['PAID']);
+    }
     return this.service.getRecordHistory(id, req.user);
   }
 
   @Get('hr/payroll/:id')
-  getPayrollRecord(@Param('id') id: string, @Req() req: any) {
+  getPayrollRecord(
+    @Param('id') id: string,
+    @Query() query: any,
+    @Req() req: any,
+  ) {
+    if (id === 'status' || id === 'history' || id === 'all') {
+      return this.service.list(query, req.user);
+    }
     return this.service.get(id, req.user);
   }
 
@@ -74,34 +138,6 @@ export class PayrollController {
       body?.records?.map((r: any) => r?.id || r) ||
       (idParam ? [idParam] : []);
     return this.service.submitToSuperAdmin(ids, req.user);
-  }
-
-  @Get([
-    'hr/payroll/attendance-summary/:employeeId',
-    'payroll/attendance-summary/:employeeId',
-  ])
-  getPayrollAttendanceSummary(
-    @Param('employeeId') employeeId: string,
-    @Query('month') month: string,
-    @Req() req: any,
-  ) {
-    return this.service.getPayrollAttendanceSummary(
-      employeeId,
-      month,
-      req.user,
-    );
-  }
-
-  // ==========================================
-  // SUPER ADMIN PAYROLL APPROVAL ENDPOINTS
-  // ==========================================
-
-  @Get(['super-admin/payroll/pending', 'hr/payroll/approvals/pending'])
-  listSuperAdminPending(@Query() query: any, @Req() req: any) {
-    return this.service.list(query, req.user, [
-      'PENDING_SUPER_ADMIN_APPROVAL',
-      'ON_HOLD',
-    ]);
   }
 
   @Post(['super-admin/payroll/:id/approve', 'hr/payroll/:id/approve'])
@@ -136,25 +172,6 @@ export class PayrollController {
   sendToFinance(@Body() body: any, @Req() req: any) {
     const ids = body?.ids || body?.records?.map((r: any) => r?.id || r) || [];
     return this.service.sendToFinance(ids, req.user);
-  }
-
-  // ==========================================
-  // FINANCE PAYROLL DISBURSEMENT ENDPOINTS
-  // ==========================================
-
-  @Get(['finance/payroll/pending', 'hr/payroll/finance/pending'])
-  listFinancePending(@Query() query: any, @Req() req: any) {
-    return this.service.list(query, req.user, ['PENDING_FINANCE']);
-  }
-
-  @Get(['finance/payroll/processing', 'hr/payroll/finance/processing'])
-  listFinanceProcessing(@Query() query: any, @Req() req: any) {
-    return this.service.list(query, req.user, ['PROCESSING']);
-  }
-
-  @Get(['finance/payroll/paid', 'hr/payroll/finance/history'])
-  listFinancePaidHistory(@Query() query: any, @Req() req: any) {
-    return this.service.list(query, req.user, ['PAID']);
   }
 
   @Post([
