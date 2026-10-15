@@ -36,7 +36,7 @@ docker exec -i "$POSTGRES_CONTAINER" psql -U "${POSTGRES_USER:-himalaya_erp_user
 
 echo ""
 echo "🚀 Step 4: Restarting application services..."
-docker compose up -d --force-recreate backend frontend reverse-proxy
+docker compose up -d --force-recreate backend frontend
 
 echo ""
 echo "======================================================================"
