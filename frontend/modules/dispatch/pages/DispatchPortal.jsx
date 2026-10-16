@@ -161,7 +161,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       const catParam = effectiveDispatchCat ? `?category=${effectiveDispatchCat}` : '';
       const [dispatchesRes, workOrdersRes, returnsRes, replacementsRes, finishedGoodsRes, queueRes] = await Promise.allSettled([
         backendFetch(`/api/backend/logistics/dispatches${catParam}`),
-        backendFetch('/api/backend/production/work-orders?status=READY_FOR_DISPATCH'),
+        backendFetch('/api/backend/production/work-orders?status=READY_FOR_DISPATCH,COMPLETED,DISPATCHED'),
         backendFetch('/api/backend/sales-returns'),
         backendFetch('/api/backend/replacements'),
         backendFetch('/api/backend/production/finished-goods'),
@@ -515,7 +515,8 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       }
     }
     return (
-      ['QC_APPROVED', 'QC Passed', 'QC_PASSED', 'DISPATCH_READY', 'Dispatch Created', 'DISPATCH_CREATED', 'IN_TRANSIT', 'In Transit', 'Partially Delivered', 'READY_FOR_DISPATCH', 'Ready for Dispatch'].includes(st) &&
+      ['QC_APPROVED', 'QC Passed', 'QC_PASSED', 'DISPATCH_READY', 'Dispatch Created', 'DISPATCH_CREATED', 'IN_TRANSIT', 'In Transit', 'Partially Delivered', 'READY_FOR_DISPATCH', 'Ready for Dispatch', 'COMPLETED', 'DISPATCHED'].includes(st) &&
+      !Boolean(o.dispatchedAt) &&
       getRemainingQty(o) > 0
     );
   });

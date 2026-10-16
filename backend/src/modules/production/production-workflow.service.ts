@@ -597,6 +597,11 @@ export class ProductionWorkflowService {
               { qcResult: 'FAIL' },
             ],
           }
+        : statuses.includes('READY_FOR_DISPATCH' as any)
+        ? {
+            productionStatus: { in: statuses as any },
+            sentToDispatchAt: null,
+          }
         : { productionStatus: { in: statuses as any } };
       const tenantScope = this.getWorkOrderTenantFilter(companyId);
       const whereClause: any = tenantScope
@@ -644,16 +649,8 @@ export class ProductionWorkflowService {
     return {
       OR: [
         { salesOrderItem: { product: { companyId } } },
-        {
-          AND: [
-            { salesOrderItem: null },
-            {
-              productionPlan: {
-                salesOrder: { customer: { companyId } },
-              },
-            },
-          ],
-        },
+        { salesOrderItem: { salesOrder: { customer: { companyId } } } },
+        { productionPlan: { salesOrder: { customer: { companyId } } } },
       ],
     };
   }
@@ -765,9 +762,11 @@ export class ProductionWorkflowService {
           );
         }
 
-        // 2. Idempotency Check: if already DISPATCHED, do not re-process or duplicate inventory moves
+        // 2. Idempotency Check: if already sent to dispatch, do not re-process or duplicate inventory moves
         const isAlreadyDispatched =
-          wo.productionStatus === 'DISPATCHED' || wo.status === 'DISPATCHED';
+          wo.sentToDispatchAt !== null ||
+          (wo.productionStatus === 'DISPATCHED' && wo.status === 'READY_FOR_DISPATCH') ||
+          wo.status === 'DISPATCHED';
 
         if (isAlreadyDispatched) {
           // Idempotent return without duplicate inventory or finished goods moves
@@ -812,7 +811,7 @@ export class ProductionWorkflowService {
           where: { id },
           data: {
             productionStatus: 'DISPATCHED',
-            status: 'DISPATCHED',
+            status: 'READY_FOR_DISPATCH',
             sentToDispatchAt: wo.sentToDispatchAt || new Date(),
             completedAt: wo.completedAt || new Date(),
           },

@@ -53,12 +53,8 @@ export class DispatchService {
     return {
       OR: [
         { salesOrderItem: { product: { companyId } } },
-        {
-          AND: [
-            { salesOrderItem: null },
-            { productionPlan: { salesOrder: { customer: { companyId } } } },
-          ],
-        },
+        { salesOrderItem: { salesOrder: { customer: { companyId } } } },
+        { productionPlan: { salesOrder: { customer: { companyId } } } },
       ],
     };
   }
@@ -1668,6 +1664,10 @@ export class DispatchService {
       });
 
       for (const wo of readyWorkOrders) {
+        if (wo.dispatchedAt) {
+          continue;
+        }
+
         const woProdStatus = String(wo.productionStatus || '').toUpperCase();
         const woStatus = String(wo.status || '').toUpperCase();
         if (
@@ -1721,6 +1721,8 @@ export class DispatchService {
             orderNo: salesOrder?.orderNumber || wo.workOrderNumber,
             salesOrderId: salesOrder?.id || null,
             workOrderId: wo.id,
+            workOrderNumber: wo.workOrderNumber,
+            productionPlanNumber: wo.productionPlan?.planNumber || null,
             batchId: product?.sku || wo.workOrderNumber || 'FG-PROD',
             customerName:
               customer?.companyName ||
@@ -1749,6 +1751,8 @@ export class DispatchService {
           orderRow.items.push({
             allocationId: `wo-${wo.id}`,
             workOrderId: wo.id,
+            workOrderNumber: wo.workOrderNumber,
+            productionPlanNumber: wo.productionPlan?.planNumber || null,
             salesOrderItemId: wo.salesOrderItemId || wo.salesOrderItem?.id || null,
             productId: product?.id || (wo as any).productId || '',
             productCode:
@@ -1836,6 +1840,8 @@ export class DispatchService {
               salesOrder?.orderNumber || wo?.workOrderNumber || 'FG-DISPATCH',
             salesOrderId: salesOrder?.id || null,
             workOrderId: fg.workOrderId || null,
+            workOrderNumber: wo?.workOrderNumber || (fg as any).jobNo || null,
+            productionPlanNumber: wo?.productionPlan?.planNumber || null,
             batchId: product?.sku || wo?.workOrderNumber || 'FG-STOCK',
             customerName:
               customer?.companyName ||
@@ -1865,6 +1871,8 @@ export class DispatchService {
             allocationId: `fg-${fg.id}`,
             fgId: fg.id,
             workOrderId: fg.workOrderId,
+            workOrderNumber: wo?.workOrderNumber || (fg as any).jobNo || null,
+            productionPlanNumber: wo?.productionPlan?.planNumber || null,
             salesOrderItemId:
               wo?.salesOrderItemId || wo?.salesOrderItem?.id || null,
             productId: product?.id || (fg as any).productId || '',
@@ -1890,7 +1898,7 @@ export class DispatchService {
     try {
       const readyTradingOrders: any = await this.prisma.salesOrder.findMany({
         where: {
-          status: { notIn: ['CANCELLED', 'LOST', 'DRAFT', 'REJECTED'] as any },
+          status: { notIn: ['CANCELLED', 'LOST', 'DRAFT'] as any },
           deletedAt: null,
           ...(companyId ? { customer: { companyId } } : {}),
         },

@@ -137,6 +137,7 @@ export interface UnifiedPendingDispatchItem {
   salesOrderItemId?: string;
   workOrderId?: string;
   workOrderNumber?: string;
+  productionPlanNumber?: string;
   productId?: string;
   dispatchCategory?: string;
 }
@@ -965,7 +966,7 @@ export default function DispatchOrdersPage() {
         activeDispatchesPayload,
       ] = await Promise.allSettled([
         backendFetch<any>(
-          "/api/backend/production/work-orders?status=READY_FOR_DISPATCH,SENT_TO_DISPATCH,QC_APPROVED,COMPLETED",
+          "/api/backend/production/work-orders?status=READY_FOR_DISPATCH,SENT_TO_DISPATCH,QC_APPROVED,COMPLETED,DISPATCHED",
           { cacheTtlMs: 0 }
         ),
         backendFetch<any>("/api/backend/production/ready-for-dispatch", { cacheTtlMs: 0 }),
@@ -987,12 +988,11 @@ export default function DispatchOrdersPage() {
         if (
           prodStatus === "DELIVERED" ||
           prodStatus === "SHIPPED" ||
-          prodStatus === "DISPATCHED" ||
           woStatus === "DELIVERED" ||
           woStatus === "SHIPPED" ||
-          woStatus === "DISPATCHED" ||
           woStatus === "CLOSED" ||
-          woStatus === "CANCELLED"
+          woStatus === "CANCELLED" ||
+          Boolean(wo.dispatchedAt)
         ) {
           return false;
         }
@@ -1309,13 +1309,14 @@ export default function DispatchOrdersPage() {
 
           unifiedDirectDispatches.push({
             id: `alloc-${qItem.allocationId || qItem.id || Math.random()}`,
-            itemType: "TRADING_SALES_ORDER",
+            itemType: (qItem.workOrderId || qOrder.workOrderId) ? "WORK_ORDER" : "TRADING_SALES_ORDER",
             orderNumber: soNumber,
             customerName,
             salesPersonName,
             projectName,
             deliveryAddress,
             productName: qItem.productName || "Direct Dispatch Item",
+            productSku: qItem.productCode || qItem.sku,
             approvedQuantity: remaining,
             orderedQuantity: qty,
             dispatchedQuantity: fromActiveDispatches,
@@ -1323,6 +1324,9 @@ export default function DispatchOrdersPage() {
             isPartiallyDispatched: fromActiveDispatches > 0 && remaining > 0,
             salesOrderId: qOrder.salesOrderId || matchedSo?.id,
             salesOrderItemId: qItem.salesOrderItemId,
+            workOrderId: qItem.workOrderId || qOrder.workOrderId,
+            workOrderNumber: qItem.workOrderNumber || qOrder.workOrderNumber,
+            productionPlanNumber: qItem.productionPlanNumber || qOrder.productionPlanNumber,
             productId: qItem.productId,
             dispatchCategory: (isTradingProduct(qItem, productsMap) ? "D2" : null) ||
               qItem.dispatchCategory ||
@@ -1389,6 +1393,7 @@ export default function DispatchOrdersPage() {
           salesOrderId: salesOrder?.id || fg.salesOrderId,
           salesOrderItemId: fg.salesOrderItemId || wo?.salesOrderItemId || fg.workOrder?.salesOrderItemId || fg.workOrder?.salesOrderItem?.id || undefined,
           workOrderNumber: fg.jobNo || wo?.workOrderNumber,
+          productionPlanNumber: wo?.productionPlan?.planNumber || fg.productionPlanNumber,
           productId: fg.productId || wo?.salesOrderItem?.productId || fg.workOrder?.salesOrderItem?.productId,
           dispatchCategory:
             (isTradingProduct(fg.product || fg, productsMap) ? "D2" : null) ||
@@ -1410,12 +1415,11 @@ export default function DispatchOrdersPage() {
         const prodStatus = String(wo.productionStatus || "").toUpperCase();
         const woStatus = String(wo.status || "").toUpperCase();
         if (
+          Boolean(wo.dispatchedAt) ||
           prodStatus === "DELIVERED" ||
           prodStatus === "SHIPPED" ||
-          prodStatus === "DISPATCHED" ||
           woStatus === "DELIVERED" ||
           woStatus === "SHIPPED" ||
-          woStatus === "DISPATCHED" ||
           woStatus === "CLOSED" ||
           woStatus === "CANCELLED"
         ) {
@@ -1480,6 +1484,7 @@ export default function DispatchOrdersPage() {
           salesOrderId: salesOrder?.id || wo.salesOrderId,
           salesOrderItemId: item?.id || wo.salesOrderItemId || wo.salesOrderItem?.id || undefined,
           workOrderNumber: wo.workOrderNumber,
+          productionPlanNumber: wo.productionPlan?.planNumber || wo.planNumber,
           productId: wo.salesOrderItem?.productId || wo.productId,
           dispatchCategory: isTradingProduct(wo.salesOrderItem || wo, productsMap)
             ? "D2"
@@ -1667,6 +1672,7 @@ export default function DispatchOrdersPage() {
           salesOrderItemId: incoming.salesOrderItemId || existing.salesOrderItemId,
           workOrderId: incoming.workOrderId || existing.workOrderId,
           workOrderNumber: incoming.workOrderNumber || existing.workOrderNumber,
+          productionPlanNumber: incoming.productionPlanNumber || existing.productionPlanNumber,
           productId: incoming.productId || existing.productId,
           productName: incoming.productName || existing.productName,
           productSku: incoming.productSku || existing.productSku,
@@ -1731,15 +1737,30 @@ export default function DispatchOrdersPage() {
       if (!matchCategory) return false;
 
       if (!search.trim()) return true;
-      const lower = search.toLowerCase();
+      const searchTrim = search.trim();
+      const lower = searchTrim.toLowerCase();
+      const searchDigits = searchTrim.replace(/\D/g, "");
+      const slashParts = searchTrim.split("/").map((p) => p.trim().toLowerCase()).filter(Boolean);
+      const lastPart = slashParts.length > 0 ? slashParts[slashParts.length - 1] : "";
+
+      const matchesText = (val?: string | null) => {
+        if (!val) return false;
+        const vLower = val.toLowerCase();
+        if (vLower.includes(lower)) return true;
+        if (lastPart && lastPart.length >= 2 && vLower.includes(lastPart)) return true;
+        if (searchDigits && searchDigits.length >= 3 && val.replace(/\D/g, "").includes(searchDigits)) return true;
+        return false;
+      };
+
       return (
-        item.orderNumber.toLowerCase().includes(lower) ||
+        matchesText(item.orderNumber) ||
+        matchesText(item.workOrderNumber) ||
+        matchesText(item.productionPlanNumber) ||
         item.customerName.toLowerCase().includes(lower) ||
         (item.salesPersonName && item.salesPersonName.toLowerCase().includes(lower)) ||
         (item.projectName && item.projectName.toLowerCase().includes(lower)) ||
         item.productName.toLowerCase().includes(lower) ||
-        item.deliveryAddress.toLowerCase().includes(lower) ||
-        (item.workOrderNumber && item.workOrderNumber.toLowerCase().includes(lower))
+        item.deliveryAddress.toLowerCase().includes(lower)
       );
     });
   }, [pendingItems, currentCategory, productsMap, search]);

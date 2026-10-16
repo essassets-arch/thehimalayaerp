@@ -212,7 +212,11 @@ export class ProductionWorkflowController {
   // ==========================================
   // FINISHED GOODS
   // ==========================================
-  @RequirePermissions('production.productionworkflow.read')
+  @RequirePermissions(
+    'production.productionworkflow.read',
+    'production.finishedgoods.read',
+    'logistics.dispatches.read',
+  )
   @Get('production/finished-goods')
   async getFinishedGoods(@Req() req: any, @Query('scope') scope?: string) {
     try {
