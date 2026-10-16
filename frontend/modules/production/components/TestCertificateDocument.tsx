@@ -44,6 +44,7 @@ export interface TestCertificateData {
   approvedBySignature?: boolean;
   status?: string;
   remarks?: string | null;
+  certificateType?: string | null;
 }
 
 interface Props {

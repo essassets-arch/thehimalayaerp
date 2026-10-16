@@ -777,3 +777,29 @@
   margin-left: 6px;
 }
 
+.cert1Badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  margin-left: 6px;
+  letter-spacing: 0.3px;
+}
+
+.cert2Badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  background-color: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  margin-left: 6px;
+  letter-spacing: 0.3px;
+}
+

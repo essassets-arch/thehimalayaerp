@@ -12,6 +12,7 @@ import {
   TestSpecificationRow,
   LoadTestingRow,
 } from './TestCertificateDocument';
+import { defaultSpecificationsCert2 } from './TestCertificateDocument2';
 
 interface Props {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export default function TestReportFormModal({
 }: Props) {
   const isEditing = !!initialData?.id;
 
+  const [templateType, setTemplateType] = useState<'CERT_1' | 'CERT_2'>('CERT_1');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reportNumber, setReportNumber] = useState('');
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
@@ -109,10 +111,17 @@ export default function TestReportFormModal({
       setClearOpening(initialData.clearOpening || '');
       setQuantitySupply(initialData.quantitySupply || '');
       setProjectName(initialData.projectName || '');
+
+      const isC2 =
+        (initialData as any).certificateType === 'CERT_2' ||
+        (initialData.remarks && initialData.remarks.includes('CERT_TYPE:CERT_2')) ||
+        (initialData.specifications && initialData.specifications.some((s) => s.specification?.toLowerCase().includes('cover size')));
+      setTemplateType(isC2 ? 'CERT_2' : 'CERT_1');
+
       if (initialData.specifications && initialData.specifications.length > 0) {
         setSpecs(initialData.specifications);
       } else {
-        setSpecs(defaultSpecifications);
+        setSpecs(isC2 ? defaultSpecificationsCert2 : defaultSpecifications);
       }
       if (initialData.loadTestingRows && initialData.loadTestingRows.length > 0) {
         setLoadRows(initialData.loadTestingRows);
@@ -144,6 +153,7 @@ export default function TestReportFormModal({
       setClearOpening('');
       setQuantitySupply('');
       setProjectName('');
+      setTemplateType('CERT_1');
       setSpecs(defaultSpecifications);
       setLoadRows(defaultLoadTestingRows);
       setCycleLoadsTon('40');
@@ -158,6 +168,30 @@ export default function TestReportFormModal({
     }
   }, [initialData, isOpen]);
 
+  const handleTemplateSwitch = (target: 'CERT_1' | 'CERT_2') => {
+    setTemplateType(target);
+    if (target === 'CERT_2') {
+      const pName = productName || '';
+      const sizeMatch = (clearOpening + ' ' + pName).match(/(\d{3,4})\s*[xX*]\s*(\d{3,4})/);
+      let derivedCover = '650 X 650 MM';
+      let derivedFrame = '710 X 710 MM';
+      if (sizeMatch) {
+        const w = parseInt(sizeMatch[1], 10);
+        const h = parseInt(sizeMatch[2], 10);
+        derivedCover = `${w + 50} X ${h + 50} MM`;
+        derivedFrame = `${w + 110} X ${h + 110} MM`;
+      }
+      setSpecs(defaultSpecificationsCert2.map((s) => {
+        if (s.srNo === 2 && clearOpening) return { ...s, description: clearOpening };
+        if (s.srNo === 3 && derivedCover) return { ...s, description: derivedCover };
+        if (s.srNo === 4 && derivedFrame) return { ...s, description: derivedFrame };
+        return s;
+      }));
+    } else {
+      setSpecs(defaultSpecifications);
+    }
+  };
+
   const handleProductSelect = (selectedId: string) => {
     setProductId(selectedId);
     const prod = products.find((p) => p.id === selectedId);
@@ -169,14 +203,35 @@ export default function TestReportFormModal({
       if (prod.size) setClearOpening(prod.size);
 
       // Update default specifications based on selected Product Master details
-      setSpecs((prev) =>
-        prev.map((s) => {
-          if (s.srNo === 1) return { ...s, description: 'FRP' };
-          if (s.srNo === 2 && prod.capacity) return { ...s, description: `${prod.capacity}` };
-          if (s.srNo === 3 && prod.type) return { ...s, description: 'Black' };
-          return s;
-        })
-      );
+      if (templateType === 'CERT_2') {
+        const sizeMatch = (prod.size || prod.name || '').match(/(\d{3,4})\s*[xX*]\s*(\d{3,4})/);
+        let derivedCover = '650 X 650 MM';
+        let derivedFrame = '710 X 710 MM';
+        if (sizeMatch) {
+          const w = parseInt(sizeMatch[1], 10);
+          const h = parseInt(sizeMatch[2], 10);
+          derivedCover = `${w + 50} X ${h + 50} MM`;
+          derivedFrame = `${w + 110} X ${h + 110} MM`;
+        }
+        setSpecs((prev) =>
+          prev.map((s) => {
+            if (s.srNo === 2 && prod.size) return { ...s, description: prod.size };
+            if (s.srNo === 3) return { ...s, description: derivedCover };
+            if (s.srNo === 4) return { ...s, description: derivedFrame };
+            if (s.srNo === 5 && prod.capacity) return { ...s, description: `${prod.capacity}` };
+            return s;
+          })
+        );
+      } else {
+        setSpecs((prev) =>
+          prev.map((s) => {
+            if (s.srNo === 1) return { ...s, description: 'FRP' };
+            if (s.srNo === 2 && prod.capacity) return { ...s, description: `${prod.capacity}` };
+            if (s.srNo === 3 && prod.type) return { ...s, description: 'Black' };
+            return s;
+          })
+        );
+      }
 
       // If product has numeric capacity (e.g. 12.5, 25, 40), set cycle ton defaults
       const capNum = parseFloat(prod.capacity || '');
@@ -215,6 +270,11 @@ export default function TestReportFormModal({
 
     setIsSubmitting(true);
     try {
+      const cleanRemarks = (remarks || '').replace(/\[CERT_TYPE:[^\]]+\]\s*/g, '').trim();
+      const finalRemarks = templateType === 'CERT_2'
+        ? `[CERT_TYPE:CERT_2] ${cleanRemarks}`.trim()
+        : cleanRemarks;
+
       const payload = {
         reportNumber: reportNumber.trim(),
         reportDate,
@@ -233,7 +293,8 @@ export default function TestReportFormModal({
         testedByName: testedByName.trim(),
         testedByTitle: testedByTitle.trim(),
         status: targetStatus,
-        remarks: remarks.trim() || undefined,
+        remarks: finalRemarks || undefined,
+        certificateType: templateType,
       };
 
       let res: any;
@@ -278,6 +339,40 @@ export default function TestReportFormModal({
 
         {/* Form Body */}
         <div className={styles.modalBody}>
+          {/* Certificate Template Selection */}
+          <div className={styles.templateSelectionBar}>
+            <span className={styles.templateSelectionLabel}>Select Certificate Design / Format</span>
+            <div className={styles.templateOptions}>
+              <button
+                type="button"
+                onClick={() => handleTemplateSwitch('CERT_1')}
+                className={`${styles.templateOptionBtn} ${templateType === 'CERT_1' ? styles.templateOptionBtnActive : ''}`}
+              >
+                <span className={styles.templateIcon}>📜</span>
+                <div>
+                  <div className={styles.templateName}>Certificate 1 — MTC &amp; Proof Load Test</div>
+                  <div className={styles.templateDesc}>
+                    Full Mill Test Certificate with client details, 10-row technical specs, 5 sequence load stages &amp; dual signatures.
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTemplateSwitch('CERT_2')}
+                className={`${styles.templateOptionBtn} ${templateType === 'CERT_2' ? styles.templateOptionBtnActive : ''}`}
+              >
+                <span className={styles.templateIcon}>📄</span>
+                <div>
+                  <div className={styles.templateName}>Certificate 2 — HIMALAYA FRP Cover &amp; Frame</div>
+                  <div className={styles.templateDesc}>
+                    Direct 11-row technical specification certificate (MOC, Clear Opening, Cover/Frame Size, Load, Resin, R&amp;D Stamp).
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+
           {/* 1. Header Information */}
           <div>
             <div className={styles.sectionTitle}>1. Certificate &amp; Client Details</div>
@@ -444,9 +539,13 @@ export default function TestReportFormModal({
             </div>
           </div>
 
-          {/* 2. Specifications Table (10 Rows) */}
+          {/* 2. Specifications Table */}
           <div>
-            <div className={styles.sectionTitle}>2. Product Specifications (10 ISO/EN Rows)</div>
+            <div className={styles.sectionTitle}>
+              {templateType === 'CERT_2'
+                ? '2. Technical Specifications (11 Parameters for FRP Cover & Frame)'
+                : '2. Product Specifications (10 ISO/EN Rows)'}
+            </div>
             <div className={styles.specTableWrap}>
               <table className={styles.specTable}>
                 <thead>
@@ -479,9 +578,24 @@ export default function TestReportFormModal({
           {/* 3. Load Testing Section (5 Stages) */}
           <div>
             <div className={styles.sectionTitle}>3. Load Testing Measurements (5 Sequence Stages)</div>
-            <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>
-              Note: Enter the actual recorded test measurements and remarks for all five test sequences.
-            </p>
+            {templateType === 'CERT_2' ? (
+              <div style={{
+                marginBottom: '12px',
+                padding: '12px 16px',
+                backgroundColor: '#f0f9ff',
+                borderRadius: '8px',
+                border: '1px solid #bae6fd',
+                fontSize: '12px',
+                color: '#0369a1',
+                lineHeight: 1.5,
+              }}>
+                ℹ️ <strong>Certificate 2 Format Notice:</strong> Certificate 2 prints the dedicated 11-row technical specification sheet (MOC, Clear Opening, Cover/Frame Size, Load, Resin, Filler Content, UV, and R&amp;D Quality Engineer Stamp). Load sequence rows below remain stored for testing records.
+              </div>
+            ) : (
+              <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>
+                Note: Enter the actual recorded test measurements and remarks for all five test sequences.
+              </p>
+            )}
             <div className={styles.specTableWrap}>
               <table className={styles.specTable}>
                 <thead>
@@ -581,7 +695,9 @@ export default function TestReportFormModal({
             <div className={styles.sectionTitle}>5. Tester &amp; Status</div>
             <div className={styles.formGrid}>
               <div className={styles.formField}>
-                <label className={styles.formLabel}>Plant Head Name</label>
+                <label className={styles.formLabel}>
+                  {templateType === 'CERT_2' ? 'R&D Quality Engineer / Plant Head' : 'Plant Head Name'}
+                </label>
                 <input
                   type="text"
                   value={testedByName}

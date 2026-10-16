@@ -2,7 +2,11 @@ import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
 import { toast } from 'sonner';
 
-export async function downloadTestCertificatePdf(report: any, targetElementId = 'test-certificate-document'): Promise<boolean> {
+export async function downloadTestCertificatePdf(
+  report: any,
+  targetElementId = 'test-certificate-document',
+  customFilename?: string,
+): Promise<boolean> {
   const toastId = toast.loading('Generating Test Certificate PDF…');
 
   try {
@@ -130,7 +134,7 @@ export async function downloadTestCertificatePdf(report: any, targetElementId = 
       .replace(/[\\/:*?"<>|]/g, '_')
       .replace(/\s+/g, '_')
       .trim();
-    const filename = `Test-Certificate-${safeNumber}.pdf`;
+    const filename = customFilename || `Test-Certificate-${safeNumber}.pdf`;
 
     // Save directly to trigger browser download
     pdf.save(filename);

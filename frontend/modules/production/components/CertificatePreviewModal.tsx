@@ -5,6 +5,7 @@ import { Download, Printer, CheckCircle, XCircle, RotateCcw, Edit2, X, Loader2 }
 import Swal from 'sweetalert2';
 import { toast } from 'sonner';
 import TestCertificateDocument, { TestCertificateData } from './TestCertificateDocument';
+import TestCertificateDocument2 from './TestCertificateDocument2';
 import { downloadTestCertificatePdf } from '../utils/testCertificatePdf';
 import { backendFetch } from '../../../lib/backendFetch';
 import styles from './CertificatePreviewModal.module.css';
@@ -28,8 +29,34 @@ export default function CertificatePreviewModal({
   const [approving, setApproving] = useState(false);
   const [activeReport, setActiveReport] = useState<TestCertificateData | null>(report);
 
+  const isCert2Initial = React.useMemo(() => {
+    if (!report) return false;
+    if ((report as any).certificateType === 'CERT_2' || (report as any).certificateType === 'FRP_COVER_FRAME') return true;
+    if (report.remarks && (report.remarks.includes('CERT_2') || report.remarks.includes('FRP_COVER_FRAME'))) return true;
+    const specs = report.specifications || [];
+    return specs.some((s) => {
+      const n = (s.specification || '').toLowerCase();
+      return n.includes('cover size') || n.includes('frame size');
+    });
+  }, [report]);
+
+  const [activeTemplate, setActiveTemplate] = useState<'CERT_1' | 'CERT_2'>(
+    isCert2Initial ? 'CERT_2' : 'CERT_1'
+  );
+
   React.useEffect(() => {
     setActiveReport(report);
+    if (report) {
+      const isC2 =
+        (report as any).certificateType === 'CERT_2' ||
+        (report as any).certificateType === 'FRP_COVER_FRAME' ||
+        (report.remarks && (report.remarks.includes('CERT_2') || report.remarks.includes('FRP_COVER_FRAME'))) ||
+        (report.specifications || []).some((s) => {
+          const n = (s.specification || '').toLowerCase();
+          return n.includes('cover size') || n.includes('frame size');
+        });
+      setActiveTemplate(isC2 ? 'CERT_2' : 'CERT_1');
+    }
   }, [report]);
 
   if (!isOpen || !activeReport) return null;
@@ -40,7 +67,14 @@ export default function CertificatePreviewModal({
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      await downloadTestCertificatePdf(activeReport, 'test-certificate-document-preview');
+      const safeNumber = String(activeReport.reportNumber || activeReport.id || 'Report')
+        .replace(/[\\/:*?"<>|]/g, '_')
+        .replace(/\s+/g, '_')
+        .trim();
+      const customFilename = activeTemplate === 'CERT_2'
+        ? `Himalaya-FRP-Cover-Frame-Specs-${safeNumber}.pdf`
+        : `Test-Certificate-${safeNumber}.pdf`;
+      await downloadTestCertificatePdf(activeReport, 'test-certificate-document-preview', customFilename);
     } catch (e: any) {
       toast.error('Download failed: ' + e?.message);
     } finally {
@@ -251,13 +285,41 @@ export default function CertificatePreviewModal({
           </div>
         </div>
 
+        {/* Certificate Template Selection Bar */}
+        <div className={styles.templateBar}>
+          <span className={styles.templateBarLabel}>Document Template:</span>
+          <button
+            type="button"
+            className={`${styles.templateTab} ${activeTemplate === 'CERT_1' ? styles.templateTabActive : ''}`}
+            onClick={() => setActiveTemplate('CERT_1')}
+          >
+            <span>📜</span>
+            <span>Certificate 1: MTC (Proof Load &amp; Full Specs)</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.templateTab} ${activeTemplate === 'CERT_2' ? styles.templateTabActive : ''}`}
+            onClick={() => setActiveTemplate('CERT_2')}
+          >
+            <span>📄</span>
+            <span>Certificate 2: HIMALAYA FRP Cover &amp; Frame</span>
+          </button>
+        </div>
+
         {/* Scrollable Certificate View */}
         <div className={styles.previewScrollArea}>
           <div className={styles.sheetShadow}>
-            <TestCertificateDocument
-              report={activeReport}
-              id="test-certificate-document-preview"
-            />
+            {activeTemplate === 'CERT_2' ? (
+              <TestCertificateDocument2
+                report={activeReport}
+                id="test-certificate-document-preview"
+              />
+            ) : (
+              <TestCertificateDocument
+                report={activeReport}
+                id="test-certificate-document-preview"
+              />
+            )}
           </div>
         </div>
       </div>

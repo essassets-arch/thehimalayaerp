@@ -15,6 +15,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { backendFetch } from '@/lib/backendFetch';
 import { safeSaveFile } from '@/services/export.service';
 import TestCertificateDocument, { TestCertificateData } from '@/modules/production/components/TestCertificateDocument';
+import TestCertificateDocument2 from '@/modules/production/components/TestCertificateDocument2';
 import TestReportFormModal from '@/modules/production/components/TestReportFormModal';
 import CertificatePreviewModal from '@/modules/production/components/CertificatePreviewModal';
 import { downloadTestCertificatePdf } from '@/modules/production/utils/testCertificatePdf';
@@ -142,6 +143,18 @@ export default function ProductionTestingPage() {
     fetchReports();
   }, [reportStatusFilter]);
 
+  /* ── Check if Report is Certificate 2 ── */
+  const isCert2Report = (report: TestCertificateData | null | undefined): boolean => {
+    if (!report) return false;
+    if ((report as any).certificateType === 'CERT_2' || (report as any).certificateType === 'FRP_COVER_FRAME') return true;
+    if (report.remarks && (report.remarks.includes('CERT_2') || report.remarks.includes('FRP_COVER_FRAME'))) return true;
+    const specs = report.specifications || [];
+    return specs.some((s) => {
+      const n = (s.specification || '').toLowerCase();
+      return n.includes('cover size') || n.includes('frame size');
+    });
+  };
+
   /* ── Direct PDF Download from Register Row ── */
   const handleDownloadRowPdf = async (report: TestCertificateData) => {
     setRowDownloadingId(report.id || report.reportNumber);
@@ -150,7 +163,16 @@ export default function ProductionTestingPage() {
     // Wait for the hidden certificate document to mount in the DOM
     setTimeout(async () => {
       try {
-        await downloadTestCertificatePdf(report, 'hidden-direct-download-cert');
+        const isC2 = isCert2Report(report);
+        const safeNumber = String(report.reportNumber || report.id || 'Report')
+          .replace(/[\\/:*?"<>|]/g, '_')
+          .replace(/\s+/g, '_')
+          .trim();
+        const customFilename = isC2
+          ? `Himalaya-FRP-Cover-Frame-Specs-${safeNumber}.pdf`
+          : `Test-Certificate-${safeNumber}.pdf`;
+
+        await downloadTestCertificatePdf(report, 'hidden-direct-download-cert', customFilename);
       } catch (err: any) {
         toast.error('Failed to download PDF: ' + err?.message);
       } finally {
@@ -603,6 +625,11 @@ export default function ProductionTestingPage() {
                           {report.revision !== undefined && (
                             <span className={styles.revBadge}>Rev {report.revision}</span>
                           )}
+                          {isCert2Report(report) ? (
+                            <span className={styles.cert2Badge} title="Certificate 2: HIMALAYA FRP Cover & Frame">FRP Specs</span>
+                          ) : (
+                            <span className={styles.cert1Badge} title="Certificate 1: MTC & Proof Load">MTC</span>
+                          )}
                         </td>
                         <td>{report.reportDate ? new Date(report.reportDate).toLocaleDateString('en-GB') : '-'}</td>
                         <td>
@@ -1007,10 +1034,17 @@ export default function ProductionTestingPage() {
           }}
           aria-hidden="true"
         >
-          <TestCertificateDocument
-            report={directDownloadReport}
-            id="hidden-direct-download-cert"
-          />
+          {isCert2Report(directDownloadReport) ? (
+            <TestCertificateDocument2
+              report={directDownloadReport}
+              id="hidden-direct-download-cert"
+            />
+          ) : (
+            <TestCertificateDocument
+              report={directDownloadReport}
+              id="hidden-direct-download-cert"
+            />
+          )}
         </div>
       )}
     </div>
