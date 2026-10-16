@@ -159,9 +159,10 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     setDashboardLoading(true);
     try {
       const catParam = effectiveDispatchCat ? `?category=${effectiveDispatchCat}` : '';
-      const [dispatchesRes, workOrdersRes, returnsRes, replacementsRes, finishedGoodsRes, queueRes] = await Promise.allSettled([
+      const [dispatchesRes, workOrdersRes, readyHistoryRes, returnsRes, replacementsRes, finishedGoodsRes, queueRes] = await Promise.allSettled([
         backendFetch(`/api/backend/logistics/dispatches${catParam}`),
         backendFetch('/api/backend/production/work-orders?status=READY_FOR_DISPATCH,COMPLETED,DISPATCHED'),
+        backendFetch('/api/backend/production/ready-for-dispatch-history'),
         backendFetch('/api/backend/sales-returns'),
         backendFetch('/api/backend/replacements'),
         backendFetch('/api/backend/production/finished-goods'),
@@ -171,9 +172,17 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       if (dispatchesRes.status === 'fulfilled' && Array.isArray(dispatchesRes.value)) {
         setBackendDispatches(dispatchesRes.value);
       }
-      if (workOrdersRes.status === 'fulfilled' && Array.isArray(workOrdersRes.value)) {
-        setBackendReadyWorkOrders(workOrdersRes.value);
-      }
+      const fetchedWos = workOrdersRes.status === 'fulfilled' && Array.isArray(workOrdersRes.value) ? workOrdersRes.value : [];
+      const historyWosVal = readyHistoryRes.status === 'fulfilled' ? readyHistoryRes.value : null;
+      const fetchedHistoryWos = Array.isArray(historyWosVal)
+        ? historyWosVal
+        : Array.isArray(historyWosVal?.data)
+        ? historyWosVal.data
+        : Array.isArray(historyWosVal?.data?.data)
+        ? historyWosVal.data.data
+        : [];
+      const allReadyWos = [...fetchedWos, ...fetchedHistoryWos];
+      setBackendReadyWorkOrders(allReadyWos);
       if (returnsRes.status === 'fulfilled' && Array.isArray(returnsRes.value)) {
         setBackendReturns(returnsRes.value);
       }

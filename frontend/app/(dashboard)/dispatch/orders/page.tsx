@@ -960,6 +960,7 @@ export default function DispatchOrdersPage() {
       const [
         workOrdersPayload,
         readyForDispatchPayload,
+        readyHistoryPayload,
         salesOrdersPayload,
         finishedGoodsPayload,
         queuePayload,
@@ -970,6 +971,7 @@ export default function DispatchOrdersPage() {
           { cacheTtlMs: 0 }
         ),
         backendFetch<any>("/api/backend/production/ready-for-dispatch", { cacheTtlMs: 0 }),
+        backendFetch<any>("/api/backend/production/ready-for-dispatch-history", { cacheTtlMs: 0 }),
         backendFetch<any>("/api/backend/sales/orders?limit=1000", { cacheTtlMs: 0 }),
         backendFetch<any>("/api/backend/production/finished-goods", { cacheTtlMs: 0 }),
         backendFetch<any>(`/api/backend/logistics/dispatches/queue?category=${currentCategory}`, { cacheTtlMs: 0 }),
@@ -980,8 +982,10 @@ export default function DispatchOrdersPage() {
         workOrdersPayload.status === "fulfilled" ? extractArray(workOrdersPayload.value) : [];
       const readyJobs: any[] =
         readyForDispatchPayload.status === "fulfilled" ? extractArray(readyForDispatchPayload.value) : [];
+      const readyHistoryJobs: any[] =
+        readyHistoryPayload.status === "fulfilled" ? extractArray(readyHistoryPayload.value) : [];
 
-      const allProductionJobs = [...workOrders, ...readyJobs].filter((wo: any) => {
+      const allProductionJobs = [...workOrders, ...readyJobs, ...readyHistoryJobs].filter((wo: any) => {
         if (!wo || !wo.id) return false;
         const prodStatus = String(wo.productionStatus || "").toUpperCase();
         const woStatus = String(wo.status || "").toUpperCase();
@@ -1017,6 +1021,9 @@ export default function DispatchOrdersPage() {
           woStatus === "READY_FOR_DISPATCH" ||
           prodStatus === "QC_APPROVED" ||
           woStatus === "QC_APPROVED" ||
+          prodStatus === "DISPATCHED" ||
+          woStatus === "DISPATCHED" ||
+          woStatus === "COMPLETED" ||
           Boolean(wo.sentToDispatchAt);
 
         if (!isReadyForDispatch) {
