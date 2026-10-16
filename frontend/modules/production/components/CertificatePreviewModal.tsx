@@ -60,7 +60,7 @@ export default function CertificatePreviewModal({
       Swal.fire({
         icon: 'warning',
         title: 'Measurements Incomplete',
-        text: 'All six load sequence stages must have recorded load values before approval.',
+        text: 'All five load sequence stages must have recorded load values before approval.',
       });
       return;
     }

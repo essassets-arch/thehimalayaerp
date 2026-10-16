@@ -159,17 +159,8 @@ export default function ProductionTestingPage() {
     }, 150);
   };
 
-  /* ── Delete Report (Drafts only) ── */
+  /* ── Delete Report ── */
   const handleDeleteReport = async (report: TestCertificateData) => {
-    if (report.status === 'Approved') {
-      Swal.fire({
-        icon: 'error',
-        title: 'Action Not Permitted',
-        text: 'Approved test certificates are revision-controlled and cannot be deleted for audit compliance.',
-      });
-      return;
-    }
-
     const confirm = await Swal.fire({
       title: 'Delete Certificate?',
       text: `Are you sure you want to delete ${report.reportNumber}? This cannot be undone.`,
@@ -198,7 +189,7 @@ export default function ProductionTestingPage() {
       Swal.fire({
         icon: 'warning',
         title: 'Measurements Incomplete',
-        text: 'All six load sequence stages must have recorded load values before approval. Please edit the report first.',
+        text: 'All five load sequence stages must have recorded load values before approval. Please edit the report first.',
       });
       return;
     }
@@ -704,16 +695,13 @@ export default function ProductionTestingPage() {
                               </button>
                             )}
 
-                            {/* Delete Action (if draft or rejected) */}
-                            {report.status !== 'Approved' && (
-                              <button
-                                className={`${styles.actionBtn} ${styles.del}`}
-                                title="Delete Certificate"
-                                onClick={() => handleDeleteReport(report)}
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            )}
+                            <button
+                              className={`${styles.actionBtn} ${styles.del}`}
+                              title="Delete Certificate"
+                              onClick={() => handleDeleteReport(report)}
+                            >
+                              <Trash2 size={14} />
+                            </button>
                           </div>
                         </td>
                       </tr>

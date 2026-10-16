@@ -476,11 +476,11 @@ export default function TestReportFormModal({
             </div>
           </div>
 
-          {/* 3. Load Testing Section (6 Stages) */}
+          {/* 3. Load Testing Section (5 Stages) */}
           <div>
-            <div className={styles.sectionTitle}>3. Load Testing Measurements (6 Sequence Stages)</div>
+            <div className={styles.sectionTitle}>3. Load Testing Measurements (5 Sequence Stages)</div>
             <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>
-              Note: Enter the actual recorded test measurements and remarks for all six test sequences.
+              Note: Enter the actual recorded test measurements and remarks for all five test sequences.
             </p>
             <div className={styles.specTableWrap}>
               <table className={styles.specTable}>
@@ -581,7 +581,7 @@ export default function TestReportFormModal({
             <div className={styles.sectionTitle}>5. Tester &amp; Status</div>
             <div className={styles.formGrid}>
               <div className={styles.formField}>
-                <label className={styles.formLabel}>Tested By (Plant Head Name)</label>
+                <label className={styles.formLabel}>Plant Head Name</label>
                 <input
                   type="text"
                   value={testedByName}

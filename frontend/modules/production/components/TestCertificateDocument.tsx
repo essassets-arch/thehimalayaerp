@@ -71,7 +71,6 @@ export const defaultLoadTestingRows: LoadTestingRow[] = [
   { no: 3, loadApplied: 'Stage 3 Proof Load', load: '37.5', sequence: 'Gradually Applied', remark: 'Satisfactory' },
   { no: 4, loadApplied: 'Stage 4 Proof Load', load: '40.0', sequence: 'Gradually Applied', remark: 'Satisfactory' },
   { no: 5, loadApplied: 'Stage 5 Peak Load', load: '40.0', sequence: 'Maintained 30 Secs', remark: 'No Deflection' },
-  { no: 6, loadApplied: 'Final Release Stage', load: '0.0', sequence: 'Released to Zero', remark: 'No Permanent Set' },
 ];
 
 export default function TestCertificateDocument({ report, id = 'test-certificate-document' }: Props) {
@@ -164,7 +163,7 @@ export default function TestCertificateDocument({ report, id = 'test-certificate
           {/* ── Title Banner ── */}
           <section className={styles.headingBanner}>
             <div className={styles.headingMain}>
-              <h1 className={styles.certHeading}>TEST CERTIFICATE</h1>
+              <h1 className={styles.certHeading}>MTC - Material Test Certificate</h1>
               <div className={styles.standardSubtitle}>
                 MECHANICAL PROOF LOAD CONFORMANCE REPORT • ACCORDING TO BS EN 124-1 &amp; EN 124-5:2015
               </div>
@@ -316,7 +315,7 @@ export default function TestCertificateDocument({ report, id = 'test-certificate
             <div className={styles.footerBox}>
               <div className={styles.signerTitleHeader}>
                 <span className={styles.signerTitle}>
-                  Tested By: {report.testedByTitle || 'Plant Head'}
+                  Tested By (Plant Head Name)
                 </span>
                 <span className={styles.approvedBadge}>QA/QC LAB</span>
               </div>

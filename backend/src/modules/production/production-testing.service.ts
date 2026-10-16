@@ -634,11 +634,6 @@ export class ProductionTestingService {
 
   async deleteReport(id: string, companyId: string) {
     const report = await this.getReport(id, companyId);
-    if (report.status === 'Approved') {
-      throw new BadRequestException(
-        'Approved test certificates are revision-controlled and cannot be deleted for audit compliance.',
-      );
-    }
     return this.prisma.productionTestReport.delete({ where: { id } });
   }
 }

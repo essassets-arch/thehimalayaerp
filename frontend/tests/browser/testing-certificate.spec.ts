@@ -128,7 +128,7 @@ test.describe('Testing Reports & Test Certificate Verification', () => {
 
     await expect(page.locator('h2:has-text("New Test Certificate")').first()).toBeVisible();
     await expect(page.locator('text=Product Specifications (10 ISO/EN Rows)').first()).toBeVisible();
-    await expect(page.locator('text=Load Testing Measurements (6 Sequence Stages)').first()).toBeVisible();
+    await expect(page.locator('text=Load Testing Measurements (5 Sequence Stages)').first()).toBeVisible();
 
     console.log('✓ All Playwright certificate verification steps passed successfully!');
   });
