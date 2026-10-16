@@ -10,7 +10,7 @@ import {
   CreditCard,
   ReceiptText,
   UserRound,
-  Phone,
+  Phone,  
   Mail,
   MapPin,
   FileText,

@@ -45,6 +45,49 @@ const PALETTE = {
   cardBg: '#FFFFFF',
 };
 
+const getRecordDate = (record, fields) => {
+  for (const field of fields) {
+    const value = record?.[field];
+    if (!value) continue;
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+  return null;
+};
+
+const getRangeBounds = (range, now = new Date()) => {
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  if (range === '30D') {
+    const start = new Date(end);
+    start.setDate(start.getDate() - 29);
+    start.setHours(0, 0, 0, 0);
+    return { start, end };
+  }
+
+  const yearStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const fiscalStart = new Date(yearStart, 3, 1);
+  const fiscalEnd = new Date(yearStart + 1, 2, 31, 23, 59, 59, 999);
+  if (range === '1Y') return { start: fiscalStart, end: fiscalEnd };
+  if (range === '6M') {
+    const halfStart = now.getMonth() >= 3 ? new Date(yearStart, 3, 1) : new Date(yearStart, 9, 1);
+    const halfEnd = now.getMonth() >= 3
+      ? new Date(yearStart, 8, 30, 23, 59, 59, 999)
+      : new Date(yearStart + 1, 2, 31, 23, 59, 59, 999);
+    return { start: halfStart, end: halfEnd };
+  }
+
+  const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+  return {
+    start: new Date(now.getFullYear(), quarterStartMonth, 1),
+    end: new Date(now.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999),
+  };
+};
+
+const isInRange = (record, fields, bounds) => {
+  const date = getRecordDate(record, fields);
+  return Boolean(date && date >= bounds.start && date <= bounds.end);
+};
+
 export default function FinanceManagerDashboardView({
   state: propState,
   payments: propPayments = [],
@@ -54,6 +97,7 @@ export default function FinanceManagerDashboardView({
   const router = useSafeRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [timeRange, setTimeRange] = useState('30D'); // '30D' | '90D' | '6M' | '1Y'
+  const rangeBounds = useMemo(() => getRangeBounds(timeRange), [timeRange]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [liveData, setLiveData] = useState({
     salesOrders: [],
@@ -186,132 +230,66 @@ export default function FinanceManagerDashboardView({
 
   // Period label & human-readable badge
   const periodMeta = useMemo(() => {
+    const startLabel = rangeBounds.start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    const endLabel = rangeBounds.end.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    const rangeLabel = `${startLabel} – ${endLabel}`;
+    const fyStart = rangeBounds.start.getFullYear();
+    const fyLabel = `FY ${fyStart}–${String(fyStart + 1).slice(-2)}`;
     switch (timeRange) {
       case '30D':
-        return { label: '30 Days', badge: 'Last 30 Days (Active Rolling Cycle)', desc: 'Rolling 30-Day Window' };
+        return { label: '30 Days', badge: `Last 30 Days (${rangeLabel})`, desc: rangeLabel };
       case '90D':
-        return { label: 'Quarter', badge: 'Current Quarter (Q3 FY26)', desc: 'Quarterly Audit Cycle' };
+        return { label: 'Quarter', badge: `Current Quarter (${rangeLabel})`, desc: rangeLabel };
       case '6M':
-        return { label: '6 Months', badge: 'Half Year (H1 FY26: Q1 + Q2)', desc: 'Half-Year Financial Window' };
+        return { label: '6 Months', badge: `Half Year (${rangeLabel})`, desc: rangeLabel };
       case '1Y':
       default:
-        return { label: 'Full Year', badge: 'Full Year (FY 2026–27)', desc: 'Annual Financial Horizon' };
+        return { label: 'Full Year', badge: `Full Year (${fyLabel})`, desc: rangeLabel };
     }
-  }, [timeRange]);
+  }, [timeRange, rangeBounds]);
 
   // ── Filtered AR Invoices according to Active Horizon ──
   const filteredInvoices = useMemo(() => {
     if (!allArInvoices || allArInvoices.length === 0) return [];
-    if (timeRange === '1Y') return allArInvoices;
-
-    const now = new Date();
-    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-
-    if (timeRange === '6M') {
-      const h1 = allArInvoices.filter((i) => {
-        const q = String(i.quarter || '');
-        if (q.includes('Q1') || q.includes('Q2')) return true;
-        const d = new Date(i.invoiceDate || i.createdAt);
-        if (!isNaN(d.getTime())) {
-          const m = d.getMonth();
-          return m >= 3 && m <= 8; // Apr to Sep (H1)
-        }
-        return false;
-      });
-      return h1.length > 0 ? h1 : allArInvoices.slice(0, Math.ceil(allArInvoices.length / 2));
-    }
-
-    if (timeRange === '90D') {
-      const q3 = allArInvoices.filter((i) => {
-        const q = String(i.quarter || '');
-        if (q.includes('Q3')) return true;
-        const d = new Date(i.invoiceDate || i.createdAt);
-        if (!isNaN(d.getTime())) {
-          const m = d.getMonth();
-          return m >= 9 && m <= 11; // Oct to Dec (Q3)
-        }
-        return false;
-      });
-      if (q3.length > 0) return q3;
-      const q2 = allArInvoices.filter((i) => (i.quarter || '').includes('Q2'));
-      if (q2.length > 0) return q2;
-      return allArInvoices.slice(0, Math.max(10, Math.round(allArInvoices.length / 4)));
-    }
-
-    if (timeRange === '30D') {
-      const cutoff = new Date(now);
-      cutoff.setDate(cutoff.getDate() - 30);
-
-      const dateMatches = allArInvoices.filter((inv) => {
-        const d = new Date(inv.invoiceDate || inv.createdAt);
-        return !isNaN(d.getTime()) && d >= cutoff && d <= endOfToday;
-      });
-
-      const dateMatchesColl = dateMatches.reduce((s, i) => s + Number(i.amtRcvd || 0), 0);
-      if (dateMatches.length > 0 && dateMatchesColl > 0) {
-        return dateMatches;
-      }
-
-      // Quarterly imported invoices are indexed in discrete middle months (May, Aug, Nov, Feb).
-      // For a 30-day view, take the current 30-day monthly segment of the active quarter (Q3).
-      const q3 = allArInvoices.filter((i) => (i.quarter || '').includes('Q3'));
-      const activeQuarter = q3.length > 0 ? q3 : allArInvoices;
-      return activeQuarter.slice(0, Math.max(10, Math.ceil(activeQuarter.length / 3)));
-    }
-
-    return allArInvoices;
-  }, [allArInvoices, timeRange]);
+    return allArInvoices.filter((invoice) => isInRange(invoice, ['invoiceDate', 'createdAt', 'date'], rangeBounds));
+  }, [allArInvoices, rangeBounds]);
 
   // ── Filtered Sales Orders according to Active Horizon ──
   const filteredSalesOrders = useMemo(() => {
     if (!salesOrders || salesOrders.length === 0) return [];
-    if (timeRange === '1Y') return salesOrders;
-
-    const now = new Date();
-    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    let cutoff = new Date(now);
-    if (timeRange === '30D') cutoff.setDate(cutoff.getDate() - 30);
-    else if (timeRange === '90D') cutoff.setDate(cutoff.getDate() - 90);
-    else if (timeRange === '6M') cutoff.setMonth(cutoff.getMonth() - 6);
-
-    const dateMatches = salesOrders.filter((o) => {
-      const d = new Date(o.orderDate || o.createdAt);
-      return !isNaN(d.getTime()) && d >= cutoff && d <= endOfToday;
-    });
-
-    if (dateMatches.length > 0) return dateMatches;
-
-    if (timeRange === '30D') return salesOrders.slice(0, Math.max(15, Math.round(salesOrders.length / 12)));
-    if (timeRange === '90D') return salesOrders.slice(0, Math.max(30, Math.round(salesOrders.length / 4)));
-    if (timeRange === '6M') return salesOrders.slice(0, Math.max(60, Math.round(salesOrders.length / 2)));
-    return salesOrders;
-  }, [salesOrders, timeRange]);
+    return salesOrders.filter((order) => isInRange(order, ['orderDate', 'createdAt', 'date'], rangeBounds));
+  }, [salesOrders, rangeBounds]);
 
   // ── Filtered Purchase Orders according to Active Horizon ──
   const filteredPurchaseOrders = useMemo(() => {
     const list = liveData.purchaseOrders || [];
     if (list.length === 0) return [];
-    if (timeRange === '1Y') return list;
+    return list.filter((po) => isInRange(po, ['issuedAt', 'createdAt', 'poDate', 'date'], rangeBounds));
+  }, [liveData.purchaseOrders, rangeBounds]);
 
-    const now = new Date();
-    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    let cutoff = new Date(now);
-    if (timeRange === '30D') cutoff.setDate(cutoff.getDate() - 30);
-    else if (timeRange === '90D') cutoff.setDate(cutoff.getDate() - 90);
-    else if (timeRange === '6M') cutoff.setMonth(cutoff.getMonth() - 6);
+  const filteredExpenses = useMemo(() => (
+    (liveData.expenses || []).filter((expense) => isInRange(expense, ['expenseDate', 'date', 'createdAt'], rangeBounds))
+  ), [liveData.expenses, rangeBounds]);
 
-    const dateMatches = list.filter((p) => {
-      const d = new Date(p.issuedAt || p.createdAt || p.poDate || p.date);
-      return !isNaN(d.getTime()) && d >= cutoff && d <= endOfToday;
-    });
-
-    if (dateMatches.length > 0) return dateMatches;
-
-    if (timeRange === '30D') return list.slice(0, Math.max(1, Math.round(list.length / 6)));
-    if (timeRange === '90D') return list.slice(0, Math.max(2, Math.round(list.length / 4)));
-    if (timeRange === '6M') return list.slice(0, Math.max(4, Math.round(list.length / 2)));
-    return list;
-  }, [liveData.purchaseOrders, timeRange]);
+  const periodComparison = useMemo(() => {
+    const duration = rangeBounds.end.getTime() - rangeBounds.start.getTime() + 1;
+    const previousBounds = {
+      start: new Date(rangeBounds.start.getTime() - duration),
+      end: new Date(rangeBounds.start.getTime() - 1),
+    };
+    const sumAmounts = (records, fields) => records
+      .filter((record) => isInRange(record, fields, previousBounds))
+      .reduce((sum, record) => sum + Number(record.invoiceAmount || record.totalAmount || record.grand_total || 0), 0);
+    const currentAmount = allArInvoices.length > 0
+      ? filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.invoiceAmount || 0), 0)
+      : filteredSalesOrders.reduce((sum, order) => sum + Number(order.totalAmount || order.grand_total || 0), 0);
+    const previousAmount = allArInvoices.length > 0
+      ? sumAmounts(allArInvoices, ['invoiceDate', 'createdAt', 'date'])
+      : sumAmounts(salesOrders, ['orderDate', 'createdAt', 'date']);
+    if (!previousAmount) return { label: 'No previous-period data', positive: null };
+    const change = ((currentAmount - previousAmount) / previousAmount) * 100;
+    return { label: `${change >= 0 ? '+' : ''}${change.toFixed(1)}% vs previous period`, positive: change >= 0 };
+  }, [rangeBounds, allArInvoices, filteredInvoices, filteredSalesOrders, salesOrders]);
 
   // --- Dynamic Financial Computations strictly from Real Database Records ---
   const dynamicMetrics = useMemo(() => {
@@ -375,8 +353,7 @@ export default function FinanceManagerDashboardView({
     const poCount = filteredPurchaseOrders.length;
     const poTotal = filteredPurchaseOrders.reduce((s, p) => s + Number(p.totalAmount || 0), 0);
 
-    const operatingSurplus = Math.max(0, collSum - poTotal);
-    const yoyGrowthStr = timeRange === '30D' ? '+14.2% MoM' : timeRange === '90D' ? '+16.8% QoQ' : timeRange === '6M' ? '+18.1% YoY' : '+18.4% YoY';
+    const operatingSurplus = collSum - poTotal;
 
     const count = activeInvoices.length > 0 ? activeInvoices.length : activeOrders.length;
 
@@ -397,438 +374,91 @@ export default function FinanceManagerDashboardView({
       vendorPaymentsDueStr: formatINR(poTotal),
       vendorPaymentsDueRaw: poTotal,
       pendingVendorsCount: poCount,
-      yoyGrowthStr,
+      periodComparisonLabel: periodComparison.label,
+      periodComparisonPositive: periodComparison.positive,
       targetBenchmarkStr: effNum >= 75 ? 'Target Met (75%)' : `Target: 75% (${(75 - effNum).toFixed(1)}% short)`,
       periodLabel: periodMeta.label,
       periodBadge: periodMeta.badge,
       invoicesCount: count,
     };
-  }, [filteredInvoices, filteredSalesOrders, filteredPurchaseOrders, timeRange, periodMeta, formatINR]);
+  }, [filteredInvoices, filteredSalesOrders, filteredPurchaseOrders, timeRange, periodMeta, formatINR, periodComparison]);
 
   // ── 1. Chart Data: Monthly Revenue vs Cleared Collections Trend ──
   const revenueTrendData = useMemo(() => {
-    const now = new Date();
-    const sourceInvoices = filteredInvoices.length > 0 ? filteredInvoices : [];
+    const weekly = timeRange === '30D';
+    const bucketCount = weekly ? 4 : timeRange === '90D' ? 3 : timeRange === '6M' ? 6 : 12;
+    const buckets = Array.from({ length: bucketCount }, (_, index) => {
+      if (weekly) return { start: new Date(rangeBounds.start.getTime() + index * 7 * 86400000), end: new Date(Math.min(rangeBounds.end.getTime(), rangeBounds.start.getTime() + (index + 1) * 7 * 86400000 - 1)), label: `Week ${index + 1}`, revenue: 0, collections: 0 };
+      const date = new Date(rangeBounds.start.getFullYear(), rangeBounds.start.getMonth() + index, 1);
+      return { year: date.getFullYear(), month: date.getMonth(), label: date.toLocaleDateString('en-IN', { month: 'short' }), revenue: 0, collections: 0 };
+    });
+    const source = filteredInvoices.length > 0
+      ? filteredInvoices.map((record) => ({ record, date: getRecordDate(record, ['invoiceDate', 'createdAt', 'date']), revenue: Number(record.invoiceAmount || 0), collections: Number(record.amtRcvd || 0) }))
+      : filteredSalesOrders.map((record) => ({ record, date: getRecordDate(record, ['orderDate', 'createdAt', 'date']), revenue: Number(record.totalAmount || record.grand_total || 0), collections: Number(record.paidAmount || record.verified_paid_amount || 0) }));
+    source.forEach(({ date, revenue, collections }) => {
+      if (!date) return;
+      const bucket = weekly ? buckets.find((item) => date >= item.start && date <= item.end) : buckets.find((item) => item.year === date.getFullYear() && item.month === date.getMonth());
+      if (bucket) { bucket.revenue += revenue; bucket.collections += collections; }
+    });
+    return buckets.map(({ label, revenue, collections }) => ({ label, revenue: Math.round(revenue), collections: Math.round(collections) }));
+  }, [timeRange, filteredInvoices, filteredSalesOrders, rangeBounds]);
 
-    if (timeRange === '30D') {
-      const cutoff = new Date(now);
-      cutoff.setDate(cutoff.getDate() - 30);
-      const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-
-      const weeks = [
-        { label: 'Week 1', revenue: 0, collections: 0 },
-        { label: 'Week 2', revenue: 0, collections: 0 },
-        { label: 'Week 3', revenue: 0, collections: 0 },
-        { label: 'Week 4', revenue: 0, collections: 0 },
-      ];
-
-      if (sourceInvoices.length > 0) {
-        sourceInvoices.forEach((inv, idx) => {
-          const d = new Date(inv.invoiceDate || inv.createdAt);
-          let wIdx;
-          if (!isNaN(d.getTime()) && d >= cutoff && d <= endOfToday) {
-            const diffMs = d.getTime() - cutoff.getTime();
-            const dayOffset = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-            wIdx = Math.min(3, Math.max(0, Math.floor(dayOffset / 7.5)));
-          } else {
-            wIdx = idx % 4;
-          }
-          weeks[wIdx].revenue += Number(inv.invoiceAmount || 0);
-          weeks[wIdx].collections += Number(inv.amtRcvd || 0);
-        });
-      } else if (filteredSalesOrders.length > 0) {
-        filteredSalesOrders.forEach((o, idx) => {
-          const d = new Date(o.orderDate || o.createdAt);
-          let wIdx;
-          if (!isNaN(d.getTime()) && d >= cutoff && d <= endOfToday) {
-            const diffMs = d.getTime() - cutoff.getTime();
-            const dayOffset = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-            wIdx = Math.min(3, Math.max(0, Math.floor(dayOffset / 7.5)));
-          } else {
-            wIdx = idx % 4;
-          }
-          weeks[wIdx].revenue += Number(o.totalAmount || 0);
-          weeks[wIdx].collections += Number(o.paidAmount || 0);
-        });
-      }
-
-      return weeks.map((w) => ({
-        label: w.label,
-        revenue: Math.round(w.revenue),
-        collections: Math.round(w.collections),
-      }));
-    }
-
-    if (timeRange === '90D') {
-      const qMonths = [
-        { label: 'Oct', revenue: 0, collections: 0 },
-        { label: 'Nov', revenue: 0, collections: 0 },
-        { label: 'Dec', revenue: 0, collections: 0 },
-      ];
-      const monthIndices = [9, 10, 11];
-
-      if (sourceInvoices.length > 0) {
-        sourceInvoices.forEach((inv, idx) => {
-          const d = new Date(inv.invoiceDate || inv.createdAt);
-          let targetIdx = -1;
-          if (!isNaN(d.getTime())) {
-            targetIdx = monthIndices.indexOf(d.getMonth());
-          }
-          if (targetIdx === -1) {
-            targetIdx = idx % 3;
-          }
-          qMonths[targetIdx].revenue += Number(inv.invoiceAmount || 0);
-          qMonths[targetIdx].collections += Number(inv.amtRcvd || 0);
-        });
-      } else if (filteredSalesOrders.length > 0) {
-        filteredSalesOrders.forEach((o, idx) => {
-          const d = new Date(o.orderDate || o.createdAt);
-          let targetIdx = -1;
-          if (!isNaN(d.getTime())) {
-            targetIdx = monthIndices.indexOf(d.getMonth());
-          }
-          if (targetIdx === -1) {
-            targetIdx = idx % 3;
-          }
-          qMonths[targetIdx].revenue += Number(o.totalAmount || 0);
-          qMonths[targetIdx].collections += Number(o.paidAmount || 0);
-        });
-      }
-
-      return qMonths.map((m) => ({
-        label: m.label,
-        revenue: Math.round(m.revenue),
-        collections: Math.round(m.collections),
-      }));
-    }
-
-    if (timeRange === '6M') {
-      const h1Labels = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
-      const h1Indices = [3, 4, 5, 6, 7, 8];
-      const h1Months = h1Labels.map((label) => ({ label, revenue: 0, collections: 0 }));
-
-      if (sourceInvoices.length > 0) {
-        sourceInvoices.forEach((inv, idx) => {
-          const d = new Date(inv.invoiceDate || inv.createdAt);
-          let targetIdx = -1;
-          if (!isNaN(d.getTime())) {
-            targetIdx = h1Indices.indexOf(d.getMonth());
-          }
-          if (targetIdx === -1) {
-            const qStr = String(inv.quarter || '');
-            if (qStr.includes('Q1')) targetIdx = 1; // May
-            else if (qStr.includes('Q2')) targetIdx = 4; // Aug
-            else targetIdx = idx % 6;
-          }
-          h1Months[targetIdx].revenue += Number(inv.invoiceAmount || 0);
-          h1Months[targetIdx].collections += Number(inv.amtRcvd || 0);
-        });
-      } else if (filteredSalesOrders.length > 0) {
-        filteredSalesOrders.forEach((o, idx) => {
-          const d = new Date(o.orderDate || o.createdAt);
-          let targetIdx = -1;
-          if (!isNaN(d.getTime())) {
-            targetIdx = h1Indices.indexOf(d.getMonth());
-          }
-          if (targetIdx === -1) targetIdx = idx % 6;
-          h1Months[targetIdx].revenue += Number(o.totalAmount || 0);
-          h1Months[targetIdx].collections += Number(o.paidAmount || 0);
-        });
-      }
-
-      return h1Months.map((m) => ({
-        label: m.label,
-        revenue: Math.round(m.revenue),
-        collections: Math.round(m.collections),
-      }));
-    }
-
-    // 1Y - Full 12 Months of FY 2026–27 (Apr -> Mar)
-    const yearMonthLabels = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
-    const yearMonths = yearMonthLabels.map((label) => ({ label, revenue: 0, collections: 0 }));
-
-    if (sourceInvoices.length > 0) {
-      sourceInvoices.forEach((inv, idx) => {
-        const d = new Date(inv.invoiceDate || inv.createdAt);
-        let fiscalIdx = -1;
-        if (!isNaN(d.getTime())) {
-          const m = d.getMonth();
-          fiscalIdx = m >= 3 ? m - 3 : m + 9;
-        }
-        if (fiscalIdx < 0 || fiscalIdx >= 12) {
-          const qStr = String(inv.quarter || '');
-          if (qStr.includes('Q1')) fiscalIdx = 1; // May
-          else if (qStr.includes('Q2')) fiscalIdx = 4; // Aug
-          else if (qStr.includes('Q3')) fiscalIdx = 7; // Nov
-          else if (qStr.includes('Q4')) fiscalIdx = 10; // Feb
-          else fiscalIdx = idx % 12;
-        }
-        yearMonths[fiscalIdx].revenue += Number(inv.invoiceAmount || 0);
-        yearMonths[fiscalIdx].collections += Number(inv.amtRcvd || 0);
-      });
-    } else if (filteredSalesOrders.length > 0) {
-      filteredSalesOrders.forEach((o, idx) => {
-        const d = new Date(o.orderDate || o.createdAt);
-        let fiscalIdx = -1;
-        if (!isNaN(d.getTime())) {
-          const m = d.getMonth();
-          fiscalIdx = m >= 3 ? m - 3 : m + 9;
-        }
-        if (fiscalIdx < 0 || fiscalIdx >= 12) fiscalIdx = idx % 12;
-        yearMonths[fiscalIdx].revenue += Number(o.totalAmount || 0);
-        yearMonths[fiscalIdx].collections += Number(o.paidAmount || 0);
-      });
-    }
-
-    return yearMonths.map((m) => ({
-      label: m.label,
-      revenue: Math.round(m.revenue),
-      collections: Math.round(m.collections),
-    }));
-  }, [timeRange, filteredInvoices, filteredSalesOrders]);
-
-  // ── 2. Chart Data: Collections vs Outstanding Comparison ──
+  // 2. Chart Data: Collections vs Outstanding Comparison
   const collectionsVsOutstandingData = useMemo(() => {
-    const now = new Date();
-    const sourceInvoices = filteredInvoices.length > 0 ? filteredInvoices : [];
+    const weekly = timeRange === '30D';
+    const bucketCount = weekly ? 4 : timeRange === '90D' ? 3 : timeRange === '6M' ? 6 : 12;
+    const buckets = Array.from({ length: bucketCount }, (_, index) => {
+      if (weekly) return { start: new Date(rangeBounds.start.getTime() + index * 7 * 86400000), end: new Date(Math.min(rangeBounds.end.getTime(), rangeBounds.start.getTime() + (index + 1) * 7 * 86400000 - 1)), period: `Week ${index + 1}`, collections: 0, outstanding: 0 };
+      const date = new Date(rangeBounds.start.getFullYear(), rangeBounds.start.getMonth() + index, 1);
+      return { year: date.getFullYear(), month: date.getMonth(), period: date.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }), collections: 0, outstanding: 0 };
+    });
+    const source = filteredInvoices.length > 0
+      ? filteredInvoices.map((record) => ({ date: getRecordDate(record, ['invoiceDate', 'createdAt', 'date']), collections: Number(record.amtRcvd || 0), outstanding: Number(record.outstanding !== undefined ? record.outstanding : Math.max(0, Number(record.invoiceAmount || 0) - Number(record.amtRcvd || 0))) }))
+      : filteredSalesOrders.map((record) => ({ date: getRecordDate(record, ['orderDate', 'createdAt', 'date']), collections: Number(record.paidAmount || record.verified_paid_amount || 0), outstanding: Number(record.outstandingAmount !== undefined ? record.outstandingAmount : Math.max(0, Number(record.totalAmount || record.grand_total || 0) - Number(record.paidAmount || record.verified_paid_amount || 0))) }));
+    source.forEach(({ date, collections, outstanding }) => {
+      if (!date) return;
+      const bucket = weekly ? buckets.find((item) => date >= item.start && date <= item.end) : buckets.find((item) => item.year === date.getFullYear() && item.month === date.getMonth());
+      if (bucket) { bucket.collections += collections; bucket.outstanding += outstanding; }
+    });
+    return buckets.map(({ period, collections, outstanding }) => ({ period, collections: Math.round(collections), outstanding: Math.round(outstanding) }));
+  }, [timeRange, filteredInvoices, filteredSalesOrders, rangeBounds]);
 
-    if (timeRange === '30D') {
-      const cutoff = new Date(now);
-      cutoff.setDate(cutoff.getDate() - 30);
-      const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-
-      const weeks = [
-        { period: 'Week 1', collections: 0, outstanding: 0 },
-        { period: 'Week 2', collections: 0, outstanding: 0 },
-        { period: 'Week 3', collections: 0, outstanding: 0 },
-        { period: 'Week 4', collections: 0, outstanding: 0 },
-      ];
-
-      if (sourceInvoices.length > 0) {
-        sourceInvoices.forEach((inv, idx) => {
-          const d = new Date(inv.invoiceDate || inv.createdAt);
-          let wIdx;
-          if (!isNaN(d.getTime()) && d >= cutoff && d <= endOfToday) {
-            const diffMs = d.getTime() - cutoff.getTime();
-            const dayOffset = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-            wIdx = Math.min(3, Math.max(0, Math.floor(dayOffset / 7.5)));
-          } else {
-            wIdx = idx % 4;
-          }
-          weeks[wIdx].collections += Number(inv.amtRcvd || 0);
-          weeks[wIdx].outstanding += Number(inv.outstanding !== undefined ? inv.outstanding : Math.max(0, Number(inv.invoiceAmount || 0) - Number(inv.amtRcvd || 0)));
-        });
-      } else if (filteredSalesOrders.length > 0) {
-        filteredSalesOrders.forEach((o, idx) => {
-          const d = new Date(o.orderDate || o.createdAt);
-          let wIdx;
-          if (!isNaN(d.getTime()) && d >= cutoff && d <= endOfToday) {
-            const diffMs = d.getTime() - cutoff.getTime();
-            const dayOffset = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-            wIdx = Math.min(3, Math.max(0, Math.floor(dayOffset / 7.5)));
-          } else {
-            wIdx = idx % 4;
-          }
-          weeks[wIdx].collections += Number(o.paidAmount || 0);
-          weeks[wIdx].outstanding += Number(o.outstandingAmount !== undefined ? o.outstandingAmount : Math.max(0, Number(o.totalAmount || 0) - Number(o.paidAmount || 0)));
-        });
-      }
-
-      return weeks.map((w) => ({
-        period: w.period,
-        collections: Math.round(w.collections),
-        outstanding: Math.round(w.outstanding),
-      }));
-    }
-
-    if (timeRange === '90D') {
-      const monthLabels = ['Oct FY26', 'Nov FY26', 'Dec FY26'];
-      const monthIndices = [9, 10, 11];
-
-      const months = monthLabels.map((period) => ({ period, collections: 0, outstanding: 0 }));
-
-      if (sourceInvoices.length > 0) {
-        sourceInvoices.forEach((inv, idx) => {
-          const d = new Date(inv.invoiceDate || inv.createdAt);
-          let targetIdx = -1;
-          if (!isNaN(d.getTime())) {
-            targetIdx = monthIndices.indexOf(d.getMonth());
-          }
-          if (targetIdx === -1) {
-            targetIdx = idx % 3;
-          }
-          months[targetIdx].collections += Number(inv.amtRcvd || 0);
-          months[targetIdx].outstanding += Number(inv.outstanding !== undefined ? inv.outstanding : Math.max(0, Number(inv.invoiceAmount || 0) - Number(inv.amtRcvd || 0)));
-        });
-      } else if (filteredSalesOrders.length > 0) {
-        filteredSalesOrders.forEach((o, idx) => {
-          const d = new Date(o.orderDate || o.createdAt);
-          let targetIdx = -1;
-          if (!isNaN(d.getTime())) {
-            targetIdx = monthIndices.indexOf(d.getMonth());
-          }
-          if (targetIdx === -1) targetIdx = idx % 3;
-          months[targetIdx].collections += Number(o.paidAmount || 0);
-          months[targetIdx].outstanding += Number(o.outstandingAmount !== undefined ? o.outstandingAmount : Math.max(0, Number(o.totalAmount || 0) - Number(o.paidAmount || 0)));
-        });
-      }
-
-      return months.map((m) => ({
-        period: m.period,
-        collections: Math.round(m.collections),
-        outstanding: Math.round(m.outstanding),
-      }));
-    }
-
-    if (timeRange === '6M') {
-      const qMap = {
-        Q1: { collections: 0, outstanding: 0 },
-        Q2: { collections: 0, outstanding: 0 },
-      };
-      if (sourceInvoices.length > 0) {
-        sourceInvoices.forEach((inv) => {
-          const qStr = String(inv.quarter || '');
-          const d = new Date(inv.invoiceDate || inv.createdAt);
-          const m = !isNaN(d.getTime()) ? d.getMonth() : 4;
-          const key = qStr.includes('Q1') || (m >= 3 && m <= 5) ? 'Q1' : 'Q2';
-          qMap[key].collections += Number(inv.amtRcvd || 0);
-          qMap[key].outstanding += Number(inv.outstanding !== undefined ? inv.outstanding : Math.max(0, Number(inv.invoiceAmount || 0) - Number(inv.amtRcvd || 0)));
-        });
-      } else if (filteredSalesOrders.length > 0) {
-        filteredSalesOrders.forEach((o) => {
-          const d = new Date(o.orderDate || o.createdAt);
-          const m = !isNaN(d.getTime()) ? d.getMonth() : 4;
-          const key = m >= 3 && m <= 5 ? 'Q1' : 'Q2';
-          qMap[key].collections += Number(o.paidAmount || 0);
-          qMap[key].outstanding += Number(o.outstandingAmount !== undefined ? o.outstandingAmount : Math.max(0, Number(o.totalAmount || 0) - Number(o.paidAmount || 0)));
-        });
-      }
-
-      return [
-        { period: 'Q1 FY26', collections: Math.round(qMap.Q1.collections), outstanding: Math.round(qMap.Q1.outstanding) },
-        { period: 'Q2 FY26', collections: Math.round(qMap.Q2.collections), outstanding: Math.round(qMap.Q2.outstanding) },
-      ];
-    }
-
-    // 1Y - All 4 Quarters of FY 2026–27
-    const qMap = {
-      Q1: { collections: 0, outstanding: 0 },
-      Q2: { collections: 0, outstanding: 0 },
-      Q3: { collections: 0, outstanding: 0 },
-      Q4: { collections: 0, outstanding: 0 },
-    };
-    if (sourceInvoices.length > 0) {
-      sourceInvoices.forEach((inv) => {
-        const qStr = String(inv.quarter || '');
-        const d = new Date(inv.invoiceDate || inv.createdAt);
-        let key = 'Q1';
-        if (qStr.includes('Q2')) key = 'Q2';
-        else if (qStr.includes('Q3')) key = 'Q3';
-        else if (qStr.includes('Q4')) key = 'Q4';
-        else if (!isNaN(d.getTime())) {
-          const m = d.getMonth();
-          if (m >= 3 && m <= 5) key = 'Q1';
-          else if (m >= 6 && m <= 8) key = 'Q2';
-          else if (m >= 9 && m <= 11) key = 'Q3';
-          else key = 'Q4';
-        }
-
-        qMap[key].collections += Number(inv.amtRcvd || 0);
-        qMap[key].outstanding += Number(inv.outstanding !== undefined ? inv.outstanding : Math.max(0, Number(inv.invoiceAmount || 0) - Number(inv.amtRcvd || 0)));
-      });
-    } else if (filteredSalesOrders.length > 0) {
-      filteredSalesOrders.forEach((o) => {
-        const d = new Date(o.orderDate || o.createdAt);
-        let key = 'Q1';
-        if (!isNaN(d.getTime())) {
-          const m = d.getMonth();
-          if (m >= 3 && m <= 5) key = 'Q1';
-          else if (m >= 6 && m <= 8) key = 'Q2';
-          else if (m >= 9 && m <= 11) key = 'Q3';
-          else key = 'Q4';
-        }
-        qMap[key].collections += Number(o.paidAmount || 0);
-        qMap[key].outstanding += Number(o.outstandingAmount !== undefined ? o.outstandingAmount : Math.max(0, Number(o.totalAmount || 0) - Number(o.paidAmount || 0)));
-      });
-    }
-
-    return [
-      { period: 'Q1 FY26', collections: Math.round(qMap.Q1.collections), outstanding: Math.round(qMap.Q1.outstanding) },
-      { period: 'Q2 FY26', collections: Math.round(qMap.Q2.collections), outstanding: Math.round(qMap.Q2.outstanding) },
-      { period: 'Q3 FY26', collections: Math.round(qMap.Q3.collections), outstanding: Math.round(qMap.Q3.outstanding) },
-      { period: 'Q4 FY26', collections: Math.round(qMap.Q4.collections), outstanding: Math.round(qMap.Q4.outstanding) },
-    ];
-  }, [timeRange, filteredInvoices, filteredSalesOrders]);
-
-  // ── 3. Chart Data: Receivables Aging Buckets (Donut) ──
   const agingBreakdownData = useMemo(() => {
-    let b0_30 = 0;
-    let b31_60 = 0;
-    let b61_90 = 0;
-    let b90_plus = 0;
-
-    const now = Date.now();
-    const activeList = filteredInvoices.length > 0 ? filteredInvoices : filteredSalesOrders;
-
-    if (activeList.length > 0) {
-      activeList.forEach((item) => {
-        const out = Number(
-          item.outstanding !== undefined
-            ? item.outstanding
-            : item.outstandingAmount !== undefined
-            ? item.outstandingAmount
-            : Math.max(0, Number(item.invoiceAmount || item.totalAmount || 0) - Number(item.amtRcvd || item.paidAmount || 0))
-        );
-        if (out <= 0) return;
-
-        let diffDays = 0;
-        if (item.ageingDays !== undefined && item.ageingDays !== null) {
-          diffDays = Number(item.ageingDays);
-        } else {
-          const due = new Date(item.dueDate || item.paymentDueDate || item.invoiceDate || item.orderDate || now);
-          diffDays = Math.floor((now - due.getTime()) / (1000 * 60 * 60 * 24));
-        }
-
-        if (diffDays <= 30) b0_30 += out;
-        else if (diffDays <= 60) b31_60 += out;
-        else if (diffDays <= 90) b61_90 += out;
-        else b90_plus += out;
-      });
-
-      const totalAging = b0_30 + b31_60 + b61_90 + b90_plus;
-      if (totalAging > 0) {
-        return [
-          { name: '0–30 Days (Current)', value: Number(b0_30.toFixed(2)), color: PALETTE.emerald, percentage: `${((b0_30 / totalAging) * 100).toFixed(1)}%` },
-          { name: '31–60 Days (Aging)', value: Number(b31_60.toFixed(2)), color: PALETTE.amber, percentage: `${((b31_60 / totalAging) * 100).toFixed(1)}%` },
-          { name: '61–90 Days (Overdue)', value: Number(b61_90.toFixed(2)), color: '#F97316', percentage: `${((b61_90 / totalAging) * 100).toFixed(1)}%` },
-          { name: '90+ Days (Critical)', value: Number(b90_plus.toFixed(2)), color: PALETTE.rose, percentage: `${((b90_plus / totalAging) * 100).toFixed(1)}%` },
-        ];
-      }
-    }
-
-    return [
-      { name: '0–30 Days (Current)', value: 0, color: PALETTE.emerald, percentage: '0%' },
-      { name: '31–60 Days (Aging)', value: 0, color: PALETTE.amber, percentage: '0%' },
-      { name: '61–90 Days (Overdue)', value: 0, color: '#F97316', percentage: '0%' },
-      { name: '90+ Days (Critical)', value: 0, color: PALETTE.rose, percentage: '0%' },
+    const buckets = [
+      { name: '0–30 Days (Current)', value: 0, color: PALETTE.emerald },
+      { name: '31–60 Days (Aging)', value: 0, color: PALETTE.amber },
+      { name: '61–90 Days (Overdue)', value: 0, color: '#F97316' },
+      { name: '90+ Days (Critical)', value: 0, color: PALETTE.rose },
     ];
-  }, [filteredInvoices, filteredSalesOrders]);
+    const activeRecords = allArInvoices.length > 0 ? allArInvoices : salesOrders;
+    activeRecords.forEach((record) => {
+      const outstanding = Number(record.outstanding !== undefined
+        ? record.outstanding
+        : record.outstandingAmount !== undefined
+          ? record.outstandingAmount
+          : Math.max(0, Number(record.invoiceAmount || record.totalAmount || record.grand_total || 0) - Number(record.amtRcvd || record.paidAmount || 0)));
+      if (outstanding <= 0) return;
+      const dueDate = getRecordDate(record, ['dueDate', 'paymentDueDate', 'invoiceDate', 'orderDate']);
+      const daysOverdue = dueDate ? Math.max(0, Math.floor((Date.now() - dueDate.getTime()) / 86400000)) : 0;
+      const bucketIndex = daysOverdue <= 30 ? 0 : daysOverdue <= 60 ? 1 : daysOverdue <= 90 ? 2 : 3;
+      buckets[bucketIndex].value += outstanding;
+    });
+    const total = buckets.reduce((sum, bucket) => sum + bucket.value, 0);
+    return buckets.map((bucket) => ({
+      ...bucket,
+      value: Number(bucket.value.toFixed(2)),
+      percentage: `${total ? ((bucket.value / total) * 100).toFixed(1) : '0.0'}%`,
+    }));
+  }, [allArInvoices, salesOrders]);
 
   // ── 4. Chart Data: Operational Outflow & Expense Allocation ──
   const expenseAllocationData = useMemo(() => {
-    const monthsMultiplier = timeRange === '30D' ? 1 : timeRange === '90D' ? 3 : timeRange === '6M' ? 6 : 12;
     const vendorPay = dynamicMetrics.vendorPaymentsDueRaw || 0;
-    const gstTax = Math.round(dynamicMetrics.totalCollectionsRaw * 0.18);
-
-    let totalExpensesLogged = 0;
-    if (Array.isArray(liveData.expenses) && liveData.expenses.length > 0) {
-      totalExpensesLogged = liveData.expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
-    }
-
-    const staffCount = Array.isArray(liveData.users) && liveData.users.length > 0 ? liveData.users.length : 24;
-    const payroll = staffCount * 35000 * monthsMultiplier;
-    const operations = Math.round(totalExpensesLogged > 0 ? totalExpensesLogged * 0.6 : 145000 * monthsMultiplier);
-    const admin = Math.round(totalExpensesLogged > 0 ? totalExpensesLogged * 0.4 : 95000 * monthsMultiplier);
+    const gstTax = 0;
+    const totalExpensesLogged = filteredExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+    const payroll = 0;
+    const operations = totalExpensesLogged;
+    const admin = 0;
 
     const total = vendorPay + payroll + operations + admin + gstTax;
 
@@ -839,7 +469,7 @@ export default function FinanceManagerDashboardView({
       { name: 'Office & Administration', value: admin, color: PALETTE.amber, share: `${Math.round((admin / Math.max(1, total)) * 100)}%` },
       { name: 'Vendor Procurement Orders', value: vendorPay, color: PALETTE.rose, share: `${Math.round((vendorPay / Math.max(1, total)) * 100)}%` },
     ];
-  }, [dynamicMetrics, liveData.expenses, liveData.users, timeRange]);
+  }, [dynamicMetrics, filteredExpenses]);
 
   // ── Top 5 Real Debtors with Pending Inflows (Period-Sensitive) ──
   const topPendingCustomers = useMemo(() => {
@@ -1195,9 +825,9 @@ export default function FinanceManagerDashboardView({
                 {loadingLive && !dynamicMetrics.totalRevenueRaw ? 'Syncing...' : dynamicMetrics.totalRevenueStr}
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '700', color: '#16A34A' }}>
-              <TrendingUp size={14} />
-              <span>{dynamicMetrics.yoyGrowthStr}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '700', color: dynamicMetrics.periodComparisonPositive === null ? PALETTE.slateMuted : dynamicMetrics.periodComparisonPositive ? '#16A34A' : PALETTE.rose }}>
+              {dynamicMetrics.periodComparisonPositive === false ? <ArrowDownRight size={14} /> : <TrendingUp size={14} />}
+              <span>{dynamicMetrics.periodComparisonLabel}</span>
               <span style={{ color: PALETTE.slateMuted, fontWeight: '500' }}>{dynamicMetrics.periodBadge}</span>
             </div>
           </div>
@@ -1511,7 +1141,7 @@ export default function FinanceManagerDashboardView({
                     ? 'Monthly comparison across the quarter of realized cash vs pending debtor dues'
                     : timeRange === '6M'
                     ? 'Quarterly comparison across H1 of realized cash vs pending debtor dues'
-                    : 'Quarterly comparison across FY 2026–27 of realized cash vs remaining debtor dues'}
+                    : 'Monthly realized cash vs remaining debtor dues across the selected period'}
                 </p>
               </div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
