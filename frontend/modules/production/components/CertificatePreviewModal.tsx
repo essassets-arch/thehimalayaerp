@@ -72,7 +72,7 @@ export default function CertificatePreviewModal({
         .replace(/\s+/g, '_')
         .trim();
       const customFilename = activeTemplate === 'CERT_2'
-        ? `Himalaya-FRP-Cover-Frame-Specs-${safeNumber}.pdf`
+        ? `Himalaya-TDS-Technical-Data-Specification-${safeNumber}.pdf`
         : `Test-Certificate-${safeNumber}.pdf`;
       await downloadTestCertificatePdf(activeReport, 'test-certificate-document-preview', customFilename);
     } catch (e: any) {
@@ -302,7 +302,7 @@ export default function CertificatePreviewModal({
             onClick={() => setActiveTemplate('CERT_2')}
           >
             <span>📄</span>
-            <span>Certificate 2: HIMALAYA FRP Cover &amp; Frame</span>
+            <span>Certificate 2: TDS — Technical Data Specification</span>
           </button>
         </div>
 

@@ -379,7 +379,7 @@ export default function TestReportFormModal({
               >
                 <span className={styles.templateIcon}>📄</span>
                 <div>
-                  <div className={styles.templateName}>Certificate 2 — HIMALAYA FRP Cover &amp; Frame</div>
+                  <div className={styles.templateName}>Certificate 2: TDS — Technical Data Specification</div>
                   <div className={styles.templateDesc}>
                     Direct 11-row technical specification certificate (MOC, Clear Opening, Cover/Frame Size, Load, Resin, R&amp;D Stamp).
                   </div>

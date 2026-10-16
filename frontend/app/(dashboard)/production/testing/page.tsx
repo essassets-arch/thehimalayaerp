@@ -146,8 +146,8 @@ export default function ProductionTestingPage() {
   /* ── Check if Report is Certificate 2 ── */
   const isCert2Report = (report: TestCertificateData | null | undefined): boolean => {
     if (!report) return false;
-    if ((report as any).certificateType === 'CERT_2' || (report as any).certificateType === 'FRP_COVER_FRAME') return true;
-    if (report.remarks && (report.remarks.includes('CERT_2') || report.remarks.includes('FRP_COVER_FRAME'))) return true;
+    if ((report as any).certificateType === 'CERT_2' || (report as any).certificateType === 'TDS' || (report as any).certificateType === 'FRP_COVER_FRAME') return true;
+    if (report.remarks && (report.remarks.includes('CERT_2') || report.remarks.includes('TDS') || report.remarks.includes('FRP_COVER_FRAME'))) return true;
     const specs = report.specifications || [];
     return specs.some((s) => {
       const n = (s.specification || '').toLowerCase();
@@ -169,7 +169,7 @@ export default function ProductionTestingPage() {
           .replace(/\s+/g, '_')
           .trim();
         const customFilename = isC2
-          ? `Himalaya-FRP-Cover-Frame-Specs-${safeNumber}.pdf`
+          ? `Himalaya-TDS-Technical-Data-Specification-${safeNumber}.pdf`
           : `Test-Certificate-${safeNumber}.pdf`;
 
         await downloadTestCertificatePdf(report, 'hidden-direct-download-cert', customFilename);
@@ -626,7 +626,7 @@ export default function ProductionTestingPage() {
                             <span className={styles.revBadge}>Rev {report.revision}</span>
                           )}
                           {isCert2Report(report) ? (
-                            <span className={styles.cert2Badge} title="Certificate 2: HIMALAYA FRP Cover & Frame">FRP Specs</span>
+                            <span className={styles.cert2Badge} title="Certificate 2: TDS - Technical Data Specification">TDS</span>
                           ) : (
                             <span className={styles.cert1Badge} title="Certificate 1: MTC & Proof Load">MTC</span>
                           )}
