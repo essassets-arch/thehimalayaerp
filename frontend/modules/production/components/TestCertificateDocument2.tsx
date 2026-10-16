@@ -26,7 +26,7 @@ export function resolveCertificate2Rows(report: TestCertificateData): TestSpecif
       const name = (s.specification || '').toLowerCase();
       return keywords.some((k) => name.includes(k.toLowerCase()));
     });
-    return match?.description;
+    return match ? match.description : undefined;
   };
 
   // Derive sizes & capacities from product name or clear opening if available
@@ -35,7 +35,7 @@ export function resolveCertificate2Rows(report: TestCertificateData): TestSpecif
 
   // Extract dimensions like 600x600, 450x600, 750x750, 900x900
   const sizeMatch = (clearOp + ' ' + pName).match(/(\d{3,4})\s*[xX*]\s*(\d{3,4})/);
-  let derivedClear = clearOp || (sizeMatch ? `${sizeMatch[1]} X ${sizeMatch[2]} MM` : '600 X 600 MM');
+  let derivedClear = clearOp || (sizeMatch ? `${sizeMatch[1]} X ${sizeMatch[2]} MM` : '');
   if (derivedClear && !derivedClear.toUpperCase().includes('MM') && !derivedClear.toUpperCase().includes('X')) {
     derivedClear = `${derivedClear} MM`;
   }
@@ -47,9 +47,6 @@ export function resolveCertificate2Rows(report: TestCertificateData): TestSpecif
     const h = parseInt(sizeMatch[2], 10);
     derivedCover = `${w + 50} X ${h + 50} MM`;
     derivedFrame = `${w + 110} X ${h + 110} MM`;
-  } else {
-    derivedCover = '650 X 650 MM';
-    derivedFrame = '710 X 710 MM';
   }
 
   // Extract load rating like B125, C250, D400, 12.5T, 25T, 40T
@@ -62,65 +59,68 @@ export function resolveCertificate2Rows(report: TestCertificateData): TestSpecif
     derivedLoad = '12.5 TON (Class B125)';
   } else if (pName.includes('A15') || pName.includes('2.5T') || pName.includes('5T')) {
     derivedLoad = '2.5 / 5.0 TON (Class A15 / Light Duty)';
-  } else {
-    derivedLoad = '12.5 TON (Class B125)';
   }
+
+  const getVal = (keywords: string[], fallback: string) => {
+    const val = findExisting(keywords);
+    return val !== undefined ? val : fallback;
+  };
 
   return [
     {
       srNo: 1,
       specification: 'MOC of Material',
-      description: findExisting(['moc', 'material', 'fiber']) || 'FRP (Fiber Reinforced Polymer)',
+      description: getVal(['moc', 'material'], pName ? 'FRP (Fiber Reinforced Polymer)' : ''),
     },
     {
       srNo: 2,
       specification: 'Clear Opening',
-      description: findExisting(['clear opening']) || derivedClear,
+      description: getVal(['clear opening'], derivedClear),
     },
     {
       srNo: 3,
       specification: 'Cover Size',
-      description: findExisting(['cover size']) || derivedCover,
+      description: getVal(['cover size'], derivedCover),
     },
     {
       srNo: 4,
       specification: 'Frame Size',
-      description: findExisting(['frame size']) || derivedFrame,
+      description: getVal(['frame size'], derivedFrame),
     },
     {
       srNo: 5,
       specification: 'Load Bearing',
-      description: findExisting(['load bearing', 'capacity']) || derivedLoad,
+      description: getVal(['load bearing', 'capacity'], derivedLoad),
     },
     {
       srNo: 6,
       specification: 'Colour',
-      description: findExisting(['colour', 'color']) || 'Black',
+      description: getVal(['colour', 'color'], pName ? 'Black' : ''),
     },
     {
       srNo: 7,
       specification: 'Resin',
-      description: findExisting(['resin']) || 'Isopthalic',
+      description: getVal(['resin'], 'Isopthalic'),
     },
     {
       srNo: 8,
       specification: 'Filer Content',
-      description: findExisting(['filer', 'filler']) || 'NIL',
+      description: getVal(['filer', 'filler'], 'NIL'),
     },
     {
       srNo: 9,
       specification: 'Outdoor use',
-      description: findExisting(['outdoor']) || 'Yes',
+      description: getVal(['outdoor'], 'Yes'),
     },
     {
       srNo: 10,
       specification: 'Testing Code',
-      description: findExisting(['testing code', 'code']) || 'As per EN124-5:2015',
+      description: getVal(['testing code', 'code'], 'As per EN124-5:2015'),
     },
     {
       srNo: 11,
       specification: 'UV Resistant',
-      description: findExisting(['uv']) || 'UV Stabilizer',
+      description: getVal(['uv'], 'UV Stabilizer'),
     },
   ];
 }
@@ -137,6 +137,7 @@ export default function TestCertificateDocument2({
   engineerTitle = 'R&D QUALITY ENGINEER',
 }: Props) {
   const rows = resolveCertificate2Rows(report);
+  const displayTitle = report.testedByTitle?.trim() || engineerTitle;
 
   return (
     <div className={styles.certWrapper}>
@@ -190,13 +191,13 @@ export default function TestCertificateDocument2({
                 <tr key={row.srNo}>
                   <td className={styles.colSr}>{row.srNo}</td>
                   <td className={styles.colSpec}>{row.specification}</td>
-                  <td className={styles.colDesc}>{row.description || '-'}</td>
+                  <td className={styles.colDesc}>{row.description || ''}</td>
                 </tr>
               ))}
               {/* ── Bottom Footer Row with R&D Quality Engineer and Stamp ── */}
               <tr>
                 <td colSpan={2} className={styles.footerLeftCell}>
-                  <div className={styles.engineerTitle}>{engineerTitle}</div>
+                  <div className={styles.engineerTitle}>{displayTitle}</div>
                 </td>
                 <td className={styles.footerRightCell}>
                   <img

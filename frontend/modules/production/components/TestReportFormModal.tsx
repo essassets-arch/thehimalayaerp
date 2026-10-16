@@ -134,8 +134,8 @@ export default function TestReportFormModal({
         initialData.resultStatement ||
           'Result:- No Cracks or Determination of FRP Cover observed after applying sequence of load and FRP Cover & frame were found satisfactory.'
       );
-      setTestedByName(initialData.testedByName || 'Sana Konda Reddy');
-      setTestedByTitle(initialData.testedByTitle || 'Plant Head');
+      setTestedByName(initialData.testedByName || (isC2 ? 'R&D Quality Engineer' : 'Sana Konda Reddy'));
+      setTestedByTitle(initialData.testedByTitle || (isC2 ? 'R&D QUALITY ENGINEER' : 'Plant Head'));
       setStatus(initialData.status === 'Pending Approval' ? 'Pending Approval' : 'Draft');
       setRemarks(initialData.remarks || '');
     } else {
@@ -182,13 +182,16 @@ export default function TestReportFormModal({
         derivedFrame = `${w + 110} X ${h + 110} MM`;
       }
       setSpecs(defaultSpecificationsCert2.map((s) => {
+        if (s.srNo === 1 && !s.description) return { ...s, description: 'FRP (Fiber Reinforced Polymer)' };
         if (s.srNo === 2 && clearOpening) return { ...s, description: clearOpening };
         if (s.srNo === 3 && derivedCover) return { ...s, description: derivedCover };
         if (s.srNo === 4 && derivedFrame) return { ...s, description: derivedFrame };
         return s;
       }));
+      setTestedByTitle('R&D QUALITY ENGINEER');
     } else {
       setSpecs(defaultSpecifications);
+      setTestedByTitle('Plant Head');
     }
   };
 
@@ -259,11 +262,11 @@ export default function TestReportFormModal({
   };
 
   const handleSubmit = async (targetStatus: 'Draft' | 'Pending Approval') => {
-    if (!clientName.trim()) {
+    if (templateType === 'CERT_1' && !clientName.trim()) {
       toast.error('Client Name is required');
       return;
     }
-    if (!productName.trim()) {
+    if (templateType === 'CERT_1' && !productName.trim()) {
       toast.error('Product Name is required');
       return;
     }
@@ -275,12 +278,24 @@ export default function TestReportFormModal({
         ? `[CERT_TYPE:CERT_2] ${cleanRemarks}`.trim()
         : cleanRemarks;
 
+      const finalClientName = templateType === 'CERT_2'
+        ? (clientName.trim() || 'HIMALAYA STANDARD')
+        : clientName.trim();
+
+      const finalProductName = templateType === 'CERT_2'
+        ? (productName.trim() || 'HIMALAYA FRP COVER & FRAME')
+        : productName.trim();
+
+      const finalTestedByTitle = templateType === 'CERT_2'
+        ? (testedByTitle.trim() || 'R&D QUALITY ENGINEER')
+        : testedByTitle.trim();
+
       const payload = {
         reportNumber: reportNumber.trim(),
         reportDate,
-        clientName: clientName.trim(),
+        clientName: finalClientName,
         poNumber: poNumber.trim() || undefined,
-        productName: productName.trim(),
+        productName: finalProductName,
         productId: productId || undefined,
         clearOpening: clearOpening.trim() || undefined,
         quantitySupply: quantitySupply.trim() || undefined,
@@ -374,170 +389,271 @@ export default function TestReportFormModal({
           </div>
 
           {/* 1. Header Information */}
-          <div>
-            <div className={styles.sectionTitle}>1. Certificate &amp; Client Details</div>
-            <div className={styles.formGrid}>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Report / Certificate No. *</label>
-                <input
-                  type="text"
-                  required
-                  value={reportNumber}
-                  onChange={(e) => setReportNumber(e.target.value)}
-                  className={styles.formInput}
-                  placeholder="e.g. TC-2026-0001"
-                />
-              </div>
-
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Test Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={reportDate}
-                  onChange={(e) => setReportDate(e.target.value)}
-                  className={styles.formInput}
-                />
-              </div>
-
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Client / Customer Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  className={styles.formInput}
-                  placeholder="e.g. Larsen &amp; Toubro Ltd."
-                  list="client-suggestions"
-                />
-                {customers.length > 0 && (
-                  <datalist id="client-suggestions">
-                    {customers.map((c) => (
-                      <option key={c.id || c.companyName} value={c.companyName} />
-                    ))}
-                  </datalist>
-                )}
-              </div>
-
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>P.O. No.</label>
-                <input
-                  type="text"
-                  value={poNumber}
-                  onChange={(e) => setPoNumber(e.target.value)}
-                  className={styles.formInput}
-                  placeholder="e.g. PO/2026/089"
-                />
-              </div>
-
-              <div className={`${styles.formField} ${styles.fullWidth}`} ref={productPickerRef}>
-                <label className={styles.formLabel}>Select Product from Master (Auto-fills specifications)</label>
-                <div className={styles.productPicker}>
-                  <Search size={16} aria-hidden="true" className={styles.productSearchIcon} />
+          {templateType === 'CERT_2' ? (
+            <div>
+              <div className={styles.sectionTitle}>1. Certificate &amp; Product Information</div>
+              <div className={styles.formGrid}>
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>Certificate / Report No. *</label>
                   <input
                     type="text"
-                    value={productSearch}
-                    onChange={(e) => {
-                      setProductSearch(e.target.value);
-                      setProductId('');
-                      setIsProductListOpen(true);
-                      setActiveProductIndex(0);
-                    }}
-                    onFocus={() => setIsProductListOpen(true)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'ArrowDown' && filteredProducts.length) {
-                        e.preventDefault();
-                        setIsProductListOpen(true);
-                        setActiveProductIndex((index) => Math.min(index + 1, filteredProducts.length - 1));
-                      } else if (e.key === 'ArrowUp' && filteredProducts.length) {
-                        e.preventDefault();
-                        setActiveProductIndex((index) => Math.max(index - 1, 0));
-                      } else if (e.key === 'Enter' && isProductListOpen && filteredProducts[activeProductIndex]) {
-                        e.preventDefault();
-                        handleProductSelect(filteredProducts[activeProductIndex].product.id);
-                      } else if (e.key === 'Escape') {
-                        setIsProductListOpen(false);
-                      }
-                    }}
-                    className={`${styles.formInput} ${styles.productSearchInput}`}
-                    placeholder="Search by product name, size, or capacity…"
-                    role="combobox"
-                    aria-label="Search master products"
-                    aria-autocomplete="list"
-                    aria-expanded={isProductListOpen}
-                    aria-controls="master-product-options"
+                    required
+                    value={reportNumber}
+                    onChange={(e) => setReportNumber(e.target.value)}
+                    className={styles.formInput}
+                    placeholder="e.g. TC-2026-0001"
                   />
-                  {isProductListOpen && (
-                    <div className={styles.productOptions} id="master-product-options" role="listbox">
-                      {filteredProducts.length ? filteredProducts.map(({ product, label }, index) => (
-                        <button
-                          type="button"
-                          key={product.id}
-                          role="option"
-                          aria-selected={product.id === productId}
-                          className={`${styles.productOption} ${index === activeProductIndex ? styles.productOptionActive : ''}`}
-                          onMouseEnter={() => setActiveProductIndex(index)}
-                          onClick={() => handleProductSelect(product.id)}
-                        >
-                          <span>{product.name}{product.size ? ` (${product.size})` : ''}{product.capacity ? ` [${product.capacity}]` : ''}</span>
-                          {product.id === productId && <Check size={16} aria-hidden="true" />}
-                        </button>
-                      )) : (
-                        <div className={styles.productEmpty}>No matching products. You can enter a custom name below.</div>
-                      )}
-                    </div>
-                  )}
                 </div>
-                <span className={styles.productHint}>Search across product names, sizes, and capacities.</span>
-              </div>
 
-              <div className={`${styles.formField} ${styles.fullWidth}`}>
-                <label className={styles.formLabel}>Name Of the Products *</label>
-                <input
-                  type="text"
-                  required
-                  value={productName}
-                  onChange={(e) => setProductName(e.target.value)}
-                  className={styles.formInput}
-                  placeholder="e.g. 600mm DIA FRP Manhole Cover &amp; Frame (E600 / 40 Ton)"
-                />
-              </div>
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={reportDate}
+                    onChange={(e) => setReportDate(e.target.value)}
+                    className={styles.formInput}
+                  />
+                </div>
 
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Clear Opening</label>
-                <input
-                  type="text"
-                  value={clearOpening}
-                  onChange={(e) => setClearOpening(e.target.value)}
-                  className={styles.formInput}
-                  placeholder="e.g. 600 mm or 450x450 mm"
-                />
-              </div>
+                <div className={`${styles.formField} ${styles.fullWidth}`} ref={productPickerRef}>
+                  <label className={styles.formLabel}>Select Product from Master (Auto-fills 11 Specifications)</label>
+                  <div className={styles.productPicker}>
+                    <Search size={16} aria-hidden="true" className={styles.productSearchIcon} />
+                    <input
+                      type="text"
+                      value={productSearch}
+                      onChange={(e) => {
+                        setProductSearch(e.target.value);
+                        setProductId('');
+                        setIsProductListOpen(true);
+                        setActiveProductIndex(0);
+                      }}
+                      onFocus={() => setIsProductListOpen(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowDown' && filteredProducts.length) {
+                          e.preventDefault();
+                          setIsProductListOpen(true);
+                          setActiveProductIndex((index) => Math.min(index + 1, filteredProducts.length - 1));
+                        } else if (e.key === 'ArrowUp' && filteredProducts.length) {
+                          e.preventDefault();
+                          setActiveProductIndex((index) => Math.max(index - 1, 0));
+                        } else if (e.key === 'Enter' && isProductListOpen && filteredProducts[activeProductIndex]) {
+                          e.preventDefault();
+                          handleProductSelect(filteredProducts[activeProductIndex].product.id);
+                        } else if (e.key === 'Escape') {
+                          setIsProductListOpen(false);
+                        }
+                      }}
+                      className={`${styles.formInput} ${styles.productSearchInput}`}
+                      placeholder="Search master product (e.g. 600x600, B125, D400)…"
+                      role="combobox"
+                      aria-label="Search master products"
+                      aria-autocomplete="list"
+                      aria-expanded={isProductListOpen}
+                      aria-controls="master-product-options"
+                    />
+                    {isProductListOpen && (
+                      <div className={styles.productOptions} id="master-product-options" role="listbox">
+                        {filteredProducts.length ? filteredProducts.map(({ product, label }, index) => (
+                          <button
+                            type="button"
+                            key={product.id}
+                            role="option"
+                            aria-selected={product.id === productId}
+                            className={`${styles.productOption} ${index === activeProductIndex ? styles.productOptionActive : ''}`}
+                            onMouseEnter={() => setActiveProductIndex(index)}
+                            onClick={() => handleProductSelect(product.id)}
+                          >
+                            <span>{product.name}{product.size ? ` (${product.size})` : ''}{product.capacity ? ` [${product.capacity}]` : ''}</span>
+                            {product.id === productId && <Check size={16} aria-hidden="true" />}
+                          </button>
+                        )) : (
+                          <div className={styles.productEmpty}>No matching products. You can enter details below.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Quantity Supply</label>
-                <input
-                  type="text"
-                  value={quantitySupply}
-                  onChange={(e) => setQuantitySupply(e.target.value)}
-                  className={styles.formInput}
-                  placeholder="e.g. 100 Nos / 50 Sets"
-                />
-              </div>
-
-              <div className={`${styles.formField} ${styles.fullWidth}`}>
-                <label className={styles.formLabel}>Project Name</label>
-                <input
-                  type="text"
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  className={styles.formInput}
-                  placeholder="e.g. Smart City Drainage &amp; Road Infrastructure"
-                />
+                <div className={`${styles.formField} ${styles.fullWidth}`}>
+                  <label className={styles.formLabel}>Product Name</label>
+                  <input
+                    type="text"
+                    value={productName}
+                    onChange={(e) => setProductName(e.target.value)}
+                    className={styles.formInput}
+                    placeholder="e.g. 600x600 FRP Cover &amp; Frame (B125)"
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div>
+              <div className={styles.sectionTitle}>1. Certificate &amp; Client Details</div>
+              <div className={styles.formGrid}>
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>Report / Certificate No. *</label>
+                  <input
+                    type="text"
+                    required
+                    value={reportNumber}
+                    onChange={(e) => setReportNumber(e.target.value)}
+                    className={styles.formInput}
+                    placeholder="e.g. TC-2026-0001"
+                  />
+                </div>
+
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>Test Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={reportDate}
+                    onChange={(e) => setReportDate(e.target.value)}
+                    className={styles.formInput}
+                  />
+                </div>
+
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>Client / Customer Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    className={styles.formInput}
+                    placeholder="e.g. Larsen &amp; Toubro Ltd."
+                    list="client-suggestions"
+                  />
+                  {customers.length > 0 && (
+                    <datalist id="client-suggestions">
+                      {customers.map((c) => (
+                        <option key={c.id || c.companyName} value={c.companyName} />
+                      ))}
+                    </datalist>
+                  )}
+                </div>
+
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>P.O. No.</label>
+                  <input
+                    type="text"
+                    value={poNumber}
+                    onChange={(e) => setPoNumber(e.target.value)}
+                    className={styles.formInput}
+                    placeholder="e.g. PO/2026/089"
+                  />
+                </div>
+
+                <div className={`${styles.formField} ${styles.fullWidth}`} ref={productPickerRef}>
+                  <label className={styles.formLabel}>Select Product from Master (Auto-fills specifications)</label>
+                  <div className={styles.productPicker}>
+                    <Search size={16} aria-hidden="true" className={styles.productSearchIcon} />
+                    <input
+                      type="text"
+                      value={productSearch}
+                      onChange={(e) => {
+                        setProductSearch(e.target.value);
+                        setProductId('');
+                        setIsProductListOpen(true);
+                        setActiveProductIndex(0);
+                      }}
+                      onFocus={() => setIsProductListOpen(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowDown' && filteredProducts.length) {
+                          e.preventDefault();
+                          setIsProductListOpen(true);
+                          setActiveProductIndex((index) => Math.min(index + 1, filteredProducts.length - 1));
+                        } else if (e.key === 'ArrowUp' && filteredProducts.length) {
+                          e.preventDefault();
+                          setActiveProductIndex((index) => Math.max(index - 1, 0));
+                        } else if (e.key === 'Enter' && isProductListOpen && filteredProducts[activeProductIndex]) {
+                          e.preventDefault();
+                          handleProductSelect(filteredProducts[activeProductIndex].product.id);
+                        } else if (e.key === 'Escape') {
+                          setIsProductListOpen(false);
+                        }
+                      }}
+                      className={`${styles.formInput} ${styles.productSearchInput}`}
+                      placeholder="Search by product name, size, or capacity…"
+                      role="combobox"
+                      aria-label="Search master products"
+                      aria-autocomplete="list"
+                      aria-expanded={isProductListOpen}
+                      aria-controls="master-product-options"
+                    />
+                    {isProductListOpen && (
+                      <div className={styles.productOptions} id="master-product-options" role="listbox">
+                        {filteredProducts.length ? filteredProducts.map(({ product, label }, index) => (
+                          <button
+                            type="button"
+                            key={product.id}
+                            role="option"
+                            aria-selected={product.id === productId}
+                            className={`${styles.productOption} ${index === activeProductIndex ? styles.productOptionActive : ''}`}
+                            onMouseEnter={() => setActiveProductIndex(index)}
+                            onClick={() => handleProductSelect(product.id)}
+                          >
+                            <span>{product.name}{product.size ? ` (${product.size})` : ''}{product.capacity ? ` [${product.capacity}]` : ''}</span>
+                            {product.id === productId && <Check size={16} aria-hidden="true" />}
+                          </button>
+                        )) : (
+                          <div className={styles.productEmpty}>No matching products. You can enter a custom name below.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <span className={styles.productHint}>Search across product names, sizes, and capacities.</span>
+                </div>
+
+                <div className={`${styles.formField} ${styles.fullWidth}`}>
+                  <label className={styles.formLabel}>Name Of the Products *</label>
+                  <input
+                    type="text"
+                    required
+                    value={productName}
+                    onChange={(e) => setProductName(e.target.value)}
+                    className={styles.formInput}
+                    placeholder="e.g. 600mm DIA FRP Manhole Cover &amp; Frame (E600 / 40 Ton)"
+                  />
+                </div>
+
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>Clear Opening</label>
+                  <input
+                    type="text"
+                    value={clearOpening}
+                    onChange={(e) => setClearOpening(e.target.value)}
+                    className={styles.formInput}
+                    placeholder="e.g. 600 mm or 450x450 mm"
+                  />
+                </div>
+
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>Quantity Supply</label>
+                  <input
+                    type="text"
+                    value={quantitySupply}
+                    onChange={(e) => setQuantitySupply(e.target.value)}
+                    className={styles.formInput}
+                    placeholder="e.g. 100 Nos / 50 Sets"
+                  />
+                </div>
+
+                <div className={`${styles.formField} ${styles.fullWidth}`}>
+                  <label className={styles.formLabel}>Project Name</label>
+                  <input
+                    type="text"
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    className={styles.formInput}
+                    placeholder="e.g. Smart City Drainage &amp; Road Infrastructure"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 2. Specifications Table */}
           <div>
@@ -575,157 +691,166 @@ export default function TestReportFormModal({
             </div>
           </div>
 
-          {/* 3. Load Testing Section (5 Stages) */}
-          <div>
-            <div className={styles.sectionTitle}>3. Load Testing Measurements (5 Sequence Stages)</div>
-            {templateType === 'CERT_2' ? (
-              <div style={{
-                marginBottom: '12px',
-                padding: '12px 16px',
-                backgroundColor: '#f0f9ff',
-                borderRadius: '8px',
-                border: '1px solid #bae6fd',
-                fontSize: '12px',
-                color: '#0369a1',
-                lineHeight: 1.5,
-              }}>
-                ℹ️ <strong>Certificate 2 Format Notice:</strong> Certificate 2 prints the dedicated 11-row technical specification sheet (MOC, Clear Opening, Cover/Frame Size, Load, Resin, Filler Content, UV, and R&amp;D Quality Engineer Stamp). Load sequence rows below remain stored for testing records.
+          {/* Sections 3 & 4: Only for Certificate 1 */}
+          {templateType === 'CERT_1' && (
+            <>
+              {/* 3. Load Testing Section (5 Stages) */}
+              <div>
+                <div className={styles.sectionTitle}>3. Load Testing Measurements (5 Sequence Stages)</div>
+                <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>
+                  Note: Enter the actual recorded test measurements and remarks for all five test sequences.
+                </p>
+                <div className={styles.specTableWrap}>
+                  <table className={styles.specTable}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '10%' }}>No.</th>
+                        <th style={{ width: '30%' }}>Load Applied</th>
+                        <th style={{ width: '20%' }}>Load (Tons)</th>
+                        <th style={{ width: '22%' }}>Sequence</th>
+                        <th style={{ width: '18%' }}>Remark</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadRows.map((r, idx) => (
+                        <tr key={r.no || idx}>
+                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.no}</td>
+                          <td>
+                            <input
+                              type="text"
+                              value={r.loadApplied}
+                              onChange={(e) => handleLoadRowChange(idx, 'loadApplied', e.target.value)}
+                              className={styles.tableInput}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              placeholder="e.g. 10 / 20 / 40"
+                              value={r.load}
+                              onChange={(e) => handleLoadRowChange(idx, 'load', e.target.value)}
+                              className={styles.tableInput}
+                              style={{ fontWeight: 700 }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              value={r.sequence}
+                              onChange={(e) => handleLoadRowChange(idx, 'sequence', e.target.value)}
+                              className={styles.tableInput}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              placeholder="e.g. Satisfactory"
+                              value={r.remark}
+                              onChange={(e) => handleLoadRowChange(idx, 'remark', e.target.value)}
+                              className={styles.tableInput}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            ) : (
-              <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>
-                Note: Enter the actual recorded test measurements and remarks for all five test sequences.
-              </p>
-            )}
-            <div className={styles.specTableWrap}>
-              <table className={styles.specTable}>
-                <thead>
-                  <tr>
-                    <th style={{ width: '10%' }}>No.</th>
-                    <th style={{ width: '30%' }}>Load Applied</th>
-                    <th style={{ width: '20%' }}>Load (Tons)</th>
-                    <th style={{ width: '22%' }}>Sequence</th>
-                    <th style={{ width: '18%' }}>Remark</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loadRows.map((r, idx) => (
-                    <tr key={r.no || idx}>
-                      <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.no}</td>
-                      <td>
-                        <input
-                          type="text"
-                          value={r.loadApplied}
-                          onChange={(e) => handleLoadRowChange(idx, 'loadApplied', e.target.value)}
-                          className={styles.tableInput}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          placeholder="e.g. 10 / 20 / 40"
-                          value={r.load}
-                          onChange={(e) => handleLoadRowChange(idx, 'load', e.target.value)}
-                          className={styles.tableInput}
-                          style={{ fontWeight: 700 }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          value={r.sequence}
-                          onChange={(e) => handleLoadRowChange(idx, 'sequence', e.target.value)}
-                          className={styles.tableInput}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          placeholder="e.g. Satisfactory"
-                          value={r.remark}
-                          onChange={(e) => handleLoadRowChange(idx, 'remark', e.target.value)}
-                          className={styles.tableInput}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+              {/* 4. Cycle & Holding Statement */}
+              <div>
+                <div className={styles.sectionTitle}>4. Five-Cycle &amp; Holding Statement</div>
+                <div className={styles.formGrid}>
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>Five Cycles Load (Tons)</label>
+                    <input
+                      type="text"
+                      value={cycleLoadsTon}
+                      onChange={(e) => setCycleLoadsTon(e.target.value)}
+                      className={styles.formInput}
+                      placeholder="e.g. 40"
+                    />
+                  </div>
+
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>Final Maintained Load (Tons for 30s)</label>
+                    <input
+                      type="text"
+                      value={finalLoadTon}
+                      onChange={(e) => setFinalLoadTon(e.target.value)}
+                      className={styles.formInput}
+                      placeholder="e.g. 40"
+                    />
+                  </div>
+
+                  <div className={`${styles.formField} ${styles.fullWidth}`}>
+                    <label className={styles.formLabel}>Result Paragraph</label>
+                    <textarea
+                      value={resultStatement}
+                      onChange={(e) => setResultStatement(e.target.value)}
+                      className={styles.formTextarea}
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Signatures & Status */}
+          <div>
+            <div className={styles.sectionTitle}>
+              {templateType === 'CERT_2' ? '3. Quality Sign-Off & Status' : '5. Tester & Status'}
             </div>
-          </div>
-
-          {/* 4. Cycle & Holding Statement */}
-          <div>
-            <div className={styles.sectionTitle}>4. Five-Cycle &amp; Holding Statement</div>
-            <div className={styles.formGrid}>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Five Cycles Load (Tons)</label>
-                <input
-                  type="text"
-                  value={cycleLoadsTon}
-                  onChange={(e) => setCycleLoadsTon(e.target.value)}
-                  className={styles.formInput}
-                  placeholder="e.g. 40"
-                />
-              </div>
-
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Final Maintained Load (Tons for 30s)</label>
-                <input
-                  type="text"
-                  value={finalLoadTon}
-                  onChange={(e) => setFinalLoadTon(e.target.value)}
-                  className={styles.formInput}
-                  placeholder="e.g. 40"
-                />
-              </div>
-
-              <div className={`${styles.formField} ${styles.fullWidth}`}>
-                <label className={styles.formLabel}>Result Paragraph</label>
-                <textarea
-                  value={resultStatement}
-                  onChange={(e) => setResultStatement(e.target.value)}
-                  className={styles.formTextarea}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 5. Testing Signatures & Status */}
-          <div>
-            <div className={styles.sectionTitle}>5. Tester &amp; Status</div>
             <div className={styles.formGrid}>
               <div className={styles.formField}>
                 <label className={styles.formLabel}>
-                  {templateType === 'CERT_2' ? 'R&D Quality Engineer / Plant Head' : 'Plant Head Name'}
+                  {templateType === 'CERT_2' ? 'Designation on Certificate' : 'Plant Head Name'}
                 </label>
                 <input
                   type="text"
-                  value={testedByName}
-                  onChange={(e) => setTestedByName(e.target.value)}
+                  value={templateType === 'CERT_2' ? (testedByTitle || 'R&D QUALITY ENGINEER') : testedByName}
+                  onChange={(e) => {
+                    if (templateType === 'CERT_2') {
+                      setTestedByTitle(e.target.value);
+                    } else {
+                      setTestedByName(e.target.value);
+                    }
+                  }}
                   className={styles.formInput}
+                  placeholder={templateType === 'CERT_2' ? 'R&D QUALITY ENGINEER' : 'e.g. Sana Konda Reddy'}
                 />
               </div>
 
               <div className={styles.formField}>
-                <label className={styles.formLabel}>Tester Designation</label>
-                <input
-                  type="text"
-                  value={testedByTitle}
-                  onChange={(e) => setTestedByTitle(e.target.value)}
+                <label className={styles.formLabel}>Initial Status</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as any)}
                   className={styles.formInput}
-                />
+                >
+                  <option value="Draft">Draft</option>
+                  <option value="Pending Approval">Pending Approval</option>
+                </select>
               </div>
 
-              <div className={`${styles.formField} ${styles.fullWidth}`}>
-                <label className={styles.formLabel}>Internal Notes / Remarks</label>
-                <input
-                  type="text"
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                  className={styles.formInput}
-                  placeholder="Optional audit or reference notes"
-                />
-              </div>
+              {templateType === 'CERT_2' && (
+                <div className={`${styles.formField} ${styles.fullWidth}`}>
+                  <div style={{
+                    padding: '10px 14px',
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '6px',
+                    border: '1px solid #e2e8f0',
+                    fontSize: '12px',
+                    color: '#475569',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <span>🔘</span>
+                    <span>Official circular Akberali Precast Pvt Ltd / Himalaya seal stamp is placed on the right of R&amp;D QUALITY ENGINEER.</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
