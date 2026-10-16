@@ -965,13 +965,14 @@ export default function DispatchOrdersPage() {
         activeDispatchesPayload,
       ] = await Promise.allSettled([
         backendFetch<any>(
-          "/api/backend/production/work-orders?status=READY_FOR_DISPATCH,SENT_TO_DISPATCH,QC_APPROVED,COMPLETED"
+          "/api/backend/production/work-orders?status=READY_FOR_DISPATCH,SENT_TO_DISPATCH,QC_APPROVED,COMPLETED",
+          { cacheTtlMs: 0 }
         ),
-        backendFetch<any>("/api/backend/production/ready-for-dispatch"),
-        backendFetch<any>("/api/backend/sales/orders?limit=1000"),
-        backendFetch<any>("/api/backend/production/finished-goods"),
-        backendFetch<any>(`/api/backend/logistics/dispatches/queue?category=${currentCategory}`),
-        backendFetch<any>(`/api/backend/logistics/dispatches?category=${currentCategory}`),
+        backendFetch<any>("/api/backend/production/ready-for-dispatch", { cacheTtlMs: 0 }),
+        backendFetch<any>("/api/backend/sales/orders?limit=1000", { cacheTtlMs: 0 }),
+        backendFetch<any>("/api/backend/production/finished-goods", { cacheTtlMs: 0 }),
+        backendFetch<any>(`/api/backend/logistics/dispatches/queue?category=${currentCategory}`, { cacheTtlMs: 0 }),
+        backendFetch<any>(`/api/backend/logistics/dispatches?category=${currentCategory}`, { cacheTtlMs: 0 }),
       ]);
 
       const workOrders: any[] =

@@ -49,6 +49,20 @@ export class DispatchService {
     private readonly notificationsService?: NotificationsService,
   ) {}
 
+  private getWorkOrderTenantScope(companyId: string) {
+    return {
+      OR: [
+        { salesOrderItem: { product: { companyId } } },
+        {
+          AND: [
+            { salesOrderItem: null },
+            { productionPlan: { salesOrder: { customer: { companyId } } } },
+          ],
+        },
+      ],
+    };
+  }
+
   async listDispatches(userId?: string, role?: string, status?: string, category?: string) {
     let scope = getSalesScope(userId, role, 'Dispatch');
     const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
@@ -1624,12 +1638,18 @@ export class DispatchService {
 
     // 3. Also fetch WorkOrders marked as READY_FOR_DISPATCH
     try {
+      const workOrderTenantScope = this.getWorkOrderTenantScope(companyId);
       const readyWorkOrders = await this.prisma.workOrder.findMany({
         where: {
-          OR: [
-            { status: 'READY_FOR_DISPATCH' },
-            { productionStatus: 'READY_FOR_DISPATCH' },
-            { sentToDispatchAt: { not: null } },
+          AND: [
+            {
+              OR: [
+                { status: 'READY_FOR_DISPATCH' },
+                { productionStatus: 'READY_FOR_DISPATCH' },
+                { sentToDispatchAt: { not: null } },
+              ],
+            },
+            workOrderTenantScope,
           ],
         },
         include: {
@@ -1759,6 +1779,7 @@ export class DispatchService {
       const readyFinishedGoods = await this.prisma.finishedGoods.findMany({
         where: {
           status: 'READY_FOR_DISPATCH',
+          product: { companyId },
         },
         include: {
           product: true,

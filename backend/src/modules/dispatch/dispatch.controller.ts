@@ -14,6 +14,7 @@ import {
   Headers,
   UseInterceptors,
   UploadedFile,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DispatchService } from './dispatch.service';
@@ -34,6 +35,19 @@ export class DispatchController {
       headers['x-company-id'] ||
       '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
     return { userId, companyId };
+  }
+
+  private extractAuthorizedTenant(req: any, headers: Record<string, string>): string {
+    const role = String(req.user?.role || '').toUpperCase();
+    const isSuperAdmin = role === 'SUPER_ADMIN' || role === 'SUPERADMIN';
+    const requestedTenant = headers['x-company-id'];
+    const companyId = isSuperAdmin && typeof requestedTenant === 'string'
+      ? requestedTenant
+      : req.user?.companyId;
+    if (typeof companyId !== 'string' || !companyId.trim()) {
+      throw new UnauthorizedException('An authenticated tenant context is required for the dispatch queue.');
+    }
+    return companyId;
   }
 
   @Get()
@@ -61,7 +75,8 @@ export class DispatchController {
     @Headers() headers: Record<string, string>,
     @Query('category') category?: string,
   ) {
-    const { userId, companyId } = this.extractAuthData(req, headers);
+    const userId = req.user?.sub;
+    const companyId = this.extractAuthorizedTenant(req, headers);
     const queue = await this.dispatchService.getDispatchQueue(
       userId,
       req.user?.role,
