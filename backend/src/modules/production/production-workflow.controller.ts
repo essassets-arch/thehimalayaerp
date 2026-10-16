@@ -562,10 +562,10 @@ export class ProductionWorkflowController {
     'production.productionworkflow.read',
     'logistics.dispatches.read',
   )
-  async getReadyForDispatch() {
+  async getReadyForDispatch(@Req() req: any) {
     const data = await this.workflowService.getJobsByStatus([
       'READY_FOR_DISPATCH',
-    ]);
+    ], this.getDispatchTenant(req));
     return { success: true, data };
   }
 

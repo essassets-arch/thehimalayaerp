@@ -587,10 +587,10 @@ export class ProductionWorkflowService {
     }
   }
 
-  async getJobsByStatus(statuses: ProductionStatus[]) {
+  async getJobsByStatus(statuses: ProductionStatus[], companyId?: string | null) {
     try {
       const isQcFailedQuery = statuses.includes('QC_FAILED' as any);
-      const whereClause: any = isQcFailedQuery
+      const statusClause: any = isQcFailedQuery
         ? {
             OR: [
               { productionStatus: { in: statuses as any } },
@@ -598,6 +598,20 @@ export class ProductionWorkflowService {
             ],
           }
         : { productionStatus: { in: statuses as any } };
+      const whereClause: any = companyId
+        ? {
+            AND: [
+              statusClause,
+              {
+                productionPlan: {
+                  salesOrder: {
+                    customer: { companyId },
+                  },
+                },
+              },
+            ],
+          }
+        : statusClause;
 
       const records = await this.prisma.workOrder.findMany({
         where: whereClause,

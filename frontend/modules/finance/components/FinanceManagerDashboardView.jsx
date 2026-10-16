@@ -97,7 +97,17 @@ export default function FinanceManagerDashboardView({
   const router = useSafeRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [timeRange, setTimeRange] = useState('30D'); // '30D' | '90D' | '6M' | '1Y'
-  const rangeBounds = useMemo(() => getRangeBounds(timeRange), [timeRange]);
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const rangeBounds = useMemo(() => {
+    if (timeRange === 'CUSTOM') {
+      const start = customStartDate ? new Date(`${customStartDate}T00:00:00`) : new Date(NaN);
+      const end = customEndDate ? new Date(`${customEndDate}T23:59:59.999`) : new Date(NaN);
+      return { start, end };
+    }
+    return getRangeBounds(timeRange);
+  }, [timeRange, customStartDate, customEndDate]);
+  const isCustomRangeValid = Boolean(customStartDate && customEndDate && customStartDate <= customEndDate);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [liveData, setLiveData] = useState({
     salesOrders: [],
@@ -242,6 +252,8 @@ export default function FinanceManagerDashboardView({
         return { label: 'Quarter', badge: `Current Quarter (${rangeLabel})`, desc: rangeLabel };
       case '6M':
         return { label: '6 Months', badge: `Half Year (${rangeLabel})`, desc: rangeLabel };
+      case 'CUSTOM':
+        return { label: 'Custom', badge: `Custom Period (${rangeLabel})`, desc: rangeLabel };
       case '1Y':
       default:
         return { label: 'Full Year', badge: `Full Year (${fyLabel})`, desc: rangeLabel };
@@ -273,6 +285,7 @@ export default function FinanceManagerDashboardView({
 
   const periodComparison = useMemo(() => {
     const duration = rangeBounds.end.getTime() - rangeBounds.start.getTime() + 1;
+    if (!Number.isFinite(duration) || duration <= 0) return { label: 'Choose a valid custom date range', positive: null };
     const previousBounds = {
       start: new Date(rangeBounds.start.getTime() - duration),
       end: new Date(rangeBounds.start.getTime() - 1),
@@ -386,7 +399,8 @@ export default function FinanceManagerDashboardView({
   // ── 1. Chart Data: Monthly Revenue vs Cleared Collections Trend ──
   const revenueTrendData = useMemo(() => {
     const weekly = timeRange === '30D';
-    const bucketCount = weekly ? 4 : timeRange === '90D' ? 3 : timeRange === '6M' ? 6 : 12;
+    const customMonths = Math.max(1, Math.min(12, (rangeBounds.end.getFullYear() - rangeBounds.start.getFullYear()) * 12 + rangeBounds.end.getMonth() - rangeBounds.start.getMonth() + 1));
+    const bucketCount = weekly ? 4 : timeRange === 'CUSTOM' ? customMonths : timeRange === '90D' ? 3 : timeRange === '6M' ? 6 : 12;
     const buckets = Array.from({ length: bucketCount }, (_, index) => {
       if (weekly) return { start: new Date(rangeBounds.start.getTime() + index * 7 * 86400000), end: new Date(Math.min(rangeBounds.end.getTime(), rangeBounds.start.getTime() + (index + 1) * 7 * 86400000 - 1)), label: `Week ${index + 1}`, revenue: 0, collections: 0 };
       const date = new Date(rangeBounds.start.getFullYear(), rangeBounds.start.getMonth() + index, 1);
@@ -406,7 +420,8 @@ export default function FinanceManagerDashboardView({
   // 2. Chart Data: Collections vs Outstanding Comparison
   const collectionsVsOutstandingData = useMemo(() => {
     const weekly = timeRange === '30D';
-    const bucketCount = weekly ? 4 : timeRange === '90D' ? 3 : timeRange === '6M' ? 6 : 12;
+    const customMonths = Math.max(1, Math.min(12, (rangeBounds.end.getFullYear() - rangeBounds.start.getFullYear()) * 12 + rangeBounds.end.getMonth() - rangeBounds.start.getMonth() + 1));
+    const bucketCount = weekly ? 4 : timeRange === 'CUSTOM' ? customMonths : timeRange === '90D' ? 3 : timeRange === '6M' ? 6 : 12;
     const buckets = Array.from({ length: bucketCount }, (_, index) => {
       if (weekly) return { start: new Date(rangeBounds.start.getTime() + index * 7 * 86400000), end: new Date(Math.min(rangeBounds.end.getTime(), rangeBounds.start.getTime() + (index + 1) * 7 * 86400000 - 1)), period: `Week ${index + 1}`, collections: 0, outstanding: 0 };
       const date = new Date(rangeBounds.start.getFullYear(), rangeBounds.start.getMonth() + index, 1);
@@ -708,6 +723,7 @@ export default function FinanceManagerDashboardView({
               { id: '90D', label: 'Quarter' },
               { id: '6M', label: '6 Months' },
               { id: '1Y', label: 'Full Year' },
+              { id: 'CUSTOM', label: 'Custom' },
             ].map((btn) => (
               <button
                 key={btn.id}
@@ -729,6 +745,20 @@ export default function FinanceManagerDashboardView({
               </button>
             ))}
           </div>
+
+          {timeRange === 'CUSTOM' && (
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', padding: '8px 10px', background: '#FFFFFF', border: `1px solid ${PALETTE.border}`, borderRadius: '10px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: PALETTE.slateMuted }}>
+                From
+                <input aria-label="Custom period start date" type="date" value={customStartDate} max={customEndDate || undefined} onChange={(event) => setCustomStartDate(event.target.value)} style={{ padding: '6px 8px', border: `1px solid ${PALETTE.border}`, borderRadius: '7px', color: PALETTE.slate, font: 'inherit' }} />
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: PALETTE.slateMuted }}>
+                To
+                <input aria-label="Custom period end date" type="date" value={customEndDate} min={customStartDate || undefined} onChange={(event) => setCustomEndDate(event.target.value)} style={{ padding: '6px 8px', border: `1px solid ${PALETTE.border}`, borderRadius: '7px', color: PALETTE.slate, font: 'inherit' }} />
+              </label>
+              {!isCustomRangeValid && <span role="status" style={{ width: '100%', color: PALETTE.rose, fontSize: '11px' }}>Choose a valid start and end date.</span>}
+            </div>
+          )}
 
           {/* Refresh Button */}
           <button
