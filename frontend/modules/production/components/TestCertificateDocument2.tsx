@@ -197,7 +197,7 @@ export default function TestCertificateDocument2({
               {/* ── Bottom Footer Row with R&D Quality Engineer and Stamp ── */}
               <tr>
                 <td colSpan={2} className={styles.footerLeftCell}>
-                  <div className={styles.engineerTitle}>{displayTitle}</div>
+                  <div className={styles.engineerTitle}>R&amp;D QUALITY ENGINEER</div>
                 </td>
                 <td className={styles.footerRightCell}>
                   <img

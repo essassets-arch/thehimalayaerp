@@ -388,312 +388,303 @@ export default function TestReportFormModal({
             </div>
           </div>
 
-          {/* 1. Header Information */}
+          {/* Form Content: Pure 11-row format for Certificate 2, full MTC form for Certificate 1 */}
           {templateType === 'CERT_2' ? (
-            <div>
-              <div className={styles.sectionTitle}>1. Certificate &amp; Product Information</div>
-              <div className={styles.formGrid}>
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>Certificate / Report No. *</label>
-                  <input
-                    type="text"
-                    required
-                    value={reportNumber}
-                    onChange={(e) => setReportNumber(e.target.value)}
-                    className={styles.formInput}
-                    placeholder="e.g. TC-2026-0001"
-                  />
+            /* ── Certificate 2: JUST the 11-Row Technical Specification Certificate ── */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <div style={{
+                textAlign: 'center',
+                padding: '16px 20px',
+                backgroundColor: '#ffffff',
+                border: '1.5px solid #000000',
+                borderRadius: '8px',
+              }}>
+                <div style={{
+                  fontSize: '17px',
+                  fontWeight: 800,
+                  color: '#0b3c68',
+                  letterSpacing: '0.5px',
+                  textTransform: 'uppercase',
+                  borderBottom: '2.5px solid #0b3c68',
+                  paddingBottom: '6px',
+                  marginBottom: '10px',
+                  display: 'inline-block',
+                }}>
+                  HIMALAYA COMPOSITE &amp; PRECAST PVT. LTD.
                 </div>
+                <div style={{
+                  fontSize: '15px',
+                  fontWeight: 800,
+                  color: '#000000',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                }}>
+                  HIMALAYA FRP COVER &amp; FRAME
+                </div>
+              </div>
 
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={reportDate}
-                    onChange={(e) => setReportDate(e.target.value)}
-                    className={styles.formInput}
-                  />
-                </div>
-
-                <div className={`${styles.formField} ${styles.fullWidth}`} ref={productPickerRef}>
-                  <label className={styles.formLabel}>Select Product from Master (Auto-fills 11 Specifications)</label>
-                  <div className={styles.productPicker}>
-                    <Search size={16} aria-hidden="true" className={styles.productSearchIcon} />
-                    <input
-                      type="text"
-                      value={productSearch}
-                      onChange={(e) => {
-                        setProductSearch(e.target.value);
-                        setProductId('');
-                        setIsProductListOpen(true);
-                        setActiveProductIndex(0);
-                      }}
-                      onFocus={() => setIsProductListOpen(true)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowDown' && filteredProducts.length) {
-                          e.preventDefault();
-                          setIsProductListOpen(true);
-                          setActiveProductIndex((index) => Math.min(index + 1, filteredProducts.length - 1));
-                        } else if (e.key === 'ArrowUp' && filteredProducts.length) {
-                          e.preventDefault();
-                          setActiveProductIndex((index) => Math.max(index - 1, 0));
-                        } else if (e.key === 'Enter' && isProductListOpen && filteredProducts[activeProductIndex]) {
-                          e.preventDefault();
-                          handleProductSelect(filteredProducts[activeProductIndex].product.id);
-                        } else if (e.key === 'Escape') {
-                          setIsProductListOpen(false);
-                        }
-                      }}
-                      className={`${styles.formInput} ${styles.productSearchInput}`}
-                      placeholder="Search master product (e.g. 600x600, B125, D400)…"
-                      role="combobox"
-                      aria-label="Search master products"
-                      aria-autocomplete="list"
-                      aria-expanded={isProductListOpen}
-                      aria-controls="master-product-options"
-                    />
-                    {isProductListOpen && (
-                      <div className={styles.productOptions} id="master-product-options" role="listbox">
-                        {filteredProducts.length ? filteredProducts.map(({ product, label }, index) => (
-                          <button
-                            type="button"
-                            key={product.id}
-                            role="option"
-                            aria-selected={product.id === productId}
-                            className={`${styles.productOption} ${index === activeProductIndex ? styles.productOptionActive : ''}`}
-                            onMouseEnter={() => setActiveProductIndex(index)}
-                            onClick={() => handleProductSelect(product.id)}
-                          >
-                            <span>{product.name}{product.size ? ` (${product.size})` : ''}{product.capacity ? ` [${product.capacity}]` : ''}</span>
-                            {product.id === productId && <Check size={16} aria-hidden="true" />}
-                          </button>
-                        )) : (
-                          <div className={styles.productEmpty}>No matching products. You can enter details below.</div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className={`${styles.formField} ${styles.fullWidth}`}>
-                  <label className={styles.formLabel}>Product Name</label>
-                  <input
-                    type="text"
-                    value={productName}
-                    onChange={(e) => setProductName(e.target.value)}
-                    className={styles.formInput}
-                    placeholder="e.g. 600x600 FRP Cover &amp; Frame (B125)"
-                  />
-                </div>
+              {/* Exact 11-Row Specification Table matching reference image */}
+              <div className={styles.specTableWrap}>
+                <table className={styles.specTable} style={{ border: '1.5px solid #000000' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '12%', textAlign: 'center', border: '1.5px solid #000000', fontWeight: 700 }}>
+                        Sr. No
+                      </th>
+                      <th style={{ width: '44%', textAlign: 'left', border: '1.5px solid #000000', fontWeight: 700 }}>
+                        Specification
+                      </th>
+                      <th style={{ width: '44%', textAlign: 'left', border: '1.5px solid #000000', fontWeight: 700 }}>
+                        description
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {specs.map((s, idx) => (
+                      <tr key={s.srNo || idx}>
+                        <td style={{ textAlign: 'center', fontWeight: 600, border: '1.5px solid #000000' }}>
+                          {s.srNo}
+                        </td>
+                        <td style={{ fontWeight: 600, color: '#000000', border: '1.5px solid #000000' }}>
+                          {s.specification}
+                        </td>
+                        <td style={{ border: '1.5px solid #000000', padding: '4px 8px' }}>
+                          <input
+                            type="text"
+                            value={s.description}
+                            onChange={(e) => handleSpecChange(idx, e.target.value)}
+                            className={styles.tableInput}
+                            style={{ width: '100%', fontSize: '13px' }}
+                            placeholder={
+                              s.srNo === 1 ? 'MOC of Material (e.g. FRP)' :
+                              s.srNo === 2 ? 'Clear Opening (e.g. 600 X 600 MM)' :
+                              s.srNo === 3 ? 'Cover Size (e.g. 650 X 650 MM)' :
+                              s.srNo === 4 ? 'Frame Size (e.g. 710 X 710 MM)' :
+                              s.srNo === 5 ? 'Load Bearing (e.g. 12.5 TON)' :
+                              s.srNo === 6 ? 'Colour (e.g. Black)' : ''
+                            }
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Bottom Footer Row with R&D QUALITY ENGINEER and Stamp */}
+                    <tr>
+                      <td colSpan={2} style={{ border: '1.5px solid #000000', padding: '16px 14px', verticalAlign: 'middle' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 800, color: '#000000', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          R&amp;D QUALITY ENGINEER
+                        </div>
+                      </td>
+                      <td style={{ border: '1.5px solid #000000', textAlign: 'center', padding: '10px 14px', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700, color: '#166534' }}>
+                          <Check size={16} /> Official Seal Stamp Ready
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           ) : (
-            <div>
-              <div className={styles.sectionTitle}>1. Certificate &amp; Client Details</div>
-              <div className={styles.formGrid}>
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>Report / Certificate No. *</label>
-                  <input
-                    type="text"
-                    required
-                    value={reportNumber}
-                    onChange={(e) => setReportNumber(e.target.value)}
-                    className={styles.formInput}
-                    placeholder="e.g. TC-2026-0001"
-                  />
-                </div>
-
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>Test Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={reportDate}
-                    onChange={(e) => setReportDate(e.target.value)}
-                    className={styles.formInput}
-                  />
-                </div>
-
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>Client / Customer Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                    className={styles.formInput}
-                    placeholder="e.g. Larsen &amp; Toubro Ltd."
-                    list="client-suggestions"
-                  />
-                  {customers.length > 0 && (
-                    <datalist id="client-suggestions">
-                      {customers.map((c) => (
-                        <option key={c.id || c.companyName} value={c.companyName} />
-                      ))}
-                    </datalist>
-                  )}
-                </div>
-
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>P.O. No.</label>
-                  <input
-                    type="text"
-                    value={poNumber}
-                    onChange={(e) => setPoNumber(e.target.value)}
-                    className={styles.formInput}
-                    placeholder="e.g. PO/2026/089"
-                  />
-                </div>
-
-                <div className={`${styles.formField} ${styles.fullWidth}`} ref={productPickerRef}>
-                  <label className={styles.formLabel}>Select Product from Master (Auto-fills specifications)</label>
-                  <div className={styles.productPicker}>
-                    <Search size={16} aria-hidden="true" className={styles.productSearchIcon} />
+            /* ── Certificate 1: Full MTC & Proof Load Form ── */
+            <>
+              {/* 1. Header Information */}
+              <div>
+                <div className={styles.sectionTitle}>1. Certificate &amp; Client Details</div>
+                <div className={styles.formGrid}>
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>Report / Certificate No. *</label>
                     <input
                       type="text"
-                      value={productSearch}
-                      onChange={(e) => {
-                        setProductSearch(e.target.value);
-                        setProductId('');
-                        setIsProductListOpen(true);
-                        setActiveProductIndex(0);
-                      }}
-                      onFocus={() => setIsProductListOpen(true)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowDown' && filteredProducts.length) {
-                          e.preventDefault();
-                          setIsProductListOpen(true);
-                          setActiveProductIndex((index) => Math.min(index + 1, filteredProducts.length - 1));
-                        } else if (e.key === 'ArrowUp' && filteredProducts.length) {
-                          e.preventDefault();
-                          setActiveProductIndex((index) => Math.max(index - 1, 0));
-                        } else if (e.key === 'Enter' && isProductListOpen && filteredProducts[activeProductIndex]) {
-                          e.preventDefault();
-                          handleProductSelect(filteredProducts[activeProductIndex].product.id);
-                        } else if (e.key === 'Escape') {
-                          setIsProductListOpen(false);
-                        }
-                      }}
-                      className={`${styles.formInput} ${styles.productSearchInput}`}
-                      placeholder="Search by product name, size, or capacity…"
-                      role="combobox"
-                      aria-label="Search master products"
-                      aria-autocomplete="list"
-                      aria-expanded={isProductListOpen}
-                      aria-controls="master-product-options"
+                      required
+                      value={reportNumber}
+                      onChange={(e) => setReportNumber(e.target.value)}
+                      className={styles.formInput}
+                      placeholder="e.g. TC-2026-0001"
                     />
-                    {isProductListOpen && (
-                      <div className={styles.productOptions} id="master-product-options" role="listbox">
-                        {filteredProducts.length ? filteredProducts.map(({ product, label }, index) => (
-                          <button
-                            type="button"
-                            key={product.id}
-                            role="option"
-                            aria-selected={product.id === productId}
-                            className={`${styles.productOption} ${index === activeProductIndex ? styles.productOptionActive : ''}`}
-                            onMouseEnter={() => setActiveProductIndex(index)}
-                            onClick={() => handleProductSelect(product.id)}
-                          >
-                            <span>{product.name}{product.size ? ` (${product.size})` : ''}{product.capacity ? ` [${product.capacity}]` : ''}</span>
-                            {product.id === productId && <Check size={16} aria-hidden="true" />}
-                          </button>
-                        )) : (
-                          <div className={styles.productEmpty}>No matching products. You can enter a custom name below.</div>
-                        )}
-                      </div>
+                  </div>
+
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>Test Date *</label>
+                    <input
+                      type="date"
+                      required
+                      value={reportDate}
+                      onChange={(e) => setReportDate(e.target.value)}
+                      className={styles.formInput}
+                    />
+                  </div>
+
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>Client / Customer Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                      className={styles.formInput}
+                      placeholder="e.g. Larsen &amp; Toubro Ltd."
+                      list="client-suggestions"
+                    />
+                    {customers.length > 0 && (
+                      <datalist id="client-suggestions">
+                        {customers.map((c) => (
+                          <option key={c.id || c.companyName} value={c.companyName} />
+                        ))}
+                      </datalist>
                     )}
                   </div>
-                  <span className={styles.productHint}>Search across product names, sizes, and capacities.</span>
-                </div>
 
-                <div className={`${styles.formField} ${styles.fullWidth}`}>
-                  <label className={styles.formLabel}>Name Of the Products *</label>
-                  <input
-                    type="text"
-                    required
-                    value={productName}
-                    onChange={(e) => setProductName(e.target.value)}
-                    className={styles.formInput}
-                    placeholder="e.g. 600mm DIA FRP Manhole Cover &amp; Frame (E600 / 40 Ton)"
-                  />
-                </div>
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>P.O. No.</label>
+                    <input
+                      type="text"
+                      value={poNumber}
+                      onChange={(e) => setPoNumber(e.target.value)}
+                      className={styles.formInput}
+                      placeholder="e.g. PO/2026/089"
+                    />
+                  </div>
 
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>Clear Opening</label>
-                  <input
-                    type="text"
-                    value={clearOpening}
-                    onChange={(e) => setClearOpening(e.target.value)}
-                    className={styles.formInput}
-                    placeholder="e.g. 600 mm or 450x450 mm"
-                  />
-                </div>
+                  <div className={`${styles.formField} ${styles.fullWidth}`} ref={productPickerRef}>
+                    <label className={styles.formLabel}>Select Product from Master (Auto-fills specifications)</label>
+                    <div className={styles.productPicker}>
+                      <Search size={16} aria-hidden="true" className={styles.productSearchIcon} />
+                      <input
+                        type="text"
+                        value={productSearch}
+                        onChange={(e) => {
+                          setProductSearch(e.target.value);
+                          setProductId('');
+                          setIsProductListOpen(true);
+                          setActiveProductIndex(0);
+                        }}
+                        onFocus={() => setIsProductListOpen(true)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowDown' && filteredProducts.length) {
+                            e.preventDefault();
+                            setIsProductListOpen(true);
+                            setActiveProductIndex((index) => Math.min(index + 1, filteredProducts.length - 1));
+                          } else if (e.key === 'ArrowUp' && filteredProducts.length) {
+                            e.preventDefault();
+                            setActiveProductIndex((index) => Math.max(index - 1, 0));
+                          } else if (e.key === 'Enter' && isProductListOpen && filteredProducts[activeProductIndex]) {
+                            e.preventDefault();
+                            handleProductSelect(filteredProducts[activeProductIndex].product.id);
+                          } else if (e.key === 'Escape') {
+                            setIsProductListOpen(false);
+                          }
+                        }}
+                        className={`${styles.formInput} ${styles.productSearchInput}`}
+                        placeholder="Search by product name, size, or capacity…"
+                        role="combobox"
+                        aria-label="Search master products"
+                        aria-autocomplete="list"
+                        aria-expanded={isProductListOpen}
+                        aria-controls="master-product-options"
+                      />
+                      {isProductListOpen && (
+                        <div className={styles.productOptions} id="master-product-options" role="listbox">
+                          {filteredProducts.length ? filteredProducts.map(({ product, label }, index) => (
+                            <button
+                              type="button"
+                              key={product.id}
+                              role="option"
+                              aria-selected={product.id === productId}
+                              className={`${styles.productOption} ${index === activeProductIndex ? styles.productOptionActive : ''}`}
+                              onMouseEnter={() => setActiveProductIndex(index)}
+                              onClick={() => handleProductSelect(product.id)}
+                            >
+                              <span>{product.name}{product.size ? ` (${product.size})` : ''}{product.capacity ? ` [${product.capacity}]` : ''}</span>
+                              {product.id === productId && <Check size={16} aria-hidden="true" />}
+                            </button>
+                          )) : (
+                            <div className={styles.productEmpty}>No matching products. You can enter a custom name below.</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <span className={styles.productHint}>Search across product names, sizes, and capacities.</span>
+                  </div>
 
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>Quantity Supply</label>
-                  <input
-                    type="text"
-                    value={quantitySupply}
-                    onChange={(e) => setQuantitySupply(e.target.value)}
-                    className={styles.formInput}
-                    placeholder="e.g. 100 Nos / 50 Sets"
-                  />
-                </div>
+                  <div className={`${styles.formField} ${styles.fullWidth}`}>
+                    <label className={styles.formLabel}>Name Of the Products *</label>
+                    <input
+                      type="text"
+                      required
+                      value={productName}
+                      onChange={(e) => setProductName(e.target.value)}
+                      className={styles.formInput}
+                      placeholder="e.g. 600mm DIA FRP Manhole Cover &amp; Frame (E600 / 40 Ton)"
+                    />
+                  </div>
 
-                <div className={`${styles.formField} ${styles.fullWidth}`}>
-                  <label className={styles.formLabel}>Project Name</label>
-                  <input
-                    type="text"
-                    value={projectName}
-                    onChange={(e) => setProjectName(e.target.value)}
-                    className={styles.formInput}
-                    placeholder="e.g. Smart City Drainage &amp; Road Infrastructure"
-                  />
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>Clear Opening</label>
+                    <input
+                      type="text"
+                      value={clearOpening}
+                      onChange={(e) => setClearOpening(e.target.value)}
+                      className={styles.formInput}
+                      placeholder="e.g. 600 mm or 450x450 mm"
+                    />
+                  </div>
+
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>Quantity Supply</label>
+                    <input
+                      type="text"
+                      value={quantitySupply}
+                      onChange={(e) => setQuantitySupply(e.target.value)}
+                      className={styles.formInput}
+                      placeholder="e.g. 100 Nos / 50 Sets"
+                    />
+                  </div>
+
+                  <div className={`${styles.formField} ${styles.fullWidth}`}>
+                    <label className={styles.formLabel}>Project Name</label>
+                    <input
+                      type="text"
+                      value={projectName}
+                      onChange={(e) => setProjectName(e.target.value)}
+                      className={styles.formInput}
+                      placeholder="e.g. Smart City Drainage &amp; Road Infrastructure"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* 2. Specifications Table */}
-          <div>
-            <div className={styles.sectionTitle}>
-              {templateType === 'CERT_2'
-                ? '2. Technical Specifications (11 Parameters for FRP Cover & Frame)'
-                : '2. Product Specifications (10 ISO/EN Rows)'}
-            </div>
-            <div className={styles.specTableWrap}>
-              <table className={styles.specTable}>
-                <thead>
-                  <tr>
-                    <th style={{ width: '10%' }}>Sr. No.</th>
-                    <th style={{ width: '40%' }}>Specification</th>
-                    <th style={{ width: '50%' }}>Description</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {specs.map((s, idx) => (
-                    <tr key={s.srNo || idx}>
-                      <td style={{ textAlign: 'center', fontWeight: 600 }}>{s.srNo}</td>
-                      <td style={{ fontWeight: 600, color: '#0b3c68' }}>{s.specification}</td>
-                      <td>
-                        <input
-                          type="text"
-                          value={s.description}
-                          onChange={(e) => handleSpecChange(idx, e.target.value)}
-                          className={styles.tableInput}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+              {/* 2. Specifications Table */}
+              <div>
+                <div className={styles.sectionTitle}>2. Product Specifications (10 ISO/EN Rows)</div>
+                <div className={styles.specTableWrap}>
+                  <table className={styles.specTable}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '10%' }}>Sr. No.</th>
+                        <th style={{ width: '40%' }}>Specification</th>
+                        <th style={{ width: '50%' }}>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {specs.map((s, idx) => (
+                        <tr key={s.srNo || idx}>
+                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{s.srNo}</td>
+                          <td style={{ fontWeight: 600, color: '#0b3c68' }}>{s.specification}</td>
+                          <td>
+                            <input
+                              type="text"
+                              value={s.description}
+                              onChange={(e) => handleSpecChange(idx, e.target.value)}
+                              className={styles.tableInput}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-          {/* Sections 3 & 4: Only for Certificate 1 */}
-          {templateType === 'CERT_1' && (
-            <>
               {/* 3. Load Testing Section (5 Stages) */}
               <div>
                 <div className={styles.sectionTitle}>3. Load Testing Measurements (5 Sequence Stages)</div>
@@ -793,66 +784,45 @@ export default function TestReportFormModal({
                   </div>
                 </div>
               </div>
-            </>
-          )}
 
-          {/* Signatures & Status */}
-          <div>
-            <div className={styles.sectionTitle}>
-              {templateType === 'CERT_2' ? '3. Quality Sign-Off & Status' : '5. Tester & Status'}
-            </div>
-            <div className={styles.formGrid}>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>
-                  {templateType === 'CERT_2' ? 'Designation on Certificate' : 'Plant Head Name'}
-                </label>
-                <input
-                  type="text"
-                  value={templateType === 'CERT_2' ? (testedByTitle || 'R&D QUALITY ENGINEER') : testedByName}
-                  onChange={(e) => {
-                    if (templateType === 'CERT_2') {
-                      setTestedByTitle(e.target.value);
-                    } else {
-                      setTestedByName(e.target.value);
-                    }
-                  }}
-                  className={styles.formInput}
-                  placeholder={templateType === 'CERT_2' ? 'R&D QUALITY ENGINEER' : 'e.g. Sana Konda Reddy'}
-                />
-              </div>
+              {/* 5. Testing Signatures & Status */}
+              <div>
+                <div className={styles.sectionTitle}>5. Tester &amp; Status</div>
+                <div className={styles.formGrid}>
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>Plant Head Name</label>
+                    <input
+                      type="text"
+                      value={testedByName}
+                      onChange={(e) => setTestedByName(e.target.value)}
+                      className={styles.formInput}
+                    />
+                  </div>
 
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Initial Status</label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as any)}
-                  className={styles.formInput}
-                >
-                  <option value="Draft">Draft</option>
-                  <option value="Pending Approval">Pending Approval</option>
-                </select>
-              </div>
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>Tester Designation</label>
+                    <input
+                      type="text"
+                      value={testedByTitle}
+                      onChange={(e) => setTestedByTitle(e.target.value)}
+                      className={styles.formInput}
+                    />
+                  </div>
 
-              {templateType === 'CERT_2' && (
-                <div className={`${styles.formField} ${styles.fullWidth}`}>
-                  <div style={{
-                    padding: '10px 14px',
-                    backgroundColor: '#f8fafc',
-                    borderRadius: '6px',
-                    border: '1px solid #e2e8f0',
-                    fontSize: '12px',
-                    color: '#475569',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}>
-                    <span>🔘</span>
-                    <span>Official circular Akberali Precast Pvt Ltd / Himalaya seal stamp is placed on the right of R&amp;D QUALITY ENGINEER.</span>
+                  <div className={`${styles.formField} ${styles.fullWidth}`}>
+                    <label className={styles.formLabel}>Internal Notes / Remarks</label>
+                    <input
+                      type="text"
+                      value={remarks}
+                      onChange={(e) => setRemarks(e.target.value)}
+                      className={styles.formInput}
+                      placeholder="Optional audit or reference notes"
+                    />
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Modal Footer */}
