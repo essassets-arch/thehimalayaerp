@@ -731,6 +731,11 @@ export class ProductionWorkflowService {
             salesOrderItem: {
               include: {
                 product: true,
+                salesOrder: {
+                  include: {
+                    customer: true,
+                  },
+                },
               },
             },
             qcInspections: true,
@@ -746,9 +751,19 @@ export class ProductionWorkflowService {
         }
 
         // 1. Tenant Isolation Verification
+        // Resolve owning tenant from Order Customer, Production Plan, or Product.
+        // A work order belongs to the customer/order tenant under which it was ordered,
+        // or the product master tenant if unlinked.
+        const candidateCompanyIds = [
+          wo.productionPlan?.salesOrder?.customer?.companyId,
+          wo.salesOrderItem?.salesOrder?.customer?.companyId,
+          wo.salesOrderItem?.product?.companyId,
+        ].filter(Boolean) as string[];
+
         const woCompanyId =
-          wo.salesOrderItem?.product?.companyId ||
-          wo.productionPlan?.salesOrder?.customer?.companyId;
+          (companyId && candidateCompanyIds.includes(companyId))
+            ? companyId
+            : candidateCompanyIds[0];
 
         if (!woCompanyId) {
           throw new ForbiddenException(
@@ -756,7 +771,7 @@ export class ProductionWorkflowService {
           );
         }
 
-        if (companyId && woCompanyId && woCompanyId !== companyId) {
+        if (companyId && woCompanyId !== companyId) {
           throw new ForbiddenException(
             `Tenant mismatch: Work order ${wo.workOrderNumber} belongs to tenant ${woCompanyId}, unauthorized for ${companyId}.`,
           );
