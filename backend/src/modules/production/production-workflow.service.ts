@@ -598,19 +598,9 @@ export class ProductionWorkflowService {
             ],
           }
         : { productionStatus: { in: statuses as any } };
-      const whereClause: any = companyId
-        ? {
-            AND: [
-              statusClause,
-              {
-                productionPlan: {
-                  salesOrder: {
-                    customer: { companyId },
-                  },
-                },
-              },
-            ],
-          }
+      const tenantScope = this.getWorkOrderTenantFilter(companyId);
+      const whereClause: any = tenantScope
+        ? { AND: [statusClause, tenantScope] }
         : statusClause;
 
       const records = await this.prisma.workOrder.findMany({
@@ -648,6 +638,28 @@ export class ProductionWorkflowService {
       );
       return [];
     }
+  }
+
+  private getWorkOrderTenantScope(companyId: string) {
+    return {
+      OR: [
+        { salesOrderItem: { product: { companyId } } },
+        {
+          AND: [
+            { salesOrderItem: null },
+            {
+              productionPlan: {
+                salesOrder: { customer: { companyId } },
+              },
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  private getWorkOrderTenantFilter(companyId?: string | null) {
+    return companyId ? this.getWorkOrderTenantScope(companyId) : undefined;
   }
 
   async getQcFailedHistory() {
@@ -706,8 +718,9 @@ export class ProductionWorkflowService {
     return this.prisma.$transaction(async (tx) => {
       const updatedList: any[] = [];
       for (const id of workOrderIds) {
-        const wo = await tx.workOrder.findUnique({
-          where: { id },
+        const tenantScope = this.getWorkOrderTenantFilter(companyId);
+        const wo = await tx.workOrder.findFirst({
+          where: { id, ...(tenantScope ? { AND: [tenantScope] } : {}) },
           include: {
             productionPlan: {
               include: {
@@ -727,16 +740,24 @@ export class ProductionWorkflowService {
           },
         });
         if (!wo) {
+          if (companyId) {
+            throw new ForbiddenException(
+              'Work order is outside the authorized tenant scope or does not exist.',
+            );
+          }
           throw new NotFoundException(`Work order ${id} not found.`);
         }
 
         // 1. Tenant Isolation Verification
         const woCompanyId =
-          (wo as any).companyId ||
           wo.salesOrderItem?.product?.companyId ||
-          (wo.productionPlan?.salesOrder as any)?.companyId ||
-          wo.productionPlan?.salesOrder?.customer?.companyId ||
-          '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+          wo.productionPlan?.salesOrder?.customer?.companyId;
+
+        if (!woCompanyId) {
+          throw new ForbiddenException(
+            `Cannot dispatch work order ${wo.workOrderNumber}: owning tenant could not be resolved.`,
+          );
+        }
 
         if (companyId && woCompanyId && woCompanyId !== companyId) {
           throw new ForbiddenException(
@@ -914,14 +935,20 @@ export class ProductionWorkflowService {
     });
   }
 
-  async getReadyForDispatchHistory() {
+  async getReadyForDispatchHistory(companyId?: string | null) {
     try {
+      const tenantScope = this.getWorkOrderTenantFilter(companyId);
       const records = await this.prisma.workOrder.findMany({
         where: {
-          OR: [
-            { productionStatus: 'DISPATCHED' },
-            { status: 'DISPATCHED' },
-            { sentToDispatchAt: { not: null } },
+          AND: [
+            {
+              OR: [
+                { productionStatus: 'DISPATCHED' },
+                { status: 'DISPATCHED' },
+                { sentToDispatchAt: { not: null } },
+              ],
+            },
+            ...(tenantScope ? [tenantScope] : []),
           ],
         },
         orderBy: { updatedAt: 'desc' },

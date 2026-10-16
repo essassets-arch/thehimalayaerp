@@ -10,6 +10,7 @@ import {
   Query,
   Req,
   Res,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ProductionWorkflowService } from './production-workflow.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -576,8 +577,10 @@ export class ProductionWorkflowController {
     'production.productionworkflow.read',
     'logistics.dispatches.read',
   )
-  async getReadyForDispatchHistory() {
-    const data = await this.workflowService.getReadyForDispatchHistory();
+  async getReadyForDispatchHistory(@Req() req: any) {
+    const data = await this.workflowService.getReadyForDispatchHistory(
+      this.getDispatchTenant(req),
+    );
     return { success: true, data };
   }
 
@@ -638,13 +641,17 @@ export class ProductionWorkflowController {
    * users the authenticated tenant remains authoritative, so a client header
    * cannot be used to cross tenant boundaries.
    */
-  private getDispatchTenant(req: any): string | null | undefined {
+  private getDispatchTenant(req: any): string {
     const role = String(req.user?.role || '').toUpperCase();
     const isSuperAdmin = role === 'SUPER_ADMIN' || role === 'SUPERADMIN';
     const requestedTenant = req.headers?.['x-company-id'];
-    return isSuperAdmin && typeof requestedTenant === 'string'
+    const companyId = isSuperAdmin && typeof requestedTenant === 'string'
       ? requestedTenant
       : req.user?.companyId;
+    if (typeof companyId !== 'string' || !companyId.trim()) {
+      throw new UnauthorizedException('An authenticated tenant context is required for dispatch.');
+    }
+    return companyId;
   }
 
   // ==========================================

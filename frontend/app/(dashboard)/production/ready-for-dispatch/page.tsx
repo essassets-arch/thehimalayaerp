@@ -121,6 +121,8 @@ export default function ReadyForDispatchPage() {
           : Array.isArray(res?.items)
           ? res.items
           : [];
+      } else {
+        throw readyRes.reason || new Error('You are not authorized to view this tenant’s dispatch queue.');
       }
 
       let histList: ReadyJob[] = [];
@@ -215,7 +217,9 @@ export default function ReadyForDispatchPage() {
       Swal.fire({
         icon: 'error',
         title: 'Failed to Send',
-        text: err.message || 'Could not send order to dispatch.',
+        text: err.status === 403
+          ? 'This work order is outside the tenant authorized for your current session. Use your approved tenant access or contact your administrator.'
+          : err.message || 'Could not send order to dispatch.',
       });
     } finally {
       setSendingOrderKey(null);
