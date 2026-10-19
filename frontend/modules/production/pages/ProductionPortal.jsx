@@ -2165,6 +2165,9 @@ export default function ProductionPortal() {
     // Source 1: backendIncomingPending (direct from DB)
     (Array.isArray(pendingSource) ? pendingSource : []).filter(Boolean).forEach((row) => {
       if (isPureTradingOrder(row) || !hasMfgItemsUtil(row)) return;
+      const itemsList = Array.isArray(row.items || row.detailedItems) ? (row.items || row.detailedItems).filter(Boolean) : [];
+      const soItems = itemsList.filter(i => !isTradingProduct(i.product || i, i));
+      if (itemsList.length > 0 && soItems.length === 0) return;
       const key = String(row.orderNo || row.id || '');
       if (key && !acceptedKeys.has(key) && !pendingCandidatesMap.has(key)) {
         pendingCandidatesMap.set(key, row);
@@ -2174,9 +2177,12 @@ export default function ProductionPortal() {
     // Source 2: directBackendOrders not yet in history
     (Array.isArray(directBackendOrders) ? directBackendOrders : []).filter(Boolean).forEach((so) => {
       if (isPureTradingOrder(so) || !hasMfgItemsUtil(so)) return;
+      const soStatus = String(so.status || '').toUpperCase();
+      if (['COMPLETED', 'CANCELLED', 'LOST', 'READY_FOR_DISPATCH'].includes(soStatus)) return;
+      const soItems = (Array.isArray(so.items) ? so.items.filter(Boolean) : []).filter(i => !isTradingProduct(i.product || i, i));
+      if (soItems.length === 0) return;
       const key = String(so.orderNumber || so.orderNo || so.id || '');
       if (key && !acceptedKeys.has(key) && !pendingCandidatesMap.has(key)) {
-        const soItems = (Array.isArray(so.items) ? so.items.filter(Boolean) : []).filter(i => !isTradingProduct(i));
         const prodName = soItems.map(i => i.productName || i.name).filter(Boolean).join(', ') || 'Production Item';
         const qty = soItems.reduce((sum, i) => sum + Number(i.orderedQuantity || i.quantity || 0), 0) || so.totalQuantity || so.quantity || 1;
         pendingCandidatesMap.set(key, {

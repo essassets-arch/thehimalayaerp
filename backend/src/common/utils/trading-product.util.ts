@@ -75,18 +75,53 @@ export function resolveProductRouting(
     return { dispatchCategory: null, productType: 'RAW_MATERIAL', isTrading: false };
   }
 
-  // 2. Authoritative Dispatch Category (highest priority routing selector)
+  // 2. Authoritative Dispatch Category 2 / Explicit Trading Signals
   if (rawDC !== undefined && rawDC !== null && rawDC !== '' && rawDC !== 'Unassigned' && rawDC !== 'UNASSIGNED') {
     const normDC = normalizeDispatchCategory(rawDC);
     if (normDC === 'D2') {
       return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };
     }
+  }
+
+  if (rawTrading === true || rawPT === 'TRADING') {
+    return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };
+  }
+
+  // 3. Category & Keyword Matching for Trading Products
+  // Items in COVERBLOCK, FRC COVER, RCC PIPE, MOULDED, or with codes like BTCB, WCB, etc.
+  // are ALWAYS Trading (Dispatch 2) and must never default to Kasna Factory Manufacturing (D1).
+  const name = String(input?.name || input?.productName || (input as any)?.customProductName || (input as any)?.productNameSnapshot || '').toUpperCase();
+  const sku = String(input?.sku || input?.productCode || '').toUpperCase();
+  const itemType = String((input as any)?.type || '').toUpperCase();
+  const combined = `${name} ${sku} ${itemType} ${category}`;
+
+  const isTradingFamilyOrKeyword =
+    category.includes('COVERBLOCK') ||
+    category.includes('COVER BLOCK') ||
+    category.includes('FRC COVER') ||
+    category.includes('FRC COVERS') ||
+    category.includes('RCC PIPE') ||
+    category.includes('TRADING') ||
+    category.includes('MOULDED') ||
+    combined.includes('MOULDED') ||
+    combined.includes('COVERBLOCK') ||
+    combined.includes('COVER BLOCK') ||
+    combined.includes('RCC PIPE') ||
+    /\b(WCB|PCB|HTCB|DTCB|MCB|BTCB|FRCCP|FRCT|FRCSQRC|FRCRFRC|FRCSFSC|FRCROFROC|FRCGT|FRCTSOC|FRCTPEC)\b/.test(combined);
+
+  if (isTradingFamilyOrKeyword) {
+    return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };
+  }
+
+  // 4. Authoritative Dispatch Category 1
+  if (rawDC !== undefined && rawDC !== null && rawDC !== '' && rawDC !== 'Unassigned' && rawDC !== 'UNASSIGNED') {
+    const normDC = normalizeDispatchCategory(rawDC);
     if (normDC === 'D1') {
       return { dispatchCategory: 'D1', productType: 'MANUFACTURING', isTrading: false };
     }
   }
 
-  // 3. Explicit isTrading boolean flag
+  // 5. Explicit isTrading boolean flag (false)
   if (typeof rawTrading === 'boolean') {
     if (rawTrading) {
       return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };
@@ -95,15 +130,12 @@ export function resolveProductRouting(
     }
   }
 
-  // 4. Explicit productType
-  if (rawPT === 'TRADING') {
-    return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };
-  }
+  // 6. Explicit productType
   if (rawPT === 'MANUFACTURING' || rawPT === 'HARDWARE') {
     return { dispatchCategory: 'D1', productType: rawPT, isTrading: false };
   }
 
-  // 5. Existing record fallback (for updates where routing fields were not changed)
+  // 7. Existing record fallback (for updates where routing fields were not changed)
   if (existing) {
     const existingNormDC = normalizeDispatchCategory(existing.dispatchCategory);
     if (existing.isTrading === true || existingNormDC === 'D2' || String(existing.productType).toUpperCase() === 'TRADING') {
@@ -114,34 +146,6 @@ export function resolveProductRouting(
     }
   }
 
-  // 6. Legacy fallback ONLY for genuinely unclassified legacy items
-  if (
-    category.includes('COVERBLOCK') ||
-    category.includes('COVER BLOCK') ||
-    category.includes('FRC COVER') ||
-    category.includes('RCC PIPE') ||
-    category.includes('OTHERS') ||
-    category.includes('TRADING') ||
-    category.includes('MOULDED')
-  ) {
-    return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };
-  }
-
-  const name = String(input?.name || input?.productName || (input as any)?.customProductName || (input as any)?.productNameSnapshot || '').toUpperCase();
-  const sku = String(input?.sku || input?.productCode || '').toUpperCase();
-  const itemType = String((input as any)?.type || '').toUpperCase();
-  const combined = `${name} ${sku} ${itemType}`;
-
-  if (
-    combined.includes('MOULDED') ||
-    combined.includes('COVERBLOCK') ||
-    combined.includes('COVER BLOCK') ||
-    combined.includes('RCC PIPE') ||
-    /\b(WCB|PCB|HTCB|DTCB|MCB|BTCB|FRCCP|FRCT|FRCSQRC|FRCRFRC|FRCSFSC|FRCROFROC|FRCGT|FRCTSOC|FRCTPEC)\b/.test(combined)
-  ) {
-    return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };
-  }
-
   return { dispatchCategory: 'D1', productType: 'MANUFACTURING', isTrading: false };
 }
 
@@ -150,10 +154,6 @@ export function isTradingProduct(product?: any, item?: any): boolean {
 
   // 1. Direct boolean flags
   if (product?.isTrading === true || item?.isTrading === true) return true;
-  if (product?.isTrading === false && item?.isTrading === false) {
-    const rawDC = product?.dispatchCategory || product?.dispatch_category || item?.dispatchCategory || item?.dispatch_category;
-    return normalizeDispatchCategory(rawDC) === 'D2';
-  }
 
   // 1b. Check if entity is an order / container with items
   const containerItems =

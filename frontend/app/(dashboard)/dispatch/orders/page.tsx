@@ -872,15 +872,15 @@ export default function DispatchOrdersPage() {
     user?.role === "Plant Head" ||
     String(user?.role || "").toLowerCase().includes("admin");
 
-  // Strict role priority:
-  // If user is strictly Dispatch 2, isDispatch2 is true.
-  // If user is strictly Dispatch 1, isDispatch2 is false.
-  // For Super Admin / Plant Head / neutral roles, determine from pathname.
-  const isDispatch2 = isDispatch2User
+  // Strict role / URL priority:
+  // If user is navigating /dispatch-2, URL is authoritative -> isDispatch2 = true.
+  // Otherwise, if user has role/category Dispatch 2 -> isDispatch2 = true.
+  // Otherwise Dispatch 1 -> isDispatch2 = false.
+  const isDispatch2 = Boolean(pathname?.includes("/dispatch-2"))
     ? true
-    : isDispatch1User
-    ? false
-    : Boolean(pathname?.includes("/dispatch-2"));
+    : isDispatch2User
+    ? true
+    : false;
 
   const basePath = isDispatch2 ? "/dispatch-2" : "/dispatch";
   const currentCategory = isDispatch2 ? "D2" : "D1";

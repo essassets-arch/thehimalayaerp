@@ -67,7 +67,7 @@ export default function SalesOrderDetailsPage() {
         title={`Sales Order ${order.orderNumber}`}
         status={status}
         actions={
-          <ActionButtons orderId={id} status={status} />
+          <ActionButtons orderId={id} status={status} order={order} />
         }
       />
 
