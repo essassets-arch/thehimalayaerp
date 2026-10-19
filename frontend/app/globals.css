@@ -12865,7 +12865,7 @@ body, #root, .app-container {
 
   .raw-inv-card-actions-row {
     display: grid !important;
-    grid-template-columns: repeat(4, 1fr) !important;
+    grid-template-columns: repeat(3, 1fr) !important;
     gap: 6px !important;
     width: 100% !important;
     box-sizing: border-box !important;
@@ -12878,7 +12878,8 @@ body, #root, .app-container {
   .raw-btn-in,
   .raw-btn-out,
   .raw-btn-adj,
-  .raw-btn-edit {
+  .raw-btn-edit,
+  .raw-btn-delete {
     width: 100% !important;
     height: 38px !important;
     min-height: 38px !important;
@@ -12900,7 +12901,8 @@ body, #root, .app-container {
   .raw-btn-in:active,
   .raw-btn-out:active,
   .raw-btn-adj:active,
-  .raw-btn-edit:active {
+  .raw-btn-edit:active,
+  .raw-btn-delete:active {
     transform: scale(0.96) !important;
   }
 
@@ -12962,6 +12964,21 @@ body, #root, .app-container {
     color: #ffffff !important;
     border-color: #334155 !important;
     box-shadow: 0 2px 8px rgba(51, 65, 85, 0.25) !important;
+  }
+
+  /* Delete */
+  .raw-btn-delete,
+  .raw-inv-btn-delete {
+    background: #fef2f2 !important;
+    border: 1.5px solid #fecaca !important;
+    color: #dc2626 !important;
+  }
+  .raw-btn-delete:hover,
+  .raw-inv-btn-delete:hover {
+    background: #dc2626 !important;
+    color: #ffffff !important;
+    border-color: #dc2626 !important;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25) !important;
   }
 
   .raw-inv-mobile-empty {
@@ -16818,12 +16835,13 @@ body, #root, .app-container {
    STORE RAW INVENTORY REDESIGN & RESPONSIVE PRECISION (0,0)
    ========================================================= */
 
-/* Action Buttons: Log, + In, - Out, Adj, Edit (Desktop Table & Modals) */
+/* Action Buttons: Log, + In, - Out, Adj, Edit, Del (Desktop Table & Modals) */
 .raw-btn-log,
 .raw-btn-in,
 .raw-btn-out,
 .raw-btn-adj,
-.raw-btn-edit {
+.raw-btn-edit,
+.raw-btn-delete {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -16847,7 +16865,8 @@ body, #root, .app-container {
 .raw-btn-in:active,
 .raw-btn-out:active,
 .raw-btn-adj:active,
-.raw-btn-edit:active {
+.raw-btn-edit:active,
+.raw-btn-delete:active {
   transform: scale(0.96) !important;
 }
 
@@ -16916,10 +16935,23 @@ body, #root, .app-container {
   box-shadow: 0 3px 10px rgba(51, 65, 85, 0.25) !important;
 }
 
+/* Delete: Crimson Destructive Action */
+.raw-btn-delete {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+  border: 1.5px solid #fecaca !important;
+}
+.raw-btn-delete:hover {
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  border-color: #dc2626 !important;
+  box-shadow: 0 3px 10px rgba(220, 38, 38, 0.25) !important;
+}
+
 /* Desktop Table Actions Column & Grouping */
 .raw-table-actions-cell {
-  min-width: 250px !important;
-  width: 250px !important;
+  min-width: 320px !important;
+  width: 320px !important;
   text-align: right !important;
   white-space: nowrap !important;
   padding-right: 16px !important;
@@ -16963,7 +16995,7 @@ body, #root, .app-container {
 
   .raw-inv-card-actions-row {
     display: grid !important;
-    grid-template-columns: repeat(4, 1fr) !important;
+    grid-template-columns: repeat(3, 1fr) !important;
     gap: 6px !important;
     width: 100% !important;
     box-sizing: border-box !important;

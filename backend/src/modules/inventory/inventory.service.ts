@@ -1,4 +1,4 @@
-import { loadRawInventory } from './raw-material-read-model';
+import { loadRawInventory, materialMovement } from './raw-material-read-model';
 import * as crypto from 'crypto';
 import {
   Injectable,
@@ -2122,54 +2122,114 @@ export class InventoryService {
   }
 
   async deleteRawMaterial(companyId: string, id: string) {
+    // 1. Fetch live inventory snapshot to evaluate current stock
+    let snapshot: any[] = [];
+    try {
+      snapshot = await this.getRawMaterialSnapshot(companyId);
+    } catch {
+      snapshot = [];
+    }
+
+    const targetItem = snapshot.find(
+      (m: any) =>
+        m.id === id ||
+        m.rawMaterialId === id ||
+        m.productId === id ||
+        (m.sku && (m.sku === id || m.publicId === id)),
+    );
+
+    if (targetItem) {
+      const currentStock = Number(targetItem.quantity ?? 0);
+      if (currentStock !== 0) {
+        throw new BadRequestException(
+          `Cannot delete material "${targetItem.name}". Current stock is ${currentStock} ${targetItem.unit || ''}. Materials can only be deleted when Current Stock is 0.`,
+        );
+      }
+    }
+
+    const rmId = targetItem?.rawMaterialId || id;
+    const prodId = targetItem?.productId || id;
+
     const rm = await this.prisma.rawMaterial.findFirst({
-      where: { id },
+      where: {
+        OR: [
+          { id: rmId },
+          { id },
+          ...(targetItem?.sku ? [{ sku: targetItem.sku }] : []),
+        ],
+      },
     });
-    if (rm) {
-      await this.prisma.inventoryTransaction.deleteMany({
+
+    const prod = await this.prisma.product.findFirst({
+      where: {
+        OR: [
+          { id: prodId },
+          { id },
+          ...(rm?.sku ? [{ sku: rm.sku }] : []),
+          ...(targetItem?.sku ? [{ sku: targetItem.sku }] : []),
+        ],
+      },
+    });
+
+    if (!rm && !prod) {
+      throw new NotFoundException(`Raw material with ID ${id} not found.`);
+    }
+
+    // Safety fallback: if not matched in snapshot, verify transactions directly
+    if (!targetItem) {
+      const txs = await this.prisma.inventoryTransaction.findMany({
         where: {
           OR: [
-            { rawMaterialId: id },
-            ...(rm.sku ? [{ product: { sku: rm.sku } }] : []),
+            ...(rm ? [{ rawMaterialId: rm.id }] : []),
+            ...(prod ? [{ productId: prod.id }] : []),
           ],
         },
       });
-      if (rm.sku) {
-        await this.prisma.product.updateMany({
-          where: { sku: rm.sku },
-          data: { isActive: false },
-        });
+      let calculatedStock = 0;
+      for (const t of txs) {
+        const mv = materialMovement(t.type, Number(t.quantity || 0));
+        calculatedStock += mv.delta;
       }
-      await this.prisma.rawMaterial.delete({
-        where: { id },
-      });
-      return { success: true, message: `Raw material "${rm.name}" deleted successfully.` };
+      if (calculatedStock !== 0) {
+        throw new BadRequestException(
+          `Cannot delete material "${rm?.name || prod?.name}". Current stock is ${calculatedStock}. Materials can only be deleted when Current Stock is 0.`,
+        );
+      }
     }
 
-    const prod = await this.prisma.product.findFirst({
-      where: { id },
-    });
+    const materialName = targetItem?.name || rm?.name || prod?.name || 'Material';
+
+    // Safe non-destructive soft delete:
+    // Never delete historical inventory transactions — preserve complete ledger and audit trail.
+    // Setting isActive: false removes the material from the live raw-inventory catalog while keeping all data safe.
+    if (rm) {
+      await this.prisma.rawMaterial.update({
+        where: { id: rm.id },
+        data: { isActive: false },
+      }).catch(() => {});
+    }
+
     if (prod) {
-      await this.prisma.inventoryTransaction.deleteMany({
-        where: { productId: id },
-      });
-      if (prod.sku) {
-        await this.prisma.rawMaterial.deleteMany({
-          where: { sku: prod.sku },
-        });
-      }
-      try {
-        await this.prisma.product.delete({ where: { id } });
-      } catch (e) {
-        await this.prisma.product.update({
-          where: { id },
-          data: { isActive: false },
-        });
-      }
-      return { success: true, message: `Material "${prod.name}" deleted successfully.` };
+      await this.prisma.product.update({
+        where: { id: prod.id },
+        data: { isActive: false },
+      }).catch(() => {});
     }
 
-    throw new NotFoundException(`Raw material with ID ${id} not found.`);
+    // Deactivate any matching records by SKU
+    const skuToClean = rm?.sku || prod?.sku || targetItem?.sku;
+    if (skuToClean) {
+      await this.prisma.rawMaterial.updateMany({
+        where: { sku: skuToClean },
+        data: { isActive: false },
+      }).catch(() => {});
+      await this.prisma.product.updateMany({
+        where: { sku: skuToClean },
+        data: { isActive: false },
+      }).catch(() => {});
+    }
+
+    return { success: true, message: `Raw material "${materialName}" deleted successfully.` };
   }
 
   async clearAllRawMaterials(companyId?: string) {

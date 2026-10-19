@@ -1406,35 +1406,92 @@ export default function StorePortal() {
     // 2. Raw Inventory Ledger View
   const renderRawInventory = () => {
   const handleDeleteMaterial = async (item) => {
-      if (item.transactions && item.transactions.length > 0) {
-        Swal.fire({ icon: 'error', title: 'Deletion Blocked', text: `Cannot delete material "${item.material}" because it has active stock transaction history.`, customClass: { popup: 'swal-premium-popup', title: 'swal-premium-title', htmlContainer: 'swal-premium-text', confirmButton: 'swal-premium-confirm-btn' }, buttonsStyling: false });
-        return;
+    if (!item) return;
+    const currentStock = Number(item.stock ?? 0);
+
+    // Rule: Material can only be deleted if Current Stock is 0
+    if (currentStock !== 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Cannot Delete Material',
+        html: `Material <b>"${item.material}"</b> cannot be deleted because it has active stock.<br/><br/>
+          <div style="background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 8px; padding: 12px; margin: 10px 0; text-align: left; font-size: 13.5px; color: #991b1b;">
+            <div style="margin-bottom: 4px;"><b>Material Code:</b> <span style="font-family: monospace;">${item.code || '—'}</span></div>
+            <div><b>Current Stock:</b> <span style="font-size: 16px; font-weight: 800; color: #dc2626;">${currentStock.toLocaleString()} ${safeText(item.unit, '')}</span></div>
+          </div>
+          <p style="color: #64748b; font-size: 13px; margin: 6px 0 0 0;">
+            Materials can only be deleted when <b>Current Stock is 0</b>.
+          </p>`,
+        confirmButtonColor: '#0f766e',
+        confirmButtonText: 'Understood'
+      });
+      return;
+    }
+
+    const result = await Swal.fire({
+      title: 'Delete Material Registry?',
+      html: `Are you sure you want to permanently delete <b>"${item.material}"</b> (${item.code || '—'})?<br/><br/>
+        <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 8px; padding: 10px; margin: 10px 0; font-size: 13px; color: #166534; text-align: left;">
+          ✓ <b>Verified:</b> Current Stock is <b>0 ${safeText(item.unit, '')}</b>.
+        </div>
+        <span style="color: #64748b; font-size: 12.5px;">This action will permanently delete this material from the raw inventory registry.</span>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete Material',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      focusCancel: true
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      showToast('Deleting material...');
+      try {
+        await apiClient.delete(`/inventory/raw-materials/${encodeURIComponent(item.id)}`);
+      } catch (firstErr) {
+        try {
+          await apiClient.delete(`/store/raw-materials/${encodeURIComponent(item.id)}`);
+        } catch (secondErr) {
+          await apiClient.delete(`/products/${encodeURIComponent(item.id)}`);
+        }
       }
 
+      if (typeof syncData === 'function') await syncData().catch(() => {});
+      if (typeof dispatch === 'function') {
+        dispatch({ type: 'DELETE_RAW_MATERIAL', payload: { id: item.id, material: item.material } });
+      }
+      await fetchRawInventory();
+
+      if (selectedInventoryItem?.id === item.id) {
+        setShowDetailDrawer(false);
+        setSelectedInventoryItem(null);
+      }
+
+      showToast(`Registry for "${item.material}" deleted successfully.`);
       Swal.fire({
-        title: 'Delete Material Registry?',
-        text: `Are you sure you want to remove "${item.material}"? This action is permanent.`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Yes, Delete Registry',
-        cancelButtonText: 'Cancel',
-        customClass: { popup: 'swal-premium-popup', title: 'swal-premium-title', htmlContainer: 'swal-premium-text', confirmButton: 'swal-premium-confirm-btn', cancelButton: 'swal-premium-cancel-btn' },
-        buttonsStyling: false
-      }).then(async (result) => {
-        if (result.isConfirmed) {
-          try {
-            await apiClient.delete(`/store/raw-materials/${item.id}`);
-            await syncData();
-            await fetchRawInventory();
-          } catch (err) {
-            dispatch({ type: 'DELETE_RAW_MATERIAL', payload: { id: item.id, material: item.material } });
-            showToast(`Deleted (local). Note: ${err.message}`);
-            return;
-          }
-          showToast(`Registry for "${item.material}" deleted successfully.`);
-        }
+        icon: 'success',
+        title: 'Deleted Successfully',
+        text: `Material "${item.material}" has been removed.`,
+        timer: 2000,
+        showConfirmButton: false
       });
-    };
+
+      if (currentView === 'edit-material') {
+        navigate.push('/store/raw-inventory');
+      }
+    } catch (err) {
+      console.error('Delete material error:', err);
+      const errMsg = err.response?.data?.message || err.message || 'Failed to delete material.';
+      Swal.fire({
+        icon: 'error',
+        title: 'Delete Failed',
+        text: errMsg,
+        confirmButtonColor: '#0f766e'
+      });
+    }
+  };
 
     const handleQuickStockIn = (item) => {
       Swal.fire({
@@ -2039,7 +2096,7 @@ export default function StorePortal() {
                 <th style={{ width: '130px', minWidth: '130px', textAlign: 'right', whiteSpace: 'nowrap' }}>Current Stock</th>
                 <th style={{ width: '130px', minWidth: '130px', textAlign: 'right', whiteSpace: 'nowrap' }}>Minimum Stock</th>
                 <th style={{ width: '140px', minWidth: '140px', textAlign: 'center', whiteSpace: 'nowrap' }}>Status</th>
-                <th style={{ width: '250px', minWidth: '250px', textAlign: 'right', whiteSpace: 'nowrap' }}>Actions</th>
+                <th style={{ width: '320px', minWidth: '320px', textAlign: 'right', whiteSpace: 'nowrap' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -2089,13 +2146,28 @@ export default function StorePortal() {
                       <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span>
                       </td>
-                      <td className="raw-table-actions-cell" style={{ textAlign: 'right', whiteSpace: 'nowrap', minWidth: '250px', width: '250px' }}>
+                      <td className="raw-table-actions-cell" style={{ textAlign: 'right', whiteSpace: 'nowrap', minWidth: '320px', width: '320px' }}>
                         <div className="raw-table-actions-group" style={{ display: 'inline-flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
                           <button type="button" className="raw-btn-log" onClick={(e) => { e.stopPropagation(); handleOpenMaterialLog(item); }} title="View Inventory Log">Log</button>
                           <button type="button" className="raw-btn-in" onClick={(e) => { e.stopPropagation(); handleQuickStockIn(item); }} title="Quick Stock In">+ In</button>
                           <button type="button" className="raw-btn-out" onClick={(e) => { e.stopPropagation(); handleQuickStockOut(item); }} title="Quick Stock Out">- Out</button>
                           <button type="button" className="raw-btn-adj" onClick={(e) => { e.stopPropagation(); handleQuickAdjust(item); }} title="Adjust Stock">Adj</button>
                           <button type="button" className="raw-btn-edit" onClick={(e) => { e.stopPropagation(); navigate.push(`/store/edit-material?id=${encodeURIComponent(item.id)}&name=${encodeURIComponent(item.material)}`); }} title="Edit Material">Edit</button>
+                          <button
+                            type="button"
+                            className="raw-btn-delete"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteMaterial(item); }}
+                            title={Number(item.stock ?? 0) === 0 ? "Delete Material (Current stock is 0)" : `Cannot delete: Current stock is ${Number(item.stock ?? 0).toLocaleString()} ${safeText(item.unit, '')} (Must be 0 to delete)`}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              ...(Number(item.stock ?? 0) !== 0 ? { opacity: 0.55 } : {})
+                            }}
+                          >
+                            <Trash2 size={12} />
+                            Del
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -2205,6 +2277,25 @@ export default function StorePortal() {
                       title="Edit Material"
                     >
                       Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="raw-btn-delete"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteMaterial(item);
+                      }}
+                      title={Number(item.stock ?? 0) === 0 ? "Delete Material (Current stock is 0)" : `Cannot delete: Current stock is ${Number(item.stock ?? 0).toLocaleString()} ${safeText(item.unit, '')}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '3px',
+                        ...(Number(item.stock ?? 0) !== 0 ? { opacity: 0.55 } : {})
+                      }}
+                    >
+                      <Trash2 size={13} />
+                      Del
                     </button>
                   </div>
                 </div>
@@ -2684,11 +2775,32 @@ export default function StorePortal() {
 
                 <div>
                   <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Quick Actions</span>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px', marginTop: '8px' }}>
                     <button type="button" className="raw-btn-in" style={{ height: '40px', fontSize: '13px' }} onClick={() => handleQuickStockIn(item)}>+ In</button>
                     <button type="button" className="raw-btn-out" style={{ height: '40px', fontSize: '13px' }} onClick={() => handleQuickStockOut(item)}>- Out</button>
                     <button type="button" className="raw-btn-adj" style={{ height: '40px', fontSize: '13px' }} onClick={() => handleQuickAdjust(item)}>Adj</button>
                     <button type="button" className="raw-btn-edit" style={{ height: '40px', fontSize: '13px' }} onClick={() => navigate.push(`/store/edit-material?id=${encodeURIComponent(item.id)}&name=${encodeURIComponent(item.material)}`)}>Edit</button>
+                    <button
+                      type="button"
+                      className="raw-btn-delete"
+                      style={{
+                        height: '40px',
+                        fontSize: '13px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px',
+                        ...(Number(item.stock ?? 0) !== 0 ? { opacity: 0.55 } : {})
+                      }}
+                      onClick={() => {
+                        setShowDetailDrawer(false);
+                        handleDeleteMaterial(item);
+                      }}
+                      title={Number(item.stock ?? 0) === 0 ? "Delete Material (Current stock is 0)" : `Cannot delete: Current stock is ${Number(item.stock ?? 0).toLocaleString()} ${safeText(item.unit, '')}`}
+                    >
+                      <Trash2 size={14} />
+                      Delete
+                    </button>
                   </div>
                 </div>
               </div>
@@ -5828,9 +5940,26 @@ export default function StorePortal() {
                 <input type="text" className="form-input" style={{ width: '100%', marginTop: '6px' }} placeholder="e.g. Rack A1 / Bay 4" value={editMatStorageLocation} onChange={e => setEditMatStorageLocation(e.target.value)} />
               </div>
             </div>
-            <div className="store-form-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
-              <button type="button" className="m-theme-btn-secondary" onClick={() => navigate.push('/store/raw-inventory')}>Cancel</button>
-              <button type="submit" className="m-theme-btn-primary">Update Material Registry</button>
+            <div className="store-form-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="raw-btn-delete"
+                style={{ padding: '9px 18px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                onClick={() => {
+                  const currentItem = (dbRawInventory || []).find(i => String(i.id) === String(editMatId));
+                  if (currentItem) {
+                    handleDeleteMaterial(currentItem);
+                  } else {
+                    handleDeleteMaterial({ id: editMatId, material: editMatName, code: editMatCode, stock: 0, unit: editMatUnit });
+                  }
+                }}
+              >
+                <Trash2 size={15} /> Delete Material
+              </button>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button type="button" className="m-theme-btn-secondary" onClick={() => navigate.push('/store/raw-inventory')}>Cancel</button>
+                <button type="submit" className="m-theme-btn-primary">Update Material Registry</button>
+              </div>
             </div>
           </form>
         </div>

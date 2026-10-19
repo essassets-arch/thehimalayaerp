@@ -267,8 +267,11 @@ export class InventoryController {
     'products.delete',
     'products.read',
     'store.read',
+    'store.view',
+    'store.rawinventory.read',
+    'inventory.read',
   )
-  @Delete('raw-materials/:id')
+  @Delete(['raw-materials/:id', 'raw-material/:id', 'materials/:id'])
   deleteRawMaterial(@CurrentUser() user: any, @Param('id') id: string) {
     return this.inventoryService.deleteRawMaterial(user.companyId, id);
   }

@@ -1,8 +1,9 @@
-import { loadRawMaterialCatalog } from '../inventory/raw-material-read-model';
+import { loadRawMaterialCatalog, materialMovement } from '../inventory/raw-material-read-model';
 import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -604,31 +605,48 @@ export class ProductsService {
       where: { id },
     });
     if (prod) {
-      await this.prisma.inventoryTransaction.deleteMany({
-        where: { productId: id },
-      });
+      const isRaw =
+        prod.productType === 'RAW_MATERIAL' ||
+        (prod.category && prod.category.toLowerCase().includes('raw'));
+      if (isRaw) {
+        const txs = await this.prisma.inventoryTransaction.findMany({
+          where: {
+            OR: [
+              { productId: id },
+              ...(prod.sku ? [{ product: { sku: prod.sku } }] : []),
+            ],
+          },
+        });
+        let stock = 0;
+        for (const t of txs) {
+          const mv = materialMovement(t.type, Number(t.quantity || 0));
+          stock += mv.delta;
+        }
+        if (stock !== 0) {
+          throw new BadRequestException(
+            `Cannot delete material "${prod.name}". Current stock is ${stock} ${prod.unit}. Materials can only be deleted when Current Stock is 0.`,
+          );
+        }
+      }
+
+      // Safe soft delete: preserve all transaction history, prevent data loss on live system
       if (prod.sku) {
-        await this.prisma.rawMaterial.deleteMany({
+        await this.prisma.rawMaterial.updateMany({
           where: { sku: prod.sku },
-        });
-      }
-      try {
-        return await this.prisma.product.delete({
-          where: { id },
-        });
-      } catch (e) {
-        return await this.prisma.product.update({
-          where: { id },
           data: { isActive: false },
-        });
+        }).catch(() => {});
       }
+      return await this.prisma.product.update({
+        where: { id },
+        data: { isActive: false },
+      });
     }
 
     const rm = await this.prisma.rawMaterial.findFirst({
       where: { id },
     });
     if (rm) {
-      await this.prisma.inventoryTransaction.deleteMany({
+      const txs = await this.prisma.inventoryTransaction.findMany({
         where: {
           OR: [
             { rawMaterialId: id },
@@ -636,14 +654,27 @@ export class ProductsService {
           ],
         },
       });
+      let stock = 0;
+      for (const t of txs) {
+        const mv = materialMovement(t.type, Number(t.quantity || 0));
+        stock += mv.delta;
+      }
+      if (stock !== 0) {
+        throw new BadRequestException(
+          `Cannot delete material "${rm.name}". Current stock is ${stock} ${rm.unit}. Materials can only be deleted when Current Stock is 0.`,
+        );
+      }
+
+      // Safe soft delete: preserve all transaction history, prevent data loss on live system
       if (rm.sku) {
         await this.prisma.product.updateMany({
           where: { sku: rm.sku },
           data: { isActive: false },
-        });
+        }).catch(() => {});
       }
-      return await this.prisma.rawMaterial.delete({
+      return await this.prisma.rawMaterial.update({
         where: { id },
+        data: { isActive: false },
       });
     }
 
