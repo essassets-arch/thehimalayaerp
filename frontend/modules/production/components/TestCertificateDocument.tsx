@@ -332,6 +332,20 @@ export default function TestCertificateDocument({ report, id = 'test-certificate
                     Test Date: {formattedDate}
                   </span>
                 </div>
+                {report.testedByName?.toLowerCase().includes('moksha') && (
+                  <img
+                    src="/moksha_sign.png"
+                    alt="Moksha Naik Signature"
+                    className={styles.signatureImg}
+                    crossOrigin="anonymous"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (!target.src.includes('moksha-signature.png')) {
+                        target.src = '/moksha-signature.png';
+                      }
+                    }}
+                  />
+                )}
                 {report.testedByStamp !== false && (
                   <img
                     src="/himalaya-stamp.png"

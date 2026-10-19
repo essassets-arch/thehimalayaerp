@@ -197,12 +197,26 @@ export default function TestCertificateDocument2({
               {/* ── Bottom Footer Row with R&D Quality Engineer and Stamp ── */}
               <tr>
                 <td colSpan={2} className={styles.footerLeftCell}>
-                  <div className={styles.engineerTitle}>R&amp;D QUALITY ENGINEER</div>
+                  <div className={styles.signatureContainer}>
+                    <img
+                      src="/moksha_sign.png"
+                      alt="R&D Quality Engineer Signature"
+                      className={styles.engineerSignatureImg}
+                      crossOrigin="anonymous"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        if (!target.src.includes('moksha-signature.png')) {
+                          target.src = '/moksha-signature.png';
+                        }
+                      }}
+                    />
+                    <div className={styles.engineerTitle}>{displayTitle}</div>
+                  </div>
                 </td>
                 <td className={styles.footerRightCell}>
                   <img
                     src="/himalaya-stamp.png"
-                    alt="Akberali Precast Pvt Ltd Official Seal"
+                    alt="Himalaya Composites & Precast Pvt. Ltd. Official Seal"
                     className={styles.stampImg}
                     crossOrigin="anonymous"
                     onError={(e) => {

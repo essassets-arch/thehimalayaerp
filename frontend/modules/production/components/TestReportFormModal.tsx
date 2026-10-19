@@ -469,9 +469,22 @@ export default function TestReportFormModal({
                     ))}
                     {/* Bottom Footer Row with R&D QUALITY ENGINEER and Stamp */}
                     <tr>
-                      <td colSpan={2} style={{ border: '1.5px solid #000000', padding: '16px 14px', verticalAlign: 'middle' }}>
-                        <div style={{ fontSize: '14px', fontWeight: 800, color: '#000000', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          R&amp;D QUALITY ENGINEER
+                      <td colSpan={2} style={{ border: '1.5px solid #000000', padding: '12px 14px', verticalAlign: 'bottom' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minHeight: '80px', justifyContent: 'flex-end' }}>
+                          <img
+                            src="/moksha_sign.png"
+                            alt="R&D Quality Engineer Signature"
+                            style={{ height: '46px', maxWidth: '125px', width: 'auto', objectFit: 'contain', marginBottom: '4px', mixBlendMode: 'multiply', display: 'block' }}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              if (!target.src.includes('moksha-signature.png')) {
+                                target.src = '/moksha-signature.png';
+                              }
+                            }}
+                          />
+                          <div style={{ fontSize: '14px', fontWeight: 800, color: '#000000', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            {testedByTitle.trim() || 'R&D QUALITY ENGINEER'}
+                          </div>
                         </div>
                       </td>
                       <td style={{ border: '1.5px solid #000000', textAlign: 'center', padding: '10px 14px', verticalAlign: 'middle' }}>

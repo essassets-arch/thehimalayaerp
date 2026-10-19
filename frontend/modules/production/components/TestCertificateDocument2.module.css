@@ -160,10 +160,28 @@
 /* ── Footer / Signature Row ── */
 .footerLeftCell {
   border: 1.5px solid #000000;
-  padding: 24px 20px;
-  vertical-align: middle;
+  padding: 14px 20px 16px 20px;
+  vertical-align: bottom;
   text-align: left;
   width: 56%;
+}
+
+.signatureContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  min-height: 85px;
+}
+
+.engineerSignatureImg {
+  height: 52px;
+  max-width: 140px;
+  width: auto;
+  object-fit: contain;
+  margin-bottom: 6px;
+  mix-blend-mode: multiply;
+  display: block;
 }
 
 .engineerTitle {
