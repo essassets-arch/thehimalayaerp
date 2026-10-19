@@ -44,7 +44,7 @@ export async function fetchPaymentFollowUpEntries(params: PaymentFollowUpsQuery 
 
   const queryString = query.toString();
   const endpoint = `/back-office/payment-follow-ups${queryString ? `?${queryString}` : ''}`;
-  return backendFetch(endpoint);
+  return backendFetch(endpoint, { cacheTtlMs: 0 });
 }
 
 export async function createPaymentFollowUpEntry(data: PaymentFollowUpEntryDto) {

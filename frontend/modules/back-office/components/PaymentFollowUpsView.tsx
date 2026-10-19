@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   FileSpreadsheet,
   Plus,
@@ -182,6 +182,59 @@ export default function PaymentFollowUpsView() {
     setSortOrder('desc');
     setPage(1);
   };
+
+  // Client-side date filter verification ensuring instant real-time response
+  const displayedRecords = useMemo(() => {
+    if (!records || records.length === 0) return [];
+    if (dateFilter === 'ALL') return records;
+
+    const now = new Date();
+    let filterStart: Date | null = null;
+    let filterEnd: Date | null = null;
+
+    if (dateFilter === 'WEEKLY') {
+      filterStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7, 0, 0, 0, 0);
+      filterEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7, 23, 59, 59, 999);
+    } else if (dateFilter === 'MONTHLY') {
+      filterStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      filterEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    } else if (dateFilter === 'YEARLY') {
+      filterStart = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+      filterEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+    } else if (dateFilter === 'CUSTOM') {
+      if (startDate) {
+        filterStart = new Date(startDate.includes('T') ? startDate : `${startDate}T00:00:00`);
+      }
+      if (endDate) {
+        filterEnd = new Date(endDate.includes('T') ? endDate : `${endDate}T23:59:59.999`);
+      }
+    }
+
+    if (!filterStart && !filterEnd) return records;
+
+    return records.filter((rec) => {
+      const dStr = rec.date || rec.createdAt;
+      if (!dStr) return true;
+      const d = new Date(dStr);
+      if (isNaN(d.getTime())) return true;
+      if (filterStart && !isNaN(filterStart.getTime()) && d < filterStart) return false;
+      if (filterEnd && !isNaN(filterEnd.getTime()) && d > filterEnd) return false;
+      return true;
+    });
+  }, [records, dateFilter, startDate, endDate]);
+
+  // Dynamically compute KPI totals from the currently displayed records
+  const activeTotals = useMemo(() => {
+    const totalFollowUps = displayedRecords.length;
+    let totalDuePaymentAmount = 0;
+    for (const r of displayedRecords) {
+      totalDuePaymentAmount += Number(r.duePaymentAmount) || 0;
+    }
+    return {
+      totalFollowUps,
+      totalDuePaymentAmount: Number(totalDuePaymentAmount.toFixed(2)),
+    };
+  }, [displayedRecords]);
 
   // Open Create Form
   const handleOpenAdd = () => {
@@ -524,11 +577,11 @@ export default function PaymentFollowUpsView() {
               Total Follow-Ups
             </span>
             <div style={{ fontSize: '24px', fontWeight: '800', color: '#0f172a', margin: '4px 0 2px' }}>
-              {totals.totalFollowUps.toLocaleString('en-IN')}
+              {(!loading && totals.totalFollowUps !== undefined ? totals.totalFollowUps : activeTotals.totalFollowUps).toLocaleString('en-IN')}
             </div>
             <span style={{ fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3b82f6' }} />
-              Active follow-up accounts
+              {dateFilter === 'ALL' ? 'Active follow-up accounts' : `Filtered accounts (${dateFilter.toLowerCase()})`}
             </span>
           </div>
           <div style={{
@@ -561,11 +614,11 @@ export default function PaymentFollowUpsView() {
               Manual Follow-Up Amount
             </span>
             <div style={{ fontSize: '24px', fontWeight: '800', color: '#059669', fontFamily: 'monospace', margin: '4px 0 2px' }}>
-              {formatCurrency(totals.totalDuePaymentAmount)}
+              {formatCurrency(!loading && totals.totalDuePaymentAmount !== undefined ? totals.totalDuePaymentAmount : activeTotals.totalDuePaymentAmount)}
             </div>
             <span style={{ fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#059669' }} />
-              Sum of manual payment targets
+              {dateFilter === 'ALL' ? 'Sum of manual payment targets' : `Filtered amount target`}
             </span>
           </div>
           <div style={{
@@ -598,9 +651,11 @@ export default function PaymentFollowUpsView() {
               Average Target / Party
             </span>
             <div style={{ fontSize: '24px', fontWeight: '800', color: '#0d9488', fontFamily: 'monospace', margin: '4px 0 2px' }}>
-              {totals.totalFollowUps > 0
-                ? formatCurrency(totals.totalDuePaymentAmount / totals.totalFollowUps)
-                : '₹0.00'}
+              {(() => {
+                const count = !loading && totals.totalFollowUps !== undefined ? totals.totalFollowUps : activeTotals.totalFollowUps;
+                const amt = !loading && totals.totalDuePaymentAmount !== undefined ? totals.totalDuePaymentAmount : activeTotals.totalDuePaymentAmount;
+                return count > 0 ? formatCurrency(amt / count) : '₹0.00';
+              })()}
             </div>
             <span style={{ fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#0d9488' }} />
@@ -684,6 +739,16 @@ export default function PaymentFollowUpsView() {
                     type="button"
                     onClick={() => {
                       setDateFilter(tab.key);
+                      if (tab.key === 'CUSTOM') {
+                        const now = new Date();
+                        const startStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+                        const endStr = getTodayIsoDate();
+                        if (!startDate) setStartDate(startStr);
+                        if (!endDate) setEndDate(endStr);
+                      } else if (tab.key === 'ALL') {
+                        setStartDate('');
+                        setEndDate('');
+                      }
                       setPage(1);
                     }}
                     style={{
@@ -737,19 +802,45 @@ export default function PaymentFollowUpsView() {
             </div>
           )}
 
-          {/* Active Date Tag info for Weekly/Monthly/Yearly */}
-          {dateFilter !== 'ALL' && dateFilter !== 'CUSTOM' && (
-            <span style={{
-              fontSize: '11px',
-              fontWeight: '700',
-              padding: '4px 10px',
-              borderRadius: '20px',
-              background: '#ecfdf5',
-              color: '#059669',
-              border: '1px solid #a7f3d0'
-            }}>
-              Showing {dateFilter.toLowerCase()} entries
-            </span>
+          {/* Active Date Tag info for Weekly/Monthly/Yearly/Custom */}
+          {dateFilter !== 'ALL' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{
+                fontSize: '11px',
+                fontWeight: '700',
+                padding: '4px 10px',
+                borderRadius: '20px',
+                background: '#ecfdf5',
+                color: '#059669',
+                border: '1px solid #a7f3d0'
+              }}>
+                {dateFilter === 'WEEKLY' && 'Active: Last 7 Days & This Week'}
+                {dateFilter === 'MONTHLY' && 'Active: Current Month'}
+                {dateFilter === 'YEARLY' && 'Active: Current Year'}
+                {dateFilter === 'CUSTOM' && `Active: ${startDate || 'Start'} to ${endDate || 'Today'}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilter('ALL');
+                  setStartDate('');
+                  setEndDate('');
+                  setPage(1);
+                }}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#64748b',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Clear Date
+              </button>
+            </div>
           )}
         </div>
         <div style={{
@@ -984,7 +1075,7 @@ export default function PaymentFollowUpsView() {
                     </div>
                   </td>
                 </tr>
-              ) : records.length === 0 ? (
+              ) : displayedRecords.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ padding: '80px 20px', textAlign: 'center', color: '#94a3b8' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
@@ -994,14 +1085,14 @@ export default function PaymentFollowUpsView() {
                       </p>
                       <p style={{ fontSize: '12px', color: '#94a3b8', maxWidth: '380px', margin: 0 }}>
                         {search || salesPersonFilter !== 'ALL' || minAmount || maxAmount || dateFilter !== 'ALL'
-                          ? 'Try adjusting your filters or search terms.'
+                          ? 'Try adjusting your filters, date selection, or search terms.'
                           : 'Click "+ Add Follow-Up Entry" to record your first follow-up target.'}
                       </p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                records.map((rec) => (
+                displayedRecords.map((rec, idx) => (
                   <tr
                     key={rec.id}
                     style={{
@@ -1012,7 +1103,7 @@ export default function PaymentFollowUpsView() {
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                   >
                     <td style={{ padding: '12px 10px', textAlign: 'center', fontFamily: 'monospace', fontWeight: '700', color: '#94a3b8' }}>
-                      {rec.srNo}
+                      {rec.srNo ?? idx + 1}
                     </td>
                     <td style={{ padding: '12px 14px', whiteSpace: 'nowrap', color: '#334155', fontWeight: '600' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
@@ -1107,9 +1198,9 @@ export default function PaymentFollowUpsView() {
           color: '#64748b'
         }}>
           <div>
-            Showing <strong style={{ color: '#0f172a' }}>{totalItems === 0 ? 0 : (page - 1) * limit + 1}</strong> to{' '}
-            <strong style={{ color: '#0f172a' }}>{Math.min(page * limit, totalItems)}</strong> of{' '}
-            <strong style={{ color: '#0f172a' }}>{totalItems}</strong> entries
+            Showing <strong style={{ color: '#0f172a' }}>{displayedRecords.length === 0 ? 0 : (page - 1) * limit + 1}</strong> to{' '}
+            <strong style={{ color: '#0f172a' }}>{Math.min(page * limit, totalItems || displayedRecords.length)}</strong> of{' '}
+            <strong style={{ color: '#0f172a' }}>{totalItems || displayedRecords.length}</strong> entries
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

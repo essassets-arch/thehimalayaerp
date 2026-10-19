@@ -2651,35 +2651,52 @@ export class BackOfficeService implements OnApplicationBootstrap {
       ];
     }
 
+    // 1. Determine IST calendar range
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const now = new Date();
+    const nowIST = new Date(now.getTime() + IST_OFFSET_MS);
+    const istYear = nowIST.getUTCFullYear();
+    const istMonth = nowIST.getUTCMonth();
+    const istDate = nowIST.getUTCDate();
+
     let calculatedStartDate: Date | null = null;
     let calculatedEndDate: Date | null = null;
 
     if (dateFilter === 'weekly' || dateFilter === 'WEEKLY') {
-      const now = new Date();
-      calculatedStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
-      calculatedStartDate.setHours(0, 0, 0, 0);
-      calculatedEndDate = new Date();
-      calculatedEndDate.setHours(23, 59, 59, 999);
+      const startIST = new Date(Date.UTC(istYear, istMonth, istDate - 7, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth, istDate + 7, 23, 59, 59, 999));
+      calculatedStartDate = new Date(startIST.getTime() - IST_OFFSET_MS);
+      calculatedEndDate = new Date(endIST.getTime() - IST_OFFSET_MS);
     } else if (dateFilter === 'monthly' || dateFilter === 'MONTHLY') {
-      const now = new Date();
-      calculatedStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      calculatedStartDate.setHours(0, 0, 0, 0);
-      calculatedEndDate = new Date();
-      calculatedEndDate.setHours(23, 59, 59, 999);
+      const startIST = new Date(Date.UTC(istYear, istMonth, 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth + 1, 0, 23, 59, 59, 999));
+      calculatedStartDate = new Date(startIST.getTime() - IST_OFFSET_MS);
+      calculatedEndDate = new Date(endIST.getTime() - IST_OFFSET_MS);
     } else if (dateFilter === 'yearly' || dateFilter === 'YEARLY') {
-      const now = new Date();
-      calculatedStartDate = new Date(now.getFullYear(), 0, 1);
-      calculatedStartDate.setHours(0, 0, 0, 0);
-      calculatedEndDate = new Date();
-      calculatedEndDate.setHours(23, 59, 59, 999);
+      const startIST = new Date(Date.UTC(istYear, 0, 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, 11, 31, 23, 59, 59, 999));
+      calculatedStartDate = new Date(startIST.getTime() - IST_OFFSET_MS);
+      calculatedEndDate = new Date(endIST.getTime() - IST_OFFSET_MS);
     } else if (dateFilter === 'custom' || dateFilter === 'CUSTOM' || startDate || endDate) {
       if (startDate) {
-        calculatedStartDate = new Date(startDate);
-        calculatedStartDate.setHours(0, 0, 0, 0);
+        const [sY, sM, sD] = String(startDate).split('-').map(Number);
+        if (!isNaN(sY) && !isNaN(sM) && !isNaN(sD)) {
+          const startIST = new Date(Date.UTC(sY, sM - 1, sD, 0, 0, 0, 0));
+          calculatedStartDate = new Date(startIST.getTime() - IST_OFFSET_MS);
+        } else {
+          const s = new Date(startDate);
+          if (!isNaN(s.getTime())) calculatedStartDate = s;
+        }
       }
       if (endDate) {
-        calculatedEndDate = new Date(endDate);
-        calculatedEndDate.setHours(23, 59, 59, 999);
+        const [eY, eM, eD] = String(endDate).split('-').map(Number);
+        if (!isNaN(eY) && !isNaN(eM) && !isNaN(eD)) {
+          const endIST = new Date(Date.UTC(eY, eM - 1, eD, 23, 59, 59, 999));
+          calculatedEndDate = new Date(endIST.getTime() - IST_OFFSET_MS);
+        } else {
+          const e = new Date(endDate);
+          if (!isNaN(e.getTime())) calculatedEndDate = e;
+        }
       }
     }
 
@@ -2764,7 +2781,13 @@ export class BackOfficeService implements OnApplicationBootstrap {
 
     const amountNum = Number(dto.duePaymentAmount) || 0;
     const entryDate = dto.date || dto.followUpDate || dto.createdAt;
-    const parsedDate = entryDate ? new Date(entryDate) : new Date();
+    let parsedDate = new Date();
+    if (entryDate) {
+      const p = new Date(entryDate.includes('T') ? entryDate : `${entryDate}T12:00:00`);
+      if (!isNaN(p.getTime())) {
+        parsedDate = p;
+      }
+    }
 
     return (this.prisma as any).paymentFollowUpEntry.create({
       data: {
@@ -2775,7 +2798,7 @@ export class BackOfficeService implements OnApplicationBootstrap {
         isArchived: false,
         createdById: userId,
         updatedById: userId,
-        createdAt: !isNaN(parsedDate.getTime()) ? parsedDate : new Date(),
+        createdAt: parsedDate,
       },
     });
   }
@@ -2798,9 +2821,9 @@ export class BackOfficeService implements OnApplicationBootstrap {
       updatedById: userId,
     };
     if (entryDate) {
-      const parsed = new Date(entryDate);
-      if (!isNaN(parsed.getTime())) {
-        updateData.createdAt = parsed;
+      const p = new Date(entryDate.includes('T') ? entryDate : `${entryDate}T12:00:00`);
+      if (!isNaN(p.getTime())) {
+        updateData.createdAt = p;
       }
     }
 
