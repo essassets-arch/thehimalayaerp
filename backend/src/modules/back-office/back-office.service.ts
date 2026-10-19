@@ -605,6 +605,10 @@ export class BackOfficeService implements OnApplicationBootstrap {
     const diffTime = now.getTime() - due.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
+    if (status === 'CANCELLED' || status === 'CANCEL') {
+      return { ageingDays: 0, ageingBucket: 'Cancelled' };
+    }
+
     if (status === 'PAID' || status === 'ADVANCE') {
       return { ageingDays: 0, ageingBucket: status === 'ADVANCE' ? 'Advance' : 'Paid / Settled' };
     }
@@ -763,20 +767,40 @@ export class BackOfficeService implements OnApplicationBootstrap {
 
     const totals = filtered.reduce(
       (acc: any, r: any) => {
-        acc.basicAmount += r.basicAmount;
-        acc.invoiceAmount += r.invoiceAmount;
-        acc.amtRcvd += r.amtRcvd;
-        acc.outstanding += r.outstanding;
+        const isCancelled = r.status === 'CANCELLED' || r.status === 'CANCEL';
+        if (isCancelled) {
+          acc.cancelledCount += 1;
+          acc.cancelledAmount += r.invoiceAmount;
+          acc.cancelledBasicAmount += r.basicAmount;
+        } else {
+          acc.activeCount += 1;
+          acc.basicAmount += r.basicAmount;
+          acc.invoiceAmount += r.invoiceAmount;
+          acc.amtRcvd += r.amtRcvd;
+          acc.outstanding += r.outstanding;
+        }
         acc.count += 1;
         return acc;
       },
-      { basicAmount: 0, invoiceAmount: 0, amtRcvd: 0, outstanding: 0, count: 0 }
+      {
+        basicAmount: 0,
+        invoiceAmount: 0,
+        amtRcvd: 0,
+        outstanding: 0,
+        count: 0,
+        activeCount: 0,
+        cancelledCount: 0,
+        cancelledAmount: 0,
+        cancelledBasicAmount: 0,
+      }
     );
 
     totals.basicAmount = Number(totals.basicAmount.toFixed(2));
     totals.invoiceAmount = Number(totals.invoiceAmount.toFixed(2));
     totals.amtRcvd = Number(totals.amtRcvd.toFixed(2));
     totals.outstanding = Number(totals.outstanding.toFixed(2));
+    totals.cancelledAmount = Number(totals.cancelledAmount.toFixed(2));
+    totals.cancelledBasicAmount = Number(totals.cancelledBasicAmount.toFixed(2));
 
     const pageNum = Math.max(1, Number(page) || 1);
     const limitNum = Math.max(1, Number(limit) || 25);
@@ -850,6 +874,9 @@ export class BackOfficeService implements OnApplicationBootstrap {
     const rtMatrix = createMatrix();
 
     for (const inv of invoices) {
+      if (inv.status === 'CANCELLED' || inv.status === 'CANCEL') {
+        continue;
+      }
       const isRt = inv.status === 'RT' || inv.salesType === 'RT';
       const matrix = isRt ? rtMatrix : unpaidMatrix;
 
@@ -997,11 +1024,14 @@ export class BackOfficeService implements OnApplicationBootstrap {
     const basicAmount = dto.basicAmount !== undefined && dto.basicAmount !== '' ? Number(dto.basicAmount) : 0;
     const invoiceAmount = dto.invoiceAmount !== undefined && dto.invoiceAmount !== '' ? Number(dto.invoiceAmount) : basicAmount;
     const amtRcvd = dto.amtRcvd !== undefined && dto.amtRcvd !== '' ? Number(dto.amtRcvd) : 0;
-    const outstanding = dto.outstanding !== undefined && dto.outstanding !== '' ? Number(dto.outstanding) : Number((invoiceAmount - amtRcvd).toFixed(2));
+    let outstanding = dto.outstanding !== undefined && dto.outstanding !== '' ? Number(dto.outstanding) : Number((invoiceAmount - amtRcvd).toFixed(2));
 
     let status = dto.status || (outstanding <= 0 ? 'PAID' : (amtRcvd > 0 ? 'PARTIAL' : 'UNPAID'));
     if (dto.salesType === 'RT') {
       status = 'RT';
+    }
+    if (status === 'CANCELLED' || status === 'CANCEL') {
+      outstanding = 0;
     }
 
     let completePaymentDate: Date | null = null;
@@ -1088,10 +1118,12 @@ export class BackOfficeService implements OnApplicationBootstrap {
     const basicAmount = dto.basicAmount !== undefined && dto.basicAmount !== '' ? Number(dto.basicAmount) : Number(existing.basicAmount);
     const invoiceAmount = dto.invoiceAmount !== undefined && dto.invoiceAmount !== '' ? Number(dto.invoiceAmount) : Number(existing.invoiceAmount);
     const amtRcvd = dto.amtRcvd !== undefined && dto.amtRcvd !== '' ? Number(dto.amtRcvd) : Number(existing.amtRcvd);
-    const outstanding = dto.outstanding !== undefined && dto.outstanding !== '' ? Number(dto.outstanding) : Number((invoiceAmount - amtRcvd).toFixed(2));
-
     let status = dto.status || existing.status;
-    if (dto.status === undefined) {
+    let outstanding = dto.outstanding !== undefined && dto.outstanding !== '' ? Number(dto.outstanding) : Number((invoiceAmount - amtRcvd).toFixed(2));
+
+    if (status === 'CANCELLED' || status === 'CANCEL') {
+      outstanding = 0;
+    } else if (dto.status === undefined) {
       if (outstanding <= 0 && amtRcvd > 0 && status !== 'RT' && status !== 'ADVANCE') {
         status = 'PAID';
       } else if (dto.salesType === 'RT') {
@@ -1120,12 +1152,16 @@ export class BackOfficeService implements OnApplicationBootstrap {
       : existing.srNo;
 
     const calculatedAgeing = this.calculateAgeing(dueDate, status);
-    const ageingDays = dto.ageingDays !== undefined && dto.ageingDays !== null && dto.ageingDays !== ''
-      ? Number(dto.ageingDays)
-      : (existing.ageingDays !== null ? existing.ageingDays : calculatedAgeing.ageingDays);
-    const ageingBucket = dto.ageingBucket && String(dto.ageingBucket).trim()
-      ? String(dto.ageingBucket).trim()
-      : (existing.ageingBucket || calculatedAgeing.ageingBucket);
+    const ageingDays = (status === 'CANCELLED' || status === 'CANCEL')
+      ? 0
+      : (dto.ageingDays !== undefined && dto.ageingDays !== null && dto.ageingDays !== ''
+        ? Number(dto.ageingDays)
+        : (existing.ageingDays !== null ? existing.ageingDays : calculatedAgeing.ageingDays));
+    const ageingBucket = (status === 'CANCELLED' || status === 'CANCEL')
+      ? 'Cancelled'
+      : (dto.ageingBucket && String(dto.ageingBucket).trim()
+        ? String(dto.ageingBucket).trim()
+        : (existing.ageingBucket || calculatedAgeing.ageingBucket));
 
     return (this.prisma as any).backOfficeArInvoice.update({
       where: { id },

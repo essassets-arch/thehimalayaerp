@@ -35,7 +35,8 @@ import {
   Receipt,
   Pencil,
   Sliders,
-  Sparkles
+  Sparkles,
+  Ban
 } from 'lucide-react';
 
 // Format Indian Rupee currency with exact 2 decimal preservation
@@ -101,6 +102,10 @@ function computeSystemCalculations(invoiceDateStr, termDaysNum, invAmtNum, rcvdA
   let ageingDays = 0;
   let ageingBucket = 'Yet To Due';
 
+  if (currentStatus === 'CANCELLED' || currentStatus === 'CANCEL') {
+    return { dueDate, quarter, outstanding: 0, ageingDays: 0, ageingBucket: 'Cancelled' };
+  }
+
   if (currentStatus === 'PAID' || currentStatus === 'ADVANCE' || (outstanding <= 0 && rcvdAmt > 0)) {
     ageingDays = 0;
     ageingBucket = currentStatus === 'ADVANCE' ? 'Advance' : 'Paid / Settled';
@@ -156,6 +161,7 @@ export default function BackOfficeArSheetView({
   fetchRegister,
   createInvoice,
   updateInvoice,
+  cancelInvoice,
   deleteInvoice,
   brandColor = '#0284c7',
   brandBg = '#e0f2fe'
@@ -166,7 +172,11 @@ export default function BackOfficeArSheetView({
     invoiceAmount: 0,
     amtRcvd: 0,
     outstanding: 0,
-    count: 0
+    count: 0,
+    activeCount: 0,
+    cancelledCount: 0,
+    cancelledAmount: 0,
+    cancelledBasicAmount: 0
   });
   const [filterOptions, setFilterOptions] = useState({
     quarters: [],
@@ -286,6 +296,9 @@ export default function BackOfficeArSheetView({
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
 
+  // Cancel Order Modal State
+  const [cancelItem, setCancelItem] = useState(null);
+
   // Delete Confirmation State
   const [deleteId, setDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -361,7 +374,20 @@ export default function BackOfficeArSheetView({
 
       if (res) {
         setData(res.items || []);
-        if (res.totals) setTotals(res.totals);
+        if (res.totals) {
+          const t = res.totals;
+          setTotals({
+            basicAmount: Number(t.basicAmount || 0),
+            invoiceAmount: Number(t.invoiceAmount || 0),
+            amtRcvd: Number(t.amtRcvd || 0),
+            outstanding: Number(t.outstanding || 0),
+            count: Number(t.count || 0),
+            activeCount: Number(t.activeCount !== undefined ? t.activeCount : (t.count - (t.cancelledCount || 0))),
+            cancelledCount: Number(t.cancelledCount || 0),
+            cancelledAmount: Number(t.cancelledAmount || 0),
+            cancelledBasicAmount: Number(t.cancelledBasicAmount || 0)
+          });
+        }
         if (res.pagination) setPagination(res.pagination);
         if (res.filterOptions) setFilterOptions(res.filterOptions);
       }
@@ -924,6 +950,10 @@ export default function BackOfficeArSheetView({
           }
           payload.ageingDays = 0;
           payload.ageingBucket = 'Advance';
+        } else if (value === 'CANCELLED' || value === 'CANCEL') {
+          payload.outstanding = 0;
+          payload.ageingDays = 0;
+          payload.ageingBucket = 'Cancelled';
         } else if (value === 'UNPAID') {
           if (item.dueDate) {
             const dueObj = new Date(item.dueDate);
@@ -1025,6 +1055,56 @@ export default function BackOfficeArSheetView({
       setFormError(err.message || 'Error saving invoice record. Please try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Non-destructive Cancel Order Action (Preserves sensitive data 100%)
+  const handleConfirmCancel = async (item) => {
+    if (!item) return;
+    setSavingRowId(item.id);
+    setCancelItem(null);
+    try {
+      if (cancelInvoice) {
+        await cancelInvoice(item.id);
+      } else {
+        await updateInvoice(item.id, {
+          status: 'CANCELLED',
+          outstanding: 0,
+          ageingDays: 0,
+          ageingBucket: 'Cancelled'
+        });
+      }
+      showToast(`Order #${item.invoiceNo} marked as CANCELLED. All data preserved.`);
+      await loadData();
+    } catch (err) {
+      console.error('Failed to cancel order:', err);
+      alert('Failed to cancel order: ' + (err?.message || 'Server error'));
+    } finally {
+      setSavingRowId(null);
+    }
+  };
+
+  // Reactivate Cancelled Order Action
+  const handleReactivateOrder = async (item) => {
+    if (!item) return;
+    setSavingRowId(item.id);
+    try {
+      const invAmt = Number(item.invoiceAmount) || 0;
+      const rcvdAmt = Number(item.amtRcvd) || 0;
+      const outstanding = Number(Math.max(0, invAmt - rcvdAmt).toFixed(2));
+      const status = outstanding <= 0 && rcvdAmt > 0 ? 'PAID' : (rcvdAmt > 0 ? 'PARTIAL' : 'UNPAID');
+
+      await updateInvoice(item.id, {
+        status,
+        outstanding
+      });
+      showToast(`Order #${item.invoiceNo} reactivated to ${status}.`);
+      await loadData();
+    } catch (err) {
+      console.error('Failed to reactivate order:', err);
+      alert('Failed to reactivate order: ' + (err?.message || 'Server error'));
+    } finally {
+      setSavingRowId(null);
     }
   };
 
@@ -1450,8 +1530,12 @@ export default function BackOfficeArSheetView({
       }}>
         <div style={{ background: '#fff', padding: isMobile ? '10px 12px' : '14px 18px', borderRadius: '10px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
           <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px' }}>Invoices</div>
-          <div style={{ fontSize: isMobile ? '17px' : '22px', fontWeight: '800', color: '#0f172a' }}>{totals.count}</div>
-          <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '1px' }}>Filtered rows</div>
+          <div style={{ fontSize: isMobile ? '17px' : '22px', fontWeight: '800', color: '#0f172a' }}>
+            {totals.activeCount !== undefined ? totals.activeCount : totals.count}
+          </div>
+          <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '1px' }}>
+            {totals.cancelledCount > 0 ? `${totals.count} rows (${totals.cancelledCount} cancelled)` : 'Filtered rows'}
+          </div>
         </div>
 
         <div style={{ background: '#fff', padding: isMobile ? '10px 12px' : '14px 18px', borderRadius: '10px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
@@ -1485,19 +1569,50 @@ export default function BackOfficeArSheetView({
           border: '1px solid #fecaca',
           boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
           borderLeft: '4px solid #ef4444',
-          gridColumn: isMobile ? 'span 2' : 'auto',
           display: 'flex',
-          flexDirection: isMobile ? 'row' : 'column',
-          justifyContent: isMobile ? 'space-between' : 'flex-start',
-          alignItems: isMobile ? 'center' : 'flex-start'
+          flexDirection: 'column',
+          justifyContent: 'flex-start',
+          alignItems: 'flex-start'
         }}>
           <div>
             <div style={{ fontSize: '10px', fontWeight: '700', color: '#dc2626', textTransform: 'uppercase', marginBottom: '2px' }}>Total Outstanding</div>
             <div style={{ fontSize: '9px', color: '#94a3b8' }}>Net pending recovery</div>
           </div>
-          <div style={{ fontSize: isMobile ? '18px' : '22px', fontWeight: '900', color: '#dc2626' }}>
+          <div style={{ fontSize: isMobile ? '18px' : '22px', fontWeight: '900', color: '#dc2626', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {formatCurrency(totals.outstanding)}
           </div>
+        </div>
+
+        {/* Card 6: Cancelled Orders */}
+        <div className="ar-kpi-cancelled" style={{
+          background: '#fff',
+          padding: isMobile ? '10px 14px' : '14px 18px',
+          borderRadius: '10px',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+          borderLeft: '4px solid #64748b',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'flex-start',
+          alignItems: 'flex-start'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '2px' }}>
+            <div style={{ fontSize: '10px', fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Cancelled Orders</div>
+            <span style={{
+              fontSize: '10px',
+              fontWeight: '700',
+              padding: '1px 6px',
+              borderRadius: '999px',
+              background: totals.cancelledCount > 0 ? '#fee2e2' : '#f1f5f9',
+              color: totals.cancelledCount > 0 ? '#b91c1c' : '#64748b'
+            }}>
+              {totals.cancelledCount || 0} {totals.cancelledCount === 1 ? 'order' : 'orders'}
+            </span>
+          </div>
+          <div style={{ fontSize: isMobile ? '16px' : '20px', fontWeight: '800', color: '#475569', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {formatCurrency(totals.cancelledAmount || 0)}
+          </div>
+          <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '1px' }}>Voided / not counted</div>
         </div>
       </div>
 
@@ -1624,6 +1739,7 @@ export default function BackOfficeArSheetView({
                 <option value="PAID">PAID</option>
                 <option value="RT">RT (Retention)</option>
                 <option value="ADVANCE">ADVANCE</option>
+                <option value="CANCELLED">CANCELLED (Cancelled Orders)</option>
               </select>
             </div>
 
@@ -1847,27 +1963,6 @@ export default function BackOfficeArSheetView({
                         <span>View</span>
                       </button>
                       <button
-                        onClick={() => handleOpenSection4Edit(item)}
-                        className="ar-btn-touch"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '3px',
-                          padding: '5px 8px',
-                          background: '#fef3c7',
-                          border: '1px solid #fde68a',
-                          borderRadius: '6px',
-                          color: '#b45309',
-                          fontSize: '11px',
-                          fontWeight: '700',
-                          cursor: 'pointer'
-                        }}
-                        title="Update Receipts, Status, Ageing & Remarks"
-                      >
-                        <Receipt size={11} />
-                        <span>Status/Rcvd</span>
-                      </button>
-                      <button
                         onClick={() => handleOpenEdit(item)}
                         className="ar-btn-touch"
                         style={{
@@ -1888,6 +1983,53 @@ export default function BackOfficeArSheetView({
                         <Edit2 size={11} />
                         <span>Edit</span>
                       </button>
+                      {item.status === 'CANCELLED' || item.status === 'CANCEL' ? (
+                        <button
+                          onClick={() => handleReactivateOrder(item)}
+                          disabled={savingRowId === item.id}
+                          className="ar-btn-touch"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            padding: '5px 8px',
+                            background: '#f0fdf4',
+                            border: '1px solid #bbf7d0',
+                            borderRadius: '6px',
+                            color: '#16a34a',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                          title="Reactivate Order"
+                        >
+                          <RotateCcw size={11} />
+                          <span>Reactivate</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setCancelItem(item)}
+                          disabled={savingRowId === item.id}
+                          className="ar-btn-touch"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            padding: '5px 8px',
+                            background: '#fff1f2',
+                            border: '1px solid #fecdd3',
+                            borderRadius: '6px',
+                            color: '#e11d48',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                          title="Cancel Order (Zero Data Loss)"
+                        >
+                          <Ban size={11} />
+                          <span>Cancel Order</span>
+                        </button>
+                      )}
                       <button
                         onClick={() => setDeleteId(item.id)}
                         style={{
@@ -1919,13 +2061,13 @@ export default function BackOfficeArSheetView({
                         fontSize: '10px',
                         fontWeight: '800',
                         textTransform: 'uppercase',
-                        border: '1px solid transparent',
+                        border: (item.status === 'CANCELLED' || item.status === 'CANCEL') ? '1px solid #cbd5e1' : '1px solid transparent',
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '3px',
-                        background: item.status === 'PAID' ? '#dcfce7' : item.status === 'ADVANCE' ? '#e0f2fe' : item.status === 'PARTIAL' ? '#fef3c7' : item.status === 'RT' ? '#ede9fe' : '#fee2e2',
-                        color: item.status === 'PAID' ? '#15803d' : item.status === 'ADVANCE' ? '#0369a1' : item.status === 'PARTIAL' ? '#b45309' : item.status === 'RT' ? '#7c3aed' : '#b91c1c'
+                        background: (item.status === 'CANCELLED' || item.status === 'CANCEL') ? '#f1f5f9' : item.status === 'PAID' ? '#dcfce7' : item.status === 'ADVANCE' ? '#e0f2fe' : item.status === 'PARTIAL' ? '#fef3c7' : item.status === 'RT' ? '#ede9fe' : '#fee2e2',
+                        color: (item.status === 'CANCELLED' || item.status === 'CANCEL') ? '#475569' : item.status === 'PAID' ? '#15803d' : item.status === 'ADVANCE' ? '#0369a1' : item.status === 'PARTIAL' ? '#b45309' : item.status === 'RT' ? '#7c3aed' : '#b91c1c'
                       }}
                     >
                       <span>{item.status}</span>
@@ -2182,31 +2324,6 @@ export default function BackOfficeArSheetView({
                               {!isMobile && 'View'}
                             </button>
                             <button
-                              onClick={() => handleOpenSection4Edit(item)}
-                              title="Update Receipts, Status, Ageing & Remarks"
-                              className="ar-btn-touch"
-                              style={{
-                                padding: '4px 7px',
-                                background: '#fef3c7',
-                                border: '1px solid #fde68a',
-                                borderRadius: '4px',
-                                color: '#b45309',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '3px',
-                                fontSize: '11px',
-                                fontWeight: '700'
-                              }}
-                            >
-                              {savingRowId === item.id ? (
-                                <RefreshCw size={11} className="animate-spin" />
-                              ) : (
-                                <Receipt size={11} />
-                              )}
-                              {!isMobile && 'Status/Rcvd'}
-                            </button>
-                            <button
                               onClick={() => handleOpenEdit(item)}
                               title="Edit All 21 Columns"
                               style={{
@@ -2226,6 +2343,61 @@ export default function BackOfficeArSheetView({
                               <Edit2 size={11} />
                               {!isMobile && 'Edit'}
                             </button>
+                            {item.status === 'CANCELLED' || item.status === 'CANCEL' ? (
+                              <button
+                                onClick={() => handleReactivateOrder(item)}
+                                title="Reactivate this cancelled order"
+                                disabled={savingRowId === item.id}
+                                style={{
+                                  padding: '4px 7px',
+                                  background: '#f0fdf4',
+                                  border: '1px solid #bbf7d0',
+                                  borderRadius: '4px',
+                                  color: '#16a34a',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  opacity: savingRowId === item.id ? 0.6 : 1
+                                }}
+                              >
+                                {savingRowId === item.id ? (
+                                  <RefreshCw size={11} className="animate-spin" />
+                                ) : (
+                                  <RotateCcw size={11} />
+                                )}
+                                {!isMobile && 'Reactivate'}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setCancelItem(item)}
+                                title="Cancel order without deleting data"
+                                disabled={savingRowId === item.id}
+                                style={{
+                                  padding: '4px 7px',
+                                  background: '#fff1f2',
+                                  border: '1px solid #fecdd3',
+                                  borderRadius: '4px',
+                                  color: '#e11d48',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  opacity: savingRowId === item.id ? 0.6 : 1
+                                }}
+                              >
+                                {savingRowId === item.id ? (
+                                  <RefreshCw size={11} className="animate-spin" />
+                                ) : (
+                                  <Ban size={11} />
+                                )}
+                                {!isMobile && 'Cancel Order'}
+                              </button>
+                            )}
                             <button
                               onClick={() => setDeleteId(item.id)}
                               title="Delete Record"
@@ -2438,12 +2610,14 @@ export default function BackOfficeArSheetView({
                                 border: '1px solid #cbd5e1',
                                 cursor: 'pointer',
                                 outline: 'none',
-                                background: item.status === 'PAID' ? '#dcfce7'
+                                background: (item.status === 'CANCELLED' || item.status === 'CANCEL') ? '#f1f5f9'
+                                  : item.status === 'PAID' ? '#dcfce7'
                                   : item.status === 'ADVANCE' ? '#e0f2fe'
                                   : item.status === 'PARTIAL' ? '#fef3c7'
                                   : item.status === 'RT' ? '#ede9fe'
                                   : '#fee2e2',
-                                color: item.status === 'PAID' ? '#15803d'
+                                color: (item.status === 'CANCELLED' || item.status === 'CANCEL') ? '#475569'
+                                  : item.status === 'PAID' ? '#15803d'
                                   : item.status === 'ADVANCE' ? '#0369a1'
                                   : item.status === 'PARTIAL' ? '#b45309'
                                   : item.status === 'RT' ? '#7c3aed'
@@ -2455,6 +2629,7 @@ export default function BackOfficeArSheetView({
                               <option value="PAID">PAID</option>
                               <option value="RT">RT (Retention)</option>
                               <option value="ADVANCE">ADVANCE</option>
+                              <option value="CANCELLED">CANCELLED</option>
                             </select>
                           ) : (
                             <button
@@ -2466,17 +2641,19 @@ export default function BackOfficeArSheetView({
                                 borderRadius: '12px',
                                 fontSize: '11px',
                                 fontWeight: '800',
-                                border: 'none',
+                                border: (item.status === 'CANCELLED' || item.status === 'CANCEL') ? '1px solid #cbd5e1' : 'none',
                                 cursor: 'pointer',
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '3px',
-                                background: item.status === 'PAID' ? '#dcfce7'
+                                background: (item.status === 'CANCELLED' || item.status === 'CANCEL') ? '#f1f5f9'
+                                  : item.status === 'PAID' ? '#dcfce7'
                                   : item.status === 'ADVANCE' ? '#e0f2fe'
                                   : item.status === 'PARTIAL' ? '#fef3c7'
                                   : item.status === 'RT' ? '#ede9fe'
                                   : '#fee2e2',
-                                color: item.status === 'PAID' ? '#15803d'
+                                color: (item.status === 'CANCELLED' || item.status === 'CANCEL') ? '#475569'
+                                  : item.status === 'PAID' ? '#15803d'
                                   : item.status === 'ADVANCE' ? '#0369a1'
                                   : item.status === 'PARTIAL' ? '#b45309'
                                   : item.status === 'RT' ? '#7c3aed'
@@ -2611,8 +2788,19 @@ export default function BackOfficeArSheetView({
                         </td>
 
                         {/* 19. Outstanding */}
-                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '800', color: Number(item.outstanding) > 0 ? '#dc2626' : '#16a34a', borderRight: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
-                          {formatCurrency(item.outstanding)}
+                        <td style={{
+                          padding: '10px 14px',
+                          textAlign: 'right',
+                          fontWeight: '800',
+                          color: (item.status === 'CANCELLED' || item.status === 'CANCEL') ? '#94a3b8' : (Number(item.outstanding) > 0 ? '#dc2626' : '#16a34a'),
+                          borderRight: '1px solid #f1f5f9',
+                          borderBottom: '1px solid #f1f5f9'
+                        }}>
+                          {(item.status === 'CANCELLED' || item.status === 'CANCEL') ? (
+                            <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '11px' }}>₹0.00 (Cancelled)</span>
+                          ) : (
+                            formatCurrency(item.outstanding)
+                          )}
                         </td>
 
                         {/* 20. Remarks - Writable */}
@@ -3137,6 +3325,7 @@ export default function BackOfficeArSheetView({
                         <option value="PAID">PAID</option>
                         <option value="RT">RT (Retention)</option>
                         <option value="ADVANCE">ADVANCE</option>
+                        <option value="CANCELLED">CANCELLED</option>
                       </select>
                     </div>
 
@@ -3777,6 +3966,7 @@ export default function BackOfficeArSheetView({
                           <option value="PAID">PAID</option>
                           <option value="RT">RT (Retention)</option>
                           <option value="ADVANCE">ADVANCE</option>
+                          <option value="CANCELLED">CANCELLED</option>
                         </select>
                       </div>
 
@@ -3924,32 +4114,89 @@ export default function BackOfficeArSheetView({
               gap: '10px',
               flexWrap: 'wrap'
             }}>
-              {/* Delete button */}
-              <button
-                type="button"
-                onClick={() => {
-                  const id = viewItem.id;
-                  setViewModalOpen(false);
-                  setDeleteId(id);
-                }}
-                className="ar-btn-touch"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '9px 14px',
-                  borderRadius: '8px',
-                  border: '1px solid #fecaca',
-                  background: '#fef2f2',
-                  color: '#dc2626',
-                  fontSize: '13px',
-                  fontWeight: '700',
-                  cursor: 'pointer'
-                }}
-              >
-                <Trash2 size={14} />
-                <span>Delete</span>
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* Cancel / Reactivate button */}
+                {(viewItem.status === 'CANCELLED' || viewItem.status === 'CANCEL') ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const item = viewItem;
+                      setViewModalOpen(false);
+                      handleReactivateOrder(item);
+                    }}
+                    className="ar-btn-touch"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '9px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #bbf7d0',
+                      background: '#f0fdf4',
+                      color: '#16a34a',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <RotateCcw size={14} />
+                    <span>Reactivate Order</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const item = viewItem;
+                      setViewModalOpen(false);
+                      setCancelItem(item);
+                    }}
+                    className="ar-btn-touch"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '9px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #fecdd3',
+                      background: '#fff1f2',
+                      color: '#e11d48',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Ban size={14} />
+                    <span>Cancel Order</span>
+                  </button>
+                )}
+
+                {/* Delete button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = viewItem.id;
+                    setViewModalOpen(false);
+                    setDeleteId(id);
+                  }}
+                  className="ar-btn-touch"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '9px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #fecaca',
+                    background: '#fef2f2',
+                    color: '#dc2626',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Trash2 size={14} />
+                  <span>Delete</span>
+                </button>
+              </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <button
@@ -4284,6 +4531,7 @@ export default function BackOfficeArSheetView({
                       <option value="PAID">PAID</option>
                       <option value="RT">RT (Retention)</option>
                       <option value="ADVANCE">ADVANCE</option>
+                      <option value="CANCELLED">CANCELLED</option>
                     </select>
                   </div>
 
@@ -4498,6 +4746,116 @@ export default function BackOfficeArSheetView({
         </div>
       )}
 
+
+      {/* Cancel Order Confirmation Modal (Non-destructive: 100% data preservation) */}
+      {cancelItem && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1100,
+          padding: '16px'
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '16px',
+            maxWidth: '460px',
+            width: '100%',
+            padding: '24px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.25)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '10px',
+                background: '#fff1f2',
+                color: '#e11d48',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <Ban size={22} />
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '17px', fontWeight: '800', color: '#0f172a' }}>
+                  Cancel Order #{cancelItem.invoiceNo}?
+                </h4>
+                <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#64748b' }}>
+                  {cancelItem.companyName} • {formatCurrency(cancelItem.invoiceAmount)}
+                </p>
+              </div>
+            </div>
+
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '10px',
+              padding: '12px 14px',
+              fontSize: '12px',
+              color: '#334155',
+              lineHeight: 1.5,
+              marginBottom: '20px'
+            }}>
+              <div style={{ fontWeight: '700', color: '#0f172a', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <CheckCircle2 size={14} style={{ color: '#16a34a' }} />
+                <span>Zero Data Loss Guaranteed</span>
+              </div>
+              This order will <strong>NOT</strong> be deleted. All records and historical values remain intact in the database.
+              <ul style={{ margin: '6px 0 0', paddingLeft: '18px', color: '#64748b', fontSize: '11px' }}>
+                <li>Status will be marked as <strong style={{ color: '#b91c1c' }}>CANCELLED</strong></li>
+                <li>Outstanding pending recovery will be set to <strong style={{ color: '#0f172a' }}>₹0.00</strong></li>
+                <li>Invoice amount ({formatCurrency(cancelItem.invoiceAmount)}) moves to the <strong style={{ color: '#0f172a' }}>Cancelled Orders</strong> card</li>
+                <li>You can reactivate this order at any time</li>
+              </ul>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setCancelItem(null)}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: '8px',
+                  background: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  color: '#475569',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Keep Active
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmCancel(cancelItem)}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: '8px',
+                  background: '#e11d48',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Ban size={14} />
+                <span>Yes, Cancel Order</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteId && (

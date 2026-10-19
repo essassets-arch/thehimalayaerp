@@ -6,6 +6,7 @@ import {
   fetchHcpplArRegister,
   createHcpplArInvoice,
   updateHcpplArInvoice,
+  cancelHcpplArInvoice,
   deleteHcpplArInvoice
 } from '../services/backOfficeArService';
 
@@ -19,6 +20,7 @@ export default function BackOfficeHcpplAr() {
       fetchRegister={fetchHcpplArRegister}
       createInvoice={createHcpplArInvoice}
       updateInvoice={updateHcpplArInvoice}
+      cancelInvoice={cancelHcpplArInvoice}
       deleteInvoice={deleteHcpplArInvoice}
       brandColor="#4f46e5"
       brandBg="#e0e7ff"

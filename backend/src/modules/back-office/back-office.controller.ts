@@ -170,19 +170,25 @@ export class BackOfficeController {
   }
 
   @Post('appl-ar')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN')
   async createApplAr(@Body() dto: any) {
     return this.backOfficeService.createApplArInvoice(dto);
   }
 
+  @Put('appl-ar/:id/cancel')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN')
+  async cancelApplAr(@Param('id') id: string) {
+    return this.backOfficeService.updateArInvoice('APPL', id, { status: 'CANCELLED', outstanding: 0 });
+  }
+
   @Put('appl-ar/:id')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN')
   async updateApplAr(@Param('id') id: string, @Body() dto: any) {
     return this.backOfficeService.updateApplArInvoice(id, dto);
   }
 
   @Delete('appl-ar/:id')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN')
   async deleteApplAr(@Param('id') id: string) {
     return this.backOfficeService.deleteApplArInvoice(id);
   }
@@ -212,37 +218,43 @@ export class BackOfficeController {
   }
 
   @Post('hcppl-ar')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN')
   async createHcpplAr(@Body() dto: any) {
     return this.backOfficeService.createHcpplArInvoice(dto);
   }
 
+  @Put('hcppl-ar/:id/cancel')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN')
+  async cancelHcpplAr(@Param('id') id: string) {
+    return this.backOfficeService.updateArInvoice('HCPPL', id, { status: 'CANCELLED', outstanding: 0 });
+  }
+
   @Put('hcppl-ar/:id')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN')
   async updateHcpplAr(@Param('id') id: string, @Body() dto: any) {
     return this.backOfficeService.updateHcpplArInvoice(id, dto);
   }
 
   @Delete('hcppl-ar/:id')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN')
   async deleteHcpplAr(@Param('id') id: string) {
     return this.backOfficeService.deleteHcpplArInvoice(id);
   }
 
   @Post('hcppl-ar/entry')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN')
   async createHcpplArEntry(@Body() dto: any) {
     return this.backOfficeService.createHcpplArInvoice(dto);
   }
 
   @Put('hcppl-ar/entry/:id')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN')
   async updateHcpplArEntry(@Param('id') id: string, @Body() dto: any) {
     return this.backOfficeService.updateHcpplArInvoice(id, dto);
   }
 
   @Delete('hcppl-ar/entry/:id')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN')
   async deleteHcpplArEntry(@Param('id') id: string) {
     return this.backOfficeService.deleteHcpplArInvoice(id);
   }

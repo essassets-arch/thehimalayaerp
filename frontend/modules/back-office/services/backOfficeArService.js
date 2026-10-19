@@ -34,6 +34,13 @@ export async function updateApplArInvoice(id, data) {
   });
 }
 
+export async function cancelApplArInvoice(id) {
+  return backendFetch(`/back-office/appl-ar/${id}/cancel`, {
+    method: 'PUT',
+    body: { status: 'CANCELLED', outstanding: 0 }
+  });
+}
+
 export async function deleteApplArInvoice(id) {
   return backendFetch(`/back-office/appl-ar/${id}`, {
     method: 'DELETE'
@@ -70,6 +77,13 @@ export async function updateHcpplArInvoice(id, data) {
   return backendFetch(`/back-office/hcppl-ar/${id}`, {
     method: 'PUT',
     body: data
+  });
+}
+
+export async function cancelHcpplArInvoice(id) {
+  return backendFetch(`/back-office/hcppl-ar/${id}/cancel`, {
+    method: 'PUT',
+    body: { status: 'CANCELLED', outstanding: 0 }
   });
 }
 

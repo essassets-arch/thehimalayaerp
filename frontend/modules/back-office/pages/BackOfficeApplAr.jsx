@@ -6,6 +6,7 @@ import {
   fetchApplArRegister,
   createApplArInvoice,
   updateApplArInvoice,
+  cancelApplArInvoice,
   deleteApplArInvoice
 } from '../services/backOfficeArService';
 
@@ -19,6 +20,7 @@ export default function BackOfficeApplAr() {
       fetchRegister={fetchApplArRegister}
       createInvoice={createApplArInvoice}
       updateInvoice={updateApplArInvoice}
+      cancelInvoice={cancelApplArInvoice}
       deleteInvoice={deleteApplArInvoice}
       brandColor="#0284c7"
       brandBg="#e0f2fe"
