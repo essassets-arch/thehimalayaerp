@@ -390,14 +390,16 @@ export default function TestCertificateDocument({ report, id = 'test-certificate
 
                 {isApproved && report.approvedBySignature !== false ? (
                   <img
-                    src="/himalaya-signature.png"
+                    src="/moksha_sign.png"
                     alt="Authorized Signature"
                     className={styles.signatureImg}
                     crossOrigin="anonymous"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
-                      if (!target.src.includes('ref2.png')) {
-                        target.src = '/ref2.png';
+                      if (!target.src.includes('moksha-signature.png')) {
+                        target.src = '/moksha-signature.png';
+                      } else if (!target.src.includes('himalaya-signature.png')) {
+                        target.src = '/himalaya-signature.png';
                       }
                     }}
                   />
