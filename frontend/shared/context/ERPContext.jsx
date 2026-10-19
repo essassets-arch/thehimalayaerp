@@ -622,13 +622,11 @@ export const ERPProvider = ({ children }) => {
   const currentUser = useAuthStore(auth => auth.user);
   const userRoleStr = String(currentUser?.role || '').toLowerCase();
   const isSalesOrAdmin = userRoleStr.includes('sales') || userRoleStr.includes('admin') || userRoleStr.includes('super');
-  // Preload only for permissions accepted by the sales-order list endpoint.
-  const shouldLoadSalesOrders = Boolean(currentUser) && [
+  const isDispatchUser = userRoleStr.includes('dispatch');
+  // Preload only for roles/permissions that actively consume SalesBackendContext salesOrders.
+  // Exclude dispatch users since the Dispatch 1 & 2 portals use dedicated logistics endpoints.
+  const shouldLoadSalesOrders = Boolean(currentUser) && !isDispatchUser && [
     'sales.orders.read',
-    'logistics.dispatches.read',
-    'dispatch.shipments.read',
-    'dispatch.delivery.verify',
-    'dispatch.update',
     'production.workorder.read',
     'production.work_orders.manage',
     'store.read',

@@ -242,34 +242,59 @@ function isValidCustomerName(name?: any): boolean {
 function resolveCustomerName(entity?: any, ...fallbackEntities: any[]): string {
   const allEntities = [entity, ...fallbackEntities].filter(Boolean);
   for (const obj of allEntities) {
-    if (!obj || typeof obj !== "object") continue;
+    if (!obj || typeof obj !== "object") {
+      if (typeof obj === "string" && isValidCustomerName(obj)) {
+        return obj.trim();
+      }
+      continue;
+    }
 
     const directCandidates = [
+      obj.customerName,
       obj.customer?.companyName,
+      obj.customer?.contactPerson,
       obj.customer?.name,
       obj.salesOrder?.customer?.companyName,
+      obj.salesOrder?.customer?.contactPerson,
       obj.salesOrder?.customer?.name,
       obj.salesOrder?.customerName,
-      obj.customerName,
+      obj.salesOrder?.quotation?.lead?.companyName,
+      obj.salesOrder?.quotation?.lead?.groupName,
+      obj.salesOrder?.quotation?.lead?.projectName,
+      obj.salesOrder?.quotation?.lead?.gstName,
+      obj.salesOrder?.quotation?.lead?.contactPerson,
+      obj.salesOrder?.sourceQuotation?.lead?.companyName,
+      obj.salesOrder?.sourceQuotation?.lead?.groupName,
+      obj.salesOrder?.sourceQuotation?.lead?.projectName,
+      obj.salesOrder?.sourceQuotation?.lead?.gstName,
+      obj.salesOrder?.sourceQuotation?.lead?.contactPerson,
+      obj.sourceQuotation?.lead?.companyName,
+      obj.sourceQuotation?.lead?.groupName,
+      obj.sourceQuotation?.lead?.projectName,
+      obj.sourceQuotation?.lead?.gstName,
+      obj.sourceQuotation?.lead?.contactPerson,
+      obj.sourceQuotation?.customer?.companyName,
+      obj.sourceQuotation?.customerName,
+      obj.quotation?.lead?.companyName,
+      obj.quotation?.lead?.groupName,
+      obj.quotation?.lead?.projectName,
+      obj.quotation?.lead?.gstName,
+      obj.quotation?.lead?.contactPerson,
+      obj.quotation?.customer?.companyName,
+      obj.quotation?.customerName,
+      obj.lead?.companyName,
+      obj.lead?.groupName,
+      obj.lead?.projectName,
+      obj.lead?.gstName,
+      obj.lead?.contactPerson,
+      obj.salesOrder?.lead?.companyName,
+      obj.salesOrder?.lead?.projectName,
       obj.companyName,
       obj.clientName,
       obj.consigneeName,
-      obj.sourceQuotation?.customer?.companyName,
-      obj.sourceQuotation?.customerName,
-      obj.sourceQuotation?.lead?.companyName,
-      obj.quotation?.customer?.companyName,
-      obj.quotation?.customerName,
-      obj.quotation?.lead?.companyName,
-      obj.lead?.companyName,
-      obj.lead?.projectName,
-      obj.salesOrder?.quotation?.customer?.companyName,
-      obj.salesOrder?.quotation?.customerName,
-      obj.salesOrder?.quotation?.lead?.companyName,
-      obj.salesOrder?.sourceQuotation?.customer?.companyName,
-      obj.salesOrder?.sourceQuotation?.customerName,
-      obj.salesOrder?.sourceQuotation?.lead?.companyName,
-      obj.salesOrder?.lead?.companyName,
-      obj.salesOrder?.lead?.projectName,
+      obj.deliveryContactPerson,
+      obj.receiverName,
+      obj.receivedBy,
       obj.workOrder?.productionPlan?.salesOrder?.customer?.companyName,
       obj.workOrder?.productionPlan?.salesOrder?.customerName,
       obj.workOrder?.customer?.companyName,
@@ -280,9 +305,27 @@ function resolveCustomerName(entity?: any, ...fallbackEntities: any[]): string {
         return String(cand).trim();
       }
     }
+
+    const addrSources = [obj.billingAddress, obj.shippingAddress, obj.salesOrder?.billingAddress, obj.salesOrder?.shippingAddress];
+    for (const addr of addrSources) {
+      if (addr && typeof addr === "object") {
+        const addrCand = (addr as any).companyName || (addr as any).customerName || (addr as any).name || (addr as any).contactPerson;
+        if (isValidCustomerName(addrCand)) {
+          return String(addrCand).trim();
+        }
+      }
+    }
   }
 
-  return "Consignee Client";
+  for (const obj of allEntities) {
+    if (!obj || typeof obj !== "object") continue;
+    const soNo = obj.orderNumber || obj.salesOrder?.orderNumber || (obj as any).orderNo;
+    if (soNo && typeof soNo === "string" && soNo.trim()) {
+      return `Client Order (${soNo.trim()})`;
+    }
+  }
+
+  return "Client Order";
 }
 
 function isValidSalesPersonName(name?: any): boolean {
@@ -424,6 +467,7 @@ export default function DeliveryRunPage() {
       const cat = isDispatch2 ? "D2" : "D1";
       const payload = await backendFetch<any>(
         `/api/backend/logistics/dispatches?status=OUT_FOR_DELIVERY&category=${cat}`,
+        { cacheTtlMs: 15000 }
       );
       if (Array.isArray(payload)) return payload;
       if (Array.isArray(payload?.data)) return payload.data;
@@ -431,6 +475,8 @@ export default function DeliveryRunPage() {
       return [];
     },
     refetchInterval: 15000,
+    staleTime: 15000,
+    refetchOnWindowFocus: false,
   });
 
   // 2. Fetch Delivered History Dispatches
@@ -444,6 +490,7 @@ export default function DeliveryRunPage() {
       const cat = isDispatch2 ? "D2" : "D1";
       const payload = await backendFetch<any>(
         `/api/backend/logistics/dispatches?status=DELIVERED&category=${cat}`,
+        { cacheTtlMs: 15000 }
       );
       if (Array.isArray(payload)) return payload;
       if (Array.isArray(payload?.data)) return payload.data;
@@ -451,6 +498,8 @@ export default function DeliveryRunPage() {
       return [];
     },
     refetchInterval: 30000,
+    staleTime: 15000,
+    refetchOnWindowFocus: false,
   });
 
   // Query: Users Map for sales executive lookup
@@ -458,7 +507,7 @@ export default function DeliveryRunPage() {
     queryKey: ["users-master-sales-map"],
     queryFn: async () => {
       try {
-        const res = await backendFetch<any>("/api/backend/users?limit=1000");
+        const res = await backendFetch<any>("/api/backend/users?limit=1000", { cacheTtlMs: 60000 });
         const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : Array.isArray(res?.users) ? res.users : [];
         const map = new Map<string, string>();
         list.forEach((u: any) => {
@@ -472,6 +521,7 @@ export default function DeliveryRunPage() {
       }
     },
     staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Query: Sales Orders Map for accurate customer and sales person lookup
@@ -479,7 +529,10 @@ export default function DeliveryRunPage() {
     queryKey: ["sales-orders-master-map"],
     queryFn: async () => {
       try {
-        const res = await backendFetch<any>("/api/backend/sales/orders?limit=1000");
+        const res = await backendFetch<any>(
+          "/api/backend/sales/orders?limit=300&status=CONFIRMED,IN_PRODUCTION,READY_FOR_PRODUCTION,PLANT_APPROVED,SENT_TO_PLANT,READY_FOR_DISPATCH,COMPLETED,DISPATCHED,PARTIALLY_DISPATCHED",
+          { cacheTtlMs: 30000 }
+        );
         const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
         const map = new Map<string, any>();
         list.forEach((so: any) => {
@@ -496,11 +549,12 @@ export default function DeliveryRunPage() {
       }
     },
     staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const getResolvedMetadata = useCallback(
     (item?: Dispatch | null) => {
-      if (!item) return { customerName: "Consignee Client", salesPersonName: "Sales Executive", matchedSo: null };
+      if (!item) return { customerName: "Client Order", salesPersonName: "Sales Executive", matchedSo: null };
       const soId = String(item.salesOrder?.id || (item as any).salesOrderId || "").toLowerCase();
       const soNumber = String(item.salesOrder?.orderNumber || (item as any).orderNumber || "");
       const matchedSo =
@@ -525,6 +579,7 @@ export default function DeliveryRunPage() {
       }
 
       const customerName = resolveCustomerName(
+        (item as any).customerName,
         item.salesOrder,
         matchedSo,
         localMeta,

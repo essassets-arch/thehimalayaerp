@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useSearchStore } from '@/store/searchStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -155,18 +155,26 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     return Array.from(map.values());
   }, [backendFinishedGoods, storeFinishedGoods, backendReadyWorkOrders]);
 
-  const fetchDashboardData = async () => {
+  const lastFetchTimeRef = useRef(0);
+
+  const fetchDashboardData = async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastFetchTimeRef.current < 20000) {
+      return;
+    }
+    lastFetchTimeRef.current = now;
     setDashboardLoading(true);
     try {
+      const isD2 = effectiveDispatchCat === 'D2' || effectiveDispatchCat === 'DISPATCH 2';
       const catParam = effectiveDispatchCat ? `?category=${effectiveDispatchCat}` : '';
       const [dispatchesRes, workOrdersRes, readyHistoryRes, returnsRes, replacementsRes, finishedGoodsRes, queueRes] = await Promise.allSettled([
-        backendFetch(`/api/backend/logistics/dispatches${catParam}`),
-        backendFetch('/api/backend/production/work-orders?status=READY_FOR_DISPATCH,COMPLETED,DISPATCHED'),
-        backendFetch('/api/backend/production/ready-for-dispatch-history'),
-        backendFetch('/api/backend/sales-returns'),
-        backendFetch('/api/backend/replacements'),
-        backendFetch('/api/backend/production/finished-goods'),
-        backendFetch(`/api/backend/logistics/dispatches/queue${catParam}`),
+        backendFetch(`/api/backend/logistics/dispatches${catParam}`, { cacheTtlMs: 15000 }),
+        isD2 ? Promise.resolve([]) : backendFetch('/api/backend/production/work-orders?status=READY_FOR_DISPATCH,COMPLETED,DISPATCHED', { cacheTtlMs: 15000 }),
+        isD2 ? Promise.resolve([]) : backendFetch('/api/backend/production/ready-for-dispatch-history', { cacheTtlMs: 15000 }),
+        backendFetch('/api/backend/sales-returns', { cacheTtlMs: 15000 }),
+        backendFetch('/api/backend/replacements', { cacheTtlMs: 15000 }),
+        isD2 ? Promise.resolve([]) : backendFetch('/api/backend/production/finished-goods', { cacheTtlMs: 15000 }),
+        backendFetch(`/api/backend/logistics/dispatches/queue${catParam}`, { cacheTtlMs: 15000 }),
       ]);
 
       if (dispatchesRes.status === 'fulfilled' && Array.isArray(dispatchesRes.value)) {
@@ -273,7 +281,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
   };
 
   useEffect(() => {
-    fetchDashboardData();
+    fetchDashboardData(false);
     if (currentView === 'replacements' || currentView === 'history') fetchReplacementDispatches();
   }, [currentView]);
 
@@ -2183,7 +2191,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
           body: payload,
         });
 
-        await fetchDashboardData();
+        await fetchDashboardData(true);
 
         await Swal.fire({ icon: 'success', title: 'Dispatch Created', text: `Consignment created for Order ${queueRecord.orderId || queueRecord.orderNo || 'Stock'}.`, timer: 1500, showConfirmButton: false });
       } catch (err) {
@@ -2527,7 +2535,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
         id: d.dispatchNumber || d.id,
         orderNo: d.salesOrder?.orderNumber || d.orderNumber || order?.orderNo || `SO-${String(d.salesOrderId || '').slice(-6)}`,
         type: 'Sales Order',
-        customerName: d.salesOrder?.customer?.companyName || d.salesOrder?.customer?.name || order?.customerName || 'Consignee',
+        customerName: d.customerName || d.salesOrder?.customer?.companyName || d.salesOrder?.customer?.contactPerson || d.salesOrder?.quotation?.lead?.companyName || d.salesOrder?.sourceQuotation?.lead?.companyName || d.salesOrder?.customer?.name || order?.customerName || (d.salesOrder?.orderNumber ? `Client Order (${d.salesOrder.orderNumber})` : 'Client Order'),
         product: prodText,
         vehicleNo: d.vehicleNumber || d.vehicleNo || '—',
         quantity: totalQty,
@@ -2545,7 +2553,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
         id: d.id || d.dispatchId || d.dispatch_number,
         orderNo: d.orderNo || d.order_number || order?.orderNo || `ORD-${d.orderId || d.order_id || d.sales_order_id}`,
         type: 'Sales Order',
-        customerName: d.customerName || d.customer_name || order?.customerName || order?.customer_name || order?.customer?.name || 'Not recorded',
+        customerName: d.customerName || d.customer_name || d.salesOrder?.customer?.companyName || order?.customerName || order?.customer_name || order?.customer?.name || (order?.orderNo ? `Client Order (${order.orderNo})` : 'Client Order'),
         product: productText(d.product || d.productName || d.products || order?.product || order?.productName || order?.products) || 'Not recorded',
         vehicleNo: d.vehicleNo || d.vehicle_number || '-',
         quantity: Number(d.quantity || d.totalQuantity || d.total_quantity) || 0,

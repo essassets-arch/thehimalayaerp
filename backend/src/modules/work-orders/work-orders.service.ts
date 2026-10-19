@@ -82,10 +82,14 @@ export class WorkOrdersService {
       const user: any = await this.prisma.user.findUnique({
         where: { id: userId },
       });
-      if (user?.dispatchCategory) {
+      const userCat = user?.dispatchCategory || (String(user?.email || '').toLowerCase().includes('sahad') ? 'D2' : null);
+      if (userCat === 'D2' || userCat === 'DISPATCH 2') {
+        return [];
+      }
+      if (userCat) {
         where.salesOrderItem = {
           product: {
-            dispatchCategory: user.dispatchCategory,
+            dispatchCategory: userCat,
           },
         };
       }

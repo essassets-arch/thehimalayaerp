@@ -341,9 +341,27 @@ function resolveCustomerName(entity?: any, ...fallbackEntities: any[]): string {
         return String(cand).trim();
       }
     }
+
+    const addrSources = [obj.billingAddress, obj.shippingAddress, obj.salesOrder?.billingAddress, obj.salesOrder?.shippingAddress];
+    for (const addr of addrSources) {
+      if (addr && typeof addr === "object") {
+        const addrCand = (addr as any).companyName || (addr as any).customerName || (addr as any).name || (addr as any).contactPerson;
+        if (isValidCustomerName(addrCand)) {
+          return String(addrCand).trim();
+        }
+      }
+    }
   }
 
-  return "Consignee Client";
+  for (const obj of allEntities) {
+    if (!obj || typeof obj !== "object") continue;
+    const soNo = obj.orderNumber || obj.salesOrder?.orderNumber || (obj as any).orderNo;
+    if (soNo && typeof soNo === "string" && soNo.trim()) {
+      return `Client Order (${soNo.trim()})`;
+    }
+  }
+
+  return "Client Order";
 }
 
 function resolveProjectName(entity?: any, ...fallbackEntities: any[]): string {
@@ -957,6 +975,7 @@ export default function DispatchOrdersPage() {
         return [];
       };
 
+      const isCategoryD2 = currentCategory === "D2" || currentCategory === "DISPATCH 2";
       const [
         workOrdersPayload,
         readyForDispatchPayload,
@@ -966,16 +985,27 @@ export default function DispatchOrdersPage() {
         queuePayload,
         activeDispatchesPayload,
       ] = await Promise.allSettled([
+        isCategoryD2
+          ? Promise.resolve([])
+          : backendFetch<any>(
+              "/api/backend/production/work-orders?status=READY_FOR_DISPATCH,SENT_TO_DISPATCH,QC_APPROVED,COMPLETED,DISPATCHED",
+              { cacheTtlMs: 15000 }
+            ),
+        isCategoryD2
+          ? Promise.resolve([])
+          : backendFetch<any>("/api/backend/production/ready-for-dispatch", { cacheTtlMs: 15000 }),
+        isCategoryD2
+          ? Promise.resolve([])
+          : backendFetch<any>("/api/backend/production/ready-for-dispatch-history", { cacheTtlMs: 15000 }),
         backendFetch<any>(
-          "/api/backend/production/work-orders?status=READY_FOR_DISPATCH,SENT_TO_DISPATCH,QC_APPROVED,COMPLETED,DISPATCHED",
-          { cacheTtlMs: 0 }
+          "/api/backend/sales/orders?limit=300&status=CONFIRMED,IN_PRODUCTION,READY_FOR_PRODUCTION,PLANT_APPROVED,SENT_TO_PLANT,READY_FOR_DISPATCH,COMPLETED,DISPATCHED,PARTIALLY_DISPATCHED",
+          { cacheTtlMs: 15000 }
         ),
-        backendFetch<any>("/api/backend/production/ready-for-dispatch", { cacheTtlMs: 0 }),
-        backendFetch<any>("/api/backend/production/ready-for-dispatch-history", { cacheTtlMs: 0 }),
-        backendFetch<any>("/api/backend/sales/orders?limit=1000", { cacheTtlMs: 0 }),
-        backendFetch<any>("/api/backend/production/finished-goods", { cacheTtlMs: 0 }),
-        backendFetch<any>(`/api/backend/logistics/dispatches/queue?category=${currentCategory}`, { cacheTtlMs: 0 }),
-        backendFetch<any>(`/api/backend/logistics/dispatches?category=${currentCategory}`, { cacheTtlMs: 0 }),
+        isCategoryD2
+          ? Promise.resolve([])
+          : backendFetch<any>("/api/backend/production/finished-goods", { cacheTtlMs: 15000 }),
+        backendFetch<any>(`/api/backend/logistics/dispatches/queue?category=${currentCategory}`, { cacheTtlMs: 15000 }),
+        backendFetch<any>(`/api/backend/logistics/dispatches?category=${currentCategory}`, { cacheTtlMs: 15000 }),
       ]);
 
       const workOrders: any[] =
@@ -1642,7 +1672,7 @@ export default function DispatchOrdersPage() {
           ? incoming.customerName
           : isValidCustomerName(existing.customerName)
           ? existing.customerName
-          : incoming.customerName || existing.customerName || "Consignee Client";
+          : incoming.customerName || existing.customerName || (incoming.orderNumber ? `Client Order (${incoming.orderNumber})` : "Client Order");
 
         const salesPersonName = isValidSalesPersonName(incoming.salesPersonName)
           ? incoming.salesPersonName
@@ -1693,12 +1723,74 @@ export default function DispatchOrdersPage() {
       };
 
       const combined: UnifiedPendingDispatchItem[] = [];
+      const idIdxMap = new Map<string, number>();
+      const woIdxMap = new Map<string, number>();
+      const soItemIdxMap = new Map<string, number>();
+      const soProdIdxMap = new Map<string, number>();
+      const soProdNameIdxMap = new Map<string, number>();
+      const orderProdIdxMap = new Map<string, number>();
+      const orderProdNameIdxMap = new Map<string, number>();
+
+      const registerItem = (idx: number, item: UnifiedPendingDispatchItem) => {
+        if (item.id) idIdxMap.set(String(item.id).toLowerCase(), idx);
+        if (item.workOrderId) woIdxMap.set(String(item.workOrderId).toLowerCase(), idx);
+        if (item.salesOrderItemId) soItemIdxMap.set(String(item.salesOrderItemId).toLowerCase(), idx);
+        if (item.salesOrderId && item.productId) {
+          soProdIdxMap.set(`${String(item.salesOrderId).toLowerCase()}_${String(item.productId).toLowerCase()}`, idx);
+        }
+        if (item.salesOrderId && item.productName) {
+          soProdNameIdxMap.set(`${String(item.salesOrderId).toLowerCase()}_${String(item.productName).trim().toLowerCase()}`, idx);
+        }
+        const oNorm = normalizeKey(item.orderNumber);
+        if (oNorm && oNorm !== "NA" && oNorm !== "SODISPATCH") {
+          if (item.productId) orderProdIdxMap.set(`${oNorm}_${String(item.productId).toLowerCase()}`, idx);
+          if (item.productName) orderProdNameIdxMap.set(`${oNorm}_${String(item.productName).trim().toLowerCase()}`, idx);
+        }
+      };
+
+      const findExistingIndex = (item: UnifiedPendingDispatchItem): number => {
+        if (!item) return -1;
+        if (item.id && idIdxMap.has(String(item.id).toLowerCase())) {
+          return idIdxMap.get(String(item.id).toLowerCase())!;
+        }
+        if (item.workOrderId && woIdxMap.has(String(item.workOrderId).toLowerCase())) {
+          return woIdxMap.get(String(item.workOrderId).toLowerCase())!;
+        }
+        if (item.salesOrderItemId && soItemIdxMap.has(String(item.salesOrderItemId).toLowerCase())) {
+          return soItemIdxMap.get(String(item.salesOrderItemId).toLowerCase())!;
+        }
+        if (item.salesOrderId && item.productId) {
+          const k = `${String(item.salesOrderId).toLowerCase()}_${String(item.productId).toLowerCase()}`;
+          if (soProdIdxMap.has(k)) return soProdIdxMap.get(k)!;
+        }
+        if (item.salesOrderId && item.productName) {
+          const k = `${String(item.salesOrderId).toLowerCase()}_${String(item.productName).trim().toLowerCase()}`;
+          if (soProdNameIdxMap.has(k)) return soProdNameIdxMap.get(k)!;
+        }
+        const oNorm = normalizeKey(item.orderNumber);
+        if (oNorm && oNorm !== "NA" && oNorm !== "SODISPATCH") {
+          if (item.productId) {
+            const k = `${oNorm}_${String(item.productId).toLowerCase()}`;
+            if (orderProdIdxMap.has(k)) return orderProdIdxMap.get(k)!;
+          }
+          if (item.productName) {
+            const k = `${oNorm}_${String(item.productName).trim().toLowerCase()}`;
+            if (orderProdNameIdxMap.has(k)) return orderProdNameIdxMap.get(k)!;
+          }
+        }
+        return combined.findIndex((c) => isSamePendingItem(c, item));
+      };
+
       const addOrMerge = (item: UnifiedPendingDispatchItem) => {
-        const existingIdx = combined.findIndex((c) => isSamePendingItem(c, item));
-        if (existingIdx >= 0) {
-          combined[existingIdx] = mergePendingItem(combined[existingIdx], item);
+        const existingIdx = findExistingIndex(item);
+        if (existingIdx >= 0 && existingIdx < combined.length) {
+          const merged = mergePendingItem(combined[existingIdx], item);
+          combined[existingIdx] = merged;
+          registerItem(existingIdx, merged);
         } else {
+          const newIdx = combined.length;
           combined.push(item);
+          registerItem(newIdx, item);
         }
       };
 
@@ -1715,6 +1807,8 @@ export default function DispatchOrdersPage() {
       });
     },
     refetchInterval: 30000,
+    staleTime: 15000,
+    refetchOnWindowFocus: false,
   });
 
   // Query 2: History dispatches for inline history tab
@@ -1810,7 +1904,7 @@ export default function DispatchOrdersPage() {
           name && String(name).trim().toUpperCase() === "SHYAM SOHAM REALTY";
 
         if (isValidCustomerName(item.customerName)) {
-          if (!isValidCustomerName(existing.customerName) || existing.customerName === "Consignee Client") {
+          if (!isValidCustomerName(existing.customerName) || existing.customerName === "Consignee Client" || existing.customerName === "Client Order") {
             existing.customerName = item.customerName;
           } else if (isMismatchedShyam(existing.customerName) && !isMismatchedShyam(item.customerName)) {
             existing.customerName = item.customerName;

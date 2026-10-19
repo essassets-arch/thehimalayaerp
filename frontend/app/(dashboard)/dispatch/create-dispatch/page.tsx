@@ -325,9 +325,26 @@ function resolveCustomerName(entity?: any, ...fallbackEntities: any[]): string {
         return String(cand).trim();
       }
     }
+    const addrSources = [obj.billingAddress, obj.shippingAddress, obj.salesOrder?.billingAddress, obj.salesOrder?.shippingAddress];
+    for (const addr of addrSources) {
+      if (addr && typeof addr === "object") {
+        const addrCand = (addr as any).companyName || (addr as any).customerName || (addr as any).name || (addr as any).contactPerson;
+        if (isValidCustomerName(addrCand)) {
+          return String(addrCand).trim();
+        }
+      }
+    }
   }
 
-  return "Consignee Client";
+  for (const obj of allEntities) {
+    if (!obj || typeof obj !== "object") continue;
+    const soNo = obj.orderNumber || obj.salesOrder?.orderNumber || (obj as any).orderNo;
+    if (soNo && typeof soNo === "string" && soNo.trim()) {
+      return `Client Order (${soNo.trim()})`;
+    }
+  }
+
+  return "Client Order";
 }
 
 function formatAddressValue(value?: any): string {
@@ -604,6 +621,8 @@ const EMPTY_ARRAY: any[] = [];
 export default function CreateDispatchPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const isDispatch2 = pathname?.startsWith("/dispatch-2");
   const queryClient = useQueryClient();
   const workOrderId = searchParams.get("workOrderId");
   const salesOrderId = searchParams.get("salesOrderId");
@@ -788,12 +807,15 @@ export default function CreateDispatchPage() {
         allSalesOrdersPayload,
         dispatchesPayload,
       ] = await Promise.allSettled([
-        backendFetch<any>("/api/backend/production/ready-for-dispatch"),
-        backendFetch<any>("/api/backend/production/ready-for-dispatch-history"),
-        backendFetch<any>("/api/backend/production/finished-goods"),
-        backendFetch<any>("/api/backend/logistics/dispatches/queue"),
-        backendFetch<any>("/api/backend/sales/orders?limit=1000"),
-        backendFetch<any>("/api/backend/logistics/dispatches?limit=3000"),
+        isDispatch2 ? Promise.resolve([]) : backendFetch<any>("/api/backend/production/ready-for-dispatch", { cacheTtlMs: 15000 }),
+        isDispatch2 ? Promise.resolve([]) : backendFetch<any>("/api/backend/production/ready-for-dispatch-history", { cacheTtlMs: 15000 }),
+        isDispatch2 ? Promise.resolve([]) : backendFetch<any>("/api/backend/production/finished-goods", { cacheTtlMs: 15000 }),
+        backendFetch<any>(`/api/backend/logistics/dispatches/queue?category=${isDispatch2 ? "D2" : "D1"}`, { cacheTtlMs: 15000 }),
+        backendFetch<any>(
+          "/api/backend/sales/orders?limit=300&status=CONFIRMED,IN_PRODUCTION,READY_FOR_PRODUCTION,PLANT_APPROVED,SENT_TO_PLANT,READY_FOR_DISPATCH,COMPLETED,DISPATCHED,PARTIALLY_DISPATCHED",
+          { cacheTtlMs: 15000 }
+        ),
+        backendFetch<any>(`/api/backend/logistics/dispatches?category=${isDispatch2 ? "D2" : "D1"}&limit=500`, { cacheTtlMs: 15000 }),
       ]);
 
       const rawReady: any[] =
@@ -1470,7 +1492,7 @@ export default function CreateDispatchPage() {
                 id: fallbackId,
                 orderNumber: fallbackOrderNumber,
                 shippingAddress: fallbackAddr,
-                customer: matchedFallbackSo?.customer || { id: "cust-direct", companyName: resolveCustomerName(matchedFallbackSo) || "Consignee Client" },
+                customer: matchedFallbackSo?.customer || { id: "cust-direct", companyName: resolveCustomerName(matchedFallbackSo) || (fallbackOrderNumber ? `Client Order (${fallbackOrderNumber})` : "Client Order") },
               },
             },
             salesOrderItem: {
@@ -1490,8 +1512,6 @@ export default function CreateDispatchPage() {
     },
   });
 
-  const pathname = usePathname();
-  const isDispatch2 = pathname?.startsWith("/dispatch-2");
   const basePath = isDispatch2 ? "/dispatch-2" : "/dispatch";
   const userDispatchCat = isDispatch2 ? "D2" : "D1";
 

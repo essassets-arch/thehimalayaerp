@@ -197,6 +197,56 @@ function formatAddressValue(value?: any): string {
 
   return "";
 }
+function resolveDispatchCustomer(d?: any): string {
+  if (!d) return "Client Order";
+  const candidates = [
+    d.customerName,
+    d.salesOrder?.customer?.companyName,
+    d.salesOrder?.customer?.contactPerson,
+    d.salesOrder?.quotation?.lead?.companyName,
+    d.salesOrder?.quotation?.lead?.groupName,
+    d.salesOrder?.quotation?.lead?.projectName,
+    d.salesOrder?.quotation?.lead?.contactPerson,
+    d.salesOrder?.quotation?.lead?.gstName,
+    d.salesOrder?.sourceQuotation?.lead?.companyName,
+    d.salesOrder?.sourceQuotation?.lead?.groupName,
+    d.salesOrder?.sourceQuotation?.lead?.projectName,
+    d.salesOrder?.sourceQuotation?.lead?.contactPerson,
+    d.salesOrder?.sourceQuotation?.lead?.gstName,
+    d.salesOrder?.customerName,
+    d.salesOrder?.customer?.name,
+    d.customer?.companyName,
+    d.customer?.name,
+    d.consigneeName,
+    d.deliveryContactPerson,
+  ];
+
+  for (const c of candidates) {
+    if (c && typeof c === "string") {
+      const trimmed = c.trim();
+      if (
+        trimmed &&
+        trimmed !== "—" &&
+        trimmed !== "-" &&
+        trimmed !== "N/A" &&
+        trimmed !== "null" &&
+        trimmed !== "undefined" &&
+        trimmed !== "Consignee Client" &&
+        trimmed !== "Client Consignee" &&
+        !trimmed.startsWith("usr_") &&
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)
+      ) {
+        return trimmed;
+      }
+    }
+  }
+
+  const soNo = d.salesOrder?.orderNumber || d.orderNumber;
+  if (soNo && typeof soNo === "string" && soNo.trim()) {
+    return `Client Order (${soNo.trim()})`;
+  }
+  return "Client Order";
+}
 
 function resolveConsignmentAddress(dispatch: Dispatch): string {
   const candidates = [
@@ -505,7 +555,7 @@ export default function DeliveryHistoryPage() {
         "Dispatch Number": formatCleanNo(d.dispatchNo),
         "Sales Order": formatCleanNo(d.salesOrder?.orderNumber),
         "Sales Order Date": formatOrderDate(getSalesOrderDate(d.salesOrder)),
-        Customer: d.salesOrder?.customer?.companyName || (d as any).customerName || (d as any).customer?.name || "—",
+        Customer: resolveDispatchCustomer(d),
         "Invoice Number": invoice,
         "Challan Number": challan,
         "Total Quantity": itemsCount,
@@ -623,8 +673,8 @@ export default function DeliveryHistoryPage() {
               </div>
               <div className={styles.kpiInfo}>
                 <div className={styles.kpiValue}>{uniqueCustomersCount}</div>
-                <div className={styles.kpiLabel}>Consignee Clients</div>
-                <div className={styles.kpiSubtext}>Corporate consignees fulfilled</div>
+                <div className={styles.kpiLabel}>Total Customers</div>
+                <div className={styles.kpiSubtext}>Corporate customers fulfilled</div>
               </div>
             </div>
 
@@ -824,7 +874,7 @@ export default function DeliveryHistoryPage() {
                         <td>
                           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                             <span style={{ fontWeight: 700, color: "#0f172a" }}>
-                              {d.salesOrder?.customer?.companyName || (d as any).customerName || (d as any).customer?.name || "Consignee Client"}
+                              {resolveDispatchCustomer(d)}
                             </span>
                             <span style={{ fontSize: "11.5px", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>
                               {resolveConsignmentAddress(d)}
@@ -974,7 +1024,7 @@ export default function DeliveryHistoryPage() {
                       </div>
                       <div>
                         <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                          {d.salesOrder?.customer?.companyName || "Consignee Client"}
+                          {resolveDispatchCustomer(d)}
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
                           <span style={{ fontSize: "11.5px", color: "#64748b" }}>
@@ -1071,12 +1121,7 @@ export default function DeliveryHistoryPage() {
         const cleanSoNo = formatCleanNo(d.salesOrder?.orderNumber);
         const seqNum = cleanDispNo.replace(/[^0-9]/g, "").slice(-4).padStart(4, "0");
 
-        const customerName =
-          d.salesOrder?.customer?.companyName ||
-          localMeta?.customerName ||
-          (d as any).customerName ||
-          (d as any).customer?.name ||
-          "Consignee Client";
+        const customerName = resolveDispatchCustomer(d);
         const deliveryAddr = resolveConsignmentAddress(d);
 
         // 1. Invoice Number
@@ -1875,11 +1920,7 @@ export default function DeliveryHistoryPage() {
         const podAssetUrl = getBackendAssetUrl(selectedPodItem.podUrl);
         const cleanDispNo = formatCleanNo(selectedPodItem.dispatchNo);
         const cleanSoNo = formatCleanNo(selectedPodItem.salesOrder?.orderNumber);
-        const customerName =
-          selectedPodItem.salesOrder?.customer?.companyName ||
-          (selectedPodItem as any).customerName ||
-          (selectedPodItem as any).customer?.name ||
-          "Consignee Client";
+        const customerName = resolveDispatchCustomer(selectedPodItem);
         const isPdf = Boolean(podAssetUrl && podAssetUrl.toLowerCase().includes(".pdf"));
 
         return (

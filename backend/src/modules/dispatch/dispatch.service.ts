@@ -59,6 +59,40 @@ export class DispatchService {
     };
   }
 
+  private enrichDispatchCustomer(d: any) {
+    if (!d) return d;
+    const so = d.salesOrder;
+    const lead = so?.quotation?.lead || so?.sourceQuotation?.lead;
+    const cust = so?.customer;
+
+    const resolvedCustomerName =
+      (cust?.companyName && String(cust.companyName).trim()) ||
+      (lead?.companyName && String(lead.companyName).trim()) ||
+      (cust?.contactPerson && String(cust.contactPerson).trim()) ||
+      (lead?.groupName && String(lead.groupName).trim()) ||
+      (lead?.projectName && String(lead.projectName).trim()) ||
+      (lead?.gstName && String(lead.gstName).trim()) ||
+      (lead?.contactPerson && String(lead.contactPerson).trim()) ||
+      (so?.customerName && String(so.customerName).trim()) ||
+      (d.customerName && String(d.customerName).trim()) ||
+      (d.deliveryContactPerson && String(d.deliveryContactPerson).trim()) ||
+      (so?.orderNumber ? `Client Order (${so.orderNumber.trim()})` : 'Client Order');
+
+    return {
+      ...d,
+      customerName: resolvedCustomerName,
+      salesOrder: so
+        ? {
+            ...so,
+            customerName: resolvedCustomerName,
+            customer: cust
+              ? { ...cust, companyName: cust.companyName || resolvedCustomerName }
+              : { companyName: resolvedCustomerName, contactPerson: resolvedCustomerName },
+          }
+        : so,
+    };
+  }
+
   async listDispatches(userId?: string, role?: string, status?: string, category?: string) {
     let scope = getSalesScope(userId, role, 'Dispatch');
     const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
@@ -166,15 +200,15 @@ export class DispatchService {
       }
     }
 
-    return this.prisma.dispatch.findMany({
+    const dispatches = await this.prisma.dispatch.findMany({
       where,
       include: {
         salesOrder: {
           include: {
             customer: true,
             salesExecutive: { select: { id: true, name: true, email: true } },
-            sourceQuotation: { include: { lead: true, items: true } },
-            quotation: { include: { lead: true, items: true } },
+            sourceQuotation: { select: { id: true, quotationNumber: true, lead: true } },
+            quotation: { select: { id: true, quotationNumber: true, lead: true } },
           },
         },
         items: {
@@ -190,6 +224,8 @@ export class DispatchService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    return dispatches.map((d: any) => this.enrichDispatchCustomer(d));
   }
 
   async getDispatch(id: string, userId?: string, role?: string) {
@@ -301,8 +337,8 @@ export class DispatchService {
           include: {
             customer: true,
             salesExecutive: { select: { id: true, name: true, email: true } },
-            sourceQuotation: { include: { lead: true, items: true } },
-            quotation: { include: { lead: true, items: true } },
+            sourceQuotation: { select: { id: true, quotationNumber: true, lead: true } },
+            quotation: { select: { id: true, quotationNumber: true, lead: true } },
           },
         },
         items: {
@@ -318,7 +354,7 @@ export class DispatchService {
       },
     });
     if (!dispatch) throw new NotFoundException('Dispatch not found');
-    return dispatch;
+    return this.enrichDispatchCustomer(dispatch);
   }
 
   async getNextInvoiceNumber(): Promise<{ nextInvoiceNumber: string; existingInvoices: string[] }> {
@@ -1894,13 +1930,37 @@ export class DispatchService {
       );
     }
 
-    // 5. Also fetch direct SalesOrders with status READY_FOR_DISPATCH (for Trading goods D2)
+    // 5. Also fetch direct SalesOrders with status READY_FOR_DISPATCH (for Trading goods D2 and completed orders D1)
     try {
+      const isD2User = userCategory === 'D2' || userCategory === 'DISPATCH 2';
+      const isD1User = userCategory === 'D1' || userCategory === 'DISPATCH 1';
+
+      let soWhereStatus: any = { notIn: ['CANCELLED', 'LOST', 'DRAFT'] };
+      let soWhereExtra: any = {};
+
+      if (isD1User) {
+        soWhereStatus = { in: ['READY_FOR_DISPATCH', 'COMPLETED'] };
+      } else if (isD2User) {
+        soWhereStatus = { notIn: ['CANCELLED', 'LOST', 'DRAFT'] };
+        soWhereExtra = {
+          items: {
+            some: {
+              OR: [
+                { product: { isTrading: true } },
+                { product: { productType: 'TRADING' } },
+                { product: { dispatchCategory: { in: ['D2', 'DISPATCH 2', 'DISPATCH_2'] } } },
+              ],
+            },
+          },
+        };
+      }
+
       const readyTradingOrders: any = await this.prisma.salesOrder.findMany({
         where: {
-          status: { notIn: ['CANCELLED', 'LOST', 'DRAFT'] as any },
+          status: soWhereStatus,
           deletedAt: null,
           ...(companyId ? { customer: { companyId } } : {}),
+          ...soWhereExtra,
         },
         include: {
           customer: true,
