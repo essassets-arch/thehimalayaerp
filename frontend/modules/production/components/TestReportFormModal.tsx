@@ -306,7 +306,7 @@ export default function TestReportFormModal({
         finalLoadTon: finalLoadTon.trim() || undefined,
         resultStatement: resultStatement.trim(),
         testedByName: testedByName.trim(),
-        testedByTitle: testedByTitle.trim(),
+        testedByTitle: finalTestedByTitle,
         status: targetStatus,
         remarks: finalRemarks || undefined,
         certificateType: templateType,
@@ -335,6 +335,27 @@ export default function TestReportFormModal({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const loadReferenceSample = () => {
+    setProductName('HIMALAYA FRP COVER & FRAME 300X700');
+    setClearOpening('300X700');
+    setSpecs([
+      { srNo: 1, specification: 'MOC of Material', description: 'FRP (Fiber Reinforced Polymer) ONGC' },
+      { srNo: 2, specification: 'Clear Opening', description: '300X700' },
+      { srNo: 3, specification: 'Cover Size', description: '300X700' },
+      { srNo: 4, specification: 'Frame Size', description: '-' },
+      { srNo: 5, specification: 'Load Bearing', description: '12.5 TON (B125)' },
+      { srNo: 6, specification: 'Colour', description: 'GREY' },
+      { srNo: 7, specification: 'Resin', description: 'Isopthalic' },
+      { srNo: 8, specification: 'Filer Content', description: 'NIL' },
+      { srNo: 9, specification: 'Outdoor use', description: 'Yes' },
+      { srNo: 10, specification: 'Testing Code', description: 'As per EN124-5:2015' },
+      { srNo: 11, specification: 'UV Resistant', description: 'UV Stabilizer' },
+    ]);
+    setTestedByName('R&D Quality Engineer');
+    setTestedByTitle('R&D QUALITY ENGINEER');
+    toast.success('Loaded ONGC 300X700 12.5T sample specs from reference document');
   };
 
   if (!isOpen) return null;
@@ -392,6 +413,78 @@ export default function TestReportFormModal({
           {templateType === 'CERT_2' ? (
             /* ── Certificate 2: JUST the 11-Row Technical Specification Certificate ── */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              {/* Document Metadata Bar */}
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '10px',
+                padding: '16px',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '12px',
+                alignItems: 'end',
+              }}>
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>Certificate / Report No. *</label>
+                  <input
+                    type="text"
+                    required
+                    value={reportNumber}
+                    onChange={(e) => setReportNumber(e.target.value)}
+                    className={styles.formInput}
+                    placeholder="e.g. TC-2026-0001"
+                  />
+                </div>
+
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>Test Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={reportDate}
+                    onChange={(e) => setReportDate(e.target.value)}
+                    className={styles.formInput}
+                  />
+                </div>
+
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>Client / Entity (Optional)</label>
+                  <input
+                    type="text"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    className={styles.formInput}
+                    placeholder="Defaults to HIMALAYA STANDARD"
+                  />
+                </div>
+
+                <div className={styles.formField} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={loadReferenceSample}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      background: '#eff6ff',
+                      color: '#1d4ed8',
+                      border: '1px solid #bfdbfe',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      height: '38px',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title="Load sample values matching the reference specification certificate"
+                  >
+                    <span>⚡</span>
+                    Load Reference (ONGC 300x700 12.5T)
+                  </button>
+                </div>
+              </div>
+
               <div style={{
                 textAlign: 'center',
                 padding: '16px 20px',

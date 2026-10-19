@@ -19,8 +19,20 @@ export const defaultSpecificationsCert2: TestSpecificationRow[] = [
 ];
 
 export function resolveCertificate2Rows(report: TestCertificateData): TestSpecificationRow[] {
-  // If report has explicit specifications matching Cert 2 keys, use them directly
   const existingSpecs = report.specifications || [];
+
+  // If report already has explicit Cert 2 specification rows saved, use them directly!
+  if (
+    existingSpecs.length >= 10 &&
+    existingSpecs.some((s) => (s.specification || '').toLowerCase().includes('cover size'))
+  ) {
+    return existingSpecs.map((s, idx) => ({
+      srNo: s.srNo || idx + 1,
+      specification: s.specification,
+      description: s.description ?? '',
+    }));
+  }
+
   const findExisting = (keywords: string[]) => {
     const match = existingSpecs.find((s) => {
       const name = (s.specification || '').toLowerCase();

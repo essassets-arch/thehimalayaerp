@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
   Plus, Edit2, Trash2, Printer, Search, Download, FileText,
   CheckCircle, XCircle, AlertCircle, ClipboardList, X, Loader2,
-  Eye, RotateCcw, RefreshCw
+  Eye, RotateCcw, RefreshCw, ShieldCheck, FileCheck2, Clock, Layers
 } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -35,6 +35,7 @@ export default function ProductionTestingPage() {
   const [reportsError, setReportsError] = useState<string | null>(null);
   const [reportSearch, setReportSearch] = useState('');
   const [reportStatusFilter, setReportStatusFilter] = useState('ALL');
+  const [reportTemplateFilter, setReportTemplateFilter] = useState<'ALL' | 'CERT_1' | 'CERT_2'>('ALL');
 
   // Modals for Testing Reports
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -143,7 +144,7 @@ export default function ProductionTestingPage() {
     fetchReports();
   }, [reportStatusFilter]);
 
-  /* ── Check if Report is Certificate 2 ── */
+  /* ── Check if Report is Certificate 2 (TDS / Specification Sheet) ── */
   const isCert2Report = (report: TestCertificateData | null | undefined): boolean => {
     if (!report) return false;
     if ((report as any).certificateType === 'CERT_2' || (report as any).certificateType === 'TDS' || (report as any).certificateType === 'FRP_COVER_FRAME') return true;
@@ -154,6 +155,26 @@ export default function ProductionTestingPage() {
       return n.includes('cover size') || n.includes('frame size');
     });
   };
+
+  /* ── KPI Summary Calculations ── */
+  const metrics = useMemo(() => {
+    const total = reports.length;
+    const approved = reports.filter((r) => r.status === 'Approved').length;
+    const pending = reports.filter((r) => r.status === 'Pending Approval' || r.status === 'Draft').length;
+    const cert2Count = reports.filter((r) => isCert2Report(r)).length;
+    const cert1Count = total - cert2Count;
+    const totalDeductedStock = records.reduce((acc, r) => acc + (Number(r.quantity) || 0), 0);
+
+    return {
+      total,
+      approved,
+      pending,
+      cert2Count,
+      cert1Count,
+      totalDeductedStock,
+      totalLogs: records.length,
+    };
+  }, [reports, records]);
 
   /* ── Direct PDF Download from Register Row ── */
   const handleDownloadRowPdf = async (report: TestCertificateData) => {
@@ -207,20 +228,23 @@ export default function ProductionTestingPage() {
 
   /* ── Quick Approve from Register ── */
   const handleQuickApprove = async (report: TestCertificateData) => {
-    const rows = report.loadTestingRows || [];
-    const missingLoad = rows.some((r) => !r.load || String(r.load).trim() === '');
-    if (missingLoad) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Measurements Incomplete',
-        text: 'All five load sequence stages must have recorded load values before approval. Please edit the report first.',
-      });
-      return;
+    const isC2 = isCert2Report(report);
+    if (!isC2) {
+      const rows = report.loadTestingRows || [];
+      const missingLoad = rows.some((r) => !r.load || String(r.load).trim() === '');
+      if (missingLoad) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Measurements Incomplete',
+          text: 'All five load sequence stages must have recorded load values before approval. Please edit the report first.',
+        });
+        return;
+      }
     }
 
     const confirm = await Swal.fire({
       title: 'Approve Certificate?',
-      text: `Approve and digitally sign ${report.reportNumber}?`,
+      text: `Approve and apply official signature & seal to ${report.reportNumber}?`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Approve & Sign',
@@ -234,7 +258,7 @@ export default function ProductionTestingPage() {
         method: 'PATCH',
         body: { status: 'Approved' },
       });
-      toast.success('Certificate approved and signed');
+      toast.success('Certificate approved and digitally signed');
       fetchReports();
     } catch (err: any) {
       toast.error(err?.message || 'Approval failed');
@@ -273,15 +297,15 @@ export default function ProductionTestingPage() {
     const wsData = reports.map((r) => ({
       'Certificate No': r.reportNumber,
       'Revision': r.revision ?? 0,
+      'Type': isCert2Report(r) ? 'TDS Technical Specification' : 'MTC Proof Load',
       'Date': r.reportDate ? new Date(r.reportDate).toLocaleDateString('en-GB') : '',
       'Client Name': r.clientName,
       'P.O. No': r.poNumber || '',
       'Product Name': r.productName,
       'Clear Opening': r.clearOpening || '',
-      'Quantity Supply': r.quantitySupply || '',
-      'Project Name': r.projectName || '',
+      'Capacity Rating': r.finalLoadTon ? `${r.finalLoadTon} Ton` : r.cycleLoadsTon ? `${r.cycleLoadsTon} Ton` : '',
       'Status': r.status,
-      'Tested By': r.testedByName || 'Sana Konda Reddy',
+      'Tested By': r.testedByName || 'R&D Quality Engineer',
       'Approved By': r.approvedByName || '',
       'Approved Date': r.approvedAt ? new Date(r.approvedAt).toLocaleDateString('en-GB') : '',
     }));
@@ -466,6 +490,10 @@ export default function ProductionTestingPage() {
   );
 
   const filteredReports = reports.filter(r => {
+    if (reportStatusFilter !== 'ALL' && r.status !== reportStatusFilter) return false;
+    if (reportTemplateFilter === 'CERT_1' && isCert2Report(r)) return false;
+    if (reportTemplateFilter === 'CERT_2' && !isCert2Report(r)) return false;
+
     if (!reportSearch.trim()) return true;
     const term = reportSearch.toLowerCase();
     return (
@@ -473,19 +501,20 @@ export default function ProductionTestingPage() {
       (r.clientName || '').toLowerCase().includes(term) ||
       (r.productName || '').toLowerCase().includes(term) ||
       (r.poNumber || '').toLowerCase().includes(term) ||
-      (r.projectName || '').toLowerCase().includes(term)
+      (r.projectName || '').toLowerCase().includes(term) ||
+      (r.clearOpening || '').toLowerCase().includes(term)
     );
   });
 
   const StatusBadge = ({ status }: { status: string }) => {
     const map = {
-      'Approved':     [styles.badgeApproved,  <CheckCircle  key="i" size={10} />, 'Approved'],
-      'Rejected':     [styles.badgeRejected,  <XCircle      key="i" size={10} />, 'Rejected'],
-      'Needs Retest': [styles.badgeRetest,    <AlertCircle  key="i" size={10} />, 'Needs Retest'],
-      'Pending Approval': [styles.badgePending, <AlertCircle key="i" size={10} />, 'Pending Approval'],
-      'Draft':        [styles.badgePending,   null, 'Draft'],
+      'Approved':     [styles.badgeApproved,  <CheckCircle  key="i" size={11} />, 'Approved'],
+      'Rejected':     [styles.badgeRejected,  <XCircle      key="i" size={11} />, 'Rejected'],
+      'Needs Retest': [styles.badgeRetest,    <AlertCircle  key="i" size={11} />, 'Needs Retest'],
+      'Pending Approval': [styles.badgePending, <Clock key="i" size={11} />, 'Pending Approval'],
+      'Draft':        [styles.badgePending,   <Clock key="i" size={11} />, 'Draft'],
     };
-    const [cls, icon, label] = (map as Record<string, any>)[status] ?? [styles.badgePending, null, status || 'Pending'];
+    const [cls, icon, label] = (map as Record<string, any>)[status] ?? [styles.badgePending, <Clock key="i" size={11} />, status || 'Pending'];
     return (
       <span className={`${styles.badge} ${cls}`}>
         {icon} {label}
@@ -495,70 +524,168 @@ export default function ProductionTestingPage() {
 
   return (
     <div className={styles.page}>
-      {/* ── Top Tabs Navigation ── */}
-      <div className={styles.tabNav}>
-        <button
-          className={`${styles.tabBtn} ${activeTab === 'reports' ? styles.tabBtnActive : ''}`}
-          onClick={() => setActiveTab('reports')}
-        >
-          <FileText size={16} />
-          Testing Reports &amp; Certificates
-          {reports.length > 0 && <span className={styles.tabBadge}>{reports.length}</span>}
-        </button>
+      <div className={styles.contentWrapper}>
+        {/* ── Hero Container ── */}
+        <section className={styles.heroContainer}>
+          <div className={styles.heroGlow1} />
+          <div className={styles.heroGlow2} />
 
-        <button
-          className={`${styles.tabBtn} ${activeTab === 'log' ? styles.tabBtnActive : ''}`}
-          onClick={() => setActiveTab('log')}
-        >
-          <ClipboardList size={16} />
-          Testing Log (Stock Deductions)
-          {records.length > 0 && <span className={styles.tabBadge}>{records.length}</span>}
-        </button>
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════════════
-         TAB 1: TESTING REPORTS & CERTIFICATES (PRIMARY MODULE)
-         ══════════════════════════════════════════════════════════════════ */}
-      {activeTab === 'reports' && (
-        <>
-          {/* Header */}
-          <div className={styles.header}>
-            <div className={styles.headerText}>
-              <h1 className={styles.title}>Testing Reports &amp; Certificates</h1>
-              <p className={styles.subtitle}>
-                ISO / EN 124 compliant load test certificates with verified sequence stages, authorized signatures, and PDF generation.
+          <div className={styles.heroTopRow}>
+            <div className={styles.heroTitleSection}>
+              <div className={styles.heroBadge}>
+                <ShieldCheck size={13} />
+                <span>Quality Assurance &amp; Testing Management · ISO / EN 124 Compliant</span>
+              </div>
+              <h1 className={styles.heroTitle}>Production Testing &amp; Quality Certification</h1>
+              <p className={styles.heroSubtitle}>
+                Issue certified Test Certificates (TDS Technical Specification Sheets &amp; MTC Proof Load Certificates), track sequential pressure test cycles, and manage destructive physical sample stock deductions.
               </p>
             </div>
 
-            <div className={styles.headerActions}>
-              <button className={`${styles.btn} ${styles.btnGreen}`} onClick={exportReportsToExcel}>
-                <Download size={14} />
-                <span className={styles.btnLabel}>Excel Register</span>
-              </button>
+            <div className={styles.heroActions}>
               <button
-                className={`${styles.btn} ${styles.btnPrimary}`}
+                type="button"
+                className={styles.btnActionLight}
                 onClick={() => {
-                  setEditingReport(null);
-                  setIsFormOpen(true);
+                  fetchReports();
+                  fetchRecords();
+                }}
+                title="Refresh Live Data"
+              >
+                <RefreshCw size={14} className={reportsLoading || loading ? 'animate-spin' : ''} />
+                <span>Refresh Feed</span>
+              </button>
+
+              <button
+                type="button"
+                className={styles.btnActionGreen}
+                onClick={activeTab === 'reports' ? exportReportsToExcel : exportToExcel}
+                title="Export Excel Register"
+              >
+                <Download size={14} />
+                <span>Export Excel</span>
+              </button>
+
+              <button
+                type="button"
+                className={styles.btnActionPrimary}
+                onClick={() => {
+                  if (activeTab === 'reports') {
+                    setEditingReport(null);
+                    setIsFormOpen(true);
+                  } else {
+                    fetchProducts();
+                    setProductSearch('');
+                    setShowForm(true);
+                    setEditingId(null);
+                    setFormData({ productId: '', productName: '', quantity: '', remarks: '' });
+                  }
                 }}
               >
-                <Plus size={14} />
-                New Test Certificate
+                <Plus size={15} />
+                <span>{activeTab === 'reports' ? 'New Test Certificate' : 'Add Test Record'}</span>
               </button>
             </div>
           </div>
 
-          {/* Table Card */}
+          {/* ── KPI Metrics Grid ── */}
+          <div className={styles.kpiGrid}>
+            <div className={styles.kpiCard}>
+              <div className={`${styles.kpiIconBox} ${styles.kpiIconBlue}`}>
+                <FileCheck2 size={22} />
+              </div>
+              <div className={styles.kpiInfo}>
+                <div className={styles.kpiValue}>{metrics.total}</div>
+                <div className={styles.kpiLabel}>Total Certificates Issued</div>
+                <div className={styles.kpiSubtext}>
+                  {metrics.cert2Count} TDS Specs · {metrics.cert1Count} MTC Reports
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.kpiCard}>
+              <div className={`${styles.kpiIconBox} ${styles.kpiIconGreen}`}>
+                <CheckCircle size={22} />
+              </div>
+              <div className={styles.kpiInfo}>
+                <div className={styles.kpiValue}>{metrics.approved}</div>
+                <div className={styles.kpiLabel}>Approved &amp; Digitally Signed</div>
+                <div className={styles.kpiSubtext}>Official sealed QA documents</div>
+              </div>
+            </div>
+
+            <div className={styles.kpiCard}>
+              <div className={`${styles.kpiIconBox} ${styles.kpiIconAmber}`}>
+                <Clock size={22} />
+              </div>
+              <div className={styles.kpiInfo}>
+                <div className={styles.kpiValue}>{metrics.pending}</div>
+                <div className={styles.kpiLabel}>Pending QA / In Inspection</div>
+                <div className={styles.kpiSubtext}>Drafts &amp; awaiting approval</div>
+              </div>
+            </div>
+
+            <div className={styles.kpiCard}>
+              <div className={`${styles.kpiIconBox} ${styles.kpiIconPurple}`}>
+                <ClipboardList size={22} />
+              </div>
+              <div className={styles.kpiInfo}>
+                <div className={styles.kpiValue}>{metrics.totalDeductedStock.toLocaleString()} PCS</div>
+                <div className={styles.kpiLabel}>Physical Stock Deducted</div>
+                <div className={styles.kpiSubtext}>Across {metrics.totalLogs} destructive test logs</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Top Segmented Tabs Navigation ── */}
+        <div className={styles.tabNav}>
+          <button
+            className={`${styles.tabBtn} ${activeTab === 'reports' ? styles.tabBtnActive : ''}`}
+            onClick={() => setActiveTab('reports')}
+          >
+            <FileText size={16} />
+            <span>Test Reports &amp; Certificates</span>
+            {reports.length > 0 && <span className={styles.tabBadge}>{reports.length}</span>}
+          </button>
+
+          <button
+            className={`${styles.tabBtn} ${activeTab === 'log' ? styles.tabBtnActive : ''}`}
+            onClick={() => setActiveTab('log')}
+          >
+            <ClipboardList size={16} />
+            <span>Testing Log (Stock Deductions)</span>
+            {records.length > 0 && <span className={styles.tabBadge}>{records.length}</span>}
+          </button>
+        </div>
+
+        {/* ══════════════════════════════════════════════════════════════════
+           TAB 1: TESTING REPORTS & CERTIFICATES (PRIMARY MODULE)
+           ══════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'reports' && (
           <div className={styles.tableCard}>
             {/* Toolbar */}
             <div className={styles.tableToolbar}>
               <div className={styles.tableTitle}>
-                <FileText size={15} color="#8893A7" />
+                <FileText size={16} color="#0284c7" />
                 <span className={styles.tableTitleText}>Certificate Register</span>
                 {!reportsLoading && <span className={styles.countBadge}>{filteredReports.length}</span>}
               </div>
 
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className={styles.filterGroup}>
+                {/* Template Filter (TDS Specification vs MTC Proof Load) */}
+                <select
+                  value={reportTemplateFilter}
+                  onChange={(e) => setReportTemplateFilter(e.target.value as any)}
+                  className={styles.selectFilter}
+                  aria-label="Filter by Document Template"
+                >
+                  <option value="ALL">All Document Types</option>
+                  <option value="CERT_2">TDS — Technical Data Specs</option>
+                  <option value="CERT_1">MTC — Mill Test &amp; Proof Load</option>
+                </select>
+
+                {/* Status Filter */}
                 <select
                   value={reportStatusFilter}
                   onChange={(e) => setReportStatusFilter(e.target.value)}
@@ -566,12 +693,13 @@ export default function ProductionTestingPage() {
                   aria-label="Filter by Status"
                 >
                   <option value="ALL">All Statuses</option>
-                  <option value="Draft">Draft</option>
-                  <option value="Pending Approval">Pending Approval</option>
                   <option value="Approved">Approved</option>
+                  <option value="Pending Approval">Pending Approval</option>
+                  <option value="Draft">Draft</option>
                   <option value="Rejected">Rejected</option>
                 </select>
 
+                {/* Search */}
                 <div className={styles.searchWrap}>
                   <Search className={styles.searchIcon} />
                   <input
@@ -584,12 +712,16 @@ export default function ProductionTestingPage() {
                 </div>
 
                 <button
-                  className={`${styles.btn} ${styles.btnPrimary}`}
-                  style={{ minHeight: '36px', padding: '6px 10px' }}
-                  onClick={fetchReports}
-                  title="Refresh Certificates"
+                  type="button"
+                  className={styles.btnActionPrimary}
+                  style={{ minHeight: '38px', padding: '8px 14px', fontSize: '13px' }}
+                  onClick={() => {
+                    setEditingReport(null);
+                    setIsFormOpen(true);
+                  }}
                 >
-                  <RefreshCw size={14} />
+                  <Plus size={14} />
+                  <span>New Certificate</span>
                 </button>
               </div>
             </div>
@@ -598,28 +730,34 @@ export default function ProductionTestingPage() {
             {reportsLoading ? (
               <div className={styles.stateBox}>
                 <div className={styles.spinner} />
-                <span className={styles.stateHint}>Loading test certificates from database…</span>
+                <p className={styles.stateTitle}>Loading test certificates…</p>
+                <span className={styles.stateHint}>Fetching ISO / EN 124 compliant records from database</span>
               </div>
             ) : reportsError ? (
               <div className={styles.stateBox}>
-                <div className={styles.stateIcon}><AlertCircle size={26} color="#ef4444" /></div>
+                <div className={styles.stateIcon}><AlertCircle size={28} color="#ef4444" /></div>
                 <p className={styles.stateTitle} style={{ color: '#ef4444' }}>Unable to load test certificates</p>
                 <p className={styles.stateHint}>{reportsError}</p>
                 <button
                   onClick={fetchReports}
-                  style={{ marginTop: '10px', padding: '6px 14px', borderRadius: '6px', background: '#0284c7', color: '#fff', border: 'none', cursor: 'pointer' }}
+                  className={styles.btnActionPrimary}
+                  style={{ marginTop: '8px', padding: '7px 16px', fontSize: '12.5px' }}
                 >
-                  Retry
+                  Retry Connection
                 </button>
               </div>
             ) : filteredReports.length === 0 ? (
               <div className={styles.stateBox}>
-                <div className={styles.stateIcon}><FileText size={26} /></div>
+                <div className={styles.stateIcon}><FileText size={28} /></div>
                 <p className={styles.stateTitle}>
-                  {reportSearch ? 'No certificates match your search' : 'No test certificates generated yet'}
+                  {reportSearch || reportStatusFilter !== 'ALL' || reportTemplateFilter !== 'ALL'
+                    ? 'No certificates match your search filters'
+                    : 'No test certificates generated yet'}
                 </p>
                 <p className={styles.stateHint}>
-                  {reportSearch ? 'Try a different search term or clear the filter' : 'Click "New Test Certificate" above to generate your first certificate'}
+                  {reportSearch || reportStatusFilter !== 'ALL' || reportTemplateFilter !== 'ALL'
+                    ? 'Try adjusting your search terms or clearing status and document type filters.'
+                    : 'Click "New Certificate" above to generate your first technical specification sheet or proof load test certificate.'}
                 </p>
               </div>
             ) : (
@@ -627,59 +765,84 @@ export default function ProductionTestingPage() {
                 <table className={styles.table}>
                   <thead className={styles.thead}>
                     <tr>
-                      <th>Certificate No.</th>
+                      <th>Certificate No. &amp; Type</th>
                       <th>Date</th>
-                      <th>Client Name</th>
-                      <th>Product Name</th>
-                      <th>Clear Opening</th>
-                      <th>Test Capacity</th>
+                      <th>Client Name &amp; PO</th>
+                      <th>Product &amp; Clear Opening</th>
+                      <th>Capacity Rating</th>
                       <th>Status</th>
-                      <th>Tested / Approved By</th>
-                      <th style={{ textAlign: 'right', minWidth: '180px' }}>Actions</th>
+                      <th>Signatory</th>
+                      <th style={{ textAlign: 'right', minWidth: '190px' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody className={styles.tbody}>
                     {filteredReports.map((report) => (
                       <tr key={report.id}>
                         <td>
-                          <code className={styles.refCode}>{report.reportNumber}</code>
-                          {report.revision !== undefined && (
-                            <span className={styles.revBadge}>Rev {report.revision}</span>
-                          )}
-                          {isCert2Report(report) ? (
-                            <span className={styles.cert2Badge} title="Certificate 2: TDS - Technical Data Specification">TDS</span>
-                          ) : (
-                            <span className={styles.cert1Badge} title="Certificate 1: MTC & Proof Load">MTC</span>
-                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                            <code className={styles.refCode}>{report.reportNumber}</code>
+                            {report.revision !== undefined && (
+                              <span className={styles.revBadge}>Rev {report.revision}</span>
+                            )}
+                            {isCert2Report(report) ? (
+                              <span className={styles.cert2Badge} title="Certificate 2: TDS - Technical Data Specification">
+                                <FileText size={10} /> TDS Spec
+                              </span>
+                            ) : (
+                              <span className={styles.cert1Badge} title="Certificate 1: MTC & Proof Load">
+                                <Layers size={10} /> MTC Proof
+                              </span>
+                            )}
+                          </div>
                         </td>
-                        <td>{report.reportDate ? new Date(report.reportDate).toLocaleDateString('en-GB') : '-'}</td>
-                        <td>
-                          <strong>{report.clientName}</strong>
+                        <td style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
+                          {report.reportDate ? new Date(report.reportDate).toLocaleDateString('en-GB') : '-'}
+                        </td>
+                        <td className={styles.clientCell}>
+                          <div style={{ fontWeight: 700, color: '#0f172a' }}>{report.clientName}</div>
                           {report.poNumber && (
-                            <div style={{ fontSize: '11px', color: '#64748b' }}>PO: {report.poNumber}</div>
+                            <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                              PO: <span style={{ fontWeight: 600, color: '#475569' }}>{report.poNumber}</span>
+                            </div>
+                          )}
+                          {report.projectName && (
+                            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '1px' }}>
+                              {report.projectName}
+                            </div>
                           )}
                         </td>
                         <td className={styles.productCell}>
-                          <div style={{ fontWeight: 600, color: '#1e293b' }}>{report.productName}</div>
-                          {report.projectName && (
-                            <div style={{ fontSize: '11px', color: '#64748b' }}>Proj: {report.projectName}</div>
+                          <div style={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.3 }}>{report.productName}</div>
+                          {report.clearOpening && (
+                            <div style={{ fontSize: '11.5px', color: '#0284c7', fontWeight: 600, marginTop: '2px' }}>
+                              Opening: {report.clearOpening}
+                            </div>
                           )}
                         </td>
-                        <td>{report.clearOpening || '-'}</td>
                         <td>
-                          <strong>{report.finalLoadTon ? `${report.finalLoadTon} Ton` : report.cycleLoadsTon ? `${report.cycleLoadsTon} Ton` : '-'}</strong>
+                          <span className={styles.capacityBadge}>
+                            {report.finalLoadTon
+                              ? `${report.finalLoadTon} Ton`
+                              : report.cycleLoadsTon
+                              ? `${report.cycleLoadsTon} Ton`
+                              : isCert2Report(report)
+                              ? '12.5T (B125)'
+                              : '-'}
+                          </span>
                         </td>
                         <td>
                           <StatusBadge status={report.status || 'Draft'} />
                         </td>
                         <td style={{ fontSize: '12px', color: '#64748b' }}>
-                          <div>Tested: {report.testedByName || 'Sana Konda Reddy'}</div>
+                          <div>Tested: <span style={{ fontWeight: 600, color: '#334155' }}>{report.testedByName || (isCert2Report(report) ? 'R&D Quality Engineer' : 'Sana Konda Reddy')}</span></div>
                           {report.approvedByName && (
-                            <div style={{ color: '#166534', fontWeight: 600 }}>Appr: {report.approvedByName}</div>
+                            <div style={{ color: '#166534', fontWeight: 700, marginTop: '2px' }}>
+                              ✓ Appr: {report.approvedByName}
+                            </div>
                           )}
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <div className={styles.actions} style={{ justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
+                          <div className={styles.actions}>
                             {/* Visible Download PDF Button right on the register row */}
                             <button
                               className={styles.btnRowPdf}
@@ -711,7 +874,7 @@ export default function ProductionTestingPage() {
                             {report.status !== 'Approved' && (
                               <button
                                 className={styles.actionBtn}
-                                title="Approve & Sign"
+                                title="Approve & Sign Certificate"
                                 onClick={() => handleQuickApprove(report)}
                               >
                                 <CheckCircle size={14} color="#16a34a" />
@@ -759,254 +922,255 @@ export default function ProductionTestingPage() {
               </div>
             )}
           </div>
-        </>
-      )}
+        )}
 
-      {/* ══════════════════════════════════════════════════════════════════
-         TAB 2: QUALITY TESTING LOG (STOCK DEDUCTION)
-         ══════════════════════════════════════════════════════════════════ */}
-      {activeTab === 'log' && (
-        <>
-          {/* Header */}
-          <div className={styles.header}>
-            <div className={styles.headerText}>
-              <h1 className={styles.title}>Production Testing Log</h1>
-              <p className={styles.subtitle}>Manage physical sample testing records and finished goods stock deductions.</p>
-            </div>
-
-            <div className={styles.headerActions}>
-              <button className={`${styles.btn} ${styles.btnGreen}`} onClick={exportToExcel}>
-                <Download size={14} />
-                <span className={styles.btnLabel}>Excel</span>
-              </button>
-              <button className={`${styles.btn} ${styles.btnRed}`} onClick={exportToPDF}>
-                <FileText size={14} />
-                <span className={styles.btnLabel}>PDF</span>
-              </button>
-              <button
-                className={`${styles.btn} ${styles.btnPrimary}`}
-                disabled={isSubmitting}
-                onClick={() => {
-                  fetchProducts();
-                  setProductSearch('');
-                  setShowForm(true);
-                  setEditingId(null);
-                  setFormData({ productId: '', productName: '', quantity: '', remarks: '' });
-                }}
-              >
-                <Plus size={14} />
-                Add Record
-              </button>
-            </div>
-          </div>
-
-          {/* Form */}
-          {showForm && (
-            <div className={styles.formCard}>
-              <div className={styles.formHeader}>
-                <h3 className={styles.formTitle}>{editingId ? 'Edit Record' : 'Add New Record'}</h3>
-                <button className={styles.formClose} disabled={isSubmitting} onClick={handleCancelForm} aria-label="Close form">
-                  <X size={18} />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmit} className={styles.formGrid}>
-                <div className={`${styles.formField} ${styles.wide}`}>
-                  <label className={styles.formLabel}>Product / Material Name *</label>
-                  {editingId ? (
-                    <input className={styles.formInput} value={formData.productName} disabled />
-                  ) : (
-                    <>
-                      <input
-                        type="search"
-                        aria-label="Search product master"
-                        placeholder="Search products by name or code"
-                        value={productSearch}
-                        disabled={isSubmitting}
-                        onChange={e => setProductSearch(e.target.value)}
-                        className={styles.formInput}
-                      />
-                      <select
-                        required
-                        aria-label="Product / Material Name"
-                        value={formData.productId}
-                        disabled={isSubmitting || !!productError}
-                        className={styles.formInput}
-                        onChange={e => setFormData({ ...formData, productId: e.target.value })}
-                      >
-                        <option value="">Select a product</option>
-                        {products
-                          .filter(p => p.id === formData.productId || [p.name, p.sku, p.publicId].join(' ').toLowerCase().includes(productSearch.toLowerCase()))
-                          .map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku || p.publicId})</option>)}
-                      </select>
-                      {productError && (
-                        <div role="alert" style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px' }}>
-                          {productError} <button type="button" onClick={fetchProducts} style={{ textDecoration: 'underline', background: 'none', border: 'none', color: '#0284c7', cursor: 'pointer' }}>Retry</button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>Quantity (PCS) *</label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    step="1"
-                    disabled={isSubmitting || !!editingId}
-                    placeholder="e.g. 50"
-                    value={formData.quantity}
-                    onChange={e => setFormData({ ...formData, quantity: e.target.value })}
-                    className={styles.formInput}
-                  />
-                </div>
-
-                <div className={`${styles.formField} ${styles.wide}`}>
-                  <label className={styles.formLabel}>Remarks / Testing Notes</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Dimensional and pressure test parameters verified"
-                    disabled={isSubmitting}
-                    value={formData.remarks}
-                    onChange={e => setFormData({ ...formData, remarks: e.target.value })}
-                    className={styles.formInput}
-                  />
-                </div>
-
-                <div className={`${styles.formField} ${styles.formActions}`}>
-                  <button type="submit" disabled={isSubmitting} className={`${styles.btn} ${styles.btnPrimary} ${styles.btnSubmit}`}>
-                    {isSubmitting ? <Loader2 size={14} className={styles.spinnerIcon} /> : <Plus size={14} />}
-                    {editingId ? 'Update Record' : 'Add to Log'}
+        {/* ══════════════════════════════════════════════════════════════════
+           TAB 2: QUALITY TESTING LOG (STOCK DEDUCTION)
+           ══════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'log' && (
+          <>
+            {/* Form */}
+            {showForm && (
+              <div className={styles.formCard}>
+                <div className={styles.formHeader}>
+                  <h3 className={styles.formTitle}>{editingId ? 'Edit Testing Record' : 'Add New Testing Sample'}</h3>
+                  <button className={styles.formClose} disabled={isSubmitting} onClick={handleCancelForm} aria-label="Close form">
+                    <X size={18} />
                   </button>
-                  {editingId && (
-                    <button type="button" onClick={handleCancelForm} className={`${styles.btn} ${styles.btnCancel}`}>
-                      Cancel
-                    </button>
-                  )}
                 </div>
-              </form>
-            </div>
-          )}
 
-          {/* Table Card */}
-          <div className={styles.tableCard}>
-            <div className={styles.tableToolbar}>
-              <div className={styles.tableTitle}>
-                <ClipboardList size={15} color="#8893A7" />
-                <span className={styles.tableTitleText}>Testing Log Register</span>
-                {!loading && <span className={styles.countBadge}>{records.length}</span>}
-              </div>
-
-              <div className={styles.searchWrap}>
-                <Search className={styles.searchIcon} />
-                <input
-                  type="text"
-                  placeholder="Search by name or ref…"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className={styles.searchInput}
-                />
-              </div>
-            </div>
-
-            {loading ? (
-              <div className={styles.stateBox}>
-                <div className={styles.spinner} />
-                <span className={styles.stateHint}>Loading testing records…</span>
-              </div>
-            ) : error ? (
-              <div className={styles.stateBox}>
-                <div className={styles.stateIcon}><AlertCircle size={26} color="#ef4444" /></div>
-                <p className={styles.stateTitle} style={{ color: '#ef4444' }}>Unable to load testing records</p>
-                <p className={styles.stateHint}>{error}</p>
-              </div>
-            ) : filteredLogRecords.length === 0 ? (
-              <div className={styles.stateBox}>
-                <div className={styles.stateIcon}><ClipboardList size={26} /></div>
-                <p className={styles.stateTitle}>
-                  {searchQuery ? 'No records match your search' : 'No testing records yet'}
-                </p>
-                <p className={styles.stateHint}>
-                  {searchQuery ? 'Try a different search term' : 'Click "Add Record" above to get started'}
-                </p>
-              </div>
-            ) : (
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead className={styles.thead}>
-                    <tr>
-                      <th>Reference</th>
-                      <th>Product / Material</th>
-                      <th>Qty</th>
-                      <th>UOM</th>
-                      <th>Status</th>
-                      <th>Created By</th>
-                      <th>Created Date/Time</th>
-                      <th>Stock Deducted</th>
-                      <th>Remarks</th>
-                      <th style={{ textAlign: 'right' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className={styles.tbody}>
-                    {filteredLogRecords.map(record => (
-                      <tr key={record.id}>
-                        <td>
-                          <code className={styles.refCode}>{record.referenceNo}</code>
-                        </td>
-                        <td className={styles.productCell}>
-                          <strong>{record.productName}</strong>
-                        </td>
-                        <td>
-                          <strong>{Number(record.quantity).toLocaleString()}</strong>
-                        </td>
-                        <td>PCS</td>
-                        <td>
-                          <StatusBadge status={record.status} />
-                        </td>
-                        <td style={{ fontSize: '13px', color: '#64748b' }}>
-                          {record.createdBy?.name || record.reviewedBy || '-'}
-                        </td>
-                        <td>{new Date(record.createdAt).toLocaleString()}</td>
-                        <td>{record.stockDeducted == null ? 'Legacy record' : `-${record.stockDeducted} PCS`}</td>
-                        <td style={{ fontSize: '13px', color: '#64748b' }}>
-                          {record.remarks || '-'}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div className={styles.actions}>
-                            <button
-                              className={styles.actionBtn}
-                              title="Print Slip"
-                              onClick={() => handlePrintSlip(record)}
-                            >
-                              <Printer size={14} />
-                            </button>
-                            <button
-                              className={`${styles.actionBtn} ${styles.edit}`}
-                              title="Edit Record"
-                              onClick={() => handleEdit(record)}
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                            <button
-                              className={`${styles.actionBtn} ${styles.del}`}
-                              title="Delete Record"
-                              onClick={() => handleDelete(record)}
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                <form onSubmit={handleSubmit} className={styles.formGrid}>
+                  <div className={`${styles.formField} ${styles.wide}`}>
+                    <label className={styles.formLabel}>Product / Material Name *</label>
+                    {editingId ? (
+                      <input className={styles.formInput} value={formData.productName} disabled />
+                    ) : (
+                      <>
+                        <input
+                          type="search"
+                          aria-label="Search product master"
+                          placeholder="Search products by name or code"
+                          value={productSearch}
+                          disabled={isSubmitting}
+                          onChange={e => setProductSearch(e.target.value)}
+                          className={styles.formInput}
+                        />
+                        <select
+                          required
+                          aria-label="Product / Material Name"
+                          value={formData.productId}
+                          disabled={isSubmitting || !!productError}
+                          className={styles.formInput}
+                          onChange={e => setFormData({ ...formData, productId: e.target.value })}
+                        >
+                          <option value="">Select a product from Master Catalog</option>
+                          {products
+                            .filter(p => p.id === formData.productId || [p.name, p.sku, p.publicId].join(' ').toLowerCase().includes(productSearch.toLowerCase()))
+                            .map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku || p.publicId})</option>)}
+                        </select>
+                        {productError && (
+                          <div role="alert" style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px' }}>
+                            {productError} <button type="button" onClick={fetchProducts} style={{ textDecoration: 'underline', background: 'none', border: 'none', color: '#0284c7', cursor: 'pointer' }}>Retry</button>
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>Quantity (PCS) *</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      step="1"
+                      disabled={isSubmitting || !!editingId}
+                      placeholder="e.g. 1"
+                      value={formData.quantity}
+                      onChange={e => setFormData({ ...formData, quantity: e.target.value })}
+                      className={styles.formInput}
+                    />
+                  </div>
+
+                  <div className={`${styles.formField} ${styles.wide}`}>
+                    <label className={styles.formLabel}>Remarks / Testing Notes</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Dimensional and pressure test parameters verified"
+                      disabled={isSubmitting}
+                      value={formData.remarks}
+                      onChange={e => setFormData({ ...formData, remarks: e.target.value })}
+                      className={styles.formInput}
+                    />
+                  </div>
+
+                  <div className={`${styles.formField} ${styles.formActions}`}>
+                    <button type="submit" disabled={isSubmitting} className={styles.btnSubmit}>
+                      {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                      <span>{editingId ? 'Update Record' : 'Confirm Stock Deduction'}</span>
+                    </button>
+                    {editingId && (
+                      <button type="button" onClick={handleCancelForm} className={styles.btnCancel}>
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </form>
               </div>
             )}
-          </div>
-        </>
-      )}
+
+            {/* Table Card */}
+            <div className={styles.tableCard}>
+              <div className={styles.tableToolbar}>
+                <div className={styles.tableTitle}>
+                  <ClipboardList size={16} color="#0284c7" />
+                  <span className={styles.tableTitleText}>Testing Log Register</span>
+                  {!loading && <span className={styles.countBadge}>{records.length}</span>}
+                </div>
+
+                <div className={styles.filterGroup}>
+                  <div className={styles.searchWrap}>
+                    <Search className={styles.searchIcon} />
+                    <input
+                      type="text"
+                      placeholder="Search by name or reference…"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className={styles.searchInput}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    className={styles.btnActionPrimary}
+                    style={{ minHeight: '38px', padding: '8px 14px', fontSize: '13px' }}
+                    onClick={() => {
+                      fetchProducts();
+                      setProductSearch('');
+                      setShowForm(true);
+                      setEditingId(null);
+                      setFormData({ productId: '', productName: '', quantity: '', remarks: '' });
+                    }}
+                  >
+                    <Plus size={14} />
+                    <span>Add Record</span>
+                  </button>
+                </div>
+              </div>
+
+              {loading ? (
+                <div className={styles.stateBox}>
+                  <div className={styles.spinner} />
+                  <p className={styles.stateTitle}>Loading testing records…</p>
+                  <span className={styles.stateHint}>Fetching physical stock deduction history</span>
+                </div>
+              ) : error ? (
+                <div className={styles.stateBox}>
+                  <div className={styles.stateIcon}><AlertCircle size={28} color="#ef4444" /></div>
+                  <p className={styles.stateTitle} style={{ color: '#ef4444' }}>Unable to load testing records</p>
+                  <p className={styles.stateHint}>{error}</p>
+                </div>
+              ) : filteredLogRecords.length === 0 ? (
+                <div className={styles.stateBox}>
+                  <div className={styles.stateIcon}><ClipboardList size={28} /></div>
+                  <p className={styles.stateTitle}>
+                    {searchQuery ? 'No records match your search' : 'No testing records logged yet'}
+                  </p>
+                  <p className={styles.stateHint}>
+                    {searchQuery ? 'Try a different search term.' : 'Click "Add Record" above to record physical destructive test samples.'}
+                  </p>
+                </div>
+              ) : (
+                <div className={styles.tableWrap}>
+                  <table className={styles.table}>
+                    <thead className={styles.thead}>
+                      <tr>
+                        <th>Reference</th>
+                        <th>Product / Material</th>
+                        <th>Qty</th>
+                        <th>UOM</th>
+                        <th>Status</th>
+                        <th>Created By</th>
+                        <th>Created Date/Time</th>
+                        <th>Stock Deducted</th>
+                        <th>Remarks</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className={styles.tbody}>
+                      {filteredLogRecords.map(record => (
+                        <tr key={record.id}>
+                          <td>
+                            <code className={styles.refCode}>{record.referenceNo}</code>
+                          </td>
+                          <td className={styles.productCell}>
+                            <strong style={{ color: '#0f172a' }}>{record.productName}</strong>
+                          </td>
+                          <td>
+                            <strong style={{ color: '#0f172a' }}>{Number(record.quantity).toLocaleString()}</strong>
+                          </td>
+                          <td>PCS</td>
+                          <td>
+                            <StatusBadge status={record.status} />
+                          </td>
+                          <td style={{ fontSize: '12.5px', color: '#64748b' }}>
+                            {record.createdBy?.name || record.reviewedBy || '-'}
+                          </td>
+                          <td style={{ fontSize: '12.5px', whiteSpace: 'nowrap' }}>
+                            {new Date(record.createdAt).toLocaleString()}
+                          </td>
+                          <td>
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              background: '#fef2f2',
+                              color: '#b91c1c',
+                              border: '1px solid #fecaca'
+                            }}>
+                              {record.stockDeducted == null ? 'Legacy record' : `-${record.stockDeducted} PCS`}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '12.5px', color: '#64748b', maxWidth: '200px' }}>
+                            {record.remarks || '-'}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div className={styles.actions}>
+                              <button
+                                className={styles.actionBtn}
+                                title="Print Slip"
+                                onClick={() => handlePrintSlip(record)}
+                              >
+                                <Printer size={14} />
+                              </button>
+                              <button
+                                className={`${styles.actionBtn} ${styles.edit}`}
+                                title="Edit Record"
+                                onClick={() => handleEdit(record)}
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                className={`${styles.actionBtn} ${styles.del}`}
+                                title="Delete Record"
+                                onClick={() => handleDelete(record)}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
 
       {/* ── Form Modal (Create / Edit Test Report) ── */}
       <TestReportFormModal
