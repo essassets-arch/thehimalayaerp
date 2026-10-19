@@ -38,6 +38,7 @@ import { backendFetch } from "@/lib/backendFetch";
 import { getBackendAssetUrl } from "@/lib/assetUrl";
 import { useAuthStore } from "@/store/authStore";
 import { isTradingProduct } from "@/shared/utils/dispatchCategory";
+import PaginationControl from "@/shared/components/PaginationControl";
 import styles from "./delivery.module.css";
 
 /* ── Types ───────────────────────────────────────────────────────────── */
@@ -561,6 +562,15 @@ export default function DeliveryRunPage() {
   const [search, setSearch] = useState("");
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+
+  // Reset page when tab, search filter, or category changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, search, isDispatch2]);
+
   // Modal Form State
   const [receiverName, setReceiverName] = useState("");
   const [receiverMobile, setReceiverMobile] = useState("");
@@ -831,6 +841,27 @@ export default function DeliveryRunPage() {
       }
     );
   }, [historyDispatches, search, isDispatch2, getResolvedMetadata]);
+
+  // Pagination calculations
+  const totalDeliveryItems = activeDeliveryQueue.length;
+  const totalDeliveryPages = pageSize >= 99999 ? 1 : Math.ceil(totalDeliveryItems / pageSize) || 1;
+  const safeDeliveryPage = Math.min(Math.max(1, currentPage), totalDeliveryPages);
+
+  const paginatedDeliveryQueue = useMemo(() => {
+    if (pageSize >= 99999) return activeDeliveryQueue;
+    const start = (safeDeliveryPage - 1) * pageSize;
+    return activeDeliveryQueue.slice(start, start + pageSize);
+  }, [activeDeliveryQueue, safeDeliveryPage, pageSize]);
+
+  const totalHistoryItems = filteredHistoryDispatches.length;
+  const totalHistoryPages = pageSize >= 99999 ? 1 : Math.ceil(totalHistoryItems / pageSize) || 1;
+  const safeHistoryPage = Math.min(Math.max(1, currentPage), totalHistoryPages);
+
+  const paginatedHistoryDispatches = useMemo(() => {
+    if (pageSize >= 99999) return filteredHistoryDispatches;
+    const start = (safeHistoryPage - 1) * pageSize;
+    return filteredHistoryDispatches.slice(start, start + pageSize);
+  }, [filteredHistoryDispatches, safeHistoryPage, pageSize]);
 
   // Modal Handlers
   const openModal = (dispatchItem: Dispatch) => {
@@ -1120,7 +1151,7 @@ export default function DeliveryRunPage() {
         </div>
 
         {/* ─── MAIN WORKSPACE CARD ─── */}
-        <div className={styles.mainCard} style={{ marginTop: 0 }}>
+        <div id="delivery-management-card" className={styles.mainCard} style={{ marginTop: 0 }}>
           {/* Controls Bar: Tabs & Search Filter */}
           <div className={styles.controlBar}>
             {/* Horizontally Scrollable Tab Switcher */}
@@ -1270,7 +1301,7 @@ export default function DeliveryRunPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {activeDeliveryQueue.map((item) => {
+                      {paginatedDeliveryQueue.map((item) => {
                         const cleanDispNo = formatCleanNo(item.dispatchNo);
                         const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
                         const cleanInvNo = formatCleanNo(item.invoiceNumber);
@@ -1444,7 +1475,7 @@ export default function DeliveryRunPage() {
               {/* Mobile Card List (< 768px) */}
               {!isLoading && !error && activeDeliveryQueue.length > 0 && (
                 <div className={styles.mobileCardList}>
-                  {activeDeliveryQueue.map((item) => {
+                  {paginatedDeliveryQueue.map((item) => {
                     const cleanDispNo = formatCleanNo(item.dispatchNo);
                     const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
                     const orderDateStr = formatOrderDate(getSalesOrderDate(item.salesOrder));
@@ -1574,6 +1605,34 @@ export default function DeliveryRunPage() {
                   })}
                 </div>
               )}
+
+              {/* Pagination Controls for Delivery Queue */}
+              {!isLoading && !error && activeDeliveryQueue.length > 0 && (
+                <div style={{ padding: "12px 18px", borderTop: "1px solid #f1f5f9", background: "#ffffff" }}>
+                  <PaginationControl
+                    currentPage={safeDeliveryPage}
+                    totalPages={totalDeliveryPages}
+                    totalItems={totalDeliveryItems}
+                    pageSize={pageSize}
+                    pageSizeOptions={[10, 25, 50, 100, "all"]}
+                    showAllOption={true}
+                    themeColor="#2563eb"
+                    onPageChange={(page) => {
+                      setCurrentPage(page);
+                      if (typeof window !== "undefined") {
+                        const el = document.getElementById("delivery-management-card");
+                        if (el) {
+                          el.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }
+                      }
+                    }}
+                    onPageSizeChange={(newSize) => {
+                      setPageSize(newSize);
+                      setCurrentPage(1);
+                    }}
+                  />
+                </div>
+              )}
             </>
           )}
 
@@ -1607,7 +1666,7 @@ export default function DeliveryRunPage() {
                 <>
                   {/* Desktop Table View */}
                   <div className={styles.tableContainer}>
-                    <table className={styles.dataTable}>
+                    <table className={`${styles.dataTable} ${styles.dataTableHistory}`}>
                       <thead>
                         <tr>
                           <th style={{ width: 140 }}>Dispatch No.</th>
@@ -1623,7 +1682,7 @@ export default function DeliveryRunPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredHistoryDispatches.map((item) => {
+                        {paginatedHistoryDispatches.map((item) => {
                           const cleanDispNo = formatCleanNo(item.dispatchNo);
                           const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
                           const cleanInvNo = formatCleanNo(item.invoiceNumber);
@@ -1864,7 +1923,7 @@ export default function DeliveryRunPage() {
 
                   {/* Mobile Cards for History */}
                   <div className={styles.mobileCardList}>
-                    {filteredHistoryDispatches.map((item) => {
+                    {paginatedHistoryDispatches.map((item) => {
                       const cleanDispNo = formatCleanNo(item.dispatchNo);
                       const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
                       const orderDateStr = formatOrderDate(getSalesOrderDate(item.salesOrder));
@@ -2028,6 +2087,32 @@ export default function DeliveryRunPage() {
                         </div>
                       );
                     })}
+                  </div>
+
+                  {/* Pagination Controls for Delivery History */}
+                  <div style={{ padding: "12px 18px", borderTop: "1px solid #f1f5f9", background: "#ffffff" }}>
+                    <PaginationControl
+                      currentPage={safeHistoryPage}
+                      totalPages={totalHistoryPages}
+                      totalItems={totalHistoryItems}
+                      pageSize={pageSize}
+                      pageSizeOptions={[10, 25, 50, 100, "all"]}
+                      showAllOption={true}
+                      themeColor="#2563eb"
+                      onPageChange={(page) => {
+                        setCurrentPage(page);
+                        if (typeof window !== "undefined") {
+                          const el = document.getElementById("delivery-management-card");
+                          if (el) {
+                            el.scrollIntoView({ behavior: "smooth", block: "start" });
+                          }
+                        }
+                      }}
+                      onPageSizeChange={(newSize) => {
+                        setPageSize(newSize);
+                        setCurrentPage(1);
+                      }}
+                    />
                   </div>
                 </>
               )}

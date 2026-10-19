@@ -394,13 +394,46 @@
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+  position: relative;
+}
+
+.tableContainer::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.tableContainer::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 4px;
+}
+
+.tableContainer::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.tableContainer::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .dataTable {
   width: 100%;
+  min-width: 1200px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 13px;
+}
+
+.dataTableHistory {
+  min-width: 1480px;
+}
+
+.dataTable thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
 .dataTable thead tr {
@@ -418,6 +451,9 @@
   border-bottom: 1px solid #e2e8f0;
   white-space: nowrap;
   background: #f8fafc;
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
 .dataTable tbody tr {
@@ -955,6 +991,83 @@
   margin: 0;
 }
 
+/* ─── MOBILE CARD VIEW (<= 768px ONLY) ─── */
+.mobileCardList {
+  display: none;
+}
+
+.mobileCard,
+.deliveryCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.mobileCardHeader,
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.cardHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cardCompany {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.cardAddress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.cardAddressIcon {
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+.cardAddressText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileCardRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.mobileCardIcon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #64748b;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
 /* ─── RESPONSIVE BREAKPOINTS ─── */
 @media (max-width: 900px) {
   .heroTopRow {
@@ -1042,6 +1155,9 @@
   }
   .mobileCardList {
     display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
   }
 }
 
