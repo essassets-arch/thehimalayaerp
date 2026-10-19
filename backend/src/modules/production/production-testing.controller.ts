@@ -174,6 +174,17 @@ export class ProductionTestingController {
   @RequirePermissions(
     'production.productiontesting.delete',
     'production.testing.delete',
+    'production.floor.create',
+    'production.floor.read',
+    'production.qc.approve',
+    'production.qc.read',
+    'plant-head.testing.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.testing.read',
+    'production.productiontesting.create',
+    'production.productiontesting.read',
+    'production.productiontesting.update',
   )
   @Delete('reports/:reportId')
   async deleteReport(
@@ -285,12 +296,23 @@ export class ProductionTestingController {
     'production.productiontesting.delete',
     'production.testing.delete',
     'production.floor.create',
+    'production.floor.read',
+    'production.qc.approve',
+    'production.qc.read',
+    'plant-head.testing.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.testing.read',
+    'production.productiontesting.create',
+    'production.productiontesting.read',
+    'production.productiontesting.update',
   )
   @Delete(':id')
   async deleteTestingRecord(@Param('id') id: string, @Req() req: any) {
     const data = await this.testingService.deleteTestingRecord(
       id,
       req.user.companyId,
+      req.user.sub,
     );
     return { success: true, data };
   }

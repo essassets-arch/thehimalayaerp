@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Download, Printer, CheckCircle, XCircle, RotateCcw, Edit2, X, Loader2 } from 'lucide-react';
+import { Download, Printer, CheckCircle, XCircle, RotateCcw, Edit2, X, Loader2, Trash2 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { toast } from 'sonner';
 import TestCertificateDocument, { TestCertificateData } from './TestCertificateDocument';
@@ -16,6 +16,7 @@ interface Props {
   report: TestCertificateData | null;
   onReportUpdated: (updatedReport: any) => void;
   onEdit: (report: TestCertificateData) => void;
+  onDelete?: (report: TestCertificateData) => void;
 }
 
 export default function CertificatePreviewModal({
@@ -24,6 +25,7 @@ export default function CertificatePreviewModal({
   report,
   onReportUpdated,
   onEdit,
+  onDelete,
 }: Props) {
   const [downloading, setDownloading] = useState(false);
   const [approving, setApproving] = useState(false);
@@ -276,6 +278,21 @@ export default function CertificatePreviewModal({
               >
                 <RotateCcw size={14} />
                 Create Revision
+              </button>
+            )}
+
+            {onDelete && activeReport && (
+              <button
+                className={styles.actionBtn}
+                style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' }}
+                onClick={() => {
+                  onClose();
+                  onDelete(activeReport);
+                }}
+                title="Delete Certificate"
+              >
+                <Trash2 size={14} />
+                Delete
               </button>
             )}
 

@@ -185,18 +185,20 @@ export default function ProductionTestingPage() {
   const handleDeleteReport = async (report: TestCertificateData) => {
     const confirm = await Swal.fire({
       title: 'Delete Certificate?',
-      text: `Are you sure you want to delete ${report.reportNumber}? This cannot be undone.`,
+      text: `Are you sure you want to delete certificate ${report.reportNumber}? This cannot be undone.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Yes, Delete',
       confirmButtonColor: '#dc2626',
+      cancelButtonText: 'Cancel',
     });
 
     if (!confirm.isConfirmed) return;
 
     try {
-      await backendFetch(`/api/backend/production/testing/reports/${report.id}`, { method: 'DELETE' });
-      toast.success('Certificate deleted');
+      const targetId = report.id || report.reportNumber;
+      await backendFetch(`/api/backend/production/testing/reports/${targetId}`, { method: 'DELETE' });
+      toast.success('Certificate deleted successfully');
       fetchReports();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to delete certificate');
@@ -341,12 +343,31 @@ export default function ProductionTestingPage() {
     }
   };
 
-  const handleDelete = async (id: any) => {
-    if (!confirm('Are you sure you want to delete this record?')) return;
+  const handleDelete = async (recordOrId: any) => {
+    const record = typeof recordOrId === 'object' ? recordOrId : records.find(r => r.id === recordOrId);
+    const id = typeof recordOrId === 'object' ? recordOrId.id : recordOrId;
+    const ref = record?.referenceNo || record?.productName || id;
+
+    const confirm = await Swal.fire({
+      title: 'Delete Testing Record?',
+      text: `Are you sure you want to delete testing record "${ref}"? Any deducted stock will be restored to inventory.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete',
+      confirmButtonColor: '#dc2626',
+      cancelButtonText: 'Cancel',
+    });
+
+    if (!confirm.isConfirmed) return;
+
     try {
       await backendFetch(`/api/backend/production/testing/${id}`, { method: 'DELETE' });
-      toast.success('Record deleted');
-      fetchRecords();
+      toast.success('Testing record deleted successfully');
+      await Promise.all([
+        fetchRecords(),
+        queryClient.invalidateQueries({ queryKey: ['finished-goods-all-stock'] }),
+        queryClient.invalidateQueries({ queryKey: ['finished-goods-all-stock-logs'] }),
+      ]);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to delete record');
     }
@@ -970,9 +991,8 @@ export default function ProductionTestingPage() {
                             </button>
                             <button
                               className={`${styles.actionBtn} ${styles.del}`}
-                              disabled={record.stockDeducted != null}
-                              title={record.stockDeducted != null ? "Stock-consuming records are retained for audit" : "Delete Record"}
-                              onClick={() => handleDelete(record.id)}
+                              title="Delete Record"
+                              onClick={() => handleDelete(record)}
                             >
                               <Trash2 size={14} />
                             </button>
@@ -1019,6 +1039,7 @@ export default function ProductionTestingPage() {
           setEditingReport(rep);
           setIsFormOpen(true);
         }}
+        onDelete={handleDeleteReport}
       />
 
       {/* ── Hidden Container for Direct Row PDF Generation ── */}

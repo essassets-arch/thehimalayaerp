@@ -278,13 +278,57 @@ export class ProductionTestingService {
     return this.serialize(updated);
   }
 
-  async deleteTestingRecord(id: string, companyId: string) {
-    const record = await this.getTestingRecord(id, companyId);
-    if (record.requestId)
-      throw new BadRequestException(
-        'Stock-consuming testing records cannot be deleted.',
-      );
-    return this.prisma.productionTestingRecord.delete({ where: { id } });
+  async deleteTestingRecord(id: string, companyId: string, userId?: string) {
+    const record = await this.prisma.productionTestingRecord.findFirst({
+      where: {
+        OR: [{ id }, { referenceNo: id }],
+        ...(companyId ? { companyId } : {}),
+      },
+      include: relations,
+    });
+
+    const targetRecord = record || (await this.prisma.productionTestingRecord.findFirst({
+      where: {
+        OR: [{ id }, { referenceNo: id }],
+      },
+      include: relations,
+    }));
+
+    if (!targetRecord) {
+      throw new NotFoundException('Testing record not found');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Unlink any test certificates that point to this testing record
+      await tx.productionTestReport.updateMany({
+        where: { testingRecordId: targetRecord.id },
+        data: { testingRecordId: null },
+      });
+
+      // 2. If stock was deducted, reverse it back to finished goods inventory
+      if (targetRecord.productId && Number(targetRecord.quantity) > 0 && targetRecord.requestId) {
+        try {
+          await this.inventory.stockInFinishedGoods(
+            tx,
+            targetRecord.companyId || companyId,
+            targetRecord.productId,
+            Number(targetRecord.quantity),
+            'TESTING_REVERSAL',
+            targetRecord.id,
+            null,
+            targetRecord.referenceNo,
+            userId || targetRecord.createdById || 'SYSTEM',
+            'Testing record deleted - stock returned',
+            'PRODUCTION_IN',
+          );
+        } catch (stockErr: any) {
+          console.warn(`[deleteTestingRecord] Notice reversing stock for ${targetRecord.referenceNo}:`, stockErr?.message);
+        }
+      }
+
+      // 3. Delete the testing record
+      return tx.productionTestingRecord.delete({ where: { id: targetRecord.id } });
+    });
   }
 
   /* ══════════════════════════════════════════════════════════════════
@@ -633,8 +677,32 @@ export class ProductionTestingService {
   }
 
   async deleteReport(id: string, companyId: string) {
-    const report = await this.getReport(id, companyId);
-    return this.prisma.productionTestReport.delete({ where: { id } });
+    const report = await this.prisma.productionTestReport.findFirst({
+      where: {
+        OR: [{ id }, { reportNumber: id }],
+        ...(companyId ? { companyId } : {}),
+      },
+    });
+
+    const targetReport = report || (await this.prisma.productionTestReport.findFirst({
+      where: {
+        OR: [{ id }, { reportNumber: id }],
+      },
+    }));
+
+    if (!targetReport) {
+      throw new NotFoundException('Test certificate not found');
+    }
+
+    // Unlink any parent revisions pointing to this report
+    await this.prisma.productionTestReport.updateMany({
+      where: { parentReportId: targetReport.id },
+      data: { parentReportId: null },
+    });
+
+    return this.prisma.productionTestReport.delete({
+      where: { id: targetReport.id },
+    });
   }
 }
 
