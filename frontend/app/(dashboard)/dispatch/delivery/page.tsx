@@ -847,6 +847,30 @@ export default function DeliveryRunPage() {
   const totalDeliveryPages = pageSize >= 99999 ? 1 : Math.ceil(totalDeliveryItems / pageSize) || 1;
   const safeDeliveryPage = Math.min(Math.max(1, currentPage), totalDeliveryPages);
 
+  // Track multiple consignments / dispatches belonging to the same sales order in the delivery queue
+  const orderShipmentsMeta = useMemo(() => {
+    const counts = new Map<string, number>();
+    const orderItems = new Map<string, string[]>();
+
+    activeDeliveryQueue.forEach((d) => {
+      const orderKey = normalizeKey(d.salesOrder?.orderNumber || (d as any).orderNumber);
+      if (!orderKey) return;
+      counts.set(orderKey, (counts.get(orderKey) || 0) + 1);
+      const list = orderItems.get(orderKey) || [];
+      list.push(d.id);
+      orderItems.set(orderKey, list);
+    });
+
+    const metaMap = new Map<string, { total: number; index: number }>();
+    for (const [orderKey, idList] of orderItems.entries()) {
+      const total = counts.get(orderKey) || idList.length;
+      idList.forEach((id, idx) => {
+        metaMap.set(id, { total, index: idx + 1 });
+      });
+    }
+    return metaMap;
+  }, [activeDeliveryQueue]);
+
   const paginatedDeliveryQueue = useMemo(() => {
     if (pageSize >= 99999) return activeDeliveryQueue;
     const start = (safeDeliveryPage - 1) * pageSize;
@@ -1307,6 +1331,7 @@ export default function DeliveryRunPage() {
                         const cleanInvNo = formatCleanNo(item.invoiceNumber);
                         const orderDateStr = formatOrderDate(getSalesOrderDate(item.salesOrder));
                         const meta = getResolvedMetadata(item);
+                        const shipmentInfo = orderShipmentsMeta.get(item.id);
 
                         return (
                           <tr key={item.id}>
@@ -1330,9 +1355,31 @@ export default function DeliveryRunPage() {
                             {/* Sales Order & Date */}
                             <td>
                               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                <span className={styles.badgeOrderNo}>
-                                  #{cleanSoNo}
-                                </span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+                                  <span className={styles.badgeOrderNo}>
+                                    #{cleanSoNo}
+                                  </span>
+                                  {shipmentInfo && shipmentInfo.total > 1 && (
+                                    <span
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 3,
+                                        fontSize: 10.5,
+                                        fontWeight: 700,
+                                        color: "#b45309",
+                                        background: "#fef3c7",
+                                        border: "1px solid #fde68a",
+                                        borderRadius: 4,
+                                        padding: "1px 5px",
+                                        whiteSpace: "nowrap",
+                                      }}
+                                      title={`Order #${cleanSoNo} has ${shipmentInfo.total} separate shipments in the delivery run`}
+                                    >
+                                      Shipment {shipmentInfo.index} of {shipmentInfo.total}
+                                    </span>
+                                  )}
+                                </div>
                                 {orderDateStr !== "—" && (
                                   <span
                                     style={{
@@ -1480,6 +1527,7 @@ export default function DeliveryRunPage() {
                     const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
                     const orderDateStr = formatOrderDate(getSalesOrderDate(item.salesOrder));
                     const meta = getResolvedMetadata(item);
+                    const shipmentInfo = orderShipmentsMeta.get(item.id);
 
                     return (
                       <div key={item.id} className={styles.mobileCard}>
@@ -1499,10 +1547,30 @@ export default function DeliveryRunPage() {
                             <div style={{ fontWeight: 800, color: "#0f172a" }}>
                               {meta.customerName}
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2, flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, flexWrap: "wrap" }}>
                               <span style={{ fontSize: "11.5px", color: "#64748b" }}>
                                 Order #{cleanSoNo}
                               </span>
+                              {shipmentInfo && shipmentInfo.total > 1 && (
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 3,
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    color: "#b45309",
+                                    background: "#fef3c7",
+                                    border: "1px solid #fde68a",
+                                    borderRadius: 4,
+                                    padding: "1px 5px",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                  title={`Order #${cleanSoNo} has ${shipmentInfo.total} separate shipments in the delivery run`}
+                                >
+                                  Shipment {shipmentInfo.index} of {shipmentInfo.total}
+                                </span>
+                              )}
                               {orderDateStr !== "—" && (
                                 <span
                                   style={{

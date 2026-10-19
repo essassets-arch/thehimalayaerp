@@ -693,6 +693,7 @@ export default function CreateDispatchPage() {
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
   const [fileError, setFileError] = useState<string | null>(null);
   const [previewModalPhoto, setPreviewModalPhoto] = useState<DispatchPhoto | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const initialSelectionSet = React.useRef(false);
 
   const cameraInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -2387,6 +2388,8 @@ export default function CreateDispatchPage() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
+
     if (!selectedWorkOrders.length) {
       toast.error("Please select at least 1 product to dispatch in this consignment.");
       return;
@@ -2426,6 +2429,7 @@ export default function CreateDispatchPage() {
     }
 
     try {
+      setIsSubmitting(true);
       const orderGroups = selectedWorkOrders.reduce((groups, selected) => {
         let selectedSalesOrder = selected.productionPlan?.salesOrder;
         const soId = selectedSalesOrder?.id || salesOrderId || (selected as any).salesOrderId || "order-direct";
@@ -2781,6 +2785,8 @@ export default function CreateDispatchPage() {
         confirmButtonColor: "#2563eb",
         confirmButtonText: "OK",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -3575,6 +3581,7 @@ export default function CreateDispatchPage() {
             type="button"
             onClick={handleSubmit}
             disabled={
+              isSubmitting ||
               selectedWorkOrders.length === 0 ||
               !invoiceNumber.trim() ||
               !challanNumber.trim() ||
@@ -3586,7 +3593,8 @@ export default function CreateDispatchPage() {
               Boolean(fileError)
             }
             style={
-              (selectedWorkOrders.length === 0 ||
+              (isSubmitting ||
+              selectedWorkOrders.length === 0 ||
               !invoiceNumber.trim() ||
               !challanNumber.trim() ||
               !totalWeight || Number(totalWeight) <= 0 ||
@@ -3600,7 +3608,14 @@ export default function CreateDispatchPage() {
             }
             className={styles.submitBtn}
           >
-            Book Dispatch Consignment
+            {isSubmitting ? (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <Truck style={{ animation: "spin 1s linear infinite", width: 16, height: 16 }} />
+                <span>Booking Dispatch Consignment...</span>
+              </span>
+            ) : (
+              "Book Dispatch Consignment"
+            )}
           </button>
         </div>
       </div>
