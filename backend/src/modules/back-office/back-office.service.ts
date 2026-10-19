@@ -2618,6 +2618,9 @@ export class BackOfficeService implements OnApplicationBootstrap {
       page = 1,
       limit = 25,
       exportAll = false,
+      dateFilter,
+      startDate,
+      endDate,
     } = query;
 
     const where: any = {
@@ -2646,6 +2649,48 @@ export class BackOfficeService implements OnApplicationBootstrap {
           ],
         },
       ];
+    }
+
+    let calculatedStartDate: Date | null = null;
+    let calculatedEndDate: Date | null = null;
+
+    if (dateFilter === 'weekly' || dateFilter === 'WEEKLY') {
+      const now = new Date();
+      calculatedStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+      calculatedStartDate.setHours(0, 0, 0, 0);
+      calculatedEndDate = new Date();
+      calculatedEndDate.setHours(23, 59, 59, 999);
+    } else if (dateFilter === 'monthly' || dateFilter === 'MONTHLY') {
+      const now = new Date();
+      calculatedStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      calculatedStartDate.setHours(0, 0, 0, 0);
+      calculatedEndDate = new Date();
+      calculatedEndDate.setHours(23, 59, 59, 999);
+    } else if (dateFilter === 'yearly' || dateFilter === 'YEARLY') {
+      const now = new Date();
+      calculatedStartDate = new Date(now.getFullYear(), 0, 1);
+      calculatedStartDate.setHours(0, 0, 0, 0);
+      calculatedEndDate = new Date();
+      calculatedEndDate.setHours(23, 59, 59, 999);
+    } else if (dateFilter === 'custom' || dateFilter === 'CUSTOM' || startDate || endDate) {
+      if (startDate) {
+        calculatedStartDate = new Date(startDate);
+        calculatedStartDate.setHours(0, 0, 0, 0);
+      }
+      if (endDate) {
+        calculatedEndDate = new Date(endDate);
+        calculatedEndDate.setHours(23, 59, 59, 999);
+      }
+    }
+
+    if (calculatedStartDate || calculatedEndDate) {
+      where.createdAt = {};
+      if (calculatedStartDate && !isNaN(calculatedStartDate.getTime())) {
+        where.createdAt.gte = calculatedStartDate;
+      }
+      if (calculatedEndDate && !isNaN(calculatedEndDate.getTime())) {
+        where.createdAt.lte = calculatedEndDate;
+      }
     }
 
     const validSortFields = ['partyName', 'duePaymentAmount', 'salesPerson', 'createdAt'];
@@ -2683,6 +2728,7 @@ export class BackOfficeService implements OnApplicationBootstrap {
       duePaymentAmount: Number(r.duePaymentAmount) || 0,
       salesPerson: r.salesPerson || '—',
       remarks: r.remarks || '',
+      date: r.createdAt,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     }));
@@ -2717,6 +2763,8 @@ export class BackOfficeService implements OnApplicationBootstrap {
     }
 
     const amountNum = Number(dto.duePaymentAmount) || 0;
+    const entryDate = dto.date || dto.followUpDate || dto.createdAt;
+    const parsedDate = entryDate ? new Date(entryDate) : new Date();
 
     return (this.prisma as any).paymentFollowUpEntry.create({
       data: {
@@ -2727,6 +2775,7 @@ export class BackOfficeService implements OnApplicationBootstrap {
         isArchived: false,
         createdById: userId,
         updatedById: userId,
+        createdAt: !isNaN(parsedDate.getTime()) ? parsedDate : new Date(),
       },
     });
   }
@@ -2740,16 +2789,24 @@ export class BackOfficeService implements OnApplicationBootstrap {
     }
 
     const amountNum = dto.duePaymentAmount !== undefined ? Number(dto.duePaymentAmount) : Number(existing.duePaymentAmount);
+    const entryDate = dto.date || dto.followUpDate || dto.createdAt;
+    const updateData: any = {
+      partyName: dto.partyName ? String(dto.partyName).trim() : existing.partyName,
+      duePaymentAmount: amountNum.toFixed(2),
+      salesPerson: dto.salesPerson !== undefined ? (dto.salesPerson ? String(dto.salesPerson).trim() : null) : existing.salesPerson,
+      remarks: dto.remarks !== undefined ? (dto.remarks ? String(dto.remarks).trim() : null) : existing.remarks,
+      updatedById: userId,
+    };
+    if (entryDate) {
+      const parsed = new Date(entryDate);
+      if (!isNaN(parsed.getTime())) {
+        updateData.createdAt = parsed;
+      }
+    }
 
     return (this.prisma as any).paymentFollowUpEntry.update({
       where: { id },
-      data: {
-        partyName: dto.partyName ? String(dto.partyName).trim() : existing.partyName,
-        duePaymentAmount: amountNum.toFixed(2),
-        salesPerson: dto.salesPerson !== undefined ? (dto.salesPerson ? String(dto.salesPerson).trim() : null) : existing.salesPerson,
-        remarks: dto.remarks !== undefined ? (dto.remarks ? String(dto.remarks).trim() : null) : existing.remarks,
-        updatedById: userId,
-      },
+      data: updateData,
     });
   }
 

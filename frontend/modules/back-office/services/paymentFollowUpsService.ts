@@ -16,6 +16,9 @@ export interface PaymentFollowUpsQuery {
   page?: number;
   limit?: number | string;
   exportAll?: boolean;
+  dateFilter?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface PaymentFollowUpEntryDto {
@@ -25,6 +28,8 @@ export interface PaymentFollowUpEntryDto {
   duePaymentAmount: number | string;
   salesPerson?: string;
   remarks?: string;
+  date?: string;
+  followUpDate?: string;
   createdAt?: string;
   updatedAt?: string;
 }

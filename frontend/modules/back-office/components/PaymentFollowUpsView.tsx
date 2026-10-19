@@ -19,6 +19,7 @@ import {
   Receipt,
   FileText,
   AlertCircle,
+  Calendar,
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { toast } from 'sonner';
@@ -46,6 +47,25 @@ export function formatCurrency(value: number | string | undefined | null): strin
   return `₹${integerPart}.${decimalPart}`;
 }
 
+export function formatDateDisplay(dateStr?: string): string {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+export function getTodayIsoDate(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export interface FollowUpRecord {
   id: string;
   srNo?: number;
@@ -53,6 +73,7 @@ export interface FollowUpRecord {
   duePaymentAmount: number;
   salesPerson: string;
   remarks: string;
+  date?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -70,6 +91,9 @@ export default function PaymentFollowUpsView() {
   const [salesPersonFilter, setSalesPersonFilter] = useState('ALL');
   const [minAmount, setMinAmount] = useState('');
   const [maxAmount, setMaxAmount] = useState('');
+  const [dateFilter, setDateFilter] = useState<'ALL' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'CUSTOM'>('ALL');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -94,6 +118,7 @@ export default function PaymentFollowUpsView() {
     duePaymentAmount: '',
     salesPerson: '',
     remarks: '',
+    date: getTodayIsoDate(),
   };
 
   const [formState, setFormState] = useState<PaymentFollowUpEntryDto>(initialForm);
@@ -107,6 +132,9 @@ export default function PaymentFollowUpsView() {
         salesPerson: salesPersonFilter !== 'ALL' ? salesPersonFilter : undefined,
         minAmount: minAmount !== '' ? minAmount : undefined,
         maxAmount: maxAmount !== '' ? maxAmount : undefined,
+        dateFilter: dateFilter !== 'ALL' ? (dateFilter.toLowerCase() as any) : undefined,
+        startDate: dateFilter === 'CUSTOM' && startDate ? startDate : undefined,
+        endDate: dateFilter === 'CUSTOM' && endDate ? endDate : undefined,
         sortBy,
         sortOrder,
         page,
@@ -135,7 +163,7 @@ export default function PaymentFollowUpsView() {
     } finally {
       setLoading(false);
     }
-  }, [search, salesPersonFilter, minAmount, maxAmount, sortBy, sortOrder, page, limit]);
+  }, [search, salesPersonFilter, minAmount, maxAmount, dateFilter, startDate, endDate, sortBy, sortOrder, page, limit]);
 
   useEffect(() => {
     loadData();
@@ -147,6 +175,9 @@ export default function PaymentFollowUpsView() {
     setSalesPersonFilter('ALL');
     setMinAmount('');
     setMaxAmount('');
+    setDateFilter('ALL');
+    setStartDate('');
+    setEndDate('');
     setSortBy('createdAt');
     setSortOrder('desc');
     setPage(1);
@@ -154,19 +185,34 @@ export default function PaymentFollowUpsView() {
 
   // Open Create Form
   const handleOpenAdd = () => {
-    setFormState(initialForm);
+    setFormState({
+      ...initialForm,
+      date: getTodayIsoDate(),
+    });
     setIsAddOpen(true);
   };
 
   // Open Edit Form
   const handleOpenEdit = (rec: FollowUpRecord) => {
     setSelectedRecord(rec);
+    const rawDate = rec.date || rec.createdAt;
+    let formattedDate = getTodayIsoDate();
+    if (rawDate) {
+      const parsed = new Date(rawDate);
+      if (!isNaN(parsed.getTime())) {
+        const year = parsed.getFullYear();
+        const month = String(parsed.getMonth() + 1).padStart(2, '0');
+        const day = String(parsed.getDate()).padStart(2, '0');
+        formattedDate = `${year}-${month}-${day}`;
+      }
+    }
     setFormState({
       id: rec.id,
       partyName: rec.partyName,
       duePaymentAmount: rec.duePaymentAmount,
       salesPerson: rec.salesPerson !== '—' ? rec.salesPerson : '',
       remarks: rec.remarks || '',
+      date: formattedDate,
     });
     setIsEditOpen(true);
   };
@@ -254,6 +300,9 @@ export default function PaymentFollowUpsView() {
         salesPerson: salesPersonFilter !== 'ALL' ? salesPersonFilter : undefined,
         minAmount: minAmount !== '' ? minAmount : undefined,
         maxAmount: maxAmount !== '' ? maxAmount : undefined,
+        dateFilter: dateFilter !== 'ALL' ? (dateFilter.toLowerCase() as any) : undefined,
+        startDate: dateFilter === 'CUSTOM' && startDate ? startDate : undefined,
+        endDate: dateFilter === 'CUSTOM' && endDate ? endDate : undefined,
         sortBy,
         sortOrder,
         exportAll: true,
@@ -268,6 +317,7 @@ export default function PaymentFollowUpsView() {
 
       const headers = [
         'SR NO',
+        'DATE',
         'PARTY NAME',
         'DUE PAYMENT AMOUNT',
         'SALES PERSON',
@@ -279,6 +329,7 @@ export default function PaymentFollowUpsView() {
       items.forEach((item, idx) => {
         const row = [
           idx + 1,
+          `"${formatDateDisplay(item.date || item.createdAt)}"`,
           `"${(item.partyName || '').replace(/"/g, '""')}"`,
           Number(item.duePaymentAmount || 0).toFixed(2),
           `"${(item.salesPerson || '').replace(/"/g, '""')}"`,
@@ -312,9 +363,11 @@ export default function PaymentFollowUpsView() {
 
   return (
     <div style={{
-      padding: isMobile ? '12px 12px 28px' : '24px 32px',
-      maxWidth: '1600px',
-      margin: '0 auto',
+      padding: isMobile ? '12px 12px 28px' : '20px 24px',
+      width: '100%',
+      maxWidth: '100%',
+      margin: 0,
+      boxSizing: 'border-box',
       minHeight: '100vh',
       background: '#f8fafc',
       fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
@@ -581,6 +634,124 @@ export default function PaymentFollowUpsView() {
         flexDirection: 'column',
         gap: '14px'
       }}>
+        {/* Date Filter Row (All, Weekly, Monthly, Yearly, Custom) */}
+        <div style={{
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'flex-start' : 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          paddingBottom: '12px',
+          borderBottom: '1px solid #f1f5f9'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '12px',
+              fontWeight: '700',
+              color: '#334155',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em'
+            }}>
+              <Calendar size={15} style={{ color: '#059669' }} />
+              Date Filter:
+            </span>
+
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: '#f1f5f9',
+              padding: '3px',
+              borderRadius: '10px',
+              gap: '2px',
+              flexWrap: 'wrap'
+            }}>
+              {(
+                [
+                  { key: 'ALL', label: 'All Time' },
+                  { key: 'WEEKLY', label: 'Weekly' },
+                  { key: 'MONTHLY', label: 'Monthly' },
+                  { key: 'YEARLY', label: 'Yearly' },
+                  { key: 'CUSTOM', label: 'Custom' },
+                ] as const
+              ).map((tab) => {
+                const isActive = dateFilter === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => {
+                      setDateFilter(tab.key);
+                      setPage(1);
+                    }}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      fontSize: '12px',
+                      fontWeight: isActive ? '700' : '600',
+                      cursor: 'pointer',
+                      background: isActive ? '#059669' : 'transparent',
+                      color: isActive ? '#ffffff' : '#64748b',
+                      boxShadow: isActive ? '0 2px 6px rgba(5, 150, 105, 0.25)' : 'none',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Custom Date Pickers when Custom is active */}
+          {dateFilter === 'CUSTOM' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '5px 10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>FROM:</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setPage(1);
+                  }}
+                  style={{ border: 'none', background: 'transparent', fontSize: '12px', outline: 'none', color: '#334155' }}
+                />
+              </div>
+              <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '600' }}>to</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '5px 10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>TO:</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setPage(1);
+                  }}
+                  style={{ border: 'none', background: 'transparent', fontSize: '12px', outline: 'none', color: '#334155' }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Active Date Tag info for Weekly/Monthly/Yearly */}
+          {dateFilter !== 'ALL' && dateFilter !== 'CUSTOM' && (
+            <span style={{
+              fontSize: '11px',
+              fontWeight: '700',
+              padding: '4px 10px',
+              borderRadius: '20px',
+              background: '#ecfdf5',
+              color: '#059669',
+              border: '1px solid #a7f3d0'
+            }}>
+              Showing {dateFilter.toLowerCase()} entries
+            </span>
+          )}
+        </div>
         <div style={{
           display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
@@ -780,10 +951,11 @@ export default function PaymentFollowUpsView() {
               userSelect: 'none'
             }}>
               <tr>
-                <th style={{ padding: '12px 10px', fontWeight: '700', textAlign: 'center', width: '64px', fontSize: '11px', letterSpacing: '0.04em' }}>SR NO</th>
-                <th style={{ padding: '12px 14px', fontWeight: '700', width: '280px', fontSize: '11px', letterSpacing: '0.04em' }}>PARTY NAME</th>
-                <th style={{ padding: '12px 14px', fontWeight: '700', textAlign: 'right', width: '220px', fontSize: '11px', letterSpacing: '0.04em' }}>DUE PAYMENT AMOUNT</th>
-                <th style={{ padding: '12px 14px', fontWeight: '700', width: '200px', fontSize: '11px', letterSpacing: '0.04em' }}>SALES PERSON</th>
+                <th style={{ padding: '12px 10px', fontWeight: '700', textAlign: 'center', width: '60px', fontSize: '11px', letterSpacing: '0.04em' }}>SR NO</th>
+                <th style={{ padding: '12px 14px', fontWeight: '700', width: '130px', fontSize: '11px', letterSpacing: '0.04em' }}>DATE</th>
+                <th style={{ padding: '12px 14px', fontWeight: '700', width: '260px', fontSize: '11px', letterSpacing: '0.04em' }}>PARTY NAME</th>
+                <th style={{ padding: '12px 14px', fontWeight: '700', textAlign: 'right', width: '200px', fontSize: '11px', letterSpacing: '0.04em' }}>DUE PAYMENT AMOUNT</th>
+                <th style={{ padding: '12px 14px', fontWeight: '700', width: '180px', fontSize: '11px', letterSpacing: '0.04em' }}>SALES PERSON</th>
                 <th style={{ padding: '12px 14px', fontWeight: '700', fontSize: '11px', letterSpacing: '0.04em' }}>REMARKS</th>
                 <th style={{
                   padding: '12px 10px',
@@ -805,7 +977,7 @@ export default function PaymentFollowUpsView() {
             <tbody style={{ color: '#334155' }}>
               {loading && records.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: '80px 20px', textAlign: 'center', color: '#94a3b8' }}>
+                  <td colSpan={7} style={{ padding: '80px 20px', textAlign: 'center', color: '#94a3b8' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                       <RefreshCw size={28} className="animate-spin" style={{ color: '#059669' }} />
                       <p style={{ fontSize: '14px', fontWeight: '600', margin: 0 }}>Loading payment follow up entries...</p>
@@ -814,14 +986,14 @@ export default function PaymentFollowUpsView() {
                 </tr>
               ) : records.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: '80px 20px', textAlign: 'center', color: '#94a3b8' }}>
+                  <td colSpan={7} style={{ padding: '80px 20px', textAlign: 'center', color: '#94a3b8' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                       <FileSpreadsheet size={36} style={{ color: '#cbd5e1' }} />
                       <p style={{ fontSize: '14px', fontWeight: '700', color: '#475569', margin: 0 }}>
                         No Payment Follow Up entries found
                       </p>
                       <p style={{ fontSize: '12px', color: '#94a3b8', maxWidth: '380px', margin: 0 }}>
-                        {search || salesPersonFilter !== 'ALL' || minAmount || maxAmount
+                        {search || salesPersonFilter !== 'ALL' || minAmount || maxAmount || dateFilter !== 'ALL'
                           ? 'Try adjusting your filters or search terms.'
                           : 'Click "+ Add Follow-Up Entry" to record your first follow-up target.'}
                       </p>
@@ -841,6 +1013,12 @@ export default function PaymentFollowUpsView() {
                   >
                     <td style={{ padding: '12px 10px', textAlign: 'center', fontFamily: 'monospace', fontWeight: '700', color: '#94a3b8' }}>
                       {rec.srNo}
+                    </td>
+                    <td style={{ padding: '12px 14px', whiteSpace: 'nowrap', color: '#334155', fontWeight: '600' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <Calendar size={13} style={{ color: '#059669', flexShrink: 0 }} />
+                        <span>{formatDateDisplay(rec.date || rec.createdAt)}</span>
+                      </div>
                     </td>
                     <td style={{ padding: '12px 14px', fontWeight: '800', color: '#0f172a', whiteSpace: 'nowrap' }}>
                       {rec.partyName}
@@ -1016,6 +1194,19 @@ export default function PaymentFollowUpsView() {
             <form onSubmit={handleSaveAdd} style={{ display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', paddingRight: '4px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                  DATE <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formState.date || ''}
+                  onChange={(e) => setFormState({ ...formState, date: e.target.value })}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
                   PARTY NAME <span style={{ color: '#e11d48' }}>*</span>
                 </label>
                 <input
@@ -1147,6 +1338,19 @@ export default function PaymentFollowUpsView() {
             <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', paddingRight: '4px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                  DATE <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formState.date || ''}
+                  onChange={(e) => setFormState({ ...formState, date: e.target.value })}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
                   PARTY NAME <span style={{ color: '#e11d48' }}>*</span>
                 </label>
                 <input
@@ -1273,6 +1477,13 @@ export default function PaymentFollowUpsView() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', paddingRight: '4px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', display: 'block' }}>Date</span>
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                    <Calendar size={14} style={{ color: '#059669' }} />
+                    {formatDateDisplay(selectedRecord.date || selectedRecord.createdAt)}
+                  </span>
+                </div>
                 <div>
                   <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', display: 'block' }}>Party Name</span>
                   <span style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a' }}>{selectedRecord.partyName}</span>
