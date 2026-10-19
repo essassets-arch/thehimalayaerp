@@ -176,24 +176,43 @@ const SEEDED_SALES_USER_MAP: Record<string, string> = {
 function isValidCustomerName(name?: any): boolean {
   if (!name || typeof name !== "string") return false;
   const t = name.trim();
+  if (!t) return false;
+  const lower = t.toLowerCase();
   if (
-    !t ||
     t === "—" ||
     t === "-" ||
     t === "N/A" ||
     t === "null" ||
     t === "undefined" ||
-    t === "Consignee Client" ||
-    t === "Client Consignee" ||
-    t === "Customer Designated Delivery Site" ||
-    t === "Customer Delivery Site" ||
-    t === "Production Dispatch" ||
-    t === "Factory Finished Goods"
+    lower === "consignee client" ||
+    lower === "client consignee" ||
+    lower === "customer designated delivery site" ||
+    lower === "customer delivery site" ||
+    lower === "customer" ||
+    lower === "consignee" ||
+    lower === "client" ||
+    lower === "client order" ||
+    lower.startsWith("client order") ||
+    lower === "production dispatch" ||
+    lower === "factory finished goods" ||
+    lower === "factory staging area" ||
+    lower === "driver assigned" ||
+    lower === "driver" ||
+    lower === "site engineer" ||
+    lower === "site incharge" ||
+    lower === "site supervisor" ||
+    lower === "supervisor" ||
+    lower === "engineer" ||
+    lower === "mth" ||
+    lower === "tl" ||
+    lower === "in-house transport" ||
+    lower === "in house transport"
   ) {
     return false;
   }
   if (t.startsWith("usr_") || t.startsWith("user_") || t.startsWith("USR-")) return false;
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t)) return false;
+  if (t.replace(/[^a-zA-Z0-9]/g, "").length < 2) return false;
   return true;
 }
 
@@ -208,54 +227,56 @@ function resolveCustomerName(entity?: any, ...fallbackEntities: any[]): string {
     }
 
     const directCandidates = [
-      obj.customerName,
       obj.customer?.companyName,
-      obj.customer?.contactPerson,
       obj.customer?.name,
       obj.salesOrder?.customer?.companyName,
-      obj.salesOrder?.customer?.contactPerson,
       obj.salesOrder?.customer?.name,
-      obj.salesOrder?.customerName,
       obj.salesOrder?.quotation?.lead?.companyName,
       obj.salesOrder?.quotation?.lead?.groupName,
       obj.salesOrder?.quotation?.lead?.projectName,
       obj.salesOrder?.quotation?.lead?.gstName,
-      obj.salesOrder?.quotation?.lead?.contactPerson,
       obj.salesOrder?.sourceQuotation?.lead?.companyName,
       obj.salesOrder?.sourceQuotation?.lead?.groupName,
       obj.salesOrder?.sourceQuotation?.lead?.projectName,
       obj.salesOrder?.sourceQuotation?.lead?.gstName,
-      obj.salesOrder?.sourceQuotation?.lead?.contactPerson,
       obj.sourceQuotation?.lead?.companyName,
       obj.sourceQuotation?.lead?.groupName,
       obj.sourceQuotation?.lead?.projectName,
       obj.sourceQuotation?.lead?.gstName,
-      obj.sourceQuotation?.lead?.contactPerson,
       obj.sourceQuotation?.customer?.companyName,
-      obj.sourceQuotation?.customerName,
       obj.quotation?.lead?.companyName,
       obj.quotation?.lead?.groupName,
       obj.quotation?.lead?.projectName,
       obj.quotation?.lead?.gstName,
-      obj.quotation?.lead?.contactPerson,
       obj.quotation?.customer?.companyName,
-      obj.quotation?.customerName,
       obj.lead?.companyName,
       obj.lead?.groupName,
       obj.lead?.projectName,
       obj.lead?.gstName,
-      obj.lead?.contactPerson,
       obj.salesOrder?.lead?.companyName,
       obj.salesOrder?.lead?.projectName,
       obj.companyName,
       obj.clientName,
       obj.consigneeName,
-      obj.deliveryContactPerson,
-      obj.receiverName,
-      obj.receivedBy,
+      obj.salesOrder?.customerName,
+      obj.customerName,
+      obj.sourceQuotation?.customerName,
+      obj.quotation?.customerName,
       obj.workOrder?.productionPlan?.salesOrder?.customer?.companyName,
       obj.workOrder?.productionPlan?.salesOrder?.customerName,
       obj.workOrder?.customer?.companyName,
+      obj.salesOrder?.quotation?.lead?.name,
+      obj.salesOrder?.sourceQuotation?.lead?.name,
+      obj.quotation?.lead?.name,
+      obj.sourceQuotation?.lead?.name,
+      obj.lead?.name,
+      obj.customer?.contactPerson,
+      obj.salesOrder?.customer?.contactPerson,
+      obj.salesOrder?.quotation?.lead?.contactPerson,
+      obj.salesOrder?.sourceQuotation?.lead?.contactPerson,
+      obj.sourceQuotation?.lead?.contactPerson,
+      obj.quotation?.lead?.contactPerson,
+      obj.lead?.contactPerson,
     ];
 
     for (const cand of directCandidates) {
@@ -267,10 +288,18 @@ function resolveCustomerName(entity?: any, ...fallbackEntities: any[]): string {
     const addrSources = [obj.billingAddress, obj.shippingAddress, obj.salesOrder?.billingAddress, obj.salesOrder?.shippingAddress];
     for (const addr of addrSources) {
       if (addr && typeof addr === "object") {
-        const addrCand = (addr as any).companyName || (addr as any).customerName || (addr as any).name || (addr as any).contactPerson;
+        const addrCand = (addr as any).companyName || (addr as any).customerName || (addr as any).name;
         if (isValidCustomerName(addrCand)) {
           return String(addrCand).trim();
         }
+      } else if (addr && typeof addr === "string" && addr.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(addr);
+          const addrCand = parsed.companyName || parsed.customerName || parsed.name;
+          if (isValidCustomerName(addrCand)) {
+            return String(addrCand).trim();
+          }
+        } catch {}
       }
     }
   }

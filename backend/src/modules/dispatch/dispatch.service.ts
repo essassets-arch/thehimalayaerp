@@ -59,28 +59,175 @@ export class DispatchService {
     };
   }
 
+  private formatAddressValue(value?: any): string {
+    if (!value) return '';
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (
+        !trimmed ||
+        trimmed === 'null' ||
+        trimmed === 'undefined' ||
+        trimmed === 'N/A' ||
+        trimmed === 'Factory Staging Area' ||
+        trimmed === 'Customer Designated Delivery Site'
+      ) {
+        return '';
+      }
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          return this.formatAddressValue(parsed);
+        } catch {
+          return trimmed;
+        }
+      }
+      return trimmed;
+    }
+
+    if (typeof value === 'object') {
+      if (value.formattedAddress && typeof value.formattedAddress === 'string') {
+        return value.formattedAddress.trim();
+      }
+      if (value.fullAddress && typeof value.fullAddress === 'string') {
+        return value.fullAddress.trim();
+      }
+      if (value.address && typeof value.address === 'string') {
+        return value.address.trim();
+      }
+
+      const streetParts = [
+        value.plotNo || value.plotNumber || value.doorNo,
+        value.building || value.buildingName || value.premises,
+        value.line1 || value.addressLine1 || value.street || value.street1 || value.streetAddress,
+        value.line2 || value.addressLine2 || value.street2 || value.landmark || value.area,
+        value.line3 || value.addressLine3 || value.locality || value.sector,
+      ].filter((p): p is string => Boolean(p && String(p).trim()));
+
+      const city = value.city || value.town || value.district || value.taluka;
+      const state = value.state || value.province || value.region;
+      const pin = value.postalCode || value.pincode || value.pinCode || value.zipCode || value.zip;
+      const country = value.country || value.nation;
+
+      const parts = [
+        streetParts.join(', '),
+        city,
+        state,
+        pin,
+        country && String(country).toLowerCase() !== 'india' ? country : null,
+      ].filter((p): p is string => Boolean(p && String(p).trim()));
+
+      return parts.join(', ');
+    }
+
+    return '';
+  }
+
+  private isRealCustomerName(name?: any): boolean {
+    if (!name || typeof name !== 'string') return false;
+    const s = name.trim();
+    if (!s) return false;
+    const lower = s.toLowerCase();
+
+    if (
+      s === '—' ||
+      s === '-' ||
+      s === 'N/A' ||
+      s === 'null' ||
+      s === 'undefined' ||
+      lower === 'consignee client' ||
+      lower === 'client consignee' ||
+      lower === 'customer designated delivery site' ||
+      lower === 'customer delivery site' ||
+      lower === 'customer' ||
+      lower === 'consignee' ||
+      lower === 'client' ||
+      lower === 'client order' ||
+      lower.startsWith('client order') ||
+      lower === 'production dispatch' ||
+      lower === 'factory finished goods' ||
+      lower === 'factory staging area' ||
+      lower === 'driver assigned' ||
+      lower === 'driver' ||
+      lower === 'site engineer' ||
+      lower === 'site incharge' ||
+      lower === 'site supervisor' ||
+      lower === 'supervisor' ||
+      lower === 'engineer' ||
+      lower === 'mth' ||
+      lower === 'tl' ||
+      lower === 'in-house transport' ||
+      lower === 'in house transport'
+    ) {
+      return false;
+    }
+
+    if (s.startsWith('usr_') || s.startsWith('user_') || s.startsWith('USR-')) return false;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return false;
+    if (s.replace(/[^a-zA-Z0-9]/g, '').length < 2) return false;
+
+    return true;
+  }
+
   private enrichDispatchCustomer(d: any) {
     if (!d) return d;
     const so = d.salesOrder;
     const lead = so?.quotation?.lead || so?.sourceQuotation?.lead;
     const cust = so?.customer;
 
-    const resolvedCustomerName =
-      (cust?.companyName && String(cust.companyName).trim()) ||
-      (lead?.companyName && String(lead.companyName).trim()) ||
-      (cust?.contactPerson && String(cust.contactPerson).trim()) ||
-      (lead?.groupName && String(lead.groupName).trim()) ||
-      (lead?.projectName && String(lead.projectName).trim()) ||
-      (lead?.gstName && String(lead.gstName).trim()) ||
-      (lead?.contactPerson && String(lead.contactPerson).trim()) ||
-      (so?.customerName && String(so.customerName).trim()) ||
-      (d.customerName && String(d.customerName).trim()) ||
-      (d.deliveryContactPerson && String(d.deliveryContactPerson).trim()) ||
-      (so?.orderNumber ? `Client Order (${so.orderNumber.trim()})` : 'Client Order');
+    const candidates = [
+      cust?.companyName,
+      cust?.name,
+      lead?.companyName,
+      lead?.groupName,
+      lead?.projectName,
+      lead?.gstName,
+      lead?.name,
+      so?.customerName,
+      d.customerName,
+      cust?.contactPerson,
+      lead?.contactPerson,
+    ];
+
+    let resolvedCustomerName = '';
+    for (const c of candidates) {
+      if (this.isRealCustomerName(c)) {
+        resolvedCustomerName = String(c).trim();
+        break;
+      }
+    }
+
+    if (!resolvedCustomerName) {
+      const addrs = [so?.shippingAddress, so?.billingAddress, cust?.shippingAddress, cust?.billingAddress];
+      for (const a of addrs) {
+        if (a && typeof a === 'object') {
+          const cand = (a as any).companyName || (a as any).customerName || (a as any).name;
+          if (this.isRealCustomerName(cand)) {
+            resolvedCustomerName = String(cand).trim();
+            break;
+          }
+        } else if (a && typeof a === 'string' && a.startsWith('{')) {
+          try {
+            const p = JSON.parse(a);
+            const cand = p.companyName || p.customerName || p.name;
+            if (this.isRealCustomerName(cand)) {
+              resolvedCustomerName = String(cand).trim();
+              break;
+            }
+          } catch {}
+        }
+      }
+    }
+
+    if (!resolvedCustomerName) {
+      resolvedCustomerName = so?.orderNumber ? `Client Order (${so.orderNumber.trim()})` : 'Client Order';
+    }
+
+    const cleanDeliveryAddress = this.formatAddressValue(d.deliveryAddress) || d.deliveryAddress;
 
     return {
       ...d,
       customerName: resolvedCustomerName,
+      deliveryAddress: cleanDeliveryAddress,
       salesOrder: so
         ? {
             ...so,

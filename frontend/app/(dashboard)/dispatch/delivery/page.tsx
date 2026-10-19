@@ -218,25 +218,130 @@ const SEEDED_SALES_USER_MAP: Record<string, string> = {
 function isValidCustomerName(name?: any): boolean {
   if (!name || typeof name !== "string") return false;
   const t = name.trim();
+  if (!t) return false;
+  const lower = t.toLowerCase();
   if (
-    !t ||
     t === "—" ||
     t === "-" ||
     t === "N/A" ||
     t === "null" ||
     t === "undefined" ||
-    t === "Consignee Client" ||
-    t === "Client Consignee" ||
-    t === "Customer Designated Delivery Site" ||
-    t === "Customer Delivery Site" ||
-    t === "Production Dispatch" ||
-    t === "Factory Finished Goods"
+    lower === "consignee client" ||
+    lower === "client consignee" ||
+    lower === "customer designated delivery site" ||
+    lower === "customer delivery site" ||
+    lower === "customer" ||
+    lower === "consignee" ||
+    lower === "client" ||
+    lower === "client order" ||
+    lower.startsWith("client order") ||
+    lower === "production dispatch" ||
+    lower === "factory finished goods" ||
+    lower === "factory staging area" ||
+    lower === "driver assigned" ||
+    lower === "driver" ||
+    lower === "site engineer" ||
+    lower === "site incharge" ||
+    lower === "site supervisor" ||
+    lower === "supervisor" ||
+    lower === "engineer" ||
+    lower === "mth" ||
+    lower === "tl" ||
+    lower === "in-house transport" ||
+    lower === "in house transport"
   ) {
     return false;
   }
   if (t.startsWith("usr_") || t.startsWith("user_") || t.startsWith("USR-")) return false;
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t)) return false;
+  if (t.replace(/[^a-zA-Z0-9]/g, "").length < 2) return false;
   return true;
+}
+
+function formatAddressValue(value?: any): string {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (
+      !trimmed ||
+      trimmed === "null" ||
+      trimmed === "undefined" ||
+      trimmed === "N/A" ||
+      trimmed === "Factory Staging Area" ||
+      trimmed === "Customer Designated Delivery Site"
+    )
+      return "";
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return formatAddressValue(parsed);
+      } catch {
+        return trimmed;
+      }
+    }
+    return trimmed;
+  }
+
+  if (typeof value === "object") {
+    if (value.formattedAddress && typeof value.formattedAddress === "string")
+      return value.formattedAddress.trim();
+    if (value.fullAddress && typeof value.fullAddress === "string")
+      return value.fullAddress.trim();
+    if (value.address && typeof value.address === "string")
+      return value.address.trim();
+
+    const streetParts = [
+      value.plotNo || value.plotNumber || value.doorNo,
+      value.building || value.buildingName || value.premises,
+      value.line1 || value.addressLine1 || value.street || value.street1 || value.streetAddress,
+      value.line2 || value.addressLine2 || value.street2 || value.landmark || value.area,
+      value.line3 || value.addressLine3 || value.locality || value.sector,
+    ].filter((p): p is string => Boolean(p && String(p).trim()));
+
+    const city = value.city || value.town || value.district || value.taluka;
+    const state = value.state || value.province || value.region;
+    const pin = value.postalCode || value.pincode || value.pinCode || value.zipCode || value.zip;
+    const country = value.country || value.nation;
+
+    const parts = [
+      streetParts.join(", "),
+      city,
+      state,
+      pin,
+      country && String(country).toLowerCase() !== "india" ? country : null,
+    ].filter((p): p is string => Boolean(p && String(p).trim()));
+
+    return parts.join(", ");
+  }
+
+  return "";
+}
+
+function resolveConsignmentAddress(dispatch?: any, matchedSo?: any): string {
+  if (!dispatch && !matchedSo) return "";
+  const candidates = [
+    dispatch?.deliveryAddress,
+    dispatch?.documentChecklist?.deliveryAddress,
+    dispatch?.salesOrder?.shippingAddress,
+    dispatch?.salesOrder?.deliveryAddress,
+    dispatch?.salesOrder?.customer?.shippingAddress,
+    dispatch?.salesOrder?.customer?.billingAddress,
+    dispatch?.salesOrder?.customer?.address,
+    matchedSo?.shippingAddress,
+    matchedSo?.deliveryAddress,
+    matchedSo?.customer?.shippingAddress,
+    matchedSo?.customer?.billingAddress,
+    matchedSo?.customer?.address,
+  ];
+
+  for (const c of candidates) {
+    const formatted = formatAddressValue(c);
+    if (formatted && formatted.length > 2 && formatted !== "N/A" && formatted !== "Factory Staging Area") {
+      return formatted;
+    }
+  }
+
+  return "";
 }
 
 function resolveCustomerName(entity?: any, ...fallbackEntities: any[]): string {
@@ -250,54 +355,56 @@ function resolveCustomerName(entity?: any, ...fallbackEntities: any[]): string {
     }
 
     const directCandidates = [
-      obj.customerName,
       obj.customer?.companyName,
-      obj.customer?.contactPerson,
       obj.customer?.name,
       obj.salesOrder?.customer?.companyName,
-      obj.salesOrder?.customer?.contactPerson,
       obj.salesOrder?.customer?.name,
-      obj.salesOrder?.customerName,
       obj.salesOrder?.quotation?.lead?.companyName,
       obj.salesOrder?.quotation?.lead?.groupName,
       obj.salesOrder?.quotation?.lead?.projectName,
       obj.salesOrder?.quotation?.lead?.gstName,
-      obj.salesOrder?.quotation?.lead?.contactPerson,
       obj.salesOrder?.sourceQuotation?.lead?.companyName,
       obj.salesOrder?.sourceQuotation?.lead?.groupName,
       obj.salesOrder?.sourceQuotation?.lead?.projectName,
       obj.salesOrder?.sourceQuotation?.lead?.gstName,
-      obj.salesOrder?.sourceQuotation?.lead?.contactPerson,
       obj.sourceQuotation?.lead?.companyName,
       obj.sourceQuotation?.lead?.groupName,
       obj.sourceQuotation?.lead?.projectName,
       obj.sourceQuotation?.lead?.gstName,
-      obj.sourceQuotation?.lead?.contactPerson,
       obj.sourceQuotation?.customer?.companyName,
-      obj.sourceQuotation?.customerName,
       obj.quotation?.lead?.companyName,
       obj.quotation?.lead?.groupName,
       obj.quotation?.lead?.projectName,
       obj.quotation?.lead?.gstName,
-      obj.quotation?.lead?.contactPerson,
       obj.quotation?.customer?.companyName,
-      obj.quotation?.customerName,
       obj.lead?.companyName,
       obj.lead?.groupName,
       obj.lead?.projectName,
       obj.lead?.gstName,
-      obj.lead?.contactPerson,
       obj.salesOrder?.lead?.companyName,
       obj.salesOrder?.lead?.projectName,
       obj.companyName,
       obj.clientName,
       obj.consigneeName,
-      obj.deliveryContactPerson,
-      obj.receiverName,
-      obj.receivedBy,
+      obj.salesOrder?.customerName,
+      obj.customerName,
+      obj.sourceQuotation?.customerName,
+      obj.quotation?.customerName,
       obj.workOrder?.productionPlan?.salesOrder?.customer?.companyName,
       obj.workOrder?.productionPlan?.salesOrder?.customerName,
       obj.workOrder?.customer?.companyName,
+      obj.salesOrder?.quotation?.lead?.name,
+      obj.salesOrder?.sourceQuotation?.lead?.name,
+      obj.quotation?.lead?.name,
+      obj.sourceQuotation?.lead?.name,
+      obj.lead?.name,
+      obj.customer?.contactPerson,
+      obj.salesOrder?.customer?.contactPerson,
+      obj.salesOrder?.quotation?.lead?.contactPerson,
+      obj.salesOrder?.sourceQuotation?.lead?.contactPerson,
+      obj.sourceQuotation?.lead?.contactPerson,
+      obj.quotation?.lead?.contactPerson,
+      obj.lead?.contactPerson,
     ];
 
     for (const cand of directCandidates) {
@@ -309,10 +416,18 @@ function resolveCustomerName(entity?: any, ...fallbackEntities: any[]): string {
     const addrSources = [obj.billingAddress, obj.shippingAddress, obj.salesOrder?.billingAddress, obj.salesOrder?.shippingAddress];
     for (const addr of addrSources) {
       if (addr && typeof addr === "object") {
-        const addrCand = (addr as any).companyName || (addr as any).customerName || (addr as any).name || (addr as any).contactPerson;
+        const addrCand = (addr as any).companyName || (addr as any).customerName || (addr as any).name;
         if (isValidCustomerName(addrCand)) {
           return String(addrCand).trim();
         }
+      } else if (addr && typeof addr === "string" && addr.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(addr);
+          const addrCand = parsed.companyName || parsed.customerName || parsed.name;
+          if (isValidCustomerName(addrCand)) {
+            return String(addrCand).trim();
+          }
+        } catch {}
       }
     }
   }
@@ -579,10 +694,13 @@ export default function DeliveryRunPage() {
       }
 
       const customerName = resolveCustomerName(
-        (item as any).customerName,
         item.salesOrder,
         matchedSo,
+        item.salesOrder?.customer,
+        item.salesOrder?.quotation?.lead,
+        item.salesOrder?.sourceQuotation?.lead,
         localMeta,
+        (item as any).customerName,
         item
       );
 
@@ -594,7 +712,9 @@ export default function DeliveryRunPage() {
         item
       );
 
-      return { customerName, salesPersonName, matchedSo };
+      const destinationAddress = resolveConsignmentAddress(item, matchedSo);
+
+      return { customerName, salesPersonName, matchedSo, destinationAddress };
     },
     [salesOrdersMap, usersMap]
   );
@@ -1259,11 +1379,11 @@ export default function DeliveryRunPage() {
                                     <span>Sales: {meta.salesPersonName}</span>
                                   </span>
                                 </div>
-                                {item.deliveryAddress && (
-                                  <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#64748b", fontSize: "12px" }} title={item.deliveryAddress}>
+                                {meta.destinationAddress && (
+                                  <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#64748b", fontSize: "12px" }} title={meta.destinationAddress}>
                                     <MapPin size={12} color="#f59e0b" style={{ flexShrink: 0 }} />
                                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>
-                                      {item.deliveryAddress}
+                                      {meta.destinationAddress}
                                     </span>
                                   </div>
                                 )}
@@ -1413,13 +1533,13 @@ export default function DeliveryRunPage() {
                           </div>
                         </div>
 
-                        {item.deliveryAddress && (
+                        {meta.destinationAddress && (
                           <div className={styles.mobileCardRow}>
                             <div className={styles.mobileCardIcon}>
                               <MapPin size={14} color="#f59e0b" />
                             </div>
                             <div style={{ fontSize: "12px", color: "#475569" }}>
-                              {item.deliveryAddress}
+                              {meta.destinationAddress}
                             </div>
                           </div>
                         )}
@@ -1493,7 +1613,7 @@ export default function DeliveryRunPage() {
                           <th style={{ width: 140 }}>Dispatch No.</th>
                           <th style={{ width: 150 }}>Sales Order &amp; Date</th>
                           <th style={{ width: 140 }}>Invoice No.</th>
-                          <th style={{ minWidth: 160 }}>Customer & Site</th>
+                          <th style={{ minWidth: 160 }}>Customer &amp; Destination</th>
                           <th style={{ width: 150 }}>Products & Qty</th>
                           <th style={{ width: 160 }}>Transporter & LR</th>
                           <th style={{ width: 170 }}>Driver & Mobile</th>
@@ -1613,10 +1733,13 @@ export default function DeliveryRunPage() {
                                       <span>Sales: {meta.salesPersonName}</span>
                                     </span>
                                   </div>
-                                  {item.deliveryAddress && (
-                                    <span style={{ fontSize: "11px", color: "#64748b", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={item.deliveryAddress}>
-                                      📍 {item.deliveryAddress}
-                                    </span>
+                                  {meta.destinationAddress && (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#64748b", fontSize: "11px", marginTop: 2 }} title={meta.destinationAddress}>
+                                      <MapPin size={11} color="#f59e0b" style={{ flexShrink: 0 }} />
+                                      <span style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                        {meta.destinationAddress}
+                                      </span>
+                                    </div>
                                   )}
                                 </div>
                               </td>
@@ -1831,10 +1954,10 @@ export default function DeliveryRunPage() {
                             </span>
                           </div>
 
-                          {item.deliveryAddress && (
+                          {meta.destinationAddress && (
                             <div className={styles.cardAddress}>
                               <MapPin size={14} className={styles.cardAddressIcon} />
-                              <span className={styles.cardAddressText}>{item.deliveryAddress}</span>
+                              <span className={styles.cardAddressText}>{meta.destinationAddress}</span>
                             </div>
                           )}
 
@@ -1942,7 +2065,7 @@ export default function DeliveryRunPage() {
                   return (
                     <div className={styles.modalOrderSummary}>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px" }}>
-                        <span style={{ color: "#64748b" }}>Consignee / Customer:</span>
+                        <span style={{ color: "#64748b" }}>Customer:</span>
                         <span style={{ fontWeight: 800, color: "#0f172a" }}>
                           {selectedMeta.customerName}
                         </span>
@@ -1981,11 +2104,11 @@ export default function DeliveryRunPage() {
                           </span>
                         </div>
                       )}
-                      {selectedDispatch.deliveryAddress && (
+                      {(selectedMeta.destinationAddress || selectedDispatch.deliveryAddress) && (
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", borderTop: "1px dashed #e2e8f0", paddingTop: 6 }}>
                           <span style={{ color: "#64748b" }}>Destination:</span>
                           <span style={{ fontWeight: 500, color: "#334155", maxWidth: "65%", textAlign: "right" }}>
-                            {selectedDispatch.deliveryAddress}
+                            {selectedMeta.destinationAddress || formatAddressValue(selectedDispatch.deliveryAddress) || selectedDispatch.deliveryAddress}
                           </span>
                         </div>
                       )}
@@ -2197,7 +2320,7 @@ export default function DeliveryRunPage() {
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                           <div>
-                            <span style={{ fontSize: 11, color: "#64748b", display: "block" }}>Customer / Consignee:</span>
+                            <span style={{ fontSize: 11, color: "#64748b", display: "block" }}>Customer:</span>
                             <strong style={{ fontSize: 14, color: "#0f172a" }}>
                               {historyMeta.customerName}
                             </strong>
@@ -2212,7 +2335,7 @@ export default function DeliveryRunPage() {
                           <div>
                             <span style={{ fontSize: 11, color: "#64748b", display: "block" }}>Destination Site Address:</span>
                             <span style={{ fontSize: 12.5, color: "#334155", lineHeight: 1.4 }}>
-                              📍 {viewingHistoryItem.deliveryAddress || viewingHistoryItem.salesOrder?.customer?.address || "Factory Staging Area / Site Delivery"}
+                              📍 {historyMeta.destinationAddress || formatAddressValue(viewingHistoryItem.deliveryAddress) || viewingHistoryItem.deliveryAddress || "Factory Staging Area / Site Delivery"}
                             </span>
                           </div>
                           {viewingHistoryItem.specialInstructions && (
