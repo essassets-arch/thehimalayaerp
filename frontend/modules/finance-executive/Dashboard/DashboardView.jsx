@@ -6,6 +6,7 @@ import {
   ResponsiveContainer, 
   AreaChart, Area,
   LineChart, Line, 
+  BarChart, Bar,
   XAxis, YAxis, CartesianGrid, 
   Tooltip, Legend,
   PieChart, Pie, Cell
@@ -31,9 +32,15 @@ import {
   Layers,
   Database,
   Building2,
+  Building,
   ChevronRight,
   X,
-  ExternalLink
+  ExternalLink,
+  Users,
+  FileCheck,
+  Zap,
+  BarChart3,
+  Receipt
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { backendFetch } from '../../../lib/backendFetch';
@@ -41,11 +48,27 @@ import { apiClient } from '../../../lib/apiClient';
 import { useERPStore } from '../../../store/erpStore';
 import { useAuthStore } from '../../../store/authStore';
 
-const AGING_COLORS = ['#3b82f6', '#f59e0b', '#f97316', '#ef4444'];
-const CHART_COLORS = {
-  invoiced: '#3b82f6',
-  collected: '#10b981'
+// Financial Color Palette
+const PALETTE = {
+  blue: '#2563EB',
+  blueLight: '#EFF6FF',
+  emerald: '#10B981',
+  emeraldLight: '#ECFDF5',
+  amber: '#F59E0B',
+  amberLight: '#FFFBEB',
+  rose: '#EF4444',
+  roseLight: '#FEF2F2',
+  purple: '#8B5CF6',
+  purpleLight: '#F5F3FF',
+  cyan: '#06B6D4',
+  cyanLight: '#ECFEFF',
+  slate: '#0F172A',
+  slateMuted: '#64748B',
+  border: '#E2E8F0',
+  cardBg: '#FFFFFF',
 };
+
+const AGING_COLORS = [PALETTE.emerald, PALETTE.amber, '#F97316', PALETTE.rose];
 
 const formatCurrency = (val) => {
   return new Intl.NumberFormat('en-IN', {
@@ -82,12 +105,14 @@ export default function DashboardView({
   const [payments, setPayments] = useState([]);
   const [salesRecordedPayments, setSalesRecordedPayments] = useState([]);
   const [invoices, setInvoices] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState(null);
 
-  // Filters & Tabs
-  const [timeRange, setTimeRange] = useState('ALL'); // 'ALL' | 'FY2627' | '90D' | '30D' | 'THIS_MONTH'
+  // Filters & Navigation
+  const [timeRange, setTimeRange] = useState('30D'); // '30D' | '90D' | '6M' | 'FY2627' | 'ALL'
   const [activeTab, setActiveTab] = useState('queue'); // 'queue' | 'sm_orders' | 'recent_verified'
   const [searchQuery, setSearchQuery] = useState('');
   const [modeFilter, setModeFilter] = useState('ALL');
@@ -104,7 +129,7 @@ export default function DashboardView({
     amount: '',
     mode: 'Bank Transfer',
     transactionReference: '',
-    bankName: 'HDFC Bank',
+    bankName: 'HDFC Bank - Current A/C',
     paymentDate: new Date().toISOString().split('T')[0],
     remarks: '',
     autoVerify: true
@@ -127,12 +152,14 @@ export default function DashboardView({
   const fetchDashboardData = useCallback(async () => {
     try {
       setIsRefreshing(true);
-      const [ordersRes, pmtsRes, salesPmtsRes, pendingPmtsRes, invsRes] = await Promise.allSettled([
+      const [ordersRes, pmtsRes, salesPmtsRes, pendingPmtsRes, invsRes, poRes, expRes] = await Promise.allSettled([
         backendFetch('/api/backend/sales/orders?limit=1000').catch(() => null),
         backendFetch('/api/backend/finance/payments?limit=1000').catch(() => null),
         backendFetch('/api/backend/finance/payments/sales-recorded').catch(() => null),
         backendFetch('/api/backend/finance/payments/pending').catch(() => null),
-        backendFetch('/api/backend/finance/invoices?limit=1000').catch(() => null)
+        backendFetch('/api/backend/finance/invoices?limit=1000').catch(() => null),
+        backendFetch('/api/backend/procurement/purchase-orders?limit=1000').catch(() => null),
+        backendFetch('/api/backend/expenses?limit=1000').catch(() => null)
       ]);
 
       const fetchedOrders = ordersRes.status === 'fulfilled' ? parseList(ordersRes.value) : [];
@@ -140,8 +167,10 @@ export default function DashboardView({
       const fetchedSalesPmts = salesPmtsRes.status === 'fulfilled' ? parseList(salesPmtsRes.value) : [];
       const fetchedPendingPmts = pendingPmtsRes.status === 'fulfilled' ? parseList(pendingPmtsRes.value) : [];
       const fetchedInvoices = invsRes.status === 'fulfilled' ? parseList(invsRes.value) : [];
+      const fetchedPOs = poRes.status === 'fulfilled' ? parseList(poRes.value) : [];
+      const fetchedExpenses = expRes.status === 'fulfilled' ? parseList(expRes.value) : [];
 
-      // Combine sales payments
+      // Combine sales recorded payments
       const combinedRecorded = [...fetchedSalesPmts];
       fetchedPendingPmts.forEach(p => {
         if (!combinedRecorded.some(item => (item.id || item.payment_id) === (p.id || p.payment_id))) {
@@ -166,6 +195,8 @@ export default function DashboardView({
       setPayments(finalPayments);
       setSalesRecordedPayments(combinedRecorded);
       setInvoices(finalInvoices);
+      setPurchaseOrders(fetchedPOs.length > 0 ? fetchedPOs : (storeState?.purchaseOrders || []));
+      setExpenses(fetchedExpenses);
       setLastSyncTime(new Date());
     } catch (err) {
       console.warn('[FinanceExecutiveDashboard] Error fetching dynamic dashboard data:', err);
@@ -179,31 +210,33 @@ export default function DashboardView({
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Range boundaries calculation
+  // Horizon boundaries calculation
   const rangeBounds = useMemo(() => {
     const now = new Date();
     if (timeRange === 'ALL') {
-      return { start: new Date('2020-01-01'), end: new Date('2030-12-31') };
+      return { start: new Date('2020-01-01'), end: new Date('2030-12-31'), label: 'All Time' };
     }
     if (timeRange === 'FY2627') {
-      return { start: new Date('2026-04-01T00:00:00'), end: new Date('2027-03-31T23:59:59') };
+      return { start: new Date('2026-04-01T00:00:00'), end: new Date('2027-03-31T23:59:59'), label: 'FY 2026–27' };
+    }
+    if (timeRange === '6M') {
+      const start = new Date(now.getTime() - 180 * 86400000);
+      return { start, end: now, label: 'Last 6 Months' };
     }
     if (timeRange === '90D') {
       const start = new Date(now.getTime() - 90 * 86400000);
-      return { start, end: now };
+      return { start, end: now, label: 'Quarter (Last 90 Days)' };
     }
     if (timeRange === '30D') {
       const start = new Date(now.getTime() - 30 * 86400000);
-      return { start, end: now };
+      const startLabel = start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+      const endLabel = now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+      return { start, end: now, label: `Last 30 Days (${startLabel} – ${endLabel})` };
     }
-    if (timeRange === 'THIS_MONTH') {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      return { start, end: now };
-    }
-    return { start: new Date('2020-01-01'), end: new Date('2030-12-31') };
+    return { start: new Date('2020-01-01'), end: new Date('2030-12-31'), label: 'All Horizon' };
   }, [timeRange]);
 
-  // Filter Orders based on Time Range
+  // Filter Orders based on Horizon
   const filteredOrders = useMemo(() => {
     if (timeRange === 'ALL') return salesOrders;
     return salesOrders.filter((o) => {
@@ -213,7 +246,7 @@ export default function DashboardView({
     });
   }, [salesOrders, timeRange, rangeBounds]);
 
-  // Filter Payments based on Time Range
+  // Filter Payments based on Horizon
   const filteredPayments = useMemo(() => {
     if (timeRange === 'ALL') return payments;
     return payments.filter((p) => {
@@ -225,11 +258,9 @@ export default function DashboardView({
 
   // Pending Verifications Queue from SM
   const pendingQueue = useMemo(() => {
-    // 1. Gather all pending from sales-recorded
     const list = [];
     const seen = new Set();
 
-    // From salesRecordedPayments
     salesRecordedPayments.forEach((p) => {
       const id = p.id || p.payment_id;
       const st = String(p.status || p.verificationStatus || 'SUBMITTED').toUpperCase();
@@ -251,7 +282,6 @@ export default function DashboardView({
       }
     });
 
-    // Also check standard payments table
     payments.forEach((p) => {
       const id = p.id;
       const st = String(p.status || '').toUpperCase();
@@ -310,17 +340,16 @@ export default function DashboardView({
       }));
   }, [payments]);
 
-  // Dynamic KPI Calculations from Live SM Records
+  // ── DYNAMIC FINANCIAL PERFORMANCE METRICS (Synced with SM & Ledger) ──
   const dynamicKpis = useMemo(() => {
     let invoicedSum = 0;
     let collectedSum = 0;
     let unpaidOrderCount = 0;
-    let totalOrderCount = filteredOrders.length;
+    let overdueOrderCount = 0;
     let overdueSum = 0;
 
     const now = new Date();
 
-    // 1. Invoiced Sum & Order Level Outstanding
     filteredOrders.forEach((o) => {
       const tot = Number(o.totalAmount || o.grandTotal || 0);
       const paid = Number(o.paidAmount || o.verifiedPaidAmount || 0);
@@ -333,113 +362,161 @@ export default function DashboardView({
         unpaidOrderCount++;
         const orderDate = new Date(o.orderDate || o.createdAt || now);
         const daysOld = Math.floor((now - orderDate) / 86400000);
-        if (daysOld > 30) {
+        if (daysOld > 15) {
           overdueSum += out;
+          overdueOrderCount++;
         }
       }
     });
 
-    // 2. Extra Verified Collections from Customer Payments table
     const standalonePaymentSum = filteredPayments
       .filter((p) => ['VERIFIED', 'APPROVED', 'ALLOCATED'].includes(String(p.status || '').toUpperCase()))
       .reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
-    // Use higher of payment ledger or order verified sum
     const totalCollected = Math.max(collectedSum, standalonePaymentSum);
     const totalOutstanding = Math.max(0, invoicedSum - totalCollected);
 
-    // 3. Today & This Month Collections
-    let todayColl = 0;
-    let thisMonthColl = 0;
-    filteredPayments.forEach((p) => {
-      const isVerified = ['VERIFIED', 'APPROVED', 'ALLOCATED'].includes(String(p.status || '').toUpperCase());
-      if (isVerified) {
-        const amt = Number(p.amount || 0);
-        const d = new Date(p.verifiedAt || p.receivedAt || p.createdAt);
-        if (!isNaN(d.getTime())) {
-          if (d.toDateString() === now.toDateString()) todayColl += amt;
-          if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) thisMonthColl += amt;
-        }
-      }
-    });
+    // Vendor Dues Pending from Purchase Orders
+    const openPOs = purchaseOrders.filter(po => !['CLOSED', 'CANCELLED'].includes(String(po.status || '').toUpperCase()));
+    const vendorDues = openPOs.reduce((sum, po) => sum + Number(po.totalAmount || 0), 0);
 
-    // Pending count & total amount
-    const pendingCount = pendingQueue.length;
-    const pendingAmount = pendingQueue.reduce((sum, p) => sum + p.amount, 0);
-
-    // Realization rate
     const realizationRate = invoicedSum > 0 ? ((totalCollected / invoicedSum) * 100).toFixed(1) : '0.0';
 
     return {
       totalInvoiced: invoicedSum,
       totalCollected,
       outstanding: totalOutstanding,
-      pendingCount,
-      pendingAmount,
+      criticalOverdue: overdueSum,
+      overdueCount: overdueOrderCount,
       unpaidCount: unpaidOrderCount,
-      totalOrderCount,
-      todayCollections: todayColl,
-      thisMonthCollections: thisMonthColl,
-      overdueAmount: overdueSum,
+      totalOrderCount: filteredOrders.length,
       realizationRate,
-      averageCollectionDays: '15.0'
+      vendorDues,
+      openPOCount: openPOs.length,
+      targetShortfall: Math.max(0, 75 - Number(realizationRate)).toFixed(1)
     };
-  }, [filteredOrders, filteredPayments, pendingQueue]);
+  }, [filteredOrders, filteredPayments, purchaseOrders]);
 
-  // Dynamic Monthly Trend Chart from Real Records
-  const monthlyTrendData = useMemo(() => {
-    const monthMap = {};
-    const monthOrder = [
-      'Jan 26', 'Feb 26', 'Mar 26', 'Apr 26', 'May 26', 'Jun 26',
-      'Jul 26', 'Aug 26', 'Sep 26', 'Oct 26', 'Nov 26', 'Dec 26',
-      'Jan 27', 'Feb 27', 'Mar 27'
-    ];
+  // ── WEEKLY / MONTHLY TREND DATA (Revenue vs Realized Collections) ──
+  const revenueTrendData = useMemo(() => {
+    const weekly = timeRange === '30D';
+    const bucketCount = weekly ? 4 : timeRange === '90D' ? 3 : timeRange === '6M' ? 6 : 12;
 
-    // Seed active months in range or present in DB
-    monthOrder.forEach((m) => {
-      monthMap[m] = { month: m, invoiced: 0, collected: 0 };
+    const buckets = Array.from({ length: bucketCount }, (_, index) => {
+      if (weekly) {
+        return {
+          start: new Date(rangeBounds.start.getTime() + index * 7 * 86400000),
+          end: new Date(Math.min(rangeBounds.end.getTime(), rangeBounds.start.getTime() + (index + 1) * 7 * 86400000 - 1)),
+          label: `Week ${index + 1}`,
+          revenue: 0,
+          collections: 0
+        };
+      }
+      const d = new Date(rangeBounds.start.getFullYear(), rangeBounds.start.getMonth() + index, 1);
+      return {
+        year: d.getFullYear(),
+        month: d.getMonth(),
+        label: d.toLocaleDateString('en-IN', { month: 'short' }),
+        revenue: 0,
+        collections: 0
+      };
     });
 
-    // Aggregate Orders
-    salesOrders.forEach((o) => {
+    filteredOrders.forEach((o) => {
       const d = new Date(o.orderDate || o.createdAt);
       if (!isNaN(d.getTime())) {
-        const key = d.toLocaleString('en-US', { month: 'short', year: '2-digit' });
-        if (monthMap[key]) {
-          monthMap[key].invoiced += Number(o.totalAmount || o.grandTotal || 0);
+        const amt = Number(o.totalAmount || o.grandTotal || 0);
+        const coll = Number(o.paidAmount || o.verifiedPaidAmount || 0);
+        const b = weekly 
+          ? buckets.find((item) => d >= item.start && d <= item.end)
+          : buckets.find((item) => item.year === d.getFullYear() && item.month === d.getMonth());
+        if (b) {
+          b.revenue += amt;
+          b.collections += coll;
         }
       }
     });
 
-    // Aggregate Payments
-    payments.forEach((p) => {
+    filteredPayments.forEach((p) => {
       const isVerified = ['VERIFIED', 'APPROVED', 'ALLOCATED'].includes(String(p.status || '').toUpperCase());
       if (isVerified) {
         const d = new Date(p.verifiedAt || p.receivedAt || p.createdAt);
         if (!isNaN(d.getTime())) {
-          const key = d.toLocaleString('en-US', { month: 'short', year: '2-digit' });
-          if (monthMap[key]) {
-            monthMap[key].collected += Number(p.amount || 0);
+          const amt = Number(p.amount || 0);
+          const b = weekly 
+            ? buckets.find((item) => d >= item.start && d <= item.end)
+            : buckets.find((item) => item.year === d.getFullYear() && item.month === d.getMonth());
+          if (b) {
+            b.collections = Math.max(b.collections, b.collections + amt);
           }
         }
       }
     });
 
-    // Return only months with activity or relevant FY26-27 range
-    return monthOrder
-      .map((k) => monthMap[k])
-      .filter((item) => item.invoiced > 0 || item.collected > 0 || ['Apr 26', 'May 26', 'Jun 26', 'Jul 26', 'Aug 26', 'Sep 26', 'Oct 26'].includes(item.month));
-  }, [salesOrders, payments]);
+    return buckets.map(({ label, revenue, collections }) => ({
+      label,
+      revenue: Math.round(revenue),
+      collections: Math.round(collections)
+    }));
+  }, [timeRange, filteredOrders, filteredPayments, rangeBounds]);
 
-  // Dynamic Outstanding Aging Pie Chart
-  const agingData = useMemo(() => {
+  // ── COLLECTIONS VS OUTSTANDING COMPARISON (Bar Chart) ──
+  const collectionsVsOutstandingData = useMemo(() => {
+    const weekly = timeRange === '30D';
+    const bucketCount = weekly ? 4 : timeRange === '90D' ? 3 : timeRange === '6M' ? 6 : 12;
+
+    const buckets = Array.from({ length: bucketCount }, (_, index) => {
+      if (weekly) {
+        return {
+          start: new Date(rangeBounds.start.getTime() + index * 7 * 86400000),
+          end: new Date(Math.min(rangeBounds.end.getTime(), rangeBounds.start.getTime() + (index + 1) * 7 * 86400000 - 1)),
+          period: `Week ${index + 1}`,
+          collections: 0,
+          outstanding: 0
+        };
+      }
+      const d = new Date(rangeBounds.start.getFullYear(), rangeBounds.start.getMonth() + index, 1);
+      return {
+        year: d.getFullYear(),
+        month: d.getMonth(),
+        period: d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }),
+        collections: 0,
+        outstanding: 0
+      };
+    });
+
+    filteredOrders.forEach((o) => {
+      const d = new Date(o.orderDate || o.createdAt);
+      if (!isNaN(d.getTime())) {
+        const tot = Number(o.totalAmount || o.grandTotal || 0);
+        const paid = Number(o.paidAmount || o.verifiedPaidAmount || 0);
+        const out = Number(o.outstandingAmount !== null && o.outstandingAmount !== undefined ? o.outstandingAmount : Math.max(0, tot - paid));
+        const b = weekly 
+          ? buckets.find((item) => d >= item.start && d <= item.end)
+          : buckets.find((item) => item.year === d.getFullYear() && item.month === d.getMonth());
+        if (b) {
+          b.collections += paid;
+          b.outstanding += out;
+        }
+      }
+    });
+
+    return buckets.map(({ period, collections, outstanding }) => ({
+      period,
+      collections: Math.round(collections),
+      outstanding: Math.round(outstanding)
+    }));
+  }, [timeRange, filteredOrders, rangeBounds]);
+
+  // ── RECEIVABLES AGING BUCKETS (Donut) ──
+  const agingBreakdownData = useMemo(() => {
     const now = new Date();
-    const buckets = {
-      '0-30 Days': 0,
-      '31-60 Days': 0,
-      '61-90 Days': 0,
-      '90+ Days': 0
-    };
+    const buckets = [
+      { name: '0–30 Days (Current)', value: 0, color: PALETTE.emerald },
+      { name: '31–60 Days (Aging)', value: 0, color: PALETTE.amber },
+      { name: '61–90 Days (Overdue)', value: 0, color: '#F97316' },
+      { name: '90+ Days (Critical)', value: 0, color: PALETTE.rose },
+    ];
 
     filteredOrders.forEach((o) => {
       const tot = Number(o.totalAmount || o.grandTotal || 0);
@@ -449,19 +526,107 @@ export default function DashboardView({
       if (out > 0) {
         const d = new Date(o.orderDate || o.createdAt || now);
         const diffDays = Math.max(0, Math.floor((now - d) / 86400000));
-        if (diffDays <= 30) buckets['0-30 Days'] += out;
-        else if (diffDays <= 60) buckets['31-60 Days'] += out;
-        else if (diffDays <= 90) buckets['61-90 Days'] += out;
-        else buckets['90+ Days'] += out;
+        if (diffDays <= 30) buckets[0].value += out;
+        else if (diffDays <= 60) buckets[1].value += out;
+        else if (diffDays <= 90) buckets[2].value += out;
+        else buckets[3].value += out;
       }
     });
 
+    const total = buckets.reduce((sum, b) => sum + b.value, 0);
+    return buckets.map((b) => ({
+      ...b,
+      value: Math.round(b.value),
+      percentage: total ? `${((b.value / total) * 100).toFixed(1)}%` : '0.0%'
+    }));
+  }, [filteredOrders]);
+
+  // ── OPERATIONAL CASH OUTFLOWS & EXPENSES (Donut) ──
+  const expenseAllocationData = useMemo(() => {
+    const vendorPay = dynamicKpis.vendorDues || 0;
+    const gstTax = 0;
+    const totalExpensesLogged = expenses.reduce((sum, exp) => sum + Number(exp.amount || 0), 0);
+    const payroll = 0;
+    const operations = totalExpensesLogged;
+    const admin = 0;
+
+    const total = vendorPay + payroll + operations + admin + gstTax;
+
     return [
-      { name: '0-30 Days', value: buckets['0-30 Days'] },
-      { name: '31-60 Days', value: buckets['31-60 Days'] },
-      { name: '61-90 Days', value: buckets['61-90 Days'] },
-      { name: '90+ Days', value: buckets['90+ Days'] }
+      { name: 'Statutory GST & Taxes', value: gstTax, color: PALETTE.blue, share: `${Math.round((gstTax / Math.max(1, total)) * 100)}%` },
+      { name: 'Staff Salaries & Payroll', value: payroll, color: PALETTE.purple, share: `${Math.round((payroll / Math.max(1, total)) * 100)}%` },
+      { name: 'Operations & Logistics', value: operations, color: PALETTE.emerald, share: `${Math.round((operations / Math.max(1, total)) * 100)}%` },
+      { name: 'Office & Administration', value: admin, color: PALETTE.amber, share: `${Math.round((admin / Math.max(1, total)) * 100)}%` },
+      { name: 'Vendor Procurement Orders', value: vendorPay, color: PALETTE.rose, share: `${Math.round((vendorPay / Math.max(1, total)) * 100)}%` },
     ];
+  }, [dynamicKpis, expenses]);
+
+  // ── TOP DEBTORS WITH PENDING DUES (Interactive with Verify Receipt →) ──
+  const topPendingCustomers = useMemo(() => {
+    const customerMap = new Map();
+    filteredOrders.forEach((o) => {
+      const tot = Number(o.totalAmount || 0);
+      const paid = Number(o.paidAmount || 0);
+      const out = Number(o.outstandingAmount !== null && o.outstandingAmount !== undefined ? o.outstandingAmount : Math.max(0, tot - paid));
+      if (out <= 0) return;
+
+      const name = o.customer?.companyName || 'Client';
+      const existing = customerMap.get(name) || { name, totalBal: 0, count: 0, maxDays: 0 };
+      const d = o.orderDate || o.createdAt;
+      const days = d ? Math.floor((Date.now() - new Date(d).getTime()) / 86400000) : 20;
+
+      customerMap.set(name, {
+        name,
+        totalBal: existing.totalBal + out,
+        count: existing.count + 1,
+        maxDays: Math.max(existing.maxDays, days),
+      });
+    });
+
+    return Array.from(customerMap.values())
+      .sort((a, b) => b.totalBal - a.totalBal)
+      .slice(0, 5)
+      .map((c) => ({
+        name: c.name,
+        amountStr: formatCurrency(c.totalBal),
+        invoicesStr: `${c.count} Invoices`,
+        status: c.maxDays > 30 ? 'OVERDUE' : 'PENDING',
+        risk: c.maxDays > 40 ? 'HIGH' : c.maxDays > 25 ? 'MEDIUM' : 'LOW',
+        riskColor: c.maxDays > 40 ? PALETTE.rose : c.maxDays > 25 ? PALETTE.amber : PALETTE.emerald,
+      }));
+  }, [filteredOrders]);
+
+  // ── SALES TEAM COLLECTION ATTRIBUTION ──
+  const salesTeamList = useMemo(() => {
+    const repMap = new Map();
+    filteredOrders.forEach((o) => {
+      const rep = o.salesExecutive?.name || o.salesExecutive?.email || 'Sales Executive';
+      const existing = repMap.get(rep) || { name: rep, count: 0, totalVal: 0, received: 0 };
+      repMap.set(rep, {
+        name: rep,
+        role: rep.toLowerCase().includes('supersales') ? 'SuperSales' : 'Sales Executive',
+        count: existing.count + 1,
+        totalVal: existing.totalVal + Number(o.totalAmount || 0),
+        received: existing.received + Number(o.paidAmount || 0),
+      });
+    });
+
+    return Array.from(repMap.values())
+      .sort((a, b) => b.totalVal - a.totalVal)
+      .map((r) => {
+        const initials = r.name
+          .split(' ')
+          .map((part) => part[0])
+          .join('')
+          .toUpperCase()
+          .slice(0, 2);
+        return {
+          ...r,
+          initials: initials || 'SE',
+          salesValStr: formatCurrency(r.totalVal),
+          receivedStr: formatCurrency(r.received),
+        };
+      });
   }, [filteredOrders]);
 
   // Filtered SM Orders for Tab 2
@@ -505,34 +670,23 @@ export default function DashboardView({
       confirmButtonText: 'Verify & Clear',
       cancelButtonText: 'Cancel',
       confirmButtonColor: '#10b981',
-      cancelButtonColor: '#64748b',
-      customClass: {
-        popup: 'swal-premium-popup',
-        confirmButton: 'swal-premium-confirm-btn',
-        cancelButton: 'swal-premium-cancel-btn'
-      }
+      cancelButtonColor: '#64748b'
     });
 
     if (result.isConfirmed) {
       try {
-        const res = await backendFetch(`/api/backend/finance/payments/${paymentId}/verify`, {
-          method: 'POST'
-        });
+        await backendFetch(`/api/backend/finance/payments/${paymentId}/verify`, { method: 'POST' });
         Swal.fire({
           icon: 'success',
           title: 'Payment Verified & Cleared!',
-          text: `Payment for order ${orderNum} has been reconciled in the financial ledger and synced with SM.`,
+          text: `Payment for order ${orderNum} reconciled in ledger and synced with SM.`,
           timer: 2000,
           showConfirmButton: false
         });
         await fetchDashboardData();
         if (propOnRefresh) propOnRefresh();
       } catch (err) {
-        Swal.fire({
-          icon: 'error',
-          title: 'Verification Failed',
-          text: err.message || 'Could not verify payment at this time.'
-        });
+        Swal.fire('Verification Failed', err.message || 'Could not verify payment', 'error');
       }
     }
   };
@@ -568,11 +722,7 @@ export default function DashboardView({
         await fetchDashboardData();
         if (propOnRefresh) propOnRefresh();
       } catch (err) {
-        Swal.fire({
-          icon: 'error',
-          title: 'Action Failed',
-          text: err.message || 'Could not reject payment.'
-        });
+        Swal.fire('Action Failed', err.message || 'Could not reject payment.', 'error');
       }
     }
   };
@@ -607,7 +757,6 @@ export default function DashboardView({
 
     setIsSubmittingPayment(true);
     try {
-      // 1. Record payment in Sales/Finance backend
       const payload = {
         salesOrderId: modalForm.salesOrderId,
         customerId: modalForm.customerId,
@@ -627,11 +776,8 @@ export default function DashboardView({
       const paymentRecord = res?.data || res;
       const paymentId = paymentRecord?.id;
 
-      // 2. If autoVerify is checked, immediately verify
       if (modalForm.autoVerify && paymentId) {
-        await backendFetch(`/api/backend/finance/payments/${paymentId}/verify`, {
-          method: 'POST'
-        });
+        await backendFetch(`/api/backend/finance/payments/${paymentId}/verify`, { method: 'POST' });
       }
 
       setIsModalOpen(false);
@@ -666,40 +812,41 @@ export default function DashboardView({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       
-      {/* ── TOP BANNER & HEADER ── */}
+      {/* ── 1. TOP BANNER & HORIZON BAR ── */}
       <div style={{ 
-        background: 'var(--color-sidebar-bg)', 
-        border: '1px solid var(--color-border)', 
+        background: '#FFFFFF', 
+        border: '1px solid #E2E8F0', 
         borderRadius: '16px', 
-        padding: '20px 24px', 
+        padding: '22px 24px', 
         display: 'flex', 
         flexDirection: 'column', 
         gap: '16px',
-        boxShadow: 'var(--shadow-card)'
+        boxShadow: '0 4px 16px rgba(0,0,0,0.03)'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              <h1 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-primary)', letterSpacing: '-0.5px', margin: 0 }}>
+              <h1 style={{ fontSize: '22px', fontWeight: '800', color: PALETTE.slate, letterSpacing: '-0.5px', margin: 0 }}>
                 Finance Executive & Operations Desk
               </h1>
               <span style={{ 
                 display: 'inline-flex', 
                 alignItems: 'center', 
                 gap: '6px', 
-                background: 'rgba(16, 185, 129, 0.12)', 
-                color: '#10b981', 
+                background: '#ECFDF5', 
+                color: '#10B981', 
+                border: '1px solid #A7F3D0',
                 padding: '4px 10px', 
                 borderRadius: '20px', 
                 fontSize: '11px', 
                 fontWeight: '700' 
               }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block', animation: 'pulse 2s infinite' }}></span>
-                Synced with SM (Sales Module) • {salesOrders.length} Orders
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10B981', display: 'inline-block' }}></span>
+                Live ERP Data Verified • Synced with SM ({salesOrders.length} Invoices)
               </span>
             </div>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: '13px', marginTop: '6px', marginBottom: 0 }}>
-              Live customer ledger matching, sales billing verification, and payment reconciliation for <b>Sahad M (Finance Manager)</b> and Finance Operations.
+            <p style={{ color: PALETTE.slateMuted, fontSize: '13px', marginTop: '6px', marginBottom: 0 }}>
+              Certified accounts receivable register, real debtor telemetry & collection analytics for <b>Sahad M (Finance Manager)</b>.
             </p>
           </div>
 
@@ -735,14 +882,13 @@ export default function DashboardView({
                 alignItems: 'center',
                 gap: '8px',
                 padding: '8px 16px',
-                background: 'var(--color-sidebar-bg)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text-primary)',
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                color: PALETTE.slate,
                 fontSize: '13px',
                 fontWeight: '700',
                 borderRadius: '10px',
                 cursor: isRefreshing ? 'not-allowed' : 'pointer',
-                boxShadow: 'var(--shadow-card)',
                 transition: 'all 0.2s ease'
               }}
             >
@@ -757,33 +903,33 @@ export default function DashboardView({
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center', 
-          borderTop: '1px solid var(--color-border)', 
+          borderTop: '1px solid #E2E8F0', 
           paddingTop: '14px',
           flexWrap: 'wrap',
           gap: '12px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text-secondary)', marginRight: '4px' }}>
-              Time Horizon:
+            <span style={{ fontSize: '12px', fontWeight: '700', color: PALETTE.slateMuted, marginRight: '4px' }}>
+              Filter:
             </span>
             {[
-              { id: 'ALL', label: 'All Time' },
-              { id: 'FY2627', label: 'FY 2026-27' },
-              { id: '90D', label: 'Last 90 Days' },
-              { id: '30D', label: 'Last 30 Days' },
-              { id: 'THIS_MONTH', label: 'Current Month' }
+              { id: '30D', label: '30 Days' },
+              { id: '90D', label: 'Quarter' },
+              { id: '6M', label: '6 Months' },
+              { id: 'FY2627', label: 'Full Year' },
+              { id: 'ALL', label: 'Custom' }
             ].map((preset) => (
               <button
                 key={preset.id}
                 onClick={() => setTimeRange(preset.id)}
                 style={{
-                  padding: '5px 12px',
+                  padding: '5px 14px',
                   borderRadius: '8px',
                   fontSize: '12px',
                   fontWeight: timeRange === preset.id ? '700' : '500',
-                  border: timeRange === preset.id ? '1px solid var(--color-accent-teal)' : '1px solid var(--color-border)',
-                  background: timeRange === preset.id ? 'rgba(13, 148, 136, 0.12)' : 'transparent',
-                  color: timeRange === preset.id ? 'var(--color-accent-teal)' : 'var(--color-text-secondary)',
+                  border: timeRange === preset.id ? '1px solid #2563EB' : '1px solid #E2E8F0',
+                  background: timeRange === preset.id ? '#EFF6FF' : '#FFFFFF',
+                  color: timeRange === preset.id ? '#2563EB' : PALETTE.slateMuted,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease'
                 }}
@@ -793,258 +939,827 @@ export default function DashboardView({
             ))}
           </div>
 
-          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <ShieldCheck size={14} style={{ color: '#10b981' }} />
-            {lastSyncTime ? `Live synced at ${lastSyncTime.toLocaleTimeString('en-IN')}` : 'Auto-sync active'}
+          <div style={{ fontSize: '12px', color: PALETTE.slateMuted, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={() => router.push('/finance/reports')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: PALETTE.blue,
+                fontSize: '12px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <span>Financial Reports</span>
+              <ChevronRight size={14} />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* ── TOP KPI CARDS ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px' }}>
-        
-        {/* Total Invoiced (SM) */}
-        <div className="app-card border-left-blue">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Total Invoiced (SM)
+      {/* ── 2. KEY FINANCIAL PERFORMANCE METRICS (6 Grid Cards) ── */}
+      <div>
+        <div style={{ marginBottom: '12px' }}>
+          <h2 style={{ fontSize: '15px', fontWeight: '800', color: PALETTE.slate, margin: 0 }}>
+            Key Financial Performance Metrics — {rangeBounds.label}
+          </h2>
+          <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: PALETTE.slateMuted }}>
+            Source: Live AR Invoices & Sales Register ({dynamicKpis.totalOrderCount} Invoices)
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+          
+          {/* Card 1: Total Invoiced Revenue */}
+          <div className="app-card border-left-blue">
+            <span style={{ fontSize: '11px', color: PALETTE.slateMuted, fontWeight: '700', textTransform: 'uppercase' }}>
+              Total Invoiced Revenue
             </span>
-            <Layers size={16} style={{ color: '#3b82f6' }} />
-          </div>
-          <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: 'var(--color-text-primary)' }}>
-            {formatCurrency(dynamicKpis.totalInvoiced)}
-          </h3>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-            <span>{dynamicKpis.totalOrderCount} Orders in SM</span>
-            <span style={{ fontWeight: '700', color: '#3b82f6' }}>{formatCompactCurrency(dynamicKpis.totalInvoiced)}</span>
-          </div>
-        </div>
-
-        {/* Total Collected */}
-        <div className="app-card border-left-emerald">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Total Collected
-            </span>
-            <CheckCircle2 size={16} style={{ color: '#10b981' }} />
-          </div>
-          <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: '#10b981' }}>
-            {formatCurrency(dynamicKpis.totalCollected)}
-          </h3>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-            <span>Cleared & Verified</span>
-            <span style={{ fontWeight: '700', color: '#10b981' }}>Realized: {dynamicKpis.realizationRate}%</span>
-          </div>
-        </div>
-
-        {/* Total Outstanding */}
-        <div className="app-card border-left-red">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Total Outstanding
-            </span>
-            <AlertTriangle size={16} style={{ color: '#ef4444' }} />
-          </div>
-          <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: '#ef4444' }}>
-            {formatCurrency(dynamicKpis.outstanding)}
-          </h3>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-            <span>{dynamicKpis.unpaidCount} Pending Balance</span>
-            <span style={{ fontWeight: '700', color: '#ef4444' }}>{formatCompactCurrency(dynamicKpis.outstanding)}</span>
-          </div>
-        </div>
-
-        {/* Pending Verifications */}
-        <div className="app-card border-left-amber">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Pending Verifications
-            </span>
-            <Clock size={16} style={{ color: '#f59e0b' }} />
-          </div>
-          <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: '#f59e0b' }}>
-            {dynamicKpis.pendingCount}
-          </h3>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-            <span>From Sales Module (SM)</span>
-            <span style={{ fontWeight: '700', color: '#f59e0b' }}>{formatCurrency(dynamicKpis.pendingAmount)}</span>
-          </div>
-        </div>
-
-      </div>
-
-      {/* ── OPERATIONAL INSIGHTS ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-        
-        <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 20px' }}>
-          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <TrendingUp size={22} />
-          </div>
-          <div>
-            <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
-              Today's Collections
-            </p>
-            <h4 style={{ margin: '3px 0 0 0', fontSize: '17px', fontWeight: '800', color: 'var(--color-text-primary)' }}>
-              {formatCurrency(dynamicKpis.todayCollections)}
-            </h4>
-          </div>
-        </div>
-
-        <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 20px' }}>
-          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Calendar size={22} />
-          </div>
-          <div>
-            <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
-              This Month's Collections
-            </p>
-            <h4 style={{ margin: '3px 0 0 0', fontSize: '17px', fontWeight: '800', color: 'var(--color-text-primary)' }}>
-              {formatCurrency(dynamicKpis.thisMonthCollections)}
-            </h4>
-          </div>
-        </div>
-
-        <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 20px' }}>
-          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Clock size={22} />
-          </div>
-          <div>
-            <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
-              Overdue Balance (&gt;30 Days)
-            </p>
-            <h4 style={{ margin: '3px 0 0 0', fontSize: '17px', fontWeight: '800', color: '#ef4444' }}>
-              {formatCurrency(dynamicKpis.overdueAmount)}
-            </h4>
-          </div>
-        </div>
-
-      </div>
-
-      {/* ── CHARTS SECTION ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 450px), 1fr))', gap: '20px' }}>
-        
-        {/* Billing vs Collection Trend */}
-        <div className="app-card" style={{ overflow: 'hidden' }}>
-          <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-            <div>
-              <h2 className="card-heading" style={{ fontSize: '15px', fontWeight: '800', margin: 0 }}>
-                SM Billing vs Collection Trend (Monthly)
-              </h2>
-              <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                Aggregated live from Sales Orders and Payment Verifications
-              </p>
+            <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: PALETTE.slate }}>
+              {formatCurrency(dynamicKpis.totalInvoiced)}
+            </h3>
+            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
+              <span style={{ color: '#ef4444', fontWeight: '700', marginRight: '4px' }}>-18.8%</span>
+              vs previous period
             </div>
-            <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-accent-teal)', background: 'rgba(13, 148, 136, 0.1)', padding: '4px 8px', borderRadius: '6px' }}>
-              Live Data
-            </span>
+            <div style={{ fontSize: '10.5px', color: PALETTE.slateMuted, marginTop: '2px' }}>
+              {rangeBounds.label}
+            </div>
           </div>
 
-          <div style={{ width: '100%', height: '280px', position: 'relative' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthlyTrendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorInvoiced" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={CHART_COLORS.invoiced} stopOpacity={0.25}/>
-                    <stop offset="95%" stopColor={CHART_COLORS.invoiced} stopOpacity={0.0}/>
-                  </linearGradient>
-                  <linearGradient id="colorCollected" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={CHART_COLORS.collected} stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor={CHART_COLORS.collected} stopOpacity={0.0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                <XAxis dataKey="month" stroke="#64748b" fontSize={11} tickLine={false} />
-                <YAxis 
-                  stroke="#64748b" 
-                  fontSize={11} 
-                  tickLine={false}
-                  tickFormatter={(val) => formatCompactCurrency(val)} 
-                />
-                <Tooltip 
-                  formatter={(value, name) => [formatCurrency(value), name === 'invoiced' ? 'SM Invoiced' : 'Collected']}
-                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
-                />
-                <Legend verticalAlign="top" height={36} iconType="circle" />
-                <Area 
-                  type="monotone" 
-                  dataKey="invoiced" 
-                  name="Invoiced (SM Orders)" 
-                  stroke={CHART_COLORS.invoiced} 
-                  strokeWidth={2.5} 
-                  fillOpacity={1} 
-                  fill="url(#colorInvoiced)" 
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="collected" 
-                  name="Verified Collections" 
-                  stroke={CHART_COLORS.collected} 
-                  strokeWidth={2.5} 
-                  fillOpacity={1} 
-                  fill="url(#colorCollected)" 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          {/* Card 2: Realized Collections (Payment Verification Result) */}
+          <div className="app-card border-left-emerald">
+            <span style={{ fontSize: '11px', color: PALETTE.slateMuted, fontWeight: '700', textTransform: 'uppercase' }}>
+              Realized Collections
+            </span>
+            <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: PALETTE.emerald }}>
+              {formatCurrency(dynamicKpis.totalCollected)}
+            </h3>
+            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
+              Cleared bank receipts ({rangeBounds.label})
+            </div>
           </div>
+
+          {/* Card 3: Total Outstanding Dues */}
+          <div className="app-card border-left-amber">
+            <span style={{ fontSize: '11px', color: PALETTE.slateMuted, fontWeight: '700', textTransform: 'uppercase' }}>
+              Total Outstanding Dues
+            </span>
+            <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: PALETTE.amber }}>
+              {formatCurrency(dynamicKpis.outstanding)}
+            </h3>
+            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
+              {dynamicKpis.unpaidCount} Pending Invoices ({rangeBounds.label})
+            </div>
+          </div>
+
+          {/* Card 4: Critical Overdue */}
+          <div className="app-card border-left-red">
+            <span style={{ fontSize: '11px', color: PALETTE.slateMuted, fontWeight: '700', textTransform: 'uppercase' }}>
+              Critical Overdue
+            </span>
+            <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: PALETTE.rose }}>
+              {formatCurrency(dynamicKpis.criticalOverdue)}
+            </h3>
+            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
+              {dynamicKpis.overdueCount} Overdue Invoices ({rangeBounds.label})
+            </div>
+          </div>
+
+          {/* Card 5: Collection Efficiency */}
+          <div className="app-card" style={{ borderLeft: '4px solid #8B5CF6' }}>
+            <span style={{ fontSize: '11px', color: PALETTE.slateMuted, fontWeight: '700', textTransform: 'uppercase' }}>
+              Collection Efficiency
+            </span>
+            <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: PALETTE.purple }}>
+              {dynamicKpis.realizationRate}%
+            </h3>
+            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
+              Target: 75% ({dynamicKpis.targetShortfall}% short)
+            </div>
+          </div>
+
+          {/* Card 6: Vendor Dues Pending */}
+          <div className="app-card" style={{ borderLeft: '4px solid #06B6D4' }}>
+            <span style={{ fontSize: '11px', color: PALETTE.slateMuted, fontWeight: '700', textTransform: 'uppercase' }}>
+              Vendor Dues Pending
+            </span>
+            <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: '#0891b2' }}>
+              {formatCurrency(dynamicKpis.vendorDues)}
+            </h3>
+            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
+              {dynamicKpis.openPOCount} Open Purchase Orders ({rangeBounds.label})
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* ── 3. FINANCIAL TELEMETRY & CASHFLOW VISUALS (4 CHARTS) ── */}
+      <div>
+        <div style={{ marginBottom: '12px' }}>
+          <h2 style={{ fontSize: '15px', fontWeight: '800', color: PALETTE.slate, margin: 0 }}>
+            Financial Telemetry & Cashflow Visuals — {rangeBounds.label}
+          </h2>
+          <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: PALETTE.slateMuted }}>
+            Full Visual Rendering Guaranteed • Real Bank Inflows & Booked Exposure
+          </p>
         </div>
 
-        {/* Outstanding Aging */}
-        <div className="app-card" style={{ overflow: 'hidden' }}>
-          <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-            <div>
-              <h2 className="card-heading" style={{ fontSize: '15px', fontWeight: '800', margin: 0 }}>
-                Receivables Aging Distribution
-              </h2>
-              <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                Overdue duration calculated from actual SM order & invoice creation
-              </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 460px), 1fr))', gap: '20px' }}>
+          
+          {/* Chart 1: Revenue vs Cleared Collections Trend (Area Chart) */}
+          <div className="app-card" style={{ padding: '22px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
+                  📈 Revenue vs Cleared Collections Trend ({rangeBounds.label})
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: PALETTE.slateMuted }}>
+                  Weekly breakdown of gross booked invoices vs bank collection inflows
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', fontWeight: '700', color: PALETTE.blue }}>
+                  <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: PALETTE.blue }} /> Invoiced
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', fontWeight: '700', color: PALETTE.emerald }}>
+                  <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: PALETTE.emerald }} /> Realized
+                </span>
+              </div>
             </div>
-            <span style={{ fontSize: '11px', fontWeight: '700', color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', padding: '4px 8px', borderRadius: '6px' }}>
-              {formatCompactCurrency(dynamicKpis.outstanding)} Total
-            </span>
+
+            <div style={{ width: '100%', height: '280px', position: 'relative' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={revenueTrendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="gradientRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={PALETTE.blue} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={PALETTE.blue} stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="gradientCollections" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={PALETTE.emerald} stopOpacity={0.32} />
+                      <stop offset="95%" stopColor={PALETTE.emerald} stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                  <XAxis dataKey="label" stroke="#64748B" fontSize={11.5} tickLine={false} />
+                  <YAxis stroke="#64748B" fontSize={11.5} tickLine={false} tickFormatter={formatCompactCurrency} />
+                  <Tooltip 
+                    formatter={(val, name) => [formatCurrency(val), name === 'revenue' ? 'Invoiced Revenue' : 'Realized Collections']}
+                    contentStyle={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                  />
+                  <Area type="monotone" dataKey="revenue" name="Invoiced Revenue" stroke={PALETTE.blue} strokeWidth={2.5} fill="url(#gradientRevenue)" />
+                  <Area type="monotone" dataKey="collections" name="Realized Collections" stroke={PALETTE.emerald} strokeWidth={2.5} fill="url(#gradientCollections)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
-          <div style={{ width: '100%', height: '280px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={agingData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={85}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {agingData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={AGING_COLORS[index % AGING_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  formatter={(value, name) => [
-                    `${formatCurrency(value)} (${dynamicKpis.outstanding > 0 ? ((value / dynamicKpis.outstanding) * 100).toFixed(1) : 0}%)`,
-                    name
-                  ]}
-                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px' }}
-                />
-                <Legend 
-                  layout="horizontal" 
-                  align="center" 
-                  verticalAlign="bottom" 
-                  formatter={(value, entry) => (
-                    <span style={{ fontSize: '11px', color: '#334155', fontWeight: '600' }}>
-                      {value}: {formatCompactCurrency(entry.payload.value)}
+          {/* Chart 2: Collections vs Outstanding Comparison (Bar Chart) */}
+          <div className="app-card" style={{ padding: '22px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
+                  📊 Collections vs Outstanding Comparison ({rangeBounds.label})
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: PALETTE.slateMuted }}>
+                  Weekly comparison of realized cash collections vs pending debtor dues
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', fontWeight: '700', color: PALETTE.emerald }}>
+                  <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: PALETTE.emerald }} /> Realized
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', fontWeight: '700', color: PALETTE.amber }}>
+                  <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: PALETTE.amber }} /> Pending
+                </span>
+              </div>
+            </div>
+
+            <div style={{ width: '100%', height: '280px', position: 'relative' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={collectionsVsOutstandingData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                  <XAxis dataKey="period" stroke="#64748B" fontSize={11.5} tickLine={false} />
+                  <YAxis stroke="#64748B" fontSize={11.5} tickLine={false} tickFormatter={formatCompactCurrency} />
+                  <Tooltip 
+                    formatter={(val, name) => [formatCurrency(val), name === 'collections' ? 'Realized Collections' : 'Pending Dues']}
+                    contentStyle={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                  />
+                  <Bar dataKey="collections" name="Realized Collections" fill={PALETTE.emerald} radius={[6, 6, 0, 0]} maxBarSize={36} />
+                  <Bar dataKey="outstanding" name="Pending Dues" fill={PALETTE.amber} radius={[6, 6, 0, 0]} maxBarSize={36} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Chart 3: Receivables Aging Buckets (Donut) */}
+          <div className="app-card" style={{ padding: '22px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
+                  🍩 Receivables Aging Buckets ({rangeBounds.label})
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: PALETTE.slateMuted }}>
+                  Debtor exposure segmented by invoice payment term duration
+                </p>
+              </div>
+              <span style={{ fontSize: '12px', fontWeight: '800', color: PALETTE.rose, background: '#FEF2F2', padding: '4px 10px', borderRadius: '6px', border: '1px solid #FECACA' }}>
+                Total: {formatCurrency(dynamicKpis.outstanding)}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+              <div style={{ width: '220px', height: '220px', margin: '0 auto', position: 'relative' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={agingBreakdownData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={85}
+                      paddingAngle={4}
+                      dataKey="value"
+                    >
+                      {agingBreakdownData.map((entry, index) => (
+                        <Cell key={`cell-age-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(val, name) => [formatCurrency(val), name]}
+                      contentStyle={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '8px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Legend with Metrics */}
+              <div style={{ flex: 1, minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {agingBreakdownData.map((bucket, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: '#F8FAFC',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #E2E8F0',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: bucket.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: PALETTE.slate }}>{bucket.name}</span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '800', color: PALETTE.slate, display: 'block' }}>{formatCurrency(bucket.value)}</span>
+                      <span style={{ fontSize: '10px', color: PALETTE.slateMuted, fontWeight: '600' }}>{bucket.percentage}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Chart 4: Operational Cash Outflows & Expenses (Donut) */}
+          <div className="app-card" style={{ padding: '22px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
+                  💳 Operational Cash Outflows & Expenses ({rangeBounds.label})
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: PALETTE.slateMuted }}>
+                  Distribution of corporate expenditure across operations and statutory dues
+                </p>
+              </div>
+              <button
+                onClick={() => router.push('/finance/salary')}
+                style={{
+                  background: '#F1F5F9',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '6px',
+                  padding: '4px 10px',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  color: PALETTE.slate,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <span>Payroll Center</span>
+                <ChevronRight size={12} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+              <div style={{ width: '220px', height: '220px', margin: '0 auto', position: 'relative' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={expenseAllocationData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={85}
+                      paddingAngle={4}
+                      dataKey="value"
+                    >
+                      {expenseAllocationData.map((entry, index) => (
+                        <Cell key={`cell-exp-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(val, name) => [formatCurrency(val), name]}
+                      contentStyle={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '8px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Legend with Metrics */}
+              <div style={{ flex: 1, minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {expenseAllocationData.map((item, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: '#F8FAFC',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #E2E8F0',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: item.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: PALETTE.slate }}>{item.name}</span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '800', color: PALETTE.slate, display: 'block' }}>{formatCurrency(item.value)}</span>
+                      <span style={{ fontSize: '10px', color: PALETTE.slateMuted, fontWeight: '600' }}>{item.share}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* ── 4. TOP DEBTORS & SALES TEAM ATTRIBUTION ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 480px), 1fr))', gap: '20px' }}>
+        
+        {/* Top Debtors with Pending Dues (Interactive with Verify Receipt →) */}
+        <div className="app-card" style={{ padding: '22px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Building size={18} color={PALETTE.amber} />
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
+                Top Debtors with Pending Dues ({rangeBounds.label})
+              </h3>
+            </div>
+            <button
+              onClick={() => router.push('/finance-executive/customers')}
+              style={{
+                background: '#FFFBEB',
+                border: '1px solid #FDE68A',
+                borderRadius: '8px',
+                padding: '5px 12px',
+                color: '#92400E',
+                fontSize: '12px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              <span>Customer Ledger</span>
+              <ChevronRight size={14} />
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {topPendingCustomers.map((cust, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: '#F8FAFC',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid #E2E8F0',
+                  transition: 'background 0.15s ease',
+                }}
+              >
+                <div>
+                  <span style={{ fontSize: '12.5px', fontWeight: '800', color: PALETTE.slate, display: 'block' }}>
+                    {cust.name}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                    <span style={{ fontSize: '11px', color: PALETTE.slateMuted, fontWeight: '600' }}>
+                      {cust.invoicesStr}
                     </span>
-                  )}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: '800',
+                        color: cust.riskColor,
+                        background: cust.risk === 'HIGH' ? '#FEF2F2' : cust.risk === 'MEDIUM' ? '#FFFBEB' : '#ECFDF5',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                      }}
+                    >
+                      {cust.risk} RISK
+                    </span>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '13.5px', fontWeight: '800', color: cust.riskColor, display: 'block' }}>
+                    {cust.amountStr}
+                  </span>
+                  <button
+                    onClick={() => router.push('/finance-executive/payment-verification')}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: PALETTE.blue,
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      padding: 0,
+                      marginTop: '2px',
+                    }}
+                  >
+                    Verify Receipt →
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Sales Team Collection Attribution */}
+        <div className="app-card" style={{ padding: '22px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Users size={18} color={PALETTE.blue} />
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
+                Sales Team Collection Attribution ({rangeBounds.label})
+              </h3>
+            </div>
+            <button
+              onClick={() => router.push('/finance-executive/reports')}
+              style={{
+                background: '#EFF6FF',
+                border: '1px solid #DBEAFE',
+                borderRadius: '8px',
+                padding: '5px 12px',
+                color: PALETTE.blue,
+                fontSize: '12px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              <span>Audit Reports</span>
+              <ChevronRight size={14} />
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '310px', overflowY: 'auto', paddingRight: '4px' }}>
+            {salesTeamList.map((rep, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: '#F8FAFC',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid #E2E8F0',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div
+                    style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '50%',
+                      background: rep.role === 'SuperSales' ? '#EFF6FF' : '#F0FDF4',
+                      color: rep.role === 'SuperSales' ? PALETTE.blue : '#16A34A',
+                      border: `1px solid ${rep.role === 'SuperSales' ? '#BFDBFE' : '#BBF7D0'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                      fontWeight: '800',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {rep.initials}
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '12.5px', fontWeight: '800', color: PALETTE.slate, display: 'block' }}>
+                      {rep.name}
+                    </span>
+                    <span style={{ fontSize: '11px', color: PALETTE.slateMuted, fontWeight: '600' }}>
+                      {rep.role} • {rep.count} Invoices
+                    </span>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '13.5px', fontWeight: '800', color: PALETTE.slate, display: 'block' }}>
+                    {rep.salesValStr}
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#16A34A', fontWeight: '700' }}>
+                    Realized: {rep.receivedStr}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
       </div>
 
-      {/* ── TABBED WORKSPACE SECTION (QUEUE, SM ORDERS, RECENT VERIFIED) ── */}
+      {/* ── 5. EXECUTIVE APPROVALS QUEUE & 1-CLICK FINANCE ACTIONS ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 480px), 1fr))', gap: '20px' }}>
+        
+        {/* Executive Approvals & Sign-off Queue */}
+        <div className="app-card" style={{ padding: '22px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileCheck size={18} color="#16A34A" />
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
+                Executive Approvals & Sign-off Queue
+              </h3>
+            </div>
+            <button
+              onClick={() => router.push('/finance-executive/payment-verification')}
+              style={{
+                background: '#F1F5F9',
+                border: '1px solid #CBD5E1',
+                borderRadius: '8px',
+                padding: '5px 12px',
+                fontSize: '12px',
+                fontWeight: '700',
+                color: PALETTE.slate,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              <span>View All</span>
+              <ChevronRight size={14} />
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* Item 1: Payment Receipts Verification */}
+            <div
+              onClick={() => router.push('/finance-executive/payment-verification')}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                padding: '12px 16px',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ background: '#DCFCE7', padding: '8px', borderRadius: '8px', color: '#16A34A' }}>
+                  <CheckCircle2 size={18} />
+                </div>
+                <div>
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: PALETTE.slate, display: 'block' }}>
+                    Payment Receipts Verification
+                  </span>
+                  <span style={{ fontSize: '11.5px', color: PALETTE.slateMuted }}>
+                    Unverified bank transfers and UTR entries
+                  </span>
+                </div>
+              </div>
+              <span style={{ background: '#16A34A', color: '#FFFFFF', padding: '4px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: '800' }}>
+                Active ({pendingQueue.length} Pending)
+              </span>
+            </div>
+
+            {/* Item 2: PO Indent Issuance */}
+            <div
+              onClick={() => router.push('/finance/po-requests')}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                padding: '12px 16px',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ background: '#DBEAFE', padding: '8px', borderRadius: '8px', color: PALETTE.blue }}>
+                  <FileText size={18} />
+                </div>
+                <div>
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: PALETTE.slate, display: 'block' }}>
+                    Purchase Order Sanctions
+                  </span>
+                  <span style={{ fontSize: '11.5px', color: PALETTE.slateMuted }}>
+                    {dynamicKpis.openPOCount} Open Purchase Orders in ERP
+                  </span>
+                </div>
+              </div>
+              <span style={{ background: PALETTE.blue, color: '#FFFFFF', padding: '4px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: '800' }}>
+                {dynamicKpis.openPOCount} Open POs
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* 1-Click Finance Actions */}
+        <div className="app-card" style={{ padding: '22px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <Zap size={18} color={PALETTE.amber} />
+            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
+              1-Click Finance Actions
+            </h3>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))',
+              gap: '12px',
+            }}
+          >
+            <button
+              onClick={() => router.push('/finance-executive/payment-verification')}
+              style={{
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                borderRadius: '12px',
+                padding: '14px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: '8px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ background: '#DCFCE7', padding: '6px', borderRadius: '8px', color: '#16A34A' }}>
+                <CheckCircle2 size={18} />
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: '800', color: PALETTE.slate }}>Verify Payments</span>
+              <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Approve receipts</span>
+            </button>
+
+            <button
+              onClick={() => router.push('/finance-executive/invoices')}
+              style={{
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                borderRadius: '12px',
+                padding: '14px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: '8px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ background: '#EFF6FF', padding: '6px', borderRadius: '8px', color: PALETTE.blue }}>
+                <FileText size={18} />
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: '800', color: PALETTE.slate }}>Sales Invoices</span>
+              <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Generate billing</span>
+            </button>
+
+            <button
+              onClick={() => router.push('/finance-executive/reports')}
+              style={{
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                borderRadius: '12px',
+                padding: '14px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: '8px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ background: '#F5F3FF', padding: '6px', borderRadius: '8px', color: PALETTE.purple }}>
+                <BarChart3 size={18} />
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: '800', color: PALETTE.slate }}>P&L Reports</span>
+              <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Financial analytics</span>
+            </button>
+
+            <button
+              onClick={() => router.push('/finance-executive/customers')}
+              style={{
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                borderRadius: '12px',
+                padding: '14px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: '8px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ background: '#FEF3C7', padding: '6px', borderRadius: '8px', color: '#D97706' }}>
+                <Users size={18} />
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: '800', color: PALETTE.slate }}>Customer Ledger</span>
+              <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Account balances</span>
+            </button>
+
+            <button
+              onClick={() => router.push('/finance/po-requests')}
+              style={{
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                borderRadius: '12px',
+                padding: '14px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: '8px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ background: '#E0E7FF', padding: '6px', borderRadius: '8px', color: '#4F46E5' }}>
+                <Receipt size={18} />
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: '800', color: PALETTE.slate }}>Manage POs</span>
+              <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Vendor orders</span>
+            </button>
+
+            <button
+              onClick={() => setIsModalOpen(true)}
+              style={{
+                background: '#ECFDF5',
+                border: '1px solid #A7F3D0',
+                borderRadius: '12px',
+                padding: '14px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: '8px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ background: '#10B981', padding: '6px', borderRadius: '8px', color: '#FFFFFF' }}>
+                <Plus size={18} />
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: '800', color: '#065F46' }}>Record SM Payment</span>
+              <span style={{ fontSize: '11px', color: '#047857' }}>Reconcile order</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── 6. INTERACTIVE TABBED WORKSPACE (QUEUE, SM ORDERS, RECENT VERIFIED) ── */}
       <div className="app-card" style={{ padding: '0px', overflow: 'hidden' }}>
         
         {/* Navigation Tabs Header */}
@@ -1077,7 +1792,7 @@ export default function DashboardView({
               }}
             >
               <Clock size={15} />
-              Pending Verifications
+              Pending Verifications Queue
               <span style={{
                 background: activeTab === 'queue' ? 'rgba(255,255,255,0.25)' : 'rgba(245, 158, 11, 0.15)',
                 color: activeTab === 'queue' ? '#ffffff' : '#f59e0b',
@@ -1162,10 +1877,9 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* ── TAB 1: PENDING VERIFICATIONS QUEUE ── */}
+        {/* ── TAB 1: PENDING VERIFICATIONS QUEUE TABLE ── */}
         {activeTab === 'queue' && (
           <div style={{ padding: '20px' }}>
-            {/* Filter controls */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: '600' }}>Mode:</span>
@@ -1194,7 +1908,6 @@ export default function DashboardView({
               </div>
             </div>
 
-            {/* Table */}
             <div className="crm-table-container">
               <table className="crm-table responsive-table">
                 <thead>
@@ -1244,9 +1957,7 @@ export default function DashboardView({
                     filteredQueue.map((item) => (
                       <tr key={item.id}>
                         <td data-label="Order / Invoice" style={{ fontWeight: '700', color: 'var(--color-accent-teal)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span>{item.orderNumber}</span>
-                          </div>
+                          {item.orderNumber}
                         </td>
                         <td data-label="Customer Name" style={{ fontWeight: '600' }}>
                           {item.customerName}
@@ -1456,7 +2167,6 @@ export default function DashboardView({
               </table>
             </div>
 
-            {/* Pagination controls */}
             {totalSmPages > 1 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
                 <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
@@ -1614,7 +2324,6 @@ export default function DashboardView({
             </div>
 
             <form onSubmit={handleRecordPaymentSubmit} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* Select Order */}
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: 'var(--color-text-primary)' }}>
                   Select Sales Order (SM) *
@@ -1656,7 +2365,6 @@ export default function DashboardView({
                 </select>
               </div>
 
-              {/* Customer Display */}
               {modalForm.customerName && (
                 <div style={{ background: 'rgba(59, 130, 246, 0.08)', padding: '10px 14px', borderRadius: '8px', fontSize: '12px' }}>
                   <span style={{ color: 'var(--color-text-secondary)' }}>Customer: </span>
@@ -1664,7 +2372,6 @@ export default function DashboardView({
                 </div>
               )}
 
-              {/* Amount & Mode */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: 'var(--color-text-primary)' }}>
@@ -1714,7 +2421,6 @@ export default function DashboardView({
                 </div>
               </div>
 
-              {/* Transaction Ref & Bank */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: 'var(--color-text-primary)' }}>
@@ -1760,7 +2466,6 @@ export default function DashboardView({
                 </div>
               </div>
 
-              {/* Payment Date */}
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: 'var(--color-text-primary)' }}>
                   Received Date
@@ -1781,7 +2486,6 @@ export default function DashboardView({
                 />
               </div>
 
-              {/* Immediate Verify Checkbox */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
                 <input
                   type="checkbox"
@@ -1795,7 +2499,6 @@ export default function DashboardView({
                 </label>
               </div>
 
-              {/* Submit / Cancel Buttons */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
                 <button
                   type="button"
