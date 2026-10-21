@@ -774,7 +774,14 @@ export default function FinancePortal({ initialView, forceView }) {
     if (isExecutive) {
       return (
         <div data-testid="finance-executive-dashboard" className="sales-portal-view">
-          <FinanceExecutiveDashboardView />
+          <FinanceExecutiveDashboardView
+            salesOrders={liveSalesOrders}
+            payments={livePayments}
+            invoices={liveInvoices}
+            deliveredOrders={liveDeliveredOrders}
+            user={user}
+            onRefresh={fetchFinanceReports}
+          />
         </div>
       );
     }

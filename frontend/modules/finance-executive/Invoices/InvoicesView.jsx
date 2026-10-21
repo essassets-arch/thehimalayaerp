@@ -11,6 +11,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { apiClient } from '../../../lib/apiClient';
+import { backendFetch } from '../../../lib/backendFetch';
 import StatusBadge from '../../../shared/components/StatusBadge';
 
 export default function InvoicesView() {
@@ -23,10 +24,19 @@ export default function InvoicesView() {
   const fetchInvoices = async () => {
     setLoading(true);
     try {
-      const res = await apiClient.get('/v1/billing/invoices');
-      if (res.success) {
-        setInvoices(res.data);
-      }
+      const res = await backendFetch('/api/backend/finance/invoices').catch(() => apiClient.get('/finance/invoices'));
+      const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      const formatted = list.map(inv => ({
+        id: inv.id,
+        invoice_number: inv.invoiceNumber || inv.invoice_number || `INV-${inv.id?.slice(0, 6)}`,
+        customer_name: inv.salesOrder?.customer?.companyName || inv.customer_name || 'Client',
+        order_number: inv.salesOrder?.orderNumber || inv.order_number || 'N/A',
+        total_amount: Number(inv.totalAmount || inv.total_amount || 0),
+        status: inv.status || 'POSTED',
+        due_date: inv.dueDate || inv.due_date || inv.createdAt || new Date().toISOString(),
+        created_at: inv.createdAt || inv.created_at || new Date().toISOString()
+      }));
+      setInvoices(formatted);
     } catch (err) {
       console.error('Error fetching invoices:', err);
     } finally {
