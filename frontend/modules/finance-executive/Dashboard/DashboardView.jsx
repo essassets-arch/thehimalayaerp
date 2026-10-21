@@ -19,6 +19,7 @@ import {
   CheckCircle2, 
   Calendar,
   ArrowUpRight,
+  ArrowDownRight,
   RefreshCw,
   Search,
   Filter,
@@ -40,51 +41,41 @@ import {
   FileCheck,
   Zap,
   BarChart3,
-  Receipt
+  Receipt,
+  Percent,
+  AlertCircle,
+  Wallet
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { backendFetch } from '../../../lib/backendFetch';
 import { apiClient } from '../../../lib/apiClient';
 import { useERPStore } from '../../../store/erpStore';
 import { useAuthStore } from '../../../store/authStore';
-
-// Financial Color Palette
-const PALETTE = {
-  blue: '#2563EB',
-  blueLight: '#EFF6FF',
-  emerald: '#10B981',
-  emeraldLight: '#ECFDF5',
-  amber: '#F59E0B',
-  amberLight: '#FFFBEB',
-  rose: '#EF4444',
-  roseLight: '#FEF2F2',
-  purple: '#8B5CF6',
-  purpleLight: '#F5F3FF',
-  cyan: '#06B6D4',
-  cyanLight: '#ECFEFF',
-  slate: '#0F172A',
-  slateMuted: '#64748B',
-  border: '#E2E8F0',
-  cardBg: '#FFFFFF',
-};
+import ResponsiveChart from '../../../shared/components/ResponsiveChart';
+import {
+  PALETTE,
+  formatINR,
+  formatShortINR,
+  getRecordDate,
+  getRangeBounds,
+  isInRange,
+  getPeriodMeta,
+  parseList,
+  deduplicateArInvoices,
+  calculatePeriodComparison,
+  calculateDynamicMetrics,
+  calculateRevenueTrendData,
+  calculateCollectionsVsOutstandingData,
+  calculateAgingBreakdownData,
+  calculateExpenseAllocationData,
+  calculateTopPendingCustomers,
+  calculateSalesTeamList
+} from '../../finance/utils/financeDashboardEngine';
 
 const AGING_COLORS = [PALETTE.emerald, PALETTE.amber, '#F97316', PALETTE.rose];
 
-const formatCurrency = (val) => {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0
-  }).format(Number(val || 0));
-};
-
-const formatCompactCurrency = (val) => {
-  const num = Number(val || 0);
-  if (num >= 10000000) return `₹${(num / 10000000).toFixed(2)} Cr`;
-  if (num >= 100000) return `₹${(num / 100000).toFixed(2)} L`;
-  if (num >= 1000) return `₹${(num / 1000).toFixed(1)} K`;
-  return `₹${num.toFixed(0)}`;
-};
+const formatCurrency = formatINR;
+const formatCompactCurrency = formatShortINR;
 
 export default function DashboardView({
   salesOrders: propSalesOrders,
@@ -100,19 +91,39 @@ export default function DashboardView({
   const storeState = useERPStore((s) => s.state);
   const user = propUser || authUser;
 
-  // Primary Data States
-  const [salesOrders, setSalesOrders] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [salesRecordedPayments, setSalesRecordedPayments] = useState([]);
-  const [invoices, setInvoices] = useState([]);
-  const [purchaseOrders, setPurchaseOrders] = useState([]);
-  const [expenses, setExpenses] = useState([]);
+  // Primary Live Data Store matching Finance Manager Dashboard View
+  const [liveData, setLiveData] = useState({
+    salesOrders: [],
+    applArInvoices: [],
+    hcpplArInvoices: [],
+    hcpplRegInvoices: [],
+    financeArInvoices: [],
+    purchaseOrders: [],
+    expenses: [],
+    brandRequests: [],
+    users: [],
+    payments: [],
+    salesRecordedPayments: []
+  });
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState(null);
 
-  // Filters & Navigation
-  const [timeRange, setTimeRange] = useState('30D'); // '30D' | '90D' | '6M' | 'FY2627' | 'ALL'
+  // Filters & Navigation (Standard 30D / 90D / 6M / 1Y / CUSTOM Horizons)
+  const [timeRange, setTimeRange] = useState('30D');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+
+  const rangeBounds = useMemo(() => {
+    return getRangeBounds(timeRange, new Date(), customStartDate, customEndDate);
+  }, [timeRange, customStartDate, customEndDate]);
+
+  const isCustomRangeValid = Boolean(customStartDate && customEndDate && customStartDate <= customEndDate);
+
+  const periodMeta = useMemo(() => {
+    return getPeriodMeta(timeRange, rangeBounds);
+  }, [timeRange, rangeBounds]);
+
   const [activeTab, setActiveTab] = useState('queue'); // 'queue' | 'sm_orders' | 'recent_verified'
   const [searchQuery, setSearchQuery] = useState('');
   const [modeFilter, setModeFilter] = useState('ALL');
@@ -136,41 +147,52 @@ export default function DashboardView({
   });
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
 
-  // Helper parser
-  const parseList = (res) => {
-    if (!res) return [];
-    if (Array.isArray(res)) return res;
-    if (Array.isArray(res.data)) return res.data;
-    if (Array.isArray(res.items)) return res.items;
-    if (Array.isArray(res.data?.items)) return res.data.items;
-    if (Array.isArray(res.data?.data)) return res.data.data;
-    if (Array.isArray(res.records)) return res.records;
-    return [];
-  };
-
-  // Fetch Live Data from Backend
+  // Fetch Live Data from Backend (AR Registers + Sales Orders + POs + Expenses + Verification Queues)
   const fetchDashboardData = useCallback(async () => {
     try {
       setIsRefreshing(true);
-      const [ordersRes, pmtsRes, salesPmtsRes, pendingPmtsRes, invsRes, poRes, expRes] = await Promise.allSettled([
+      const [
+        ordersRes,
+        applArRes,
+        hcpplArRes,
+        hcpplRegRes,
+        finArRes,
+        poRes,
+        expRes,
+        brandRes,
+        usersRes,
+        pmtsRes,
+        salesPmtsRes,
+        pendingPmtsRes
+      ] = await Promise.allSettled([
         backendFetch('/api/backend/sales/orders?limit=1000').catch(() => null),
+        backendFetch('/api/backend/back-office/appl-ar?limit=1000').catch(() => null),
+        backendFetch('/api/backend/back-office/hcppl-ar/entries?limit=1000').catch(() => null),
+        backendFetch('/api/backend/back-office/hcppl-ar/register?limit=1000').catch(() => null),
+        backendFetch('/api/backend/reports/finance/ar-invoices?limit=1000').catch(() => null),
+        backendFetch('/api/backend/purchase-orders?limit=1000').catch(() => null),
+        backendFetch('/api/backend/expenses?limit=1000').catch(() => null),
+        backendFetch('/api/backend/brand-analysis-requests?limit=1000').catch(() => null),
+        backendFetch('/api/backend/users?limit=500').catch(() => null),
         backendFetch('/api/backend/finance/payments?limit=1000').catch(() => null),
         backendFetch('/api/backend/finance/payments/sales-recorded').catch(() => null),
-        backendFetch('/api/backend/finance/payments/pending').catch(() => null),
-        backendFetch('/api/backend/finance/invoices?limit=1000').catch(() => null),
-        backendFetch('/api/backend/procurement/purchase-orders?limit=1000').catch(() => null),
-        backendFetch('/api/backend/expenses?limit=1000').catch(() => null)
+        backendFetch('/api/backend/finance/payments/pending').catch(() => null)
       ]);
 
-      const fetchedOrders = ordersRes.status === 'fulfilled' ? parseList(ordersRes.value) : [];
-      const fetchedPayments = pmtsRes.status === 'fulfilled' ? parseList(pmtsRes.value) : [];
-      const fetchedSalesPmts = salesPmtsRes.status === 'fulfilled' ? parseList(salesPmtsRes.value) : [];
-      const fetchedPendingPmts = pendingPmtsRes.status === 'fulfilled' ? parseList(pendingPmtsRes.value) : [];
-      const fetchedInvoices = invsRes.status === 'fulfilled' ? parseList(invsRes.value) : [];
-      const fetchedPOs = poRes.status === 'fulfilled' ? parseList(poRes.value) : [];
-      const fetchedExpenses = expRes.status === 'fulfilled' ? parseList(expRes.value) : [];
+      const fetchedOrders = parseList(ordersRes);
+      const fetchedApplAr = parseList(applArRes);
+      const fetchedHcpplAr = parseList(hcpplArRes);
+      const fetchedHcpplReg = parseList(hcpplRegRes);
+      const fetchedFinAr = parseList(finArRes);
+      const fetchedPOs = parseList(poRes);
+      const fetchedExpenses = parseList(expRes);
+      const fetchedBrand = parseList(brandRes);
+      const fetchedUsers = parseList(usersRes);
+      const fetchedPayments = parseList(pmtsRes);
+      const fetchedSalesPmts = parseList(salesPmtsRes);
+      const fetchedPendingPmts = parseList(pendingPmtsRes);
 
-      // Combine sales recorded payments
+      // Combine sales recorded payments and pending verifications queue
       const combinedRecorded = [...fetchedSalesPmts];
       fetchedPendingPmts.forEach(p => {
         if (!combinedRecorded.some(item => (item.id || item.payment_id) === (p.id || p.payment_id))) {
@@ -178,25 +200,19 @@ export default function DashboardView({
         }
       });
 
-      // Prefer live backend, fallback to props or store
-      const finalOrders = fetchedOrders.length > 0 
-        ? fetchedOrders 
-        : (propSalesOrders && propSalesOrders.length > 0 ? propSalesOrders : (storeState?.sales?.orders || []));
-
-      const finalPayments = fetchedPayments.length > 0 
-        ? fetchedPayments 
-        : (propPayments && propPayments.length > 0 ? propPayments : (storeState?.finance?.customerPayments || []));
-
-      const finalInvoices = fetchedInvoices.length > 0
-        ? fetchedInvoices
-        : (propInvoices && propInvoices.length > 0 ? propInvoices : (storeState?.finance?.invoices || storeState?.invoices || []));
-
-      setSalesOrders(finalOrders);
-      setPayments(finalPayments);
-      setSalesRecordedPayments(combinedRecorded);
-      setInvoices(finalInvoices);
-      setPurchaseOrders(fetchedPOs.length > 0 ? fetchedPOs : (storeState?.purchaseOrders || []));
-      setExpenses(fetchedExpenses);
+      setLiveData({
+        salesOrders: fetchedOrders,
+        applArInvoices: fetchedApplAr,
+        hcpplArInvoices: fetchedHcpplAr,
+        hcpplRegInvoices: fetchedHcpplReg,
+        financeArInvoices: fetchedFinAr,
+        purchaseOrders: fetchedPOs,
+        expenses: fetchedExpenses,
+        brandRequests: fetchedBrand,
+        users: fetchedUsers,
+        payments: fetchedPayments,
+        salesRecordedPayments: combinedRecorded
+      });
       setLastSyncTime(new Date());
     } catch (err) {
       console.warn('[FinanceExecutiveDashboard] Error fetching dynamic dashboard data:', err);
@@ -204,64 +220,115 @@ export default function DashboardView({
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [propSalesOrders, propPayments, propInvoices, storeState]);
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Horizon boundaries calculation
-  const rangeBounds = useMemo(() => {
-    const now = new Date();
-    if (timeRange === 'ALL') {
-      return { start: new Date('2020-01-01'), end: new Date('2030-12-31'), label: 'All Time' };
-    }
-    if (timeRange === 'FY2627') {
-      return { start: new Date('2026-04-01T00:00:00'), end: new Date('2027-03-31T23:59:59'), label: 'FY 2026–27' };
-    }
-    if (timeRange === '6M') {
-      const start = new Date(now.getTime() - 180 * 86400000);
-      return { start, end: now, label: 'Last 6 Months' };
-    }
-    if (timeRange === '90D') {
-      const start = new Date(now.getTime() - 90 * 86400000);
-      return { start, end: now, label: 'Quarter (Last 90 Days)' };
-    }
-    if (timeRange === '30D') {
-      const start = new Date(now.getTime() - 30 * 86400000);
-      const startLabel = start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-      const endLabel = now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-      return { start, end: now, label: `Last 30 Days (${startLabel} – ${endLabel})` };
-    }
-    return { start: new Date('2020-01-01'), end: new Date('2030-12-31'), label: 'All Horizon' };
-  }, [timeRange]);
+  // Combined AR Invoices (APPL + HCPPL + Finance AR) - Identical Source of Truth
+  const allArInvoices = useMemo(() => {
+    return deduplicateArInvoices(
+      liveData.applArInvoices,
+      liveData.hcpplArInvoices,
+      liveData.hcpplRegInvoices,
+      liveData.financeArInvoices,
+      propPayments,
+      propInvoices || storeState?.invoices
+    );
+  }, [liveData.applArInvoices, liveData.hcpplArInvoices, liveData.hcpplRegInvoices, liveData.financeArInvoices, propPayments, propInvoices, storeState?.invoices]);
 
-  // Filter Orders based on Horizon
-  const filteredOrders = useMemo(() => {
-    if (timeRange === 'ALL') return salesOrders;
-    return salesOrders.filter((o) => {
-      const d = new Date(o.orderDate || o.createdAt);
-      if (isNaN(d.getTime())) return true;
-      return d >= rangeBounds.start && d <= rangeBounds.end;
-    });
-  }, [salesOrders, timeRange, rangeBounds]);
+  // Combined Sales Orders
+  const salesOrders = useMemo(() => {
+    if (Array.isArray(liveData.salesOrders) && liveData.salesOrders.length > 0) return liveData.salesOrders;
+    if (Array.isArray(propSalesOrders) && propSalesOrders.length > 0) return propSalesOrders;
+    if (Array.isArray(storeState?.sales?.orders) && storeState.sales.orders.length > 0) return storeState.sales.orders;
+    return [];
+  }, [liveData.salesOrders, propSalesOrders, storeState]);
 
-  // Filter Payments based on Horizon
-  const filteredPayments = useMemo(() => {
-    if (timeRange === 'ALL') return payments;
-    return payments.filter((p) => {
-      const d = new Date(p.verifiedAt || p.receivedAt || p.createdAt);
-      if (isNaN(d.getTime())) return true;
-      return d >= rangeBounds.start && d <= rangeBounds.end;
-    });
-  }, [payments, timeRange, rangeBounds]);
+  // Filtered collections strictly according to active horizon
+  const filteredInvoices = useMemo(() => {
+    if (!allArInvoices || allArInvoices.length === 0) return [];
+    return allArInvoices.filter((invoice) => isInRange(invoice, ['invoiceDate', 'createdAt', 'date'], rangeBounds));
+  }, [allArInvoices, rangeBounds]);
+
+  const filteredSalesOrders = useMemo(() => {
+    if (!salesOrders || salesOrders.length === 0) return [];
+    return salesOrders.filter((order) => isInRange(order, ['orderDate', 'createdAt', 'date'], rangeBounds));
+  }, [salesOrders, rangeBounds]);
+
+  const filteredPurchaseOrders = useMemo(() => {
+    const list = liveData.purchaseOrders || [];
+    if (list.length === 0) return [];
+    return list.filter((po) => isInRange(po, ['issuedAt', 'createdAt', 'poDate', 'date'], rangeBounds));
+  }, [liveData.purchaseOrders, rangeBounds]);
+
+  const filteredExpenses = useMemo(() => (
+    (liveData.expenses || []).filter((expense) => isInRange(expense, ['expenseDate', 'date', 'createdAt'], rangeBounds))
+  ), [liveData.expenses, rangeBounds]);
+
+  const periodComparison = useMemo(() => {
+    return calculatePeriodComparison(rangeBounds, allArInvoices, filteredInvoices, filteredSalesOrders, salesOrders);
+  }, [rangeBounds, allArInvoices, filteredInvoices, filteredSalesOrders, salesOrders]);
+
+  // Dynamic Financial Computations strictly from Real Database Records
+  const dynamicMetrics = useMemo(() => {
+    return calculateDynamicMetrics(filteredInvoices, filteredSalesOrders, filteredPurchaseOrders, timeRange, periodMeta, periodComparison);
+  }, [filteredInvoices, filteredSalesOrders, filteredPurchaseOrders, timeRange, periodMeta, periodComparison]);
+
+  // Backward compatibility alias
+  const dynamicKpis = useMemo(() => {
+    return {
+      totalInvoiced: dynamicMetrics.totalRevenueRaw,
+      totalCollected: dynamicMetrics.totalCollectionsRaw,
+      outstanding: dynamicMetrics.outstandingReceivablesRaw,
+      criticalOverdue: dynamicMetrics.overdueAmountRaw,
+      overdueCount: dynamicMetrics.overdueInvoicesCount,
+      unpaidCount: dynamicMetrics.unpaidInvoicesCount,
+      totalOrderCount: dynamicMetrics.invoicesCount,
+      realizationRate: dynamicMetrics.effRatio,
+      vendorDues: dynamicMetrics.vendorPaymentsDueRaw,
+      openPOCount: dynamicMetrics.pendingVendorsCount,
+      targetShortfall: dynamicMetrics.targetBenchmarkStr
+    };
+  }, [dynamicMetrics]);
+
+  // Chart 1: Monthly Revenue vs Cleared Collections Trend
+  const revenueTrendData = useMemo(() => {
+    return calculateRevenueTrendData(timeRange, rangeBounds, filteredInvoices, filteredSalesOrders);
+  }, [timeRange, rangeBounds, filteredInvoices, filteredSalesOrders]);
+
+  // Chart 2: Collections vs Outstanding Comparison
+  const collectionsVsOutstandingData = useMemo(() => {
+    return calculateCollectionsVsOutstandingData(timeRange, rangeBounds, filteredInvoices, filteredSalesOrders);
+  }, [timeRange, rangeBounds, filteredInvoices, filteredSalesOrders]);
+
+  // Chart 3: Aging Breakdown Donut
+  const agingBreakdownData = useMemo(() => {
+    return calculateAgingBreakdownData(allArInvoices, salesOrders);
+  }, [allArInvoices, salesOrders]);
+
+  // Chart 4: Operational Outflows & Expense Allocation
+  const expenseAllocationData = useMemo(() => {
+    return calculateExpenseAllocationData(dynamicMetrics, filteredExpenses);
+  }, [dynamicMetrics, filteredExpenses]);
+
+  // Top 5 Real Debtors with Pending Inflows (Period-Sensitive)
+  const topPendingCustomers = useMemo(() => {
+    return calculateTopPendingCustomers(filteredInvoices, filteredSalesOrders);
+  }, [filteredInvoices, filteredSalesOrders]);
+
+  // Sales Team Performance from Real Invoices & Orders (Period-Sensitive)
+  const salesTeamList = useMemo(() => {
+    return calculateSalesTeamList(filteredInvoices, filteredSalesOrders);
+  }, [filteredInvoices, filteredSalesOrders]);
 
   // Pending Verifications Queue from SM
   const pendingQueue = useMemo(() => {
     const list = [];
     const seen = new Set();
 
-    salesRecordedPayments.forEach((p) => {
+    (liveData.salesRecordedPayments || []).forEach((p) => {
       const id = p.id || p.payment_id;
       const st = String(p.status || p.verificationStatus || 'SUBMITTED').toUpperCase();
       const isPending = ['SUBMITTED', 'PENDING_VERIFICATION', 'UNDER_VERIFICATION', 'PENDING', 'RECORDED'].includes(st);
@@ -282,7 +349,7 @@ export default function DashboardView({
       }
     });
 
-    payments.forEach((p) => {
+    (liveData.payments || []).forEach((p) => {
       const id = p.id;
       const st = String(p.status || '').toUpperCase();
       const isPending = ['SUBMITTED', 'PENDING_VERIFICATION', 'UNDER_VERIFICATION', 'PENDING', 'RECORDED'].includes(st);
@@ -304,7 +371,7 @@ export default function DashboardView({
     });
 
     return list;
-  }, [salesRecordedPayments, payments]);
+  }, [liveData.salesRecordedPayments, liveData.payments]);
 
   // Filtered Queue for Display
   const filteredQueue = useMemo(() => {
@@ -325,7 +392,7 @@ export default function DashboardView({
 
   // Verified Payments List for Recent Ledger
   const recentVerifiedList = useMemo(() => {
-    return payments
+    return (liveData.payments || [])
       .filter((p) => ['VERIFIED', 'APPROVED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(String(p.status || '').toUpperCase()))
       .slice(0, 20)
       .map((p) => ({
@@ -338,296 +405,7 @@ export default function DashboardView({
         reference: p.transactionReference || 'N/A',
         verifiedDate: p.verifiedAt || p.receivedAt || p.createdAt || new Date().toISOString()
       }));
-  }, [payments]);
-
-  // ── DYNAMIC FINANCIAL PERFORMANCE METRICS (Synced with SM & Ledger) ──
-  const dynamicKpis = useMemo(() => {
-    let invoicedSum = 0;
-    let collectedSum = 0;
-    let unpaidOrderCount = 0;
-    let overdueOrderCount = 0;
-    let overdueSum = 0;
-
-    const now = new Date();
-
-    filteredOrders.forEach((o) => {
-      const tot = Number(o.totalAmount || o.grandTotal || 0);
-      const paid = Number(o.paidAmount || o.verifiedPaidAmount || 0);
-      const out = Number(o.outstandingAmount !== null && o.outstandingAmount !== undefined ? o.outstandingAmount : Math.max(0, tot - paid));
-
-      invoicedSum += tot;
-      collectedSum += paid;
-
-      if (out > 0) {
-        unpaidOrderCount++;
-        const orderDate = new Date(o.orderDate || o.createdAt || now);
-        const daysOld = Math.floor((now - orderDate) / 86400000);
-        if (daysOld > 15) {
-          overdueSum += out;
-          overdueOrderCount++;
-        }
-      }
-    });
-
-    const standalonePaymentSum = filteredPayments
-      .filter((p) => ['VERIFIED', 'APPROVED', 'ALLOCATED'].includes(String(p.status || '').toUpperCase()))
-      .reduce((sum, p) => sum + Number(p.amount || 0), 0);
-
-    const totalCollected = Math.max(collectedSum, standalonePaymentSum);
-    const totalOutstanding = Math.max(0, invoicedSum - totalCollected);
-
-    // Vendor Dues Pending from Purchase Orders
-    const openPOs = purchaseOrders.filter(po => !['CLOSED', 'CANCELLED'].includes(String(po.status || '').toUpperCase()));
-    const vendorDues = openPOs.reduce((sum, po) => sum + Number(po.totalAmount || 0), 0);
-
-    const realizationRate = invoicedSum > 0 ? ((totalCollected / invoicedSum) * 100).toFixed(1) : '0.0';
-
-    return {
-      totalInvoiced: invoicedSum,
-      totalCollected,
-      outstanding: totalOutstanding,
-      criticalOverdue: overdueSum,
-      overdueCount: overdueOrderCount,
-      unpaidCount: unpaidOrderCount,
-      totalOrderCount: filteredOrders.length,
-      realizationRate,
-      vendorDues,
-      openPOCount: openPOs.length,
-      targetShortfall: Math.max(0, 75 - Number(realizationRate)).toFixed(1)
-    };
-  }, [filteredOrders, filteredPayments, purchaseOrders]);
-
-  // ── WEEKLY / MONTHLY TREND DATA (Revenue vs Realized Collections) ──
-  const revenueTrendData = useMemo(() => {
-    const weekly = timeRange === '30D';
-    const bucketCount = weekly ? 4 : timeRange === '90D' ? 3 : timeRange === '6M' ? 6 : 12;
-
-    const buckets = Array.from({ length: bucketCount }, (_, index) => {
-      if (weekly) {
-        return {
-          start: new Date(rangeBounds.start.getTime() + index * 7 * 86400000),
-          end: new Date(Math.min(rangeBounds.end.getTime(), rangeBounds.start.getTime() + (index + 1) * 7 * 86400000 - 1)),
-          label: `Week ${index + 1}`,
-          revenue: 0,
-          collections: 0
-        };
-      }
-      const d = new Date(rangeBounds.start.getFullYear(), rangeBounds.start.getMonth() + index, 1);
-      return {
-        year: d.getFullYear(),
-        month: d.getMonth(),
-        label: d.toLocaleDateString('en-IN', { month: 'short' }),
-        revenue: 0,
-        collections: 0
-      };
-    });
-
-    filteredOrders.forEach((o) => {
-      const d = new Date(o.orderDate || o.createdAt);
-      if (!isNaN(d.getTime())) {
-        const amt = Number(o.totalAmount || o.grandTotal || 0);
-        const coll = Number(o.paidAmount || o.verifiedPaidAmount || 0);
-        const b = weekly 
-          ? buckets.find((item) => d >= item.start && d <= item.end)
-          : buckets.find((item) => item.year === d.getFullYear() && item.month === d.getMonth());
-        if (b) {
-          b.revenue += amt;
-          b.collections += coll;
-        }
-      }
-    });
-
-    filteredPayments.forEach((p) => {
-      const isVerified = ['VERIFIED', 'APPROVED', 'ALLOCATED'].includes(String(p.status || '').toUpperCase());
-      if (isVerified) {
-        const d = new Date(p.verifiedAt || p.receivedAt || p.createdAt);
-        if (!isNaN(d.getTime())) {
-          const amt = Number(p.amount || 0);
-          const b = weekly 
-            ? buckets.find((item) => d >= item.start && d <= item.end)
-            : buckets.find((item) => item.year === d.getFullYear() && item.month === d.getMonth());
-          if (b) {
-            b.collections = Math.max(b.collections, b.collections + amt);
-          }
-        }
-      }
-    });
-
-    return buckets.map(({ label, revenue, collections }) => ({
-      label,
-      revenue: Math.round(revenue),
-      collections: Math.round(collections)
-    }));
-  }, [timeRange, filteredOrders, filteredPayments, rangeBounds]);
-
-  // ── COLLECTIONS VS OUTSTANDING COMPARISON (Bar Chart) ──
-  const collectionsVsOutstandingData = useMemo(() => {
-    const weekly = timeRange === '30D';
-    const bucketCount = weekly ? 4 : timeRange === '90D' ? 3 : timeRange === '6M' ? 6 : 12;
-
-    const buckets = Array.from({ length: bucketCount }, (_, index) => {
-      if (weekly) {
-        return {
-          start: new Date(rangeBounds.start.getTime() + index * 7 * 86400000),
-          end: new Date(Math.min(rangeBounds.end.getTime(), rangeBounds.start.getTime() + (index + 1) * 7 * 86400000 - 1)),
-          period: `Week ${index + 1}`,
-          collections: 0,
-          outstanding: 0
-        };
-      }
-      const d = new Date(rangeBounds.start.getFullYear(), rangeBounds.start.getMonth() + index, 1);
-      return {
-        year: d.getFullYear(),
-        month: d.getMonth(),
-        period: d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }),
-        collections: 0,
-        outstanding: 0
-      };
-    });
-
-    filteredOrders.forEach((o) => {
-      const d = new Date(o.orderDate || o.createdAt);
-      if (!isNaN(d.getTime())) {
-        const tot = Number(o.totalAmount || o.grandTotal || 0);
-        const paid = Number(o.paidAmount || o.verifiedPaidAmount || 0);
-        const out = Number(o.outstandingAmount !== null && o.outstandingAmount !== undefined ? o.outstandingAmount : Math.max(0, tot - paid));
-        const b = weekly 
-          ? buckets.find((item) => d >= item.start && d <= item.end)
-          : buckets.find((item) => item.year === d.getFullYear() && item.month === d.getMonth());
-        if (b) {
-          b.collections += paid;
-          b.outstanding += out;
-        }
-      }
-    });
-
-    return buckets.map(({ period, collections, outstanding }) => ({
-      period,
-      collections: Math.round(collections),
-      outstanding: Math.round(outstanding)
-    }));
-  }, [timeRange, filteredOrders, rangeBounds]);
-
-  // ── RECEIVABLES AGING BUCKETS (Donut) ──
-  const agingBreakdownData = useMemo(() => {
-    const now = new Date();
-    const buckets = [
-      { name: '0–30 Days (Current)', value: 0, color: PALETTE.emerald },
-      { name: '31–60 Days (Aging)', value: 0, color: PALETTE.amber },
-      { name: '61–90 Days (Overdue)', value: 0, color: '#F97316' },
-      { name: '90+ Days (Critical)', value: 0, color: PALETTE.rose },
-    ];
-
-    filteredOrders.forEach((o) => {
-      const tot = Number(o.totalAmount || o.grandTotal || 0);
-      const paid = Number(o.paidAmount || o.verifiedPaidAmount || 0);
-      const out = Number(o.outstandingAmount !== null && o.outstandingAmount !== undefined ? o.outstandingAmount : Math.max(0, tot - paid));
-
-      if (out > 0) {
-        const d = new Date(o.orderDate || o.createdAt || now);
-        const diffDays = Math.max(0, Math.floor((now - d) / 86400000));
-        if (diffDays <= 30) buckets[0].value += out;
-        else if (diffDays <= 60) buckets[1].value += out;
-        else if (diffDays <= 90) buckets[2].value += out;
-        else buckets[3].value += out;
-      }
-    });
-
-    const total = buckets.reduce((sum, b) => sum + b.value, 0);
-    return buckets.map((b) => ({
-      ...b,
-      value: Math.round(b.value),
-      percentage: total ? `${((b.value / total) * 100).toFixed(1)}%` : '0.0%'
-    }));
-  }, [filteredOrders]);
-
-  // ── OPERATIONAL CASH OUTFLOWS & EXPENSES (Donut) ──
-  const expenseAllocationData = useMemo(() => {
-    const vendorPay = dynamicKpis.vendorDues || 0;
-    const gstTax = 0;
-    const totalExpensesLogged = expenses.reduce((sum, exp) => sum + Number(exp.amount || 0), 0);
-    const payroll = 0;
-    const operations = totalExpensesLogged;
-    const admin = 0;
-
-    const total = vendorPay + payroll + operations + admin + gstTax;
-
-    return [
-      { name: 'Statutory GST & Taxes', value: gstTax, color: PALETTE.blue, share: `${Math.round((gstTax / Math.max(1, total)) * 100)}%` },
-      { name: 'Staff Salaries & Payroll', value: payroll, color: PALETTE.purple, share: `${Math.round((payroll / Math.max(1, total)) * 100)}%` },
-      { name: 'Operations & Logistics', value: operations, color: PALETTE.emerald, share: `${Math.round((operations / Math.max(1, total)) * 100)}%` },
-      { name: 'Office & Administration', value: admin, color: PALETTE.amber, share: `${Math.round((admin / Math.max(1, total)) * 100)}%` },
-      { name: 'Vendor Procurement Orders', value: vendorPay, color: PALETTE.rose, share: `${Math.round((vendorPay / Math.max(1, total)) * 100)}%` },
-    ];
-  }, [dynamicKpis, expenses]);
-
-  // ── TOP DEBTORS WITH PENDING DUES (Interactive with Verify Receipt →) ──
-  const topPendingCustomers = useMemo(() => {
-    const customerMap = new Map();
-    filteredOrders.forEach((o) => {
-      const tot = Number(o.totalAmount || 0);
-      const paid = Number(o.paidAmount || 0);
-      const out = Number(o.outstandingAmount !== null && o.outstandingAmount !== undefined ? o.outstandingAmount : Math.max(0, tot - paid));
-      if (out <= 0) return;
-
-      const name = o.customer?.companyName || 'Client';
-      const existing = customerMap.get(name) || { name, totalBal: 0, count: 0, maxDays: 0 };
-      const d = o.orderDate || o.createdAt;
-      const days = d ? Math.floor((Date.now() - new Date(d).getTime()) / 86400000) : 20;
-
-      customerMap.set(name, {
-        name,
-        totalBal: existing.totalBal + out,
-        count: existing.count + 1,
-        maxDays: Math.max(existing.maxDays, days),
-      });
-    });
-
-    return Array.from(customerMap.values())
-      .sort((a, b) => b.totalBal - a.totalBal)
-      .slice(0, 5)
-      .map((c) => ({
-        name: c.name,
-        amountStr: formatCurrency(c.totalBal),
-        invoicesStr: `${c.count} Invoices`,
-        status: c.maxDays > 30 ? 'OVERDUE' : 'PENDING',
-        risk: c.maxDays > 40 ? 'HIGH' : c.maxDays > 25 ? 'MEDIUM' : 'LOW',
-        riskColor: c.maxDays > 40 ? PALETTE.rose : c.maxDays > 25 ? PALETTE.amber : PALETTE.emerald,
-      }));
-  }, [filteredOrders]);
-
-  // ── SALES TEAM COLLECTION ATTRIBUTION ──
-  const salesTeamList = useMemo(() => {
-    const repMap = new Map();
-    filteredOrders.forEach((o) => {
-      const rep = o.salesExecutive?.name || o.salesExecutive?.email || 'Sales Executive';
-      const existing = repMap.get(rep) || { name: rep, count: 0, totalVal: 0, received: 0 };
-      repMap.set(rep, {
-        name: rep,
-        role: rep.toLowerCase().includes('supersales') ? 'SuperSales' : 'Sales Executive',
-        count: existing.count + 1,
-        totalVal: existing.totalVal + Number(o.totalAmount || 0),
-        received: existing.received + Number(o.paidAmount || 0),
-      });
-    });
-
-    return Array.from(repMap.values())
-      .sort((a, b) => b.totalVal - a.totalVal)
-      .map((r) => {
-        const initials = r.name
-          .split(' ')
-          .map((part) => part[0])
-          .join('')
-          .toUpperCase()
-          .slice(0, 2);
-        return {
-          ...r,
-          initials: initials || 'SE',
-          salesValStr: formatCurrency(r.totalVal),
-          receivedStr: formatCurrency(r.received),
-        };
-      });
-  }, [filteredOrders]);
+  }, [liveData.payments]);
 
   // Filtered SM Orders for Tab 2
   const filteredSmOrders = useMemo(() => {
@@ -834,19 +612,46 @@ export default function DashboardView({
                 alignItems: 'center', 
                 gap: '6px', 
                 background: '#ECFDF5', 
-                color: '#10B981', 
+                color: '#059669', 
                 border: '1px solid #A7F3D0',
                 padding: '4px 10px', 
                 borderRadius: '20px', 
                 fontSize: '11px', 
                 fontWeight: '700' 
               }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10B981', display: 'inline-block' }}></span>
-                Live ERP Data Verified • Synced with SM ({salesOrders.length} Invoices)
+                <Activity size={12} /> Live ERP Data Verified
+              </span>
+              <span style={{
+                background: '#EFF6FF',
+                color: PALETTE.blue,
+                fontSize: '11px',
+                fontWeight: '700',
+                padding: '4px 10px',
+                borderRadius: '20px',
+                border: '1px solid #BFDBFE',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                <Calendar size={12} /> Filter: {dynamicMetrics.periodBadge}
+              </span>
+              <span style={{
+                background: '#F8FAFC',
+                color: PALETTE.slateMuted,
+                fontSize: '11px',
+                fontWeight: '700',
+                padding: '4px 10px',
+                borderRadius: '20px',
+                border: '1px solid #E2E8F0',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                {dynamicMetrics.invoicesCount} Invoices
               </span>
             </div>
             <p style={{ color: PALETTE.slateMuted, fontSize: '13px', marginTop: '6px', marginBottom: 0 }}>
-              Certified accounts receivable register, real debtor telemetry & collection analytics for <b>Sahad M (Finance Manager)</b>.
+              Certified accounts receivable register, real debtor telemetry & quarterly collection analytics • Synchronized with <b>Sahad M (Finance Manager)</b>.
             </p>
           </div>
 
@@ -916,8 +721,8 @@ export default function DashboardView({
               { id: '30D', label: '30 Days' },
               { id: '90D', label: 'Quarter' },
               { id: '6M', label: '6 Months' },
-              { id: 'FY2627', label: 'Full Year' },
-              { id: 'ALL', label: 'Custom' }
+              { id: '1Y', label: 'Full Year' },
+              { id: 'CUSTOM', label: 'Custom' }
             ].map((preset) => (
               <button
                 key={preset.id}
@@ -937,6 +742,20 @@ export default function DashboardView({
                 {preset.label}
               </button>
             ))}
+
+            {timeRange === 'CUSTOM' && (
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', padding: '4px 10px', background: '#FFFFFF', border: `1px solid ${PALETTE.border}`, borderRadius: '10px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: PALETTE.slateMuted }}>
+                  From
+                  <input aria-label="Custom period start date" type="date" value={customStartDate} max={customEndDate || undefined} onChange={(event) => setCustomStartDate(event.target.value)} style={{ padding: '4px 8px', border: `1px solid ${PALETTE.border}`, borderRadius: '7px', color: PALETTE.slate, font: 'inherit', fontSize: '12px' }} />
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: PALETTE.slateMuted }}>
+                  To
+                  <input aria-label="Custom period end date" type="date" value={customEndDate} min={customStartDate || undefined} onChange={(event) => setCustomEndDate(event.target.value)} style={{ padding: '4px 8px', border: `1px solid ${PALETTE.border}`, borderRadius: '7px', color: PALETTE.slate, font: 'inherit', fontSize: '12px' }} />
+                </label>
+                {!isCustomRangeValid && <span role="status" style={{ color: PALETTE.rose, fontSize: '11px', fontWeight: 600 }}>Choose a valid start and end date.</span>}
+              </div>
+            )}
           </div>
 
           <div style={{ fontSize: '12px', color: PALETTE.slateMuted, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -963,13 +782,18 @@ export default function DashboardView({
 
       {/* ── 2. KEY FINANCIAL PERFORMANCE METRICS (6 Grid Cards) ── */}
       <div>
-        <div style={{ marginBottom: '12px' }}>
-          <h2 style={{ fontSize: '15px', fontWeight: '800', color: PALETTE.slate, margin: 0 }}>
-            Key Financial Performance Metrics — {rangeBounds.label}
-          </h2>
-          <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: PALETTE.slateMuted }}>
-            Source: Live AR Invoices & Sales Register ({dynamicKpis.totalOrderCount} Invoices)
-          </p>
+        <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <div>
+            <h2 style={{ fontSize: '15px', fontWeight: '800', color: PALETTE.slate, margin: 0 }}>
+              Key Financial Performance Metrics — {dynamicMetrics.periodBadge}
+            </h2>
+            <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: PALETTE.slateMuted }}>
+              Source: Live AR Invoices & Sales Register ({dynamicMetrics.invoicesCount} Invoices)
+            </p>
+          </div>
+          <span style={{ fontSize: '11.5px', color: '#059669', background: '#ECFDF5', border: '1px solid #A7F3D0', padding: '3px 10px', borderRadius: '12px', fontWeight: '700' }}>
+            100% Synced with Finance Manager Desk
+          </span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
@@ -980,14 +804,15 @@ export default function DashboardView({
               Total Invoiced Revenue
             </span>
             <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: PALETTE.slate }}>
-              {formatCurrency(dynamicKpis.totalInvoiced)}
+              {dynamicMetrics.totalRevenueStr}
             </h3>
-            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
-              <span style={{ color: '#ef4444', fontWeight: '700', marginRight: '4px' }}>-18.8%</span>
-              vs previous period
+            <div style={{ marginTop: '6px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '4px', color: dynamicMetrics.periodComparisonPositive === null ? PALETTE.slateMuted : dynamicMetrics.periodComparisonPositive ? '#16A34A' : PALETTE.rose }}>
+              {dynamicMetrics.periodComparisonPositive === false ? <ArrowDownRight size={13} /> : <TrendingUp size={13} />}
+              <span style={{ fontWeight: '700' }}>{dynamicMetrics.periodComparisonLabel}</span>
+              <span style={{ color: PALETTE.slateMuted, fontWeight: '500' }}>vs previous period</span>
             </div>
             <div style={{ fontSize: '10.5px', color: PALETTE.slateMuted, marginTop: '2px' }}>
-              {rangeBounds.label}
+              {dynamicMetrics.periodBadge}
             </div>
           </div>
 
@@ -997,10 +822,10 @@ export default function DashboardView({
               Realized Collections
             </span>
             <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: PALETTE.emerald }}>
-              {formatCurrency(dynamicKpis.totalCollected)}
+              {dynamicMetrics.totalCollectionsStr}
             </h3>
-            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
-              Cleared bank receipts ({rangeBounds.label})
+            <div style={{ marginTop: '6px', fontSize: '11.5px', color: '#059669', fontWeight: '600' }}>
+              Cleared bank receipts ({dynamicMetrics.periodBadge})
             </div>
           </div>
 
@@ -1009,11 +834,11 @@ export default function DashboardView({
             <span style={{ fontSize: '11px', color: PALETTE.slateMuted, fontWeight: '700', textTransform: 'uppercase' }}>
               Total Outstanding Dues
             </span>
-            <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: PALETTE.amber }}>
-              {formatCurrency(dynamicKpis.outstanding)}
+            <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: '#D97706' }}>
+              {dynamicMetrics.outstandingReceivablesStr}
             </h3>
-            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
-              {dynamicKpis.unpaidCount} Pending Invoices ({rangeBounds.label})
+            <div style={{ marginTop: '6px', fontSize: '11.5px', color: '#D97706', fontWeight: '700' }}>
+              {dynamicMetrics.unpaidInvoicesCount} Pending Invoices ({dynamicMetrics.periodBadge})
             </div>
           </div>
 
@@ -1022,11 +847,12 @@ export default function DashboardView({
             <span style={{ fontSize: '11px', color: PALETTE.slateMuted, fontWeight: '700', textTransform: 'uppercase' }}>
               Critical Overdue
             </span>
-            <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: PALETTE.rose }}>
-              {formatCurrency(dynamicKpis.criticalOverdue)}
+            <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: '#DC2626' }}>
+              {dynamicMetrics.overdueAmountStr}
             </h3>
-            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
-              {dynamicKpis.overdueCount} Overdue Invoices ({rangeBounds.label})
+            <div style={{ marginTop: '6px', fontSize: '11.5px', color: '#DC2626', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '700' }}>
+              <AlertCircle size={13} />
+              <span>{dynamicMetrics.overdueInvoicesCount} Overdue Invoices ({dynamicMetrics.periodBadge})</span>
             </div>
           </div>
 
@@ -1036,10 +862,15 @@ export default function DashboardView({
               Collection Efficiency
             </span>
             <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: PALETTE.purple }}>
-              {dynamicKpis.realizationRate}%
+              {dynamicMetrics.collectionEfficiencyStr}
             </h3>
-            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
-              Target: 75% ({dynamicKpis.targetShortfall}% short)
+            <div style={{ marginTop: '6px' }}>
+              <div style={{ width: '100%', height: '6px', background: '#E2E8F0', borderRadius: '3px', overflow: 'hidden', marginBottom: '4px' }}>
+                <div style={{ width: `${Math.min(100, dynamicMetrics.effRatio)}%`, height: '100%', background: dynamicMetrics.effRatio >= 75 ? '#10B981' : '#F59E0B' }} />
+              </div>
+              <div style={{ fontSize: '11px', fontWeight: '700', color: dynamicMetrics.effRatio >= 75 ? '#059669' : '#D97706' }}>
+                {dynamicMetrics.targetBenchmarkStr}
+              </div>
             </div>
           </div>
 
@@ -1048,11 +879,11 @@ export default function DashboardView({
             <span style={{ fontSize: '11px', color: PALETTE.slateMuted, fontWeight: '700', textTransform: 'uppercase' }}>
               Vendor Dues Pending
             </span>
-            <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: '#0891b2' }}>
-              {formatCurrency(dynamicKpis.vendorDues)}
+            <h3 style={{ margin: '8px 0 2px 0', fontSize: '23px', fontWeight: '800', color: '#7C3AED' }}>
+              {dynamicMetrics.vendorPaymentsDueStr}
             </h3>
-            <div style={{ marginTop: '6px', fontSize: '11px', color: PALETTE.slateMuted }}>
-              {dynamicKpis.openPOCount} Open Purchase Orders ({rangeBounds.label})
+            <div style={{ marginTop: '6px', fontSize: '11.5px', color: '#7C3AED', fontWeight: '600' }}>
+              {dynamicMetrics.pendingVendorsCount} Open Purchase Orders ({dynamicMetrics.periodBadge})
             </div>
           </div>
 
@@ -1061,13 +892,18 @@ export default function DashboardView({
 
       {/* ── 3. FINANCIAL TELEMETRY & CASHFLOW VISUALS (4 CHARTS) ── */}
       <div>
-        <div style={{ marginBottom: '12px' }}>
-          <h2 style={{ fontSize: '15px', fontWeight: '800', color: PALETTE.slate, margin: 0 }}>
-            Financial Telemetry & Cashflow Visuals — {rangeBounds.label}
-          </h2>
-          <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: PALETTE.slateMuted }}>
-            Full Visual Rendering Guaranteed • Real Bank Inflows & Booked Exposure
-          </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+          <div>
+            <h2 style={{ fontSize: '15px', fontWeight: '800', color: PALETTE.slate, margin: 0 }}>
+              Financial Telemetry & Cashflow Visuals — {dynamicMetrics.periodBadge}
+            </h2>
+            <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: PALETTE.slateMuted }}>
+              Full Visual Rendering Guaranteed • Real Bank Inflows & Booked Exposure
+            </p>
+          </div>
+          <span style={{ fontSize: '12px', color: '#16A34A', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <ShieldCheck size={14} /> Full Visual Rendering Guaranteed
+          </span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 460px), 1fr))', gap: '20px' }}>
@@ -1077,10 +913,16 @@ export default function DashboardView({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
-                  📈 Revenue vs Cleared Collections Trend ({rangeBounds.label})
+                  📈 Revenue vs Cleared Collections Trend ({dynamicMetrics.periodBadge})
                 </h3>
                 <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: PALETTE.slateMuted }}>
-                  Weekly breakdown of gross booked invoices vs bank collection inflows
+                  {timeRange === '30D'
+                    ? 'Weekly breakdown of gross booked invoices vs bank collection inflows'
+                    : timeRange === '90D'
+                    ? 'Quarterly monthly progression of gross invoiced revenue vs bank collection inflows'
+                    : timeRange === '6M'
+                    ? 'Six-month progression of gross invoiced revenue vs bank collection inflows'
+                    : '12-Month financial year progression of gross invoiced revenue vs bank collection inflows'}
                 </p>
               </div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -1093,12 +935,12 @@ export default function DashboardView({
               </div>
             </div>
 
-            <div style={{ width: '100%', height: '280px', position: 'relative' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={revenueTrendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+            <div style={{ width: '100%', minHeight: '280px', flex: 1, position: 'relative' }}>
+              <ResponsiveChart height={280} minHeight={260}>
+                <AreaChart data={revenueTrendData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
                   <defs>
                     <linearGradient id="gradientRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={PALETTE.blue} stopOpacity={0.3} />
+                      <stop offset="5%" stopColor={PALETTE.blue} stopOpacity={0.28} />
                       <stop offset="95%" stopColor={PALETTE.blue} stopOpacity={0.0} />
                     </linearGradient>
                     <linearGradient id="gradientCollections" x1="0" y1="0" x2="0" y2="1">
@@ -1108,15 +950,15 @@ export default function DashboardView({
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                   <XAxis dataKey="label" stroke="#64748B" fontSize={11.5} tickLine={false} />
-                  <YAxis stroke="#64748B" fontSize={11.5} tickLine={false} tickFormatter={formatCompactCurrency} />
+                  <YAxis stroke="#64748B" fontSize={11.5} tickLine={false} tickFormatter={formatShortINR} />
                   <Tooltip 
-                    formatter={(val, name) => [formatCurrency(val), name === 'revenue' ? 'Invoiced Revenue' : 'Realized Collections']}
-                    contentStyle={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                    formatter={(val) => formatINR(val)}
+                    contentStyle={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '10px', fontSize: '12.5px', color: PALETTE.slate, boxShadow: '0 6px 16px rgba(0,0,0,0.1)' }}
                   />
                   <Area type="monotone" dataKey="revenue" name="Invoiced Revenue" stroke={PALETTE.blue} strokeWidth={2.5} fill="url(#gradientRevenue)" />
                   <Area type="monotone" dataKey="collections" name="Realized Collections" stroke={PALETTE.emerald} strokeWidth={2.5} fill="url(#gradientCollections)" />
                 </AreaChart>
-              </ResponsiveContainer>
+              </ResponsiveChart>
             </div>
           </div>
 
@@ -1125,10 +967,16 @@ export default function DashboardView({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
-                  📊 Collections vs Outstanding Comparison ({rangeBounds.label})
+                  📊 Collections vs Outstanding Comparison ({dynamicMetrics.periodBadge})
                 </h3>
                 <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: PALETTE.slateMuted }}>
-                  Weekly comparison of realized cash collections vs pending debtor dues
+                  {timeRange === '30D'
+                    ? 'Weekly comparison of realized cash collections vs pending debtor dues'
+                    : timeRange === '90D'
+                    ? 'Monthly comparison across the quarter of realized cash vs pending debtor dues'
+                    : timeRange === '6M'
+                    ? 'Quarterly comparison across H1 of realized cash vs pending debtor dues'
+                    : 'Monthly realized cash vs remaining debtor dues across the selected period'}
                 </p>
               </div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -1141,20 +989,20 @@ export default function DashboardView({
               </div>
             </div>
 
-            <div style={{ width: '100%', height: '280px', position: 'relative' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={collectionsVsOutstandingData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+            <div style={{ width: '100%', minHeight: '280px', flex: 1, position: 'relative' }}>
+              <ResponsiveChart height={280} minHeight={260}>
+                <BarChart data={collectionsVsOutstandingData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                   <XAxis dataKey="period" stroke="#64748B" fontSize={11.5} tickLine={false} />
-                  <YAxis stroke="#64748B" fontSize={11.5} tickLine={false} tickFormatter={formatCompactCurrency} />
+                  <YAxis stroke="#64748B" fontSize={11.5} tickLine={false} tickFormatter={formatShortINR} />
                   <Tooltip 
-                    formatter={(val, name) => [formatCurrency(val), name === 'collections' ? 'Realized Collections' : 'Pending Dues']}
-                    contentStyle={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                    formatter={(val) => formatINR(val)}
+                    contentStyle={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '10px', fontSize: '12.5px', color: PALETTE.slate, boxShadow: '0 6px 16px rgba(0,0,0,0.1)' }}
                   />
-                  <Bar dataKey="collections" name="Realized Collections" fill={PALETTE.emerald} radius={[6, 6, 0, 0]} maxBarSize={36} />
-                  <Bar dataKey="outstanding" name="Pending Dues" fill={PALETTE.amber} radius={[6, 6, 0, 0]} maxBarSize={36} />
+                  <Bar dataKey="collections" name="Realized Collections" fill={PALETTE.emerald} radius={[6, 6, 0, 0]} maxBarSize={38} />
+                  <Bar dataKey="outstanding" name="Pending Dues" fill={PALETTE.amber} radius={[6, 6, 0, 0]} maxBarSize={38} />
                 </BarChart>
-              </ResponsiveContainer>
+              </ResponsiveChart>
             </div>
           </div>
 
@@ -1163,20 +1011,20 @@ export default function DashboardView({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
-                  🍩 Receivables Aging Buckets ({rangeBounds.label})
+                  🍩 Receivables Aging Buckets ({dynamicMetrics.periodBadge})
                 </h3>
                 <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: PALETTE.slateMuted }}>
                   Debtor exposure segmented by invoice payment term duration
                 </p>
               </div>
               <span style={{ fontSize: '12px', fontWeight: '800', color: PALETTE.rose, background: '#FEF2F2', padding: '4px 10px', borderRadius: '6px', border: '1px solid #FECACA' }}>
-                Total: {formatCurrency(dynamicKpis.outstanding)}
+                Total: {dynamicMetrics.outstandingReceivablesStr}
               </span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
               <div style={{ width: '220px', height: '220px', margin: '0 auto', position: 'relative' }}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveChart height={220} minHeight={200}>
                   <PieChart>
                     <Pie
                       data={agingBreakdownData}
@@ -1192,11 +1040,11 @@ export default function DashboardView({
                       ))}
                     </Pie>
                     <Tooltip 
-                      formatter={(val, name) => [formatCurrency(val), name]}
-                      contentStyle={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '8px' }}
+                      formatter={(val) => formatINR(val)}
+                      contentStyle={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                     />
                   </PieChart>
-                </ResponsiveContainer>
+                </ResponsiveChart>
               </div>
 
               {/* Legend with Metrics */}
@@ -1219,7 +1067,7 @@ export default function DashboardView({
                       <span style={{ fontSize: '12px', fontWeight: '700', color: PALETTE.slate }}>{bucket.name}</span>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '12px', fontWeight: '800', color: PALETTE.slate, display: 'block' }}>{formatCurrency(bucket.value)}</span>
+                      <span style={{ fontSize: '12px', fontWeight: '800', color: PALETTE.slate, display: 'block' }}>{formatINR(bucket.value)}</span>
                       <span style={{ fontSize: '10px', color: PALETTE.slateMuted, fontWeight: '600' }}>{bucket.percentage}</span>
                     </div>
                   </div>
@@ -1233,7 +1081,7 @@ export default function DashboardView({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
-                  💳 Operational Cash Outflows & Expenses ({rangeBounds.label})
+                  💳 Operational Cash Outflows & Expenses ({dynamicMetrics.periodBadge})
                 </h3>
                 <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: PALETTE.slateMuted }}>
                   Distribution of corporate expenditure across operations and statutory dues
@@ -1262,7 +1110,7 @@ export default function DashboardView({
 
             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
               <div style={{ width: '220px', height: '220px', margin: '0 auto', position: 'relative' }}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveChart height={220} minHeight={200}>
                   <PieChart>
                     <Pie
                       data={expenseAllocationData}
@@ -1278,11 +1126,11 @@ export default function DashboardView({
                       ))}
                     </Pie>
                     <Tooltip 
-                      formatter={(val, name) => [formatCurrency(val), name]}
-                      contentStyle={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '8px' }}
+                      formatter={(val) => formatINR(val)}
+                      contentStyle={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                     />
                   </PieChart>
-                </ResponsiveContainer>
+                </ResponsiveChart>
               </div>
 
               {/* Legend with Metrics */}
@@ -1305,7 +1153,7 @@ export default function DashboardView({
                       <span style={{ fontSize: '12px', fontWeight: '700', color: PALETTE.slate }}>{item.name}</span>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '12px', fontWeight: '800', color: PALETTE.slate, display: 'block' }}>{formatCurrency(item.value)}</span>
+                      <span style={{ fontSize: '12px', fontWeight: '800', color: PALETTE.slate, display: 'block' }}>{formatINR(item.value)}</span>
                       <span style={{ fontSize: '10px', color: PALETTE.slateMuted, fontWeight: '600' }}>{item.share}</span>
                     </div>
                   </div>
@@ -1326,7 +1174,7 @@ export default function DashboardView({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Building size={18} color={PALETTE.amber} />
               <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
-                Top Debtors with Pending Dues ({rangeBounds.label})
+                Top Debtors with Pending Dues ({dynamicMetrics.periodBadge})
               </h3>
             </div>
             <button
@@ -1418,7 +1266,7 @@ export default function DashboardView({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Users size={18} color={PALETTE.blue} />
               <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
-                Sales Team Collection Attribution ({rangeBounds.label})
+                Sales Team Collection Attribution ({dynamicMetrics.periodBadge})
               </h3>
             </div>
             <button
