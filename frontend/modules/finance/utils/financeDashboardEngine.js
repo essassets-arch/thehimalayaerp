@@ -49,7 +49,102 @@ export const getRecordDate = (record, fields) => {
   return null;
 };
 
-export const getRangeBounds = (range, now = new Date(), customStart = '', customEnd = '') => {
+// ── Indian Fiscal Quarters (Q1: Apr-Jun, Q2: Jul-Sep, Q3: Oct-Dec, Q4: Jan-Mar) ──
+export const getFiscalQuarterInfo = (now = new Date()) => {
+  const m = now.getMonth(); // 0 = Jan, 1 = Feb, ..., 11 = Dec
+  const fyStartYear = m >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const fyEndYear = fyStartYear + 1;
+  const fyLabel = `FY ${fyStartYear}–${String(fyEndYear).slice(-2)}`;
+
+  let currentQuarterKey = 'Q3';
+  if (m >= 3 && m <= 5) currentQuarterKey = 'Q1';
+  else if (m >= 6 && m <= 8) currentQuarterKey = 'Q2';
+  else if (m >= 9 && m <= 11) currentQuarterKey = 'Q3';
+  else currentQuarterKey = 'Q4';
+
+  const quarters = [
+    {
+      id: 'Q1',
+      quarterNumber: 1,
+      name: 'Q1',
+      label: 'Q1 (Apr – Jun)',
+      periodText: '1 Apr – 30 Jun',
+      start: new Date(fyStartYear, 3, 1, 0, 0, 0, 0),
+      end: new Date(fyStartYear, 5, 30, 23, 59, 59, 999),
+      isCurrent: currentQuarterKey === 'Q1',
+    },
+    {
+      id: 'Q2',
+      quarterNumber: 2,
+      name: 'Q2',
+      label: 'Q2 (Jul – Sep)',
+      periodText: '1 Jul – 30 Sep',
+      start: new Date(fyStartYear, 6, 1, 0, 0, 0, 0),
+      end: new Date(fyStartYear, 8, 30, 23, 59, 59, 999),
+      isCurrent: currentQuarterKey === 'Q2',
+    },
+    {
+      id: 'Q3',
+      quarterNumber: 3,
+      name: 'Q3',
+      label: 'Q3 (Oct – Dec)',
+      periodText: '1 Oct – 31 Dec',
+      start: new Date(fyStartYear, 9, 1, 0, 0, 0, 0),
+      end: new Date(fyStartYear, 11, 31, 23, 59, 59, 999),
+      isCurrent: currentQuarterKey === 'Q3',
+    },
+    {
+      id: 'Q4',
+      quarterNumber: 4,
+      name: 'Q4',
+      label: 'Q4 (Jan – Mar)',
+      periodText: '1 Jan – 31 Mar',
+      start: new Date(fyEndYear, 0, 1, 0, 0, 0, 0),
+      end: new Date(fyEndYear, 2, 31, 23, 59, 59, 999),
+      isCurrent: currentQuarterKey === 'Q4',
+    }
+  ];
+
+  const currentQ = quarters.find(q => q.id === currentQuarterKey) || quarters[0];
+
+  let prevQ;
+  if (currentQuarterKey === 'Q1') {
+    prevQ = {
+      id: 'PREV_Q',
+      quarterNumber: 4,
+      name: 'Q4 (Prev FY)',
+      label: 'Previous Quarter (Q4)',
+      periodText: `1 Jan – 31 Mar (${fyStartYear})`,
+      start: new Date(fyStartYear, 0, 1, 0, 0, 0, 0),
+      end: new Date(fyStartYear, 2, 31, 23, 59, 59, 999),
+      isCurrent: false,
+      isPrevious: true
+    };
+  } else {
+    const prevIndex = quarters.findIndex(q => q.id === currentQuarterKey) - 1;
+    const basePrev = quarters[prevIndex];
+    prevQ = {
+      ...basePrev,
+      id: 'PREV_Q',
+      label: `Previous Quarter (${basePrev.name})`,
+      periodText: basePrev.periodText,
+      isCurrent: false,
+      isPrevious: true
+    };
+  }
+
+  return {
+    fyStartYear,
+    fyEndYear,
+    fyLabel,
+    currentQuarterKey,
+    currentQ,
+    prevQ,
+    quarters
+  };
+};
+
+export const getRangeBounds = (range, now = new Date(), customStart = '', customEnd = '', quarterChoice = '') => {
   if (range === 'CUSTOM') {
     const start = customStart ? new Date(`${customStart}T00:00:00`) : new Date(NaN);
     const end = customEnd ? new Date(`${customEnd}T23:59:59.999`) : new Date(NaN);
@@ -64,22 +159,46 @@ export const getRangeBounds = (range, now = new Date(), customStart = '', custom
     return { start, end };
   }
 
-  const yearStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  const fiscalStart = new Date(yearStart, 3, 1);
+  const fiscalInfo = getFiscalQuarterInfo(now);
+  const yearStart = fiscalInfo.fyStartYear;
+  const fiscalStart = new Date(yearStart, 3, 1, 0, 0, 0, 0);
   const fiscalEnd = new Date(yearStart + 1, 2, 31, 23, 59, 59, 999);
+
   if (range === '1Y') return { start: fiscalStart, end: fiscalEnd };
   if (range === '6M') {
-    const halfStart = now.getMonth() >= 3 ? new Date(yearStart, 3, 1) : new Date(yearStart, 9, 1);
+    const halfStart = now.getMonth() >= 3 ? new Date(yearStart, 3, 1, 0, 0, 0, 0) : new Date(yearStart, 9, 1, 0, 0, 0, 0);
     const halfEnd = now.getMonth() >= 3
       ? new Date(yearStart, 8, 30, 23, 59, 59, 999)
       : new Date(yearStart + 1, 2, 31, 23, 59, 59, 999);
     return { start: halfStart, end: halfEnd };
   }
 
-  const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+  // Quarter selection (90D, QUARTER, Q1, Q2, Q3, Q4, PREV_Q)
+  const qKey = (quarterChoice || (range !== '90D' && range !== 'QUARTER' ? range : 'CURRENT')).toUpperCase();
+  if (qKey === 'Q1') {
+    const q1 = fiscalInfo.quarters.find(q => q.id === 'Q1');
+    return { start: q1.start, end: q1.end };
+  }
+  if (qKey === 'Q2') {
+    const q2 = fiscalInfo.quarters.find(q => q.id === 'Q2');
+    return { start: q2.start, end: q2.end };
+  }
+  if (qKey === 'Q3') {
+    const q3 = fiscalInfo.quarters.find(q => q.id === 'Q3');
+    return { start: q3.start, end: q3.end };
+  }
+  if (qKey === 'Q4') {
+    const q4 = fiscalInfo.quarters.find(q => q.id === 'Q4');
+    return { start: q4.start, end: q4.end };
+  }
+  if (qKey === 'PREV_Q' || qKey === 'PREV' || qKey === 'PREVIOUS') {
+    return { start: fiscalInfo.prevQ.start, end: fiscalInfo.prevQ.end };
+  }
+
+  // Default: Current Quarter
   return {
-    start: new Date(now.getFullYear(), quarterStartMonth, 1),
-    end: new Date(now.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999),
+    start: fiscalInfo.currentQ.start,
+    end: fiscalInfo.currentQ.end,
   };
 };
 
@@ -91,7 +210,7 @@ export const isInRange = (record, fields, bounds) => {
   return Boolean(date && date >= bounds.start && date <= bounds.end);
 };
 
-export const getPeriodMeta = (timeRange, rangeBounds) => {
+export const getPeriodMeta = (timeRange, rangeBounds, quarterChoice = '', now = new Date()) => {
   const startLabel = rangeBounds.start && !isNaN(rangeBounds.start.getTime())
     ? rangeBounds.start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
     : '';
@@ -99,22 +218,44 @@ export const getPeriodMeta = (timeRange, rangeBounds) => {
     ? rangeBounds.end.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
     : '';
   const rangeLabel = startLabel && endLabel ? `${startLabel} – ${endLabel}` : '';
-  const fyStart = rangeBounds.start && !isNaN(rangeBounds.start.getTime()) ? rangeBounds.start.getFullYear() : new Date().getFullYear();
-  const fyLabel = `FY ${fyStart}–${String(fyStart + 1).slice(-2)}`;
+  const fiscalInfo = getFiscalQuarterInfo(now);
+  const fyLabel = fiscalInfo.fyLabel;
 
-  switch (timeRange) {
-    case '30D':
-      return { label: '30 Days', badge: `Last 30 Days (${rangeLabel})`, desc: rangeLabel };
-    case '90D':
-      return { label: 'Quarter', badge: `Current Quarter (${rangeLabel})`, desc: rangeLabel };
-    case '6M':
-      return { label: '6 Months', badge: `Half Year (${rangeLabel})`, desc: rangeLabel };
-    case 'CUSTOM':
-      return { label: 'Custom', badge: `Custom Period (${rangeLabel})`, desc: rangeLabel };
-    case '1Y':
-    default:
-      return { label: 'Full Year', badge: `Full Year (${fyLabel})`, desc: rangeLabel };
+  if (timeRange === '30D') {
+    return { label: '30 Days', badge: `Last 30 Days (${rangeLabel})`, desc: rangeLabel };
   }
+  if (timeRange === '6M') {
+    return { label: '6 Months', badge: `Half Year (${rangeLabel})`, desc: rangeLabel };
+  }
+  if (timeRange === 'CUSTOM') {
+    return { label: 'Custom', badge: `Custom Period (${rangeLabel})`, desc: rangeLabel };
+  }
+  if (timeRange === '1Y') {
+    return { label: 'Full Year', badge: `Full Year (${fyLabel})`, desc: rangeLabel };
+  }
+
+  // Quarters
+  const qKey = (quarterChoice || (timeRange !== '90D' && timeRange !== 'QUARTER' ? timeRange : 'CURRENT')).toUpperCase();
+  if (qKey === 'PREV_Q' || qKey === 'PREV') {
+    return {
+      label: `Previous Quarter (${fiscalInfo.prevQ.name})`,
+      badge: `Previous Quarter: ${fiscalInfo.prevQ.name} (${rangeLabel})`,
+      desc: rangeLabel
+    };
+  }
+  if (['Q1', 'Q2', 'Q3', 'Q4'].includes(qKey)) {
+    return {
+      label: `Quarter ${qKey}`,
+      badge: `${qKey} (${rangeLabel})`,
+      desc: rangeLabel
+    };
+  }
+
+  return {
+    label: `Quarter (${fiscalInfo.currentQuarterKey})`,
+    badge: `Current Quarter (${fiscalInfo.currentQuarterKey}: ${rangeLabel})`,
+    desc: rangeLabel
+  };
 };
 
 // ── Generic Backend List Parser ──
@@ -275,8 +416,9 @@ export const calculateDynamicMetrics = (filteredInvoices = [], filteredSalesOrde
 // ── Chart 1: Revenue vs Collections Trend ──
 export const calculateRevenueTrendData = (timeRange, rangeBounds, filteredInvoices = [], filteredSalesOrders = []) => {
   const weekly = timeRange === '30D';
+  const isQuarter = timeRange === '90D' || ['QUARTER', 'Q1', 'Q2', 'Q3', 'Q4', 'PREV_Q'].includes(timeRange);
   const customMonths = Math.max(1, Math.min(12, (rangeBounds.end.getFullYear() - rangeBounds.start.getFullYear()) * 12 + rangeBounds.end.getMonth() - rangeBounds.start.getMonth() + 1));
-  const bucketCount = weekly ? 4 : timeRange === 'CUSTOM' ? customMonths : timeRange === '90D' ? 3 : timeRange === '6M' ? 6 : 12;
+  const bucketCount = weekly ? 4 : timeRange === 'CUSTOM' ? customMonths : isQuarter ? 3 : timeRange === '6M' ? 6 : 12;
   const buckets = Array.from({ length: bucketCount }, (_, index) => {
     if (weekly) return { start: new Date(rangeBounds.start.getTime() + index * 7 * 86400000), end: new Date(Math.min(rangeBounds.end.getTime(), rangeBounds.start.getTime() + (index + 1) * 7 * 86400000 - 1)), label: `Week ${index + 1}`, revenue: 0, collections: 0 };
     const date = new Date(rangeBounds.start.getFullYear(), rangeBounds.start.getMonth() + index, 1);
@@ -296,8 +438,9 @@ export const calculateRevenueTrendData = (timeRange, rangeBounds, filteredInvoic
 // ── Chart 2: Collections vs Outstanding Bar Data ──
 export const calculateCollectionsVsOutstandingData = (timeRange, rangeBounds, filteredInvoices = [], filteredSalesOrders = []) => {
   const weekly = timeRange === '30D';
+  const isQuarter = timeRange === '90D' || ['QUARTER', 'Q1', 'Q2', 'Q3', 'Q4', 'PREV_Q'].includes(timeRange);
   const customMonths = Math.max(1, Math.min(12, (rangeBounds.end.getFullYear() - rangeBounds.start.getFullYear()) * 12 + rangeBounds.end.getMonth() - rangeBounds.start.getMonth() + 1));
-  const bucketCount = weekly ? 4 : timeRange === 'CUSTOM' ? customMonths : timeRange === '90D' ? 3 : timeRange === '6M' ? 6 : 12;
+  const bucketCount = weekly ? 4 : timeRange === 'CUSTOM' ? customMonths : isQuarter ? 3 : timeRange === '6M' ? 6 : 12;
   const buckets = Array.from({ length: bucketCount }, (_, index) => {
     if (weekly) return { start: new Date(rangeBounds.start.getTime() + index * 7 * 86400000), end: new Date(Math.min(rangeBounds.end.getTime(), rangeBounds.start.getTime() + (index + 1) * 7 * 86400000 - 1)), period: `Week ${index + 1}`, collections: 0, outstanding: 0 };
     const date = new Date(rangeBounds.start.getFullYear(), rangeBounds.start.getMonth() + index, 1);

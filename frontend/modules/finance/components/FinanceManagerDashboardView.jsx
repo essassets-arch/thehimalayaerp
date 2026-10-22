@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   TrendingUp, DollarSign, Wallet, ShieldAlert, ArrowUpRight, CheckCircle2,
-  Clock, Users, FileText, AlertTriangle, ChevronRight, Zap, RefreshCw,
+  Clock, Users, FileText, AlertTriangle, ChevronRight, ChevronDown, Check, Zap, RefreshCw,
   BarChart3, CreditCard, Building, ArrowDownRight, Award, CheckSquare,
   AlertCircle, FileCheck, Layers, PieChart as PieChartIcon, Calendar,
   ArrowRight, Activity, Percent, ShieldCheck, Truck
@@ -22,6 +22,7 @@ import {
   formatINR,
   formatShortINR,
   getRecordDate,
+  getFiscalQuarterInfo,
   getRangeBounds,
   isInRange,
   getPeriodMeta,
@@ -54,12 +55,32 @@ export default function FinanceManagerDashboardView({
   const router = useSafeRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [timeRange, setTimeRange] = useState('30D'); // '30D' | '90D' | '6M' | '1Y'
+  const [selectedQuarter, setSelectedQuarter] = useState('CURRENT');
+  const [quarterDropdownOpen, setQuarterDropdownOpen] = useState(false);
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const quarterDropdownRef = useRef(null);
+
+  const fiscalQuarterInfo = useMemo(() => getFiscalQuarterInfo(), []);
+
   const rangeBounds = useMemo(() => {
-    return getRangeBounds(timeRange, new Date(), customStartDate, customEndDate);
-  }, [timeRange, customStartDate, customEndDate]);
+    return getRangeBounds(timeRange, new Date(), customStartDate, customEndDate, selectedQuarter);
+  }, [timeRange, customStartDate, customEndDate, selectedQuarter]);
   const isCustomRangeValid = Boolean(customStartDate && customEndDate && customStartDate <= customEndDate);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (quarterDropdownRef.current && !quarterDropdownRef.current.contains(event.target)) {
+        setQuarterDropdownOpen(false);
+      }
+    }
+    if (quarterDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [quarterDropdownOpen]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [liveData, setLiveData] = useState({
     salesOrders: [],
@@ -149,8 +170,8 @@ export default function FinanceManagerDashboardView({
 
   // Period label & human-readable badge
   const periodMeta = useMemo(() => {
-    return getPeriodMeta(timeRange, rangeBounds);
-  }, [timeRange, rangeBounds]);
+    return getPeriodMeta(timeRange, rangeBounds, selectedQuarter);
+  }, [timeRange, rangeBounds, selectedQuarter]);
 
   // ── Filtered AR Invoices according to Active Horizon ──
   const filteredInvoices = useMemo(() => {
@@ -340,38 +361,330 @@ export default function FinanceManagerDashboardView({
           <div
             style={{
               display: 'flex',
+              alignItems: 'center',
               background: '#F1F5F9',
               padding: '3px',
               borderRadius: '10px',
               border: '1px solid #CBD5E1',
+              gap: '2px',
+              position: 'relative'
             }}
           >
-            {[
-              { id: '30D', label: '30 Days' },
-              { id: '90D', label: 'Quarter' },
-              { id: '6M', label: '6 Months' },
-              { id: '1Y', label: 'Full Year' },
-              { id: 'CUSTOM', label: 'Custom' },
-            ].map((btn) => (
+            {/* 30 Days */}
+            <button
+              type="button"
+              onClick={() => { setTimeRange('30D'); setQuarterDropdownOpen(false); }}
+              style={{
+                border: 'none',
+                background: timeRange === '30D' ? '#FFFFFF' : 'transparent',
+                color: timeRange === '30D' ? PALETTE.blue : PALETTE.slateMuted,
+                fontWeight: timeRange === '30D' ? '800' : '600',
+                fontSize: '12px',
+                padding: '7px 14px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                boxShadow: timeRange === '30D' ? '0 2px 8px rgba(37,99,235,0.15)' : 'none',
+                transition: 'all 0.18s ease',
+              }}
+            >
+              30 Days
+            </button>
+
+            {/* Quarter with Dropdown */}
+            <div ref={quarterDropdownRef} style={{ position: 'relative', display: 'inline-flex' }}>
               <button
-                key={btn.id}
-                onClick={() => setTimeRange(btn.id)}
+                type="button"
+                onClick={() => {
+                  if (timeRange !== '90D') {
+                    setTimeRange('90D');
+                    setQuarterDropdownOpen(true);
+                  } else {
+                    setQuarterDropdownOpen((prev) => !prev);
+                  }
+                }}
                 style={{
                   border: 'none',
-                  background: timeRange === btn.id ? '#FFFFFF' : 'transparent',
-                  color: timeRange === btn.id ? PALETTE.blue : PALETTE.slateMuted,
-                  fontWeight: timeRange === btn.id ? '800' : '600',
+                  background: timeRange === '90D' ? '#FFFFFF' : 'transparent',
+                  color: timeRange === '90D' ? PALETTE.blue : PALETTE.slateMuted,
+                  fontWeight: timeRange === '90D' ? '800' : '600',
                   fontSize: '12px',
-                  padding: '7px 14px',
+                  padding: '7px 12px',
                   borderRadius: '8px',
                   cursor: 'pointer',
-                  boxShadow: timeRange === btn.id ? '0 2px 8px rgba(37,99,235,0.15)' : 'none',
+                  boxShadow: timeRange === '90D' ? '0 2px 8px rgba(37,99,235,0.15)' : 'none',
                   transition: 'all 0.18s ease',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
                 }}
+                title="Select Indian Fiscal Quarter (FY 2026–27)"
               >
-                {btn.label}
+                <span>
+                  {timeRange === '90D' 
+                    ? (selectedQuarter === 'CURRENT'
+                        ? `Quarter (${fiscalQuarterInfo.currentQuarterKey})`
+                        : selectedQuarter === 'PREV_Q'
+                        ? `Quarter (Prev: ${fiscalQuarterInfo.prevQ?.name || 'Q2'})`
+                        : `Quarter: ${selectedQuarter}`)
+                    : 'Quarter'}
+                </span>
+                <ChevronDown size={13} style={{ transform: quarterDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s ease' }} />
               </button>
-            ))}
+
+              {quarterDropdownOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    left: 0,
+                    zIndex: 60,
+                    minWidth: '280px',
+                    background: '#FFFFFF',
+                    borderRadius: '12px',
+                    border: '1px solid #E2E8F0',
+                    boxShadow: '0 12px 28px -4px rgba(0, 0, 0, 0.14), 0 8px 10px -6px rgba(0, 0, 0, 0.08)',
+                    padding: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px'
+                  }}
+                >
+                  <div style={{ padding: '6px 8px 4px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '800', color: PALETTE.slateMuted, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                      Indian Fiscal Quarters
+                    </span>
+                    <span style={{ fontSize: '10.5px', fontWeight: '700', color: PALETTE.blue, background: '#EFF6FF', padding: '2px 6px', borderRadius: '4px' }}>
+                      {fiscalQuarterInfo.fyLabel}
+                    </span>
+                  </div>
+
+                  {/* Relative Quarters: Current & Previous */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingTop: '4px' }}>
+                    {/* Current Quarter */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedQuarter('CURRENT');
+                        setTimeRange('90D');
+                        setQuarterDropdownOpen(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '7px 10px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: selectedQuarter === 'CURRENT' ? '#EFF6FF' : 'transparent',
+                        color: selectedQuarter === 'CURRENT' ? '#1D4ED8' : PALETTE.slate,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'background 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => { if (selectedQuarter !== 'CURRENT') e.currentTarget.style.background = '#F8FAFC'; }}
+                      onMouseLeave={(e) => { if (selectedQuarter !== 'CURRENT') e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '12.5px', fontWeight: selectedQuarter === 'CURRENT' ? '700' : '600' }}>
+                            Current Quarter ({fiscalQuarterInfo.currentQuarterKey})
+                          </span>
+                          <span style={{ fontSize: '10px', fontWeight: '700', background: '#ECFDF5', color: '#059669', padding: '1px 5px', borderRadius: '4px' }}>
+                            Active
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>
+                          {fiscalQuarterInfo.currentQ?.periodText}
+                        </span>
+                      </div>
+                      {selectedQuarter === 'CURRENT' && <Check size={14} color="#2563EB" />}
+                    </button>
+
+                    {/* Previous Quarter */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedQuarter('PREV_Q');
+                        setTimeRange('90D');
+                        setQuarterDropdownOpen(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '7px 10px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: selectedQuarter === 'PREV_Q' ? '#EFF6FF' : 'transparent',
+                        color: selectedQuarter === 'PREV_Q' ? '#1D4ED8' : PALETTE.slate,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'background 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => { if (selectedQuarter !== 'PREV_Q') e.currentTarget.style.background = '#F8FAFC'; }}
+                      onMouseLeave={(e) => { if (selectedQuarter !== 'PREV_Q') e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '12.5px', fontWeight: selectedQuarter === 'PREV_Q' ? '700' : '600' }}>
+                            Previous Quarter ({fiscalQuarterInfo.prevQ?.name})
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>
+                          {fiscalQuarterInfo.prevQ?.periodText}
+                        </span>
+                      </div>
+                      {selectedQuarter === 'PREV_Q' && <Check size={14} color="#2563EB" />}
+                    </button>
+                  </div>
+
+                  <div style={{ margin: '4px 0', borderTop: '1px solid #F1F5F9', padding: '4px 8px 2px 8px' }}>
+                    <span style={{ fontSize: '10.5px', fontWeight: '700', color: PALETTE.slateMuted, textTransform: 'uppercase' }}>
+                      All Quarters ({fiscalQuarterInfo.fyLabel})
+                    </span>
+                  </div>
+
+                  {/* 4 Standard Quarters: Q1, Q2, Q3, Q4 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                    {fiscalQuarterInfo.quarters.map((q) => {
+                      const isSelected = selectedQuarter === q.id;
+                      return (
+                        <button
+                          key={q.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedQuarter(q.id);
+                            setTimeRange('90D');
+                            setQuarterDropdownOpen(false);
+                          }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'flex-start',
+                            padding: '6px 8px',
+                            borderRadius: '6px',
+                            border: isSelected ? '1px solid #93C5FD' : '1px solid #F1F5F9',
+                            background: isSelected ? '#EFF6FF' : '#F8FAFC',
+                            color: isSelected ? '#1D4ED8' : PALETTE.slate,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = '#F1F5F9'; }}
+                          onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = '#F8FAFC'; }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                            <span style={{ fontSize: '12px', fontWeight: isSelected ? '800' : '700' }}>
+                              {q.id}
+                            </span>
+                            {isSelected && <Check size={12} color="#2563EB" />}
+                          </div>
+                          <span style={{ fontSize: '10px', color: PALETTE.slateMuted, marginTop: '2px' }}>
+                            {q.periodText}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Quick sub-pills for Quarter when 90D is active */}
+            {timeRange === '90D' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px', background: '#E2E8F0', padding: '2px 4px', borderRadius: '7px' }}>
+                {[
+                  { id: 'CURRENT', label: `Current (${fiscalQuarterInfo.currentQuarterKey})` },
+                  { id: 'PREV_Q', label: `Prev (${fiscalQuarterInfo.prevQ?.name || 'Q2'})` },
+                  { id: 'Q1', label: 'Q1' },
+                  { id: 'Q2', label: 'Q2' },
+                  { id: 'Q3', label: 'Q3' },
+                  { id: 'Q4', label: 'Q4' }
+                ].map((qp) => {
+                  const active = selectedQuarter === qp.id;
+                  return (
+                    <button
+                      key={qp.id}
+                      type="button"
+                      onClick={() => setSelectedQuarter(qp.id)}
+                      style={{
+                        padding: '3px 7px',
+                        fontSize: '11px',
+                        fontWeight: active ? '700' : '500',
+                        borderRadius: '5px',
+                        border: 'none',
+                        background: active ? '#FFFFFF' : 'transparent',
+                        color: active ? PALETTE.blue : PALETTE.slateMuted,
+                        boxShadow: active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {qp.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 6 Months */}
+            <button
+              type="button"
+              onClick={() => { setTimeRange('6M'); setQuarterDropdownOpen(false); }}
+              style={{
+                border: 'none',
+                background: timeRange === '6M' ? '#FFFFFF' : 'transparent',
+                color: timeRange === '6M' ? PALETTE.blue : PALETTE.slateMuted,
+                fontWeight: timeRange === '6M' ? '800' : '600',
+                fontSize: '12px',
+                padding: '7px 14px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                boxShadow: timeRange === '6M' ? '0 2px 8px rgba(37,99,235,0.15)' : 'none',
+                transition: 'all 0.18s ease',
+              }}
+            >
+              6 Months
+            </button>
+
+            {/* Full Year */}
+            <button
+              type="button"
+              onClick={() => { setTimeRange('1Y'); setQuarterDropdownOpen(false); }}
+              style={{
+                border: 'none',
+                background: timeRange === '1Y' ? '#FFFFFF' : 'transparent',
+                color: timeRange === '1Y' ? PALETTE.blue : PALETTE.slateMuted,
+                fontWeight: timeRange === '1Y' ? '800' : '600',
+                fontSize: '12px',
+                padding: '7px 14px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                boxShadow: timeRange === '1Y' ? '0 2px 8px rgba(37,99,235,0.15)' : 'none',
+                transition: 'all 0.18s ease',
+              }}
+            >
+              Full Year
+            </button>
+
+            {/* Custom */}
+            <button
+              type="button"
+              onClick={() => { setTimeRange('CUSTOM'); setQuarterDropdownOpen(false); }}
+              style={{
+                border: 'none',
+                background: timeRange === 'CUSTOM' ? '#FFFFFF' : 'transparent',
+                color: timeRange === 'CUSTOM' ? PALETTE.blue : PALETTE.slateMuted,
+                fontWeight: timeRange === 'CUSTOM' ? '800' : '600',
+                fontSize: '12px',
+                padding: '7px 14px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                boxShadow: timeRange === 'CUSTOM' ? '0 2px 8px rgba(37,99,235,0.15)' : 'none',
+                transition: 'all 0.18s ease',
+              }}
+            >
+              Custom
+            </button>
           </div>
 
           {timeRange === 'CUSTOM' && (

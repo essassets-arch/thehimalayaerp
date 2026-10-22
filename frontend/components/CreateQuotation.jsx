@@ -48,30 +48,74 @@ const normalizeQuotationItemIds = (items = []) => {
   });
 };
 
-const extractAddressFields = (source) => {
+const KNOWN_INDIAN_STATES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+  'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+  'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+  'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+  'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Puducherry', 'Chandigarh'
+];
+
+const extractAddressFields = (source, leads = [], customers = []) => {
   if (!source) return { addressLine1: '', city: '', stateName: '', pincode: '', deliveryAddress: '' };
 
+  const sourceCustomerName = (source.customerName || source.customer || source.companyName || '').trim().toLowerCase();
+
+  // 1. Resolve lead and customer objects
+  const leadObj = source.lead ||
+    (source.leadId ? leads.find(l => String(l.id) === String(source.leadId) || String(l.leadId) === String(source.leadId)) : null) ||
+    (source.sourceId ? leads.find(l => String(l.id) === String(source.sourceId) || String(l.leadId) === String(source.sourceId)) : null) ||
+    (sourceCustomerName ? leads.find(l => (l.companyName && l.companyName.trim().toLowerCase() === sourceCustomerName) || (l.projectName && l.projectName.trim().toLowerCase() === sourceCustomerName)) : null) ||
+    null;
+
+  const customerObj = source.customer ||
+    (source.customerId ? customers.find(c => String(c.id) === String(source.customerId)) : null) ||
+    (sourceCustomerName ? customers.find(c => (c.companyName && c.companyName.trim().toLowerCase() === sourceCustomerName) || (c.name && c.name.trim().toLowerCase() === sourceCustomerName)) : null) ||
+    null;
+
+  // 2. Resolve address object from source, lead, or customer
   let addrObj = null;
-  if (typeof source.address === 'object' && source.address !== null) {
-    addrObj = source.address;
-  } else if (typeof source.address === 'string' && source.address.trim().startsWith('{')) {
-    try {
-      addrObj = JSON.parse(source.address);
-    } catch (e) {
-      addrObj = null;
+  const rawAddrCandidates = [
+    source.address,
+    leadObj?.address,
+    customerObj?.shippingAddress,
+    customerObj?.billingAddress,
+    customerObj?.address,
+    source.shippingAddress,
+    source.billingAddress
+  ];
+
+  for (const candidate of rawAddrCandidates) {
+    if (!candidate) continue;
+    if (typeof candidate === 'object' && candidate !== null) {
+      addrObj = candidate;
+      break;
+    } else if (typeof candidate === 'string' && candidate.trim().startsWith('{')) {
+      try {
+        addrObj = JSON.parse(candidate);
+        break;
+      } catch (e) {
+        // continue
+      }
     }
   }
 
+  // 3. Extract direct field values
   const rawAddrLine =
     source.addressLine1 ||
     addrObj?.line1 ||
     addrObj?.addressLine1 ||
     addrObj?.street ||
+    leadObj?.addressLine1 ||
+    customerObj?.addressLine1 ||
     '';
 
   const rawCity =
     source.city ||
     addrObj?.city ||
+    leadObj?.city ||
+    customerObj?.city ||
     '';
 
   const rawState =
@@ -79,6 +123,10 @@ const extractAddressFields = (source) => {
     source.state ||
     addrObj?.state ||
     addrObj?.stateName ||
+    leadObj?.state ||
+    leadObj?.stateName ||
+    customerObj?.state ||
+    customerObj?.stateName ||
     '';
 
   const rawPincode =
@@ -86,50 +134,71 @@ const extractAddressFields = (source) => {
     addrObj?.pincode ||
     addrObj?.postalCode ||
     addrObj?.pinCode ||
+    addrObj?.zip ||
+    leadObj?.pincode ||
+    customerObj?.pincode ||
     '';
 
-  let parsedFromDeliv = { line1: '', city: '', state: '', pincode: '' };
-  const rawDeliveryStr = (typeof source.deliveryAddress === 'string' && source.deliveryAddress)
-    ? source.deliveryAddress
-    : (typeof source.clientAddress === 'string' && source.clientAddress)
-      ? source.clientAddress
-      : (typeof addrObj?.deliveryAddress === 'string')
-        ? addrObj.deliveryAddress
-        : (typeof source.address === 'string' && !source.address.trim().startsWith('{'))
-          ? source.address
-          : '';
+  // 4. Resolve delivery address candidate string
+  const rawDeliveryCandidates = [
+    source.deliveryAddress,
+    source.clientAddress,
+    typeof addrObj?.deliveryAddress === 'string' ? addrObj.deliveryAddress : null,
+    typeof source.address === 'string' && !source.address.trim().startsWith('{') ? source.address : null,
+    typeof leadObj?.address === 'string' && !leadObj.address.trim().startsWith('{') ? leadObj.address : null,
+    typeof customerObj?.shippingAddress === 'string' && !customerObj.shippingAddress.trim().startsWith('{') ? customerObj.shippingAddress : null,
+    typeof customerObj?.address === 'string' && !customerObj.address.trim().startsWith('{') ? customerObj.address : null,
+  ];
 
-  if (rawDeliveryStr && (!rawAddrLine || !rawCity || !rawState || !rawPincode)) {
-    const parts = rawDeliveryStr.split(',').map(p => p.trim()).filter(Boolean);
-    if (parts.length >= 2) {
-      const lastPart = parts[parts.length - 1];
-      const pinMatch = lastPart.match(/\b\d{6}\b/);
-      const extractedPin = pinMatch ? pinMatch[0] : (lastPart.replace(/\D/g, '').length === 6 ? lastPart.replace(/\D/g, '') : '');
-      let remainingParts = [...parts];
-      if (extractedPin) {
-        remainingParts.pop();
-      }
-      if (remainingParts.length > 0 && remainingParts[remainingParts.length - 1].toLowerCase() === 'india') {
-        remainingParts.pop();
-      }
-      const extractedState = remainingParts.length > 0 ? remainingParts.pop() : '';
-      const extractedCity = remainingParts.length > 0 ? remainingParts.pop() : '';
-      const extractedLine1 = remainingParts.join(', ');
-
-      parsedFromDeliv = {
-        line1: extractedLine1,
-        city: extractedCity,
-        state: extractedState,
-        pincode: extractedPin
-      };
+  let rawDeliveryStr = '';
+  for (const cand of rawDeliveryCandidates) {
+    if (typeof cand === 'string' && cand.trim()) {
+      rawDeliveryStr = cand.trim();
+      break;
     }
   }
 
-  const addressLine1 = rawAddrLine || parsedFromDeliv.line1 || (rawDeliveryStr ? rawDeliveryStr.split(',')[0].trim() : '');
-  const city = rawCity || parsedFromDeliv.city || '';
-  const stateName = rawState || parsedFromDeliv.state || '';
-  const pincode = (rawPincode || parsedFromDeliv.pincode || '').replace(/\D/g, '').slice(0, 6);
-  const deliveryAddress = rawDeliveryStr || [addressLine1, city, stateName, 'India', pincode].filter(Boolean).join(', ');
+  // 5. Parse missing fields from rawDeliveryStr if needed
+  let parsedFromDeliv = { line1: '', city: '', state: '', pincode: '' };
+  if (rawDeliveryStr && (!rawAddrLine || !rawCity || !rawState || !rawPincode)) {
+    let str = rawDeliveryStr;
+    const pinMatch = str.match(/\b([1-9][0-9]{5})\b/);
+    if (pinMatch) {
+      parsedFromDeliv.pincode = pinMatch[1];
+      str = str.replace(pinMatch[0], '').trim();
+    }
+    str = str.replace(/,\s*India\b/i, '').replace(/\bIndia\b/i, '').trim();
+
+    for (const st of KNOWN_INDIAN_STATES) {
+      const stateRegex = new RegExp(`\\b${st}\\b`, 'i');
+      if (stateRegex.test(str)) {
+        parsedFromDeliv.state = st;
+        str = str.replace(stateRegex, '').trim();
+        break;
+      }
+    }
+
+    const parts = str.split(',').map(p => p.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      if (!parsedFromDeliv.state) {
+        parsedFromDeliv.state = parts.pop() || '';
+      }
+      parsedFromDeliv.city = parts.pop() || '';
+      parsedFromDeliv.line1 = parts.join(', ');
+    } else if (parts.length === 1) {
+      if (!parsedFromDeliv.city && !rawCity) {
+        parsedFromDeliv.city = parts[0];
+      } else if (!rawAddrLine) {
+        parsedFromDeliv.line1 = parts[0];
+      }
+    }
+  }
+
+  const addressLine1 = (rawAddrLine || parsedFromDeliv.line1 || (rawDeliveryStr ? rawDeliveryStr.split(',')[0].trim() : '')).trim();
+  const city = (rawCity || parsedFromDeliv.city || '').trim();
+  const stateName = (rawState || parsedFromDeliv.state || '').trim();
+  const pincode = String(rawPincode || parsedFromDeliv.pincode || '').replace(/\D/g, '').slice(0, 6);
+  const deliveryAddress = (typeof rawDeliveryStr === 'string' && rawDeliveryStr.trim()) || [addressLine1, city, stateName, 'India', pincode].filter(Boolean).join(', ');
 
   return {
     addressLine1,
@@ -435,7 +504,7 @@ export default function CreateQuotation({
   };
 
   const initialTermsSetup = getInitialTermsData();
-  const initialAddr = extractAddressFields(matchedLeadFromProps || quotationDraft || legacyQuotationDraft);
+  const initialAddr = extractAddressFields(matchedLeadFromProps || quotationDraft || editingQuotation || legacyQuotationDraft, leads, customers);
 
   const emptyQuotationForm = {
     // A quotation opened with leadId must always show that lead's customer;
@@ -476,39 +545,44 @@ export default function CreateQuotation({
     erpUpdatedAt: quotationDraft?.updatedAt
   });
 
+  const lastInitializedEditIdRef = useRef(null);
+
   useEffect(() => {
     if (editingQuotation && quotationDraft) {
+      const isNewEditSession = lastInitializedEditIdRef.current !== editingQuotation.id;
+      lastInitializedEditIdRef.current = editingQuotation.id;
       const termsSetup = getInitialTermsData();
-      const editAddr = extractAddressFields(quotationDraft);
-      setFormData({
-        customerName: quotationDraft.customerName || '',
-        groupName: quotationDraft.groupName || '',
+      const editAddr = extractAddressFields(quotationDraft || editingQuotation, leads, customers);
+
+      setFormData(prev => ({
+        customerName: isNewEditSession ? (quotationDraft.customerName || '') : (prev.customerName || quotationDraft.customerName || ''),
+        groupName: isNewEditSession ? (quotationDraft.groupName || '') : (prev.groupName || quotationDraft.groupName || ''),
         isGstRegistered: quotationDraft.isGstRegistered || (quotationDraft.gstNumber ? 'YES' : 'NO'),
-        gstNumber: quotationDraft.gstNumber || '',
-        gstName: quotationDraft.gstName || quotationDraft.customerName || '',
-        siteInchargeName: quotationDraft.siteInchargeName || quotationDraft.contactPerson || '',
-        siteInchargeMobile: quotationDraft.siteInchargeMobile || quotationDraft.phone || '',
-        contactPerson: quotationDraft.contactPerson || quotationDraft.siteInchargeName || '',
-        phone: quotationDraft.phone || quotationDraft.siteInchargeMobile || '',
-        addressLine1: editAddr.addressLine1 || '',
-        city: editAddr.city || '',
-        stateName: editAddr.stateName || '',
-        pincode: editAddr.pincode || '',
-        deliveryAddress: editAddr.deliveryAddress || '',
+        gstNumber: isNewEditSession ? (quotationDraft.gstNumber || '') : (prev.gstNumber || quotationDraft.gstNumber || ''),
+        gstName: isNewEditSession ? (quotationDraft.gstName || quotationDraft.customerName || '') : (prev.gstName || quotationDraft.gstName || ''),
+        siteInchargeName: isNewEditSession ? (quotationDraft.siteInchargeName || quotationDraft.contactPerson || '') : (prev.siteInchargeName || quotationDraft.siteInchargeName || ''),
+        siteInchargeMobile: isNewEditSession ? (quotationDraft.siteInchargeMobile || quotationDraft.phone || '') : (prev.siteInchargeMobile || quotationDraft.siteInchargeMobile || ''),
+        contactPerson: isNewEditSession ? (quotationDraft.contactPerson || quotationDraft.siteInchargeName || '') : (prev.contactPerson || quotationDraft.contactPerson || ''),
+        phone: isNewEditSession ? (quotationDraft.phone || quotationDraft.siteInchargeMobile || '') : (prev.phone || quotationDraft.phone || ''),
+        addressLine1: isNewEditSession ? (editAddr.addressLine1 || prev.addressLine1 || '') : (prev.addressLine1 || editAddr.addressLine1 || ''),
+        city: isNewEditSession ? (editAddr.city || prev.city || '') : (prev.city || editAddr.city || ''),
+        stateName: isNewEditSession ? (editAddr.stateName || prev.stateName || '') : (prev.stateName || editAddr.stateName || ''),
+        pincode: isNewEditSession ? (editAddr.pincode || prev.pincode || '') : (prev.pincode || editAddr.pincode || ''),
+        deliveryAddress: isNewEditSession ? (editAddr.deliveryAddress || prev.deliveryAddress || '') : (prev.deliveryAddress || editAddr.deliveryAddress || ''),
         deliveryLatitude: quotationDraft.deliveryLatitude || null,
         deliveryLongitude: quotationDraft.deliveryLongitude || null,
         deliveryAccuracy: quotationDraft.deliveryAccuracy || null,
         deliveryPlaceId: quotationDraft.deliveryPlaceId || '',
         validTill: formatInputDate(quotationDraft.validTill || quotationDraft.validUntil) || defaultValidTill(),
         paymentTerms: quotationDraft.paymentTerms || '15 Days',
-        items: getInitialItems(),
+        items: isNewEditSession ? getInitialItems() : (prev.items && prev.items.length > 0 ? prev.items : getInitialItems()),
         transportCharge: Number(quotationDraft.transportCharge ?? quotationDraft.expectedTransportationCost ?? 0),
-        notes: quotationDraft.notes || quotationDraft.remarks || '',
+        notes: isNewEditSession ? (quotationDraft.notes || quotationDraft.remarks || '') : (prev.notes || quotationDraft.notes || ''),
         customTerms: termsSetup.customTerms,
         selectedTermIds: termsSetup.selectedTermIds
-      });
+      }));
     }
-  }, [editingQuotation?.id]);
+  }, [editingQuotation?.id, quotationDraft, leads, customers]);
 
   const hasPrefilledRef = useRef(false);
 

@@ -17,20 +17,34 @@ export class CrmInsightsService {
     role?: string,
   ) {
     const scope = getLeadSalesScope(userId, role);
-    const customer = await this.prisma.customer.findFirst({
+    let customer = await this.prisma.customer.findFirst({
       where: {
-        id: customerId,
+        OR: [{ id: customerId }, { customerCode: customerId }],
         deletedAt: null,
         ...(companyId ? { companyId } : {}),
       },
     });
+
+    if (!customer && companyId) {
+      customer = await this.prisma.customer.findFirst({
+        where: {
+          OR: [{ id: customerId }, { customerCode: customerId }],
+          deletedAt: null,
+        },
+      });
+    }
+
     if (!customer) throw new NotFoundException('Customer not found');
+    const resolvedCustomerId = customer.id;
 
     const [leads, quotations, orders, invoices, payments, ledger] =
       await Promise.all([
         this.prisma.lead.findMany({
           where: {
-            OR: [{ customerId }, { convertedCustomerId: customerId }],
+            OR: [
+              { customerId: resolvedCustomerId },
+              { convertedCustomerId: resolvedCustomerId },
+            ],
             ...scope,
           },
           include: { workflowState: true, activities: true },
@@ -39,10 +53,13 @@ export class CrmInsightsService {
         this.prisma.quotation.findMany({
           where: {
             OR: [
-              { customerId },
+              { customerId: resolvedCustomerId },
               {
                 lead: {
-                  OR: [{ customerId }, { convertedCustomerId: customerId }],
+                  OR: [
+                    { customerId: resolvedCustomerId },
+                    { convertedCustomerId: resolvedCustomerId },
+                  ],
                 },
               },
             ],
@@ -53,7 +70,7 @@ export class CrmInsightsService {
         }),
         this.prisma.salesOrder.findMany({
           where: {
-            customerId,
+            customerId: resolvedCustomerId,
             deletedAt: null,
             ...getOrderSalesScope(userId, role),
           },
@@ -62,7 +79,10 @@ export class CrmInsightsService {
         }),
         this.prisma.salesInvoice.findMany({
           where: {
-            salesOrder: { customerId, ...getOrderSalesScope(userId, role) },
+            salesOrder: {
+              customerId: resolvedCustomerId,
+              ...getOrderSalesScope(userId, role),
+            },
           },
           include: {
             workflowState: true,
@@ -72,12 +92,12 @@ export class CrmInsightsService {
           orderBy: { createdAt: 'desc' },
         }),
         this.prisma.customerPayment.findMany({
-          where: { customerId, ...(userId ? { createdById: userId } : {}) },
+          where: { customerId: resolvedCustomerId },
           include: { workflowState: true, allocations: true },
           orderBy: { createdAt: 'desc' },
         }),
         this.prisma.customerLedger.findMany({
-          where: { customerId },
+          where: { customerId: resolvedCustomerId },
           orderBy: { createdAt: 'asc' },
         }),
       ]);

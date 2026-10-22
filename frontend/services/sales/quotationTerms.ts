@@ -67,22 +67,36 @@ export function resolveQuotationTerms(quotation: any): QuotationSelectedTerm[] {
         : null;
 
   if (rawTerms && rawTerms.length > 0) {
-    return rawTerms
-      .slice()
-      .sort((a: any, b: any) => (Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0)))
-      .map((term: any, index: number) => ({
-        id: term.id || `term-${index + 1}`,
-        termId: term.termId || term.id || `term-${index + 1}`,
-        text: String(term.text || term.label || term.title || '').trim(),
-        sortOrder: index + 1,
-      }))
-      .filter((t: any) => Boolean(t.text));
+    const validTerms = rawTerms.filter((term: any) => Boolean(term));
+
+    if (validTerms.length > 0) {
+      return validTerms
+        .slice()
+        .sort((a: any, b: any) => (Number(a?.sortOrder ?? 0) - Number(b?.sortOrder ?? 0)))
+        .map((term: any, index: number) => {
+          if (typeof term === 'string') {
+            return {
+              id: `term-${index + 1}`,
+              termId: `term-${index + 1}`,
+              text: term.trim(),
+              sortOrder: index + 1,
+            };
+          }
+          return {
+            id: term.id || `term-${index + 1}`,
+            termId: term.termId || term.id || `term-${index + 1}`,
+            text: String(term.text || term.label || term.title || term.description || '').trim(),
+            sortOrder: Number(term.sortOrder ?? (index + 1)) || (index + 1),
+          };
+        })
+        .filter((t: any) => Boolean(t.text));
+    }
   }
 
   // Legacy quotation fallback
   return DEFAULT_QUOTATION_TERMS
-    .filter((term) => term.active)
-    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .filter((term) => term && term.active)
+    .sort((a, b) => (Number(a?.sortOrder ?? 0) - Number(b?.sortOrder ?? 0)))
     .map((term, index) => ({
       id: term.id,
       termId: term.id,
@@ -90,3 +104,4 @@ export function resolveQuotationTerms(quotation: any): QuotationSelectedTerm[] {
       sortOrder: index + 1,
     }));
 }
+

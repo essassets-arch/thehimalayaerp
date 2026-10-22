@@ -52,6 +52,7 @@ import SalesProductionStatusView from '../../../components/SalesProductionStatus
 import DailyTaskView from '../../../components/DailyTaskView.jsx';
 import CustomerComplaintManagement from '../../../components/CustomerComplaintManagement.jsx';
 import CreateOrder from '../../../components/CreateOrder.jsx';
+import Customer360View from '../../../components/Customer360View';
 import O2PWorkflowBanner from '../../../shared/components/O2PWorkflowBanner';
 import { useO2PWorkflow } from '../../../shared/hooks/useO2PWorkflow';
 
@@ -209,7 +210,9 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
   let rawView = overrideView;
   if (!rawView) {
-    if (params?.slug?.[0] === 'sales' || params?.slug?.[0] === 'supersales') {
+    if (pathSlug.includes('customers')) {
+      rawView = 'customers';
+    } else if (params?.slug?.[0] === 'sales' || params?.slug?.[0] === 'supersales') {
       rawView = params?.slug?.[1] || tabParam || 'dashboard';
     } else {
       rawView = params?.slug?.[0] || tabParam || (pathSlug.length > 1 ? pathSlug[pathSlug.length - 1] : 'dashboard') || 'dashboard';
@@ -1498,7 +1501,17 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
         />
       );
 
-    case 'customers':
+    case 'customers': {
+      const customerSubId =
+        params?.id ||
+        (Array.isArray(params?.slug) && params.slug[0] === 'customers' ? params.slug[1] : null) ||
+        (Array.isArray(params?.slug) && params.slug[1] === 'customers' ? params.slug[2] : null) ||
+        (pathSlug.length > 2 && pathSlug.indexOf('customers') !== -1 && pathSlug[pathSlug.indexOf('customers') + 1]);
+
+      if (customerSubId) {
+        return <Customer360View customerId={customerSubId} basePath={basePath} />;
+      }
+
       return (
         <div data-testid="sales-customers-page" className="sales-portal-view">
           <CustomersView
@@ -1510,6 +1523,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
           />
         </div>
       );
+    }
 
     case 'customer-complaints':
       return (

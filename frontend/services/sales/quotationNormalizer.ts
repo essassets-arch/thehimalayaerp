@@ -245,6 +245,138 @@ export const normalizeQuotation = (quotation: any): any => {
     quotation.customer?.mobile ||
     '';
 
+  const rawAddress =
+    quotation.address ||
+    quotation.lead?.address ||
+    quotation.customer?.shippingAddress ||
+    quotation.customer?.billingAddress ||
+    quotation.customer?.address ||
+    null;
+
+  let parsedAddressObj: any = null;
+  if (rawAddress) {
+    if (typeof rawAddress === 'object') {
+      parsedAddressObj = rawAddress;
+    } else if (typeof rawAddress === 'string' && rawAddress.trim().startsWith('{')) {
+      try {
+        parsedAddressObj = JSON.parse(rawAddress);
+      } catch (_) {
+        parsedAddressObj = null;
+      }
+    }
+  }
+
+  const rawDeliveryAddress =
+    quotation.deliveryAddress ||
+    quotation.clientAddress ||
+    (parsedAddressObj?.deliveryAddress ?? null) ||
+    (typeof rawAddress === 'string' && !parsedAddressObj ? rawAddress : null) ||
+    null;
+
+  let addressLine1 =
+    quotation.addressLine1 ||
+    parsedAddressObj?.line1 ||
+    parsedAddressObj?.addressLine1 ||
+    parsedAddressObj?.street ||
+    quotation.lead?.addressLine1 ||
+    '';
+
+  let city =
+    quotation.city ||
+    parsedAddressObj?.city ||
+    quotation.lead?.city ||
+    '';
+
+  let stateName =
+    quotation.stateName ||
+    quotation.state ||
+    parsedAddressObj?.state ||
+    parsedAddressObj?.stateName ||
+    quotation.lead?.state ||
+    quotation.lead?.stateName ||
+    '';
+
+  let pincode =
+    quotation.pincode ||
+    parsedAddressObj?.pincode ||
+    parsedAddressObj?.postalCode ||
+    parsedAddressObj?.pinCode ||
+    parsedAddressObj?.zip ||
+    quotation.lead?.pincode ||
+    '';
+
+  if ((!addressLine1 || !city || !stateName || !pincode) && rawDeliveryAddress && typeof rawDeliveryAddress === 'string') {
+    let str = rawDeliveryAddress.trim();
+    if (!pincode) {
+      const pinMatch = str.match(/\b([1-9][0-9]{5})\b/);
+      if (pinMatch) {
+        pincode = pinMatch[1];
+        str = str.replace(pinMatch[0], '').trim();
+      }
+    }
+    str = str.replace(/,\s*India\b/i, '').replace(/\bIndia\b/i, '').trim();
+
+    const KNOWN_STATES = [
+      'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+      'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+      'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+      'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+      'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+      'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Puducherry', 'Chandigarh'
+    ];
+
+    if (!stateName) {
+      for (const st of KNOWN_STATES) {
+        const stateRegex = new RegExp(`\\b${st}\\b`, 'i');
+        if (stateRegex.test(str)) {
+          stateName = st;
+          str = str.replace(stateRegex, '').trim();
+          break;
+        }
+      }
+    }
+
+    const parts = str.split(',').map((p: string) => p.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      if (!stateName) stateName = parts.pop() || '';
+      if (!city) city = parts.pop() || '';
+      if (!addressLine1) addressLine1 = parts.join(', ');
+    } else if (parts.length === 1) {
+      if (!city && !addressLine1) {
+        addressLine1 = parts[0];
+      } else if (!city) {
+        city = parts[0];
+      } else if (!addressLine1) {
+        addressLine1 = parts[0];
+      }
+    }
+  }
+
+  addressLine1 = (addressLine1 || '').trim();
+  city = (city || '').trim();
+  stateName = (stateName || '').trim();
+  pincode = String(pincode || '').replace(/\D/g, '').slice(0, 6);
+
+  const deliveryAddress =
+    (typeof rawDeliveryAddress === 'string' && rawDeliveryAddress.trim()) ||
+    [addressLine1, city, stateName, 'India', pincode].filter(Boolean).join(', ') ||
+    '';
+
+  const address =
+    parsedAddressObj ||
+    (addressLine1 || city || stateName || pincode
+      ? {
+          line1: addressLine1,
+          addressLine1,
+          city,
+          state: stateName,
+          stateName,
+          country: 'India',
+          pincode,
+          deliveryAddress
+        }
+      : null);
+
   return {
     ...quotation,
     id: quotation.id,
@@ -261,6 +393,13 @@ export const normalizeQuotation = (quotation: any): any => {
     siteInchargeName,
     siteInchargeMobile,
     phone: siteInchargeMobile,
+    addressLine1,
+    city,
+    state: stateName,
+    stateName,
+    pincode,
+    deliveryAddress,
+    address,
     status: statusLabel(quotation.workflowState?.code ?? quotation.status),
     validUntil,
     validTill: validUntil,

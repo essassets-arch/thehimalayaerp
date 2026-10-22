@@ -88,12 +88,49 @@ async function alignRemaining() {
       take: 20
     });
 
-    const d2Customer = await prisma.customer.findFirst({
-      where: { companyId: '88c57ebc-b3b7-49e3-8d5d-6321a0e89015' }
+    const authenticCustomers = await prisma.customer.findMany({
+      where: {
+        status: 'ACTIVE',
+        companyName: {
+          notIn: ['MENVOC INFRASTRUCTURE', 'Test Customer', 'Sample Customer', 'Consignee Client', 'Test Company Customer']
+        }
+      },
+      select: {
+        id: true,
+        companyName: true,
+        shippingAddress: true,
+        billingAddress: true
+      },
+      orderBy: { createdAt: 'asc' }
     });
 
-    if (tradingProducts.length > 0 && d2Customer) {
-      console.log(`Found ${tradingProducts.length} trading products for D2.`);
+    const getCustomerForIndex = (idx) => {
+      if (!authenticCustomers.length) return null;
+      return authenticCustomers[idx % authenticCustomers.length];
+    };
+
+    const getCustomerAddress = (cust) => {
+      let addr = cust?.shippingAddress || cust?.billingAddress;
+      if (addr && typeof addr === 'object') {
+        return {
+          line1: addr.line1 || addr.addressLine1 || addr.street || `${cust.companyName} Commercial Depot`,
+          city: addr.city || 'Ahmedabad',
+          state: addr.state || 'Gujarat',
+          pincode: addr.pincode || '380001',
+          country: 'India'
+        };
+      }
+      return {
+        line1: `${cust?.companyName || 'Client'} Commercial Depot`,
+        city: 'Ahmedabad',
+        state: 'Gujarat',
+        pincode: '380001',
+        country: 'India'
+      };
+    };
+
+    if (tradingProducts.length > 0 && authenticCustomers.length > 0) {
+      console.log(`Found ${tradingProducts.length} trading products and ${authenticCustomers.length} authentic customers for D2.`);
 
       const d2Counts = [
         { status: 'DELIVERED', count: 12 },
@@ -109,11 +146,14 @@ async function alignRemaining() {
           const veh = INDIAN_VEHICLES[(d2DispCounter + 5) % INDIAN_VEHICLES.length];
           const drv = DRIVERS[(d2DispCounter + 3) % DRIVERS.length];
           const rec = RECEIVERS[(d2DispCounter + 2) % RECEIVERS.length];
+          const cust = getCustomerForIndex(d2DispCounter);
+          const custAddr = getCustomerAddress(cust);
+          const custAddrStr = `${custAddr.line1}, ${custAddr.city}, ${custAddr.state} ${custAddr.pincode}, India`;
 
           const so = await prisma.salesOrder.create({
             data: {
               orderNumber: `SO-D2-2026-${String(d2DispCounter).padStart(4, '0')}`,
-              customerId: d2Customer.id,
+              customerId: cust.id,
               status: 'READY_FOR_DISPATCH',
               subtotal: '25000',
               taxableAmount: '25000',
@@ -122,13 +162,7 @@ async function alignRemaining() {
               currency: 'INR',
               salesExecutiveId: sahadId,
               createdById: sahadId,
-              shippingAddress: {
-                line1: 'Sahad Depot Staging, Sarkhej Road',
-                city: 'Ahmedabad',
-                state: 'Gujarat',
-                pincode: '382210',
-                country: 'India'
-              },
+              shippingAddress: custAddr,
               items: {
                 create: [
                   {
@@ -162,7 +196,7 @@ async function alignRemaining() {
               dispatchCategory: 'D2',
               status: group.status,
               isSubmitted: true,
-              deliveryAddress: 'Sahad Depot Staging, Sarkhej Road, Ahmedabad, Gujarat, 382210',
+              deliveryAddress: custAddrStr,
               packageCount: 2,
               packageType: 'WOODEN_PALLET',
               totalWeight: '450',
@@ -210,10 +244,13 @@ async function alignRemaining() {
       for (let j = 0; j < 10; j++) {
         d2DispCounter++;
         const prod = tradingProducts[d2DispCounter % tradingProducts.length];
+        const cust = getCustomerForIndex(d2DispCounter);
+        const custAddr = getCustomerAddress(cust);
+
         const so = await prisma.salesOrder.create({
           data: {
             orderNumber: `SO-D2-2026-${String(d2DispCounter).padStart(4, '0')}`,
-            customerId: d2Customer.id,
+            customerId: cust.id,
             status: 'READY_FOR_DISPATCH',
             subtotal: '15000',
             taxableAmount: '15000',
@@ -222,13 +259,7 @@ async function alignRemaining() {
             currency: 'INR',
             salesExecutiveId: sahadId,
             createdById: sahadId,
-            shippingAddress: {
-              line1: 'Sahad Depot Staging, Sarkhej Road',
-              city: 'Ahmedabad',
-              state: 'Gujarat',
-              pincode: '382210',
-              country: 'India'
-            },
+            shippingAddress: custAddr,
             items: {
               create: [
                 {

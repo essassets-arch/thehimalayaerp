@@ -181,6 +181,11 @@ function isValidCustomerName(name?: any): boolean {
     lower === "unknown customer" ||
     lower === "none" ||
     lower === "finished product" ||
+    lower === "client order" ||
+    lower.startsWith("client order (") ||
+    lower === "test company customer" ||
+    lower === "test customer" ||
+    lower === "sample customer" ||
     trimmed === "—" ||
     trimmed === "-" ||
     trimmed === "--"
@@ -233,8 +238,12 @@ function resolveCustomerName(entity?: any, ...fallbackEntities: any[]): string {
       ).trim();
       const normLead = String(leadComp).trim().toLowerCase();
       const normCust = custComp.toLowerCase();
-      // If customer is SHYAM SOHAM REALTY but the lead is a different company, authoritative lead company wins!
-      if (normCust.includes("shyam soham") && !normLead.includes("shyam soham")) {
+      // If customer is SHYAM SOHAM REALTY or MENVOC INFRASTRUCTURE but the lead is a different company, authoritative lead company wins!
+      if (
+        (normCust.includes("shyam soham") || normCust.includes("menvoc infrastructure")) &&
+        !normLead.includes("shyam soham") &&
+        !normLead.includes("menvoc")
+      ) {
         return String(leadComp).trim();
       }
     }
@@ -1668,11 +1677,29 @@ export default function DispatchOrdersPage() {
           ? existing.deliveryAddress
           : incoming.deliveryAddress || existing.deliveryAddress;
 
-        const customerName = isValidCustomerName(incoming.customerName)
+        const isGenericCust = (name?: string) => {
+          if (!name) return true;
+          const u = String(name).trim().toUpperCase();
+          return (
+            u === "SHYAM SOHAM REALTY" ||
+            u === "CONSIGNEE CLIENT" ||
+            u === "CLIENT ORDER" ||
+            u.startsWith("CLIENT ORDER (") ||
+            u === "TEST COMPANY CUSTOMER" ||
+            u === "UNKNOWN CUSTOMER" ||
+            u === "FINISHED PRODUCT"
+          );
+        };
+
+        const customerName = (isValidCustomerName(incoming.customerName) && !isGenericCust(incoming.customerName))
+          ? incoming.customerName
+          : (isValidCustomerName(existing.customerName) && !isGenericCust(existing.customerName))
+          ? existing.customerName
+          : isValidCustomerName(incoming.customerName)
           ? incoming.customerName
           : isValidCustomerName(existing.customerName)
           ? existing.customerName
-          : incoming.customerName || existing.customerName || (incoming.orderNumber ? `Client Order (${incoming.orderNumber})` : "Client Order");
+          : (incoming.orderNumber ? `Client Order (${incoming.orderNumber})` : "Client Order");
 
         const salesPersonName = isValidSalesPersonName(incoming.salesPersonName)
           ? incoming.salesPersonName
@@ -1900,15 +1927,24 @@ export default function DispatchOrdersPage() {
         }
         if (!existing.salesOrderId && item.salesOrderId) existing.salesOrderId = item.salesOrderId;
 
-        const isMismatchedShyam = (name?: string) =>
-          name && String(name).trim().toUpperCase() === "SHYAM SOHAM REALTY";
+        const isGenericCust = (name?: string) => {
+          if (!name) return true;
+          const u = String(name).trim().toUpperCase();
+          return (
+            u === "SHYAM SOHAM REALTY" ||
+            u === "CONSIGNEE CLIENT" ||
+            u === "CLIENT ORDER" ||
+            u.startsWith("CLIENT ORDER (") ||
+            u === "TEST COMPANY CUSTOMER" ||
+            u === "UNKNOWN CUSTOMER" ||
+            u === "FINISHED PRODUCT"
+          );
+        };
 
         if (isValidCustomerName(item.customerName)) {
-          if (!isValidCustomerName(existing.customerName) || existing.customerName === "Consignee Client" || existing.customerName === "Client Order") {
+          if (!isValidCustomerName(existing.customerName) || isGenericCust(existing.customerName)) {
             existing.customerName = item.customerName;
-          } else if (isMismatchedShyam(existing.customerName) && !isMismatchedShyam(item.customerName)) {
-            existing.customerName = item.customerName;
-          } else if (item.itemType === "TRADING_SALES_ORDER" && item.customerName && !isMismatchedShyam(item.customerName)) {
+          } else if (item.itemType === "TRADING_SALES_ORDER" && !isGenericCust(item.customerName)) {
             existing.customerName = item.customerName;
           }
         }
@@ -3146,9 +3182,9 @@ export default function DispatchOrdersPage() {
                                   width: 28,
                                   height: 28,
                                   borderRadius: "50%",
-                                  background: "#f8fafc",
-                                  border: "1px solid #e2e8f0",
-                                  color: "#475569",
+                                  background: isDispatch2 ? "linear-gradient(135deg, #059669 0%, #047857 100%)" : "#f8fafc",
+                                  border: isDispatch2 ? "1px solid #059669" : "1px solid #e2e8f0",
+                                  color: isDispatch2 ? "#ffffff" : "#475569",
                                   fontWeight: 800,
                                   fontSize: 11,
                                   display: "grid",
@@ -3169,7 +3205,7 @@ export default function DispatchOrdersPage() {
                                     textOverflow: "ellipsis",
                                     whiteSpace: "nowrap",
                                     display: "block",
-                                    maxWidth: 160,
+                                    maxWidth: 200,
                                   }}
                                   title={resolveCustomerName(dispatchItem.salesOrder, dispatchItem)}
                                 >

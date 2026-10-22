@@ -171,6 +171,28 @@ export class QuotationsService {
         cust?.phone ||
         '';
 
+      const resolvedAddress =
+        q.address ||
+        q.lead?.address ||
+        cust?.shippingAddress ||
+        cust?.billingAddress ||
+        (cust as any)?.address ||
+        null;
+      const resolvedDeliveryAddress =
+        q.deliveryAddress ||
+        (typeof resolvedAddress === 'string'
+          ? resolvedAddress
+          : (resolvedAddress as any)?.deliveryAddress ||
+            [
+              (resolvedAddress as any)?.line1 || (resolvedAddress as any)?.addressLine1,
+              (resolvedAddress as any)?.city,
+              (resolvedAddress as any)?.state || (resolvedAddress as any)?.stateName,
+              (resolvedAddress as any)?.pincode,
+            ]
+              .filter(Boolean)
+              .join(', ')) ||
+        null;
+
       return {
         ...q,
         customer: cust,
@@ -182,6 +204,8 @@ export class QuotationsService {
         siteInchargeName,
         siteInchargeMobile,
         phone: siteInchargeMobile,
+        address: resolvedAddress,
+        deliveryAddress: resolvedDeliveryAddress,
         salesExecutiveMobile: salesMobile,
         salesExecutivePhone: salesMobile,
         salesExecutive: q.salesExecutive
@@ -291,6 +315,28 @@ export class QuotationsService {
       customer?.phone ||
       '';
 
+      const resolvedAddress =
+        quotation.address ||
+        quotation.lead?.address ||
+        customer?.shippingAddress ||
+        customer?.billingAddress ||
+        (customer as any)?.address ||
+        null;
+      const resolvedDeliveryAddress =
+        quotation.deliveryAddress ||
+        (typeof resolvedAddress === 'string'
+          ? resolvedAddress
+          : (resolvedAddress as any)?.deliveryAddress ||
+            [
+              (resolvedAddress as any)?.line1 || (resolvedAddress as any)?.addressLine1,
+              (resolvedAddress as any)?.city,
+              (resolvedAddress as any)?.state || (resolvedAddress as any)?.stateName,
+              (resolvedAddress as any)?.pincode,
+            ]
+              .filter(Boolean)
+              .join(', ')) ||
+        null;
+
     return {
       ...quotation,
       customer,
@@ -302,6 +348,8 @@ export class QuotationsService {
       siteInchargeName,
       siteInchargeMobile,
       phone: siteInchargeMobile,
+      address: resolvedAddress,
+      deliveryAddress: resolvedDeliveryAddress,
       salesExecutiveMobile: salesMobile,
       salesExecutivePhone: salesMobile,
       salesExecutive: quotation.salesExecutive
@@ -595,9 +643,10 @@ export class QuotationsService {
     const termsToSave =
       rawTerms !== null
         ? rawTerms
+            .filter((t: any) => Boolean(t))
             .map((t: any, index: number) => ({
               termId: t.termId || t.id || null,
-              text: String(t.text || t.label || t.title || '').trim(),
+              text: String(t.text || t.label || t.title || (typeof t === 'string' ? t : '') || '').trim(),
               sortOrder:
                 t.sortOrder !== undefined ? Number(t.sortOrder) : index + 1,
             }))
@@ -631,6 +680,29 @@ export class QuotationsService {
             },
           ];
 
+    const computedDeliveryAddress =
+      dto.deliveryAddress !== undefined && dto.deliveryAddress !== null && String(dto.deliveryAddress).trim() !== ''
+        ? String(dto.deliveryAddress).trim()
+        : (dto.addressLine1 || dto.city || dto.stateName || dto.state || dto.pincode)
+          ? [dto.addressLine1, dto.city, dto.stateName || dto.state, dto.pincode].filter(Boolean).join(', ')
+          : (dto.address ? (typeof dto.address === 'string' ? dto.address : (dto.address.deliveryAddress || [dto.address.line1 || dto.address.addressLine1, dto.address.city, dto.address.state, dto.address.pincode].filter(Boolean).join(', '))) : null);
+
+    const computedAddressObj =
+      dto.address !== undefined && dto.address !== null
+        ? dto.address
+        : (dto.addressLine1 !== undefined || dto.city !== undefined || dto.stateName !== undefined || dto.state !== undefined || dto.pincode !== undefined || computedDeliveryAddress)
+          ? {
+              line1: dto.addressLine1 || (typeof computedDeliveryAddress === 'string' ? computedDeliveryAddress.split(',')[0].trim() : '') || '',
+              addressLine1: dto.addressLine1 || (typeof computedDeliveryAddress === 'string' ? computedDeliveryAddress.split(',')[0].trim() : '') || '',
+              city: dto.city || '',
+              state: dto.stateName || dto.state || '',
+              stateName: dto.stateName || dto.state || '',
+              pincode: dto.pincode || '',
+              country: dto.country || 'India',
+              deliveryAddress: computedDeliveryAddress || '',
+            }
+          : null;
+
     const quotation = await this.prisma.quotation.create({
       data: {
         quotationNumber,
@@ -658,14 +730,8 @@ export class QuotationsService {
               : null,
         siteInchargeName: (dto.siteInchargeName || dto.contactPerson || '').trim() || null,
         siteInchargeMobile: (dto.siteInchargeMobile || dto.phone || '').trim() || null,
-        deliveryAddress: (dto.deliveryAddress || (dto.address ? (typeof dto.address === 'string' ? dto.address : (dto.address.deliveryAddress || [dto.address.line1 || dto.address.addressLine1, dto.address.city, dto.address.state, dto.address.pincode].filter(Boolean).join(', '))) : '') || '').trim() || null,
-        address: dto.address || (dto.addressLine1 || dto.city || dto.stateName || dto.pincode ? {
-          line1: dto.addressLine1 || '',
-          city: dto.city || '',
-          state: dto.stateName || dto.state || '',
-          pincode: dto.pincode || '',
-          deliveryAddress: dto.deliveryAddress || ''
-        } : null),
+        deliveryAddress: computedDeliveryAddress ? String(computedDeliveryAddress).trim() : null,
+        address: computedAddressObj,
         paymentTerms: paymentTermInfo.paymentTerms,
         paymentTermDays: paymentTermInfo.paymentTermDays,
         workflowStateId: initialState.id,
@@ -715,13 +781,13 @@ export class QuotationsService {
       if (dto.siteInchargeMobile || dto.phone) {
         leadUpdateData.phone = (dto.siteInchargeMobile || dto.phone).trim();
       }
-      if (dto.deliveryAddress || dto.address || dto.addressLine1) {
-        leadUpdateData.address = dto.address || {
-          line1: dto.addressLine1 || dto.deliveryAddress || '',
+      if (computedAddressObj || computedDeliveryAddress) {
+        leadUpdateData.address = computedAddressObj || {
+          line1: dto.addressLine1 || computedDeliveryAddress || '',
           city: dto.city || '',
           state: dto.stateName || dto.state || '',
           pincode: dto.pincode || '',
-          deliveryAddress: dto.deliveryAddress || ''
+          deliveryAddress: computedDeliveryAddress || ''
         };
       }
       const quotationState = await this.prisma.workflowState.findFirst({
@@ -751,12 +817,35 @@ export class QuotationsService {
       dto.phone ||
       quotation.lead?.phone ||
       '';
+    const resolvedAddress =
+      quotation.address ||
+      quotation.lead?.address ||
+      computedAddressObj ||
+      null;
+    const resolvedDeliveryAddress =
+      quotation.deliveryAddress ||
+      computedDeliveryAddress ||
+      (typeof resolvedAddress === 'string'
+        ? resolvedAddress
+        : (resolvedAddress as any)?.deliveryAddress ||
+          [
+            (resolvedAddress as any)?.line1 || (resolvedAddress as any)?.addressLine1,
+            (resolvedAddress as any)?.city,
+            (resolvedAddress as any)?.state || (resolvedAddress as any)?.stateName,
+            (resolvedAddress as any)?.pincode,
+          ]
+            .filter(Boolean)
+            .join(', ')) ||
+      null;
+
     return {
       ...quotation,
       contactPerson: siteInchargeName,
       siteInchargeName,
       siteInchargeMobile,
       phone: siteInchargeMobile,
+      address: resolvedAddress,
+      deliveryAddress: resolvedDeliveryAddress,
       salesExecutiveMobile: createdSalesMobile,
       salesExecutivePhone: createdSalesMobile,
       salesExecutive: quotation.salesExecutive
@@ -873,6 +962,29 @@ export class QuotationsService {
         );
       if (dto.items)
         await tx.quotationItem.deleteMany({ where: { quotationId: id } });
+      const computedDeliveryAddress =
+        dto.deliveryAddress !== undefined && dto.deliveryAddress !== null && String(dto.deliveryAddress).trim() !== ''
+          ? String(dto.deliveryAddress).trim()
+          : (dto.addressLine1 || dto.city || dto.stateName || dto.state || dto.pincode)
+            ? [dto.addressLine1, dto.city, dto.stateName || dto.state, dto.pincode].filter(Boolean).join(', ')
+            : undefined;
+
+      const computedAddressObj =
+        dto.address !== undefined && dto.address !== null
+          ? dto.address
+          : (dto.addressLine1 !== undefined || dto.city !== undefined || dto.stateName !== undefined || dto.state !== undefined || dto.pincode !== undefined || computedDeliveryAddress !== undefined)
+            ? {
+                line1: dto.addressLine1 || (typeof computedDeliveryAddress === 'string' ? computedDeliveryAddress.split(',')[0].trim() : '') || '',
+                addressLine1: dto.addressLine1 || (typeof computedDeliveryAddress === 'string' ? computedDeliveryAddress.split(',')[0].trim() : '') || '',
+                city: dto.city || '',
+                state: dto.stateName || dto.state || '',
+                stateName: dto.stateName || dto.state || '',
+                pincode: dto.pincode || '',
+                country: dto.country || 'India',
+                deliveryAddress: computedDeliveryAddress || '',
+              }
+            : undefined;
+
       // 1. If leadId is present or updated, update the associated Lead's name, group, GST details
       const targetLeadId =
         dto.leadId !== undefined ? dto.leadId : quotation.leadId;
@@ -900,13 +1012,13 @@ export class QuotationsService {
                   : dto.phone !== undefined
                     ? dto.phone
                     : undefined,
-              ...(dto.deliveryAddress !== undefined || dto.address !== undefined || dto.addressLine1 !== undefined ? {
-                address: dto.address || {
-                  line1: dto.addressLine1 || dto.deliveryAddress || '',
+              ...(computedAddressObj !== undefined || computedDeliveryAddress !== undefined ? {
+                address: computedAddressObj || {
+                  line1: dto.addressLine1 || computedDeliveryAddress || '',
                   city: dto.city || '',
                   state: dto.stateName || dto.state || '',
                   pincode: dto.pincode || '',
-                  deliveryAddress: dto.deliveryAddress || ''
+                  deliveryAddress: computedDeliveryAddress || ''
                 }
               } : {}),
             },
@@ -939,10 +1051,11 @@ export class QuotationsService {
         if (rawUpdateTerms.length > 0) {
           await tx.quotationTerm.createMany({
             data: rawUpdateTerms
+              .filter((t: any) => Boolean(t))
               .map((t: any, index: number) => ({
                 quotationId: id,
                 termId: t.termId || t.id || null,
-                text: String(t.text || t.label || t.title || '').trim(),
+                text: String(t.text || t.label || t.title || (typeof t === 'string' ? t : '') || '').trim(),
                 sortOrder:
                   t.sortOrder !== undefined ? Number(t.sortOrder) : index + 1,
               }))
@@ -992,21 +1105,13 @@ export class QuotationsService {
                 ? (dto.phone || '').trim() || null
                 : undefined,
           deliveryAddress:
-            dto.deliveryAddress !== undefined
-              ? (dto.deliveryAddress || '').trim() || null
+            computedDeliveryAddress !== undefined
+              ? (computedDeliveryAddress || '').trim() || null
               : undefined,
           address:
-            dto.address !== undefined
-              ? dto.address
-              : (dto.addressLine1 || dto.city || dto.stateName || dto.pincode)
-                ? {
-                    line1: dto.addressLine1 || '',
-                    city: dto.city || '',
-                    state: dto.stateName || dto.state || '',
-                    pincode: dto.pincode || '',
-                    deliveryAddress: dto.deliveryAddress || ''
-                  }
-                : undefined,
+            computedAddressObj !== undefined
+              ? computedAddressObj
+              : undefined,
           paymentTerms:
             paymentTermInfo.paymentTerms !== undefined
               ? paymentTermInfo.paymentTerms
@@ -1078,9 +1183,36 @@ export class QuotationsService {
         updated.lead?.phone ||
         customer?.phone ||
         '';
+
+      const resolvedAddress =
+        updated.address ||
+        updated.lead?.address ||
+        customer?.shippingAddress ||
+        customer?.billingAddress ||
+        (customer as any)?.address ||
+        computedAddressObj ||
+        null;
+      const resolvedDeliveryAddress =
+        updated.deliveryAddress ||
+        computedDeliveryAddress ||
+        (typeof resolvedAddress === 'string'
+          ? resolvedAddress
+          : (resolvedAddress as any)?.deliveryAddress ||
+            [
+              (resolvedAddress as any)?.line1 || (resolvedAddress as any)?.addressLine1,
+              (resolvedAddress as any)?.city,
+              (resolvedAddress as any)?.state || (resolvedAddress as any)?.stateName,
+              (resolvedAddress as any)?.pincode,
+            ]
+              .filter(Boolean)
+              .join(', ')) ||
+        null;
+
       return {
         ...updated,
         customer,
+        address: resolvedAddress,
+        deliveryAddress: resolvedDeliveryAddress,
         contactPerson: siteInchargeName,
         siteInchargeName,
         siteInchargeMobile,
@@ -1264,6 +1396,13 @@ export class QuotationsService {
           tax: original.tax,
           total: original.total,
           remarks: original.remarks,
+          deliveryAddress: (original as any).deliveryAddress,
+          address: (original as any).address,
+          siteInchargeName: (original as any).siteInchargeName,
+          siteInchargeMobile: (original as any).siteInchargeMobile,
+          paymentTerms: (original as any).paymentTerms,
+          paymentTermDays: (original as any).paymentTermDays,
+          expectedTransportationCost: (original as any).expectedTransportationCost,
           workflowStateId: initialState?.id,
           createdById: userId,
           items: {
@@ -1290,8 +1429,29 @@ export class QuotationsService {
         },
       });
       const dupSalesMobile = this.resolveSalesMobile(created);
+      const resolvedAddress =
+        created.address ||
+        created.lead?.address ||
+        null;
+      const resolvedDeliveryAddress =
+        created.deliveryAddress ||
+        (typeof resolvedAddress === 'string'
+          ? resolvedAddress
+          : (resolvedAddress as any)?.deliveryAddress ||
+            [
+              (resolvedAddress as any)?.line1 || (resolvedAddress as any)?.addressLine1,
+              (resolvedAddress as any)?.city,
+              (resolvedAddress as any)?.state || (resolvedAddress as any)?.stateName,
+              (resolvedAddress as any)?.pincode,
+            ]
+              .filter(Boolean)
+              .join(', ')) ||
+        null;
+
       return {
         ...created,
+        address: resolvedAddress,
+        deliveryAddress: resolvedDeliveryAddress,
         salesExecutiveMobile: dupSalesMobile,
         salesExecutivePhone: dupSalesMobile,
         salesExecutive: created.salesExecutive

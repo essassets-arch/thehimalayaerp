@@ -425,7 +425,23 @@ export default function QuotationsView({
   }, [editCustomerName, editingQuotation, leads, customers]);
 
   const startEditingQuotation = (qtn) => {
-    setEditingQuotation(qtn);
+    if (!qtn) return;
+    const matchedLead = leads?.find(l => 
+      String(l.id) === String(qtn.leadId) ||
+      String(l.leadId) === String(qtn.leadId) ||
+      String(l.id) === String(qtn.sourceId) ||
+      (l.companyName && qtn.customerName && l.companyName.trim().toLowerCase() === qtn.customerName.trim().toLowerCase())
+    );
+    const matchedCustomer = customers?.find(c => 
+      String(c.id) === String(qtn.customerId) ||
+      (c.companyName && qtn.customerName && c.companyName.trim().toLowerCase() === qtn.customerName.trim().toLowerCase()) ||
+      (c.name && qtn.customerName && c.name.trim().toLowerCase() === qtn.customerName.trim().toLowerCase())
+    );
+    setEditingQuotation({
+      ...qtn,
+      lead: qtn.lead || matchedLead || null,
+      customer: qtn.customer || matchedCustomer || null,
+    });
   };
 
   const handleRepeatQuotation = (qtn) => {
