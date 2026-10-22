@@ -91,14 +91,16 @@ export default function FinanceManagerDashboardView({
     purchaseOrders: [],
     expenses: [],
     brandRequests: [],
-    users: []
+    users: [],
+    payments: [],
+    salesRecordedPayments: []
   });
   const [loadingLive, setLoadingLive] = useState(true);
 
   const storeState = useERPStore((s) => s.state);
   const state = storeState || propState || {};
 
-  // Fetch all live backend data including AR registers and purchase orders
+  // Fetch all live backend data including AR registers, payments and purchase orders
   const fetchAllFinanceData = useCallback(async () => {
     try {
       setIsRefreshing(true);
@@ -111,18 +113,35 @@ export default function FinanceManagerDashboardView({
         poRes,
         expRes,
         brandRes,
-        usersRes
+        usersRes,
+        pmtsRes,
+        salesPmtsRes,
+        pendingPmtsRes
       ] = await Promise.allSettled([
-        backendFetch('/api/backend/sales/orders?limit=1000'),
-        backendFetch('/api/backend/back-office/appl-ar?limit=1000'),
-        backendFetch('/api/backend/back-office/hcppl-ar/entries?limit=1000'),
-        backendFetch('/api/backend/back-office/hcppl-ar/register?limit=1000'),
-        backendFetch('/api/backend/reports/finance/ar-invoices?limit=1000'),
-        backendFetch('/api/backend/purchase-orders?limit=1000'),
-        backendFetch('/api/backend/expenses?limit=1000'),
-        backendFetch('/api/backend/brand-analysis-requests?limit=1000'),
-        backendFetch('/api/backend/users?limit=500')
+        backendFetch('/api/backend/sales/orders?limit=1000').catch(() => null),
+        backendFetch('/api/backend/back-office/appl-ar?limit=1000').catch(() => null),
+        backendFetch('/api/backend/back-office/hcppl-ar/entries?limit=1000').catch(() => null),
+        backendFetch('/api/backend/back-office/hcppl-ar/register?limit=1000').catch(() => null),
+        backendFetch('/api/backend/reports/finance/ar-invoices?limit=1000').catch(() => null),
+        backendFetch('/api/backend/purchase-orders?limit=1000').catch(() => null),
+        backendFetch('/api/backend/expenses?limit=1000').catch(() => null),
+        backendFetch('/api/backend/brand-analysis-requests?limit=1000').catch(() => null),
+        backendFetch('/api/backend/users?limit=500').catch(() => null),
+        backendFetch('/api/backend/finance/payments?limit=1000').catch(() => null),
+        backendFetch('/api/backend/finance/payments/sales-recorded').catch(() => null),
+        backendFetch('/api/backend/finance/payments/pending').catch(() => null)
       ]);
+
+      const fetchedPmts = parseList(pmtsRes);
+      const fetchedSalesPmts = parseList(salesPmtsRes);
+      const fetchedPendingPmts = parseList(pendingPmtsRes);
+
+      const combinedRecorded = [...fetchedSalesPmts];
+      fetchedPendingPmts.forEach(p => {
+        if (!combinedRecorded.some(item => (item.id || item.payment_id) === (p.id || p.payment_id))) {
+          combinedRecorded.push(p);
+        }
+      });
 
       setLiveData({
         salesOrders: parseList(ordersRes),
@@ -133,7 +152,9 @@ export default function FinanceManagerDashboardView({
         purchaseOrders: parseList(poRes),
         expenses: parseList(expRes),
         brandRequests: parseList(brandRes),
-        users: parseList(usersRes)
+        users: parseList(usersRes),
+        payments: fetchedPmts,
+        salesRecordedPayments: combinedRecorded
       });
     } catch (err) {
       console.error('[FinanceManagerDashboard] Data fetch error:', err);
@@ -155,10 +176,10 @@ export default function FinanceManagerDashboardView({
       liveData.hcpplArInvoices,
       liveData.hcpplRegInvoices,
       liveData.financeArInvoices,
-      propPayments,
+      liveData.payments.length > 0 ? liveData.payments : propPayments,
       state.invoices
     );
-  }, [liveData.applArInvoices, liveData.hcpplArInvoices, liveData.hcpplRegInvoices, liveData.financeArInvoices, propPayments, state.invoices]);
+  }, [liveData.applArInvoices, liveData.hcpplArInvoices, liveData.hcpplRegInvoices, liveData.financeArInvoices, liveData.payments, propPayments, state.invoices]);
 
   // Combined Sales Orders
   const salesOrders = useMemo(() => {
@@ -176,8 +197,15 @@ export default function FinanceManagerDashboardView({
   // ── Filtered AR Invoices according to Active Horizon ──
   const filteredInvoices = useMemo(() => {
     if (!allArInvoices || allArInvoices.length === 0) return [];
-    return allArInvoices.filter((invoice) => isInRange(invoice, ['invoiceDate', 'createdAt', 'date'], rangeBounds));
-  }, [allArInvoices, rangeBounds]);
+    const quarterFilter = timeRange === '90D'
+      ? (selectedQuarter === 'CURRENT'
+          ? fiscalQuarterInfo.currentQuarterKey
+          : selectedQuarter === 'PREV_Q'
+          ? (fiscalQuarterInfo.prevQ?.name || 'Q2')
+          : selectedQuarter)
+      : '';
+    return allArInvoices.filter((invoice) => isInRange(invoice, ['invoiceDate', 'createdAt', 'date'], rangeBounds, quarterFilter));
+  }, [allArInvoices, rangeBounds, timeRange, selectedQuarter, fiscalQuarterInfo]);
 
   // ── Filtered Sales Orders according to Active Horizon ──
   const filteredSalesOrders = useMemo(() => {
@@ -202,8 +230,18 @@ export default function FinanceManagerDashboardView({
 
   // --- Dynamic Financial Computations strictly from Real Database Records ---
   const dynamicMetrics = useMemo(() => {
-    return calculateDynamicMetrics(filteredInvoices, filteredSalesOrders, filteredPurchaseOrders, timeRange, periodMeta, periodComparison);
-  }, [filteredInvoices, filteredSalesOrders, filteredPurchaseOrders, timeRange, periodMeta, periodComparison]);
+    return calculateDynamicMetrics(
+      filteredInvoices,
+      filteredSalesOrders,
+      filteredPurchaseOrders,
+      timeRange,
+      periodMeta,
+      periodComparison,
+      allArInvoices,
+      liveData.payments,
+      rangeBounds
+    );
+  }, [filteredInvoices, filteredSalesOrders, filteredPurchaseOrders, timeRange, periodMeta, periodComparison, allArInvoices, liveData.payments, rangeBounds]);
 
   // ── 1. Chart Data: Monthly Revenue vs Cleared Collections Trend ──
   const revenueTrendData = useMemo(() => {
@@ -799,7 +837,6 @@ export default function FinanceManagerDashboardView({
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '700', color: dynamicMetrics.periodComparisonPositive === null ? PALETTE.slateMuted : dynamicMetrics.periodComparisonPositive ? '#16A34A' : PALETTE.rose }}>
               {dynamicMetrics.periodComparisonPositive === false ? <ArrowDownRight size={14} /> : <TrendingUp size={14} />}
               <span>{dynamicMetrics.periodComparisonLabel}</span>
-              <span style={{ color: PALETTE.slateMuted, fontWeight: '500' }}>{dynamicMetrics.periodBadge}</span>
             </div>
           </div>
 
@@ -831,7 +868,7 @@ export default function FinanceManagerDashboardView({
               </div>
             </div>
             <div style={{ fontSize: '12px', fontWeight: '600', color: '#059669' }}>
-              Cleared bank receipts ({dynamicMetrics.periodBadge})
+              Cleared bank receipts ({dynamicMetrics.periodLabel})
             </div>
           </div>
 
@@ -863,7 +900,7 @@ export default function FinanceManagerDashboardView({
               </div>
             </div>
             <div style={{ fontSize: '12px', fontWeight: '700', color: '#D97706' }}>
-              {dynamicMetrics.unpaidInvoicesCount} Pending Invoices ({dynamicMetrics.periodBadge})
+              {dynamicMetrics.unpaidInvoicesCount} Pending Invoices ({dynamicMetrics.periodLabel})
             </div>
           </div>
 
@@ -896,7 +933,7 @@ export default function FinanceManagerDashboardView({
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '700', color: '#DC2626' }}>
               <AlertCircle size={13} />
-              <span>{dynamicMetrics.overdueInvoicesCount} Overdue Invoices ({dynamicMetrics.periodBadge})</span>
+              <span>{dynamicMetrics.overdueInvoicesCount} Overdue Invoices ({dynamicMetrics.periodLabel})</span>
             </div>
           </div>
 
@@ -965,7 +1002,7 @@ export default function FinanceManagerDashboardView({
               </div>
             </div>
             <div style={{ fontSize: '12px', fontWeight: '600', color: '#7C3AED' }}>
-              {dynamicMetrics.pendingVendorsCount} Open Purchase Orders ({dynamicMetrics.periodBadge})
+              {dynamicMetrics.pendingVendorsCount} Open Purchase Orders ({dynamicMetrics.periodLabel})
             </div>
           </div>
         </div>

@@ -166,11 +166,10 @@ export const getRangeBounds = (range, now = new Date(), customStart = '', custom
 
   if (range === '1Y') return { start: fiscalStart, end: fiscalEnd };
   if (range === '6M') {
-    const halfStart = now.getMonth() >= 3 ? new Date(yearStart, 3, 1, 0, 0, 0, 0) : new Date(yearStart, 9, 1, 0, 0, 0, 0);
-    const halfEnd = now.getMonth() >= 3
-      ? new Date(yearStart, 8, 30, 23, 59, 59, 999)
-      : new Date(yearStart + 1, 2, 31, 23, 59, 59, 999);
-    return { start: halfStart, end: halfEnd };
+    const start = new Date(end);
+    start.setDate(start.getDate() - 179);
+    start.setHours(0, 0, 0, 0);
+    return { start, end };
   }
 
   // Quarter selection (90D, QUARTER, Q1, Q2, Q3, Q4, PREV_Q)
@@ -202,9 +201,16 @@ export const getRangeBounds = (range, now = new Date(), customStart = '', custom
   };
 };
 
-export const isInRange = (record, fields, bounds) => {
+export const isInRange = (record, fields, bounds, quarterFilter = '') => {
   if (!bounds || !bounds.start || !bounds.end || isNaN(bounds.start.getTime()) || isNaN(bounds.end.getTime())) {
     return true;
+  }
+  if (quarterFilter && ['Q1', 'Q2', 'Q3', 'Q4'].includes(quarterFilter.toUpperCase())) {
+    const qUpper = quarterFilter.toUpperCase();
+    const recQuarter = String(record?.quarter || '').toUpperCase();
+    if (recQuarter && recQuarter.startsWith(qUpper)) {
+      return true;
+    }
   }
   const date = getRecordDate(record, fields);
   return Boolean(date && date >= bounds.start && date <= bounds.end);
@@ -225,7 +231,7 @@ export const getPeriodMeta = (timeRange, rangeBounds, quarterChoice = '', now = 
     return { label: '30 Days', badge: `Last 30 Days (${rangeLabel})`, desc: rangeLabel };
   }
   if (timeRange === '6M') {
-    return { label: '6 Months', badge: `Half Year (${rangeLabel})`, desc: rangeLabel };
+    return { label: '6 Months', badge: `Last 6 Months (${rangeLabel})`, desc: rangeLabel };
   }
   if (timeRange === 'CUSTOM') {
     return { label: 'Custom', badge: `Custom Period (${rangeLabel})`, desc: rangeLabel };
@@ -310,11 +316,15 @@ export const calculatePeriodComparison = (rangeBounds, allArInvoices = [], filte
     end: new Date(rangeBounds.start.getTime() - 1),
   };
   const sumAmounts = (records, fields) => records
-    .filter((record) => isInRange(record, fields, previousBounds))
+    .filter((record) => {
+      const st = String(record?.status || '').toUpperCase();
+      if (st === 'CANCELLED' || st === 'CANCEL') return false;
+      return isInRange(record, fields, previousBounds);
+    })
     .reduce((sum, record) => sum + Number(record.invoiceAmount || record.totalAmount || record.grand_total || 0), 0);
   const currentAmount = allArInvoices.length > 0
-    ? filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.invoiceAmount || 0), 0)
-    : filteredSalesOrders.reduce((sum, order) => sum + Number(order.totalAmount || order.grand_total || 0), 0);
+    ? filteredInvoices.filter(i => !['CANCELLED', 'CANCEL'].includes(String(i.status || '').toUpperCase())).reduce((sum, invoice) => sum + Number(invoice.invoiceAmount || 0), 0)
+    : filteredSalesOrders.filter(o => !['CANCELLED', 'CANCEL'].includes(String(o.status || '').toUpperCase())).reduce((sum, order) => sum + Number(order.totalAmount || order.grand_total || 0), 0);
   const previousAmount = allArInvoices.length > 0
     ? sumAmounts(allArInvoices, ['invoiceDate', 'createdAt', 'date'])
     : sumAmounts(salesOrders, ['orderDate', 'createdAt', 'date']);
@@ -324,7 +334,17 @@ export const calculatePeriodComparison = (rangeBounds, allArInvoices = [], filte
 };
 
 // ── Core Dynamic Metrics Aggregator ──
-export const calculateDynamicMetrics = (filteredInvoices = [], filteredSalesOrders = [], filteredPurchaseOrders = [], timeRange, periodMeta, periodComparison) => {
+export const calculateDynamicMetrics = (
+  filteredInvoices = [],
+  filteredSalesOrders = [],
+  filteredPurchaseOrders = [],
+  timeRange,
+  periodMeta,
+  periodComparison,
+  allArInvoices = [],
+  livePayments = [],
+  rangeBounds = null
+) => {
   let revSum = 0;
   let collSum = 0;
   let outSum = 0;
@@ -334,28 +354,86 @@ export const calculateDynamicMetrics = (filteredInvoices = [], filteredSalesOrde
 
   const now = new Date();
 
-  const activeInvoices = filteredInvoices.length > 0 ? filteredInvoices : [];
-  const activeOrders = filteredSalesOrders.length > 0 ? filteredSalesOrders : [];
+  // Filter out cancelled records for clean accounting
+  const activeInvoices = (filteredInvoices || []).filter(inv => {
+    const st = String(inv.status || '').toUpperCase();
+    return st !== 'CANCELLED' && st !== 'CANCEL';
+  });
+
+  const activeOrders = (filteredSalesOrders || []).filter(o => {
+    const st = String(o.status || '').toUpperCase();
+    return st !== 'CANCELLED' && st !== 'CANCEL';
+  });
 
   if (activeInvoices.length > 0) {
     activeInvoices.forEach(inv => {
       const invAmt = Number(inv.invoiceAmount || 0);
       const rcvd = Number(inv.amtRcvd || 0);
-      const out = Number(inv.outstanding !== undefined ? inv.outstanding : Math.max(0, invAmt - rcvd));
+      const out = Number(inv.outstanding !== undefined && inv.outstanding !== null
+        ? inv.outstanding
+        : Math.max(0, invAmt - rcvd));
 
       revSum += invAmt;
-      collSum += rcvd;
       outSum += out;
 
       if (out > 0) {
         unpaidCount++;
-        const dueDate = new Date(inv.dueDate || inv.invoiceDate || now);
-        if (dueDate < now) {
+        let dueDate = null;
+        if (inv.dueDate) {
+          dueDate = new Date(inv.dueDate);
+        } else if (inv.invoiceDate) {
+          const days = Number(inv.paymentTermDays) || 30;
+          dueDate = new Date(new Date(inv.invoiceDate).getTime() + days * 86400000);
+        }
+        if (dueDate && !isNaN(dueDate.getTime()) && dueDate < now) {
           overdueSum += out;
           overdueCount++;
         }
       }
     });
+
+    // ── Accurate Realized Collections (Cleared Bank Receipts in Period) ──
+    let collectionsInBounds = 0;
+    let hasDateSpecificReceipts = false;
+
+    if (rangeBounds?.start && rangeBounds?.end && !isNaN(rangeBounds.start.getTime()) && !isNaN(rangeBounds.end.getTime())) {
+      const invoicePool = (allArInvoices && allArInvoices.length > 0) ? allArInvoices : activeInvoices;
+      invoicePool.forEach(inv => {
+        const st = String(inv.status || '').toUpperCase();
+        if (st === 'CANCELLED' || st === 'CANCEL') return;
+        const rcvd = Number(inv.amtRcvd || 0);
+        if (rcvd <= 0) return;
+
+        const pDate = inv.amtRcvdDate ? new Date(inv.amtRcvdDate) : (inv.completePaymentDate ? new Date(inv.completePaymentDate) : null);
+        if (pDate && !isNaN(pDate.getTime())) {
+          if (pDate >= rangeBounds.start && pDate <= rangeBounds.end) {
+            collectionsInBounds += rcvd;
+            hasDateSpecificReceipts = true;
+          }
+        }
+      });
+
+      if (Array.isArray(livePayments) && livePayments.length > 0) {
+        livePayments.forEach(p => {
+          const st = String(p.status || p.verificationStatus || '').toUpperCase();
+          if (st === 'REJECTED' || st === 'CANCELLED') return;
+          const amt = Number(p.amount || p.verifiedPaidAmount || 0);
+          if (amt <= 0) return;
+          const pDate = p.receivedAt || p.paymentDate || p.verifiedAt || p.createdAt ? new Date(p.receivedAt || p.paymentDate || p.verifiedAt || p.createdAt) : null;
+          if (pDate && !isNaN(pDate.getTime()) && pDate >= rangeBounds.start && pDate <= rangeBounds.end) {
+            collectionsInBounds += amt;
+            hasDateSpecificReceipts = true;
+          }
+        });
+      }
+    }
+
+    if (hasDateSpecificReceipts && collectionsInBounds > 0) {
+      collSum = collectionsInBounds;
+    } else {
+      collSum = activeInvoices.reduce((s, inv) => s + Number(inv.amtRcvd || 0), 0);
+    }
+
   } else if (activeOrders.length > 0) {
     activeOrders.forEach(o => {
       const tot = Number(o.totalAmount || o.grand_total || 0);
@@ -368,8 +446,14 @@ export const calculateDynamicMetrics = (filteredInvoices = [], filteredSalesOrde
 
       if (out > 0) {
         unpaidCount++;
-        const due = new Date(o.paymentDueDate || o.payment_due_date || o.orderDate || o.createdAt || now);
-        if (due < now) {
+        let due = null;
+        if (o.paymentDueDate || o.payment_due_date) {
+          due = new Date(o.paymentDueDate || o.payment_due_date);
+        } else if (o.orderDate || o.createdAt) {
+          const days = Number(o.paymentTermDays) || 30;
+          due = new Date(new Date(o.orderDate || o.createdAt).getTime() + days * 86400000);
+        }
+        if (due && !isNaN(due.getTime()) && due < now) {
           overdueSum += out;
           overdueCount++;
         }
@@ -380,8 +464,16 @@ export const calculateDynamicMetrics = (filteredInvoices = [], filteredSalesOrde
   const effNum = revSum > 0 ? Number(((collSum / revSum) * 100).toFixed(1)) : 0;
   const effRatio = effNum.toFixed(1);
 
-  const poCount = filteredPurchaseOrders.length;
-  const poTotal = filteredPurchaseOrders.reduce((s, p) => s + Number(p.totalAmount || 0), 0);
+  // Filter purchase orders to open/pending POs with pending balances
+  const openPOs = (filteredPurchaseOrders || []).filter(p => {
+    const st = String(p.status || '').toUpperCase();
+    return !['CLOSED', 'CANCELLED', 'REJECTED'].includes(st);
+  });
+  const poCount = openPOs.length;
+  const poTotal = openPOs.reduce((s, p) => {
+    const due = Number(p.outstandingAmount ?? p.balanceAmount ?? (Number(p.totalAmount || 0) - Number(p.paidAmount || 0)));
+    return s + (due > 0 ? due : Number(p.totalAmount || 0));
+  }, 0);
 
   const operatingSurplus = collSum - poTotal;
 

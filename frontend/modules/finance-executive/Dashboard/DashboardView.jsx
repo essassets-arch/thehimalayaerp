@@ -266,8 +266,15 @@ export default function DashboardView({
   // Filtered collections strictly according to active horizon
   const filteredInvoices = useMemo(() => {
     if (!allArInvoices || allArInvoices.length === 0) return [];
-    return allArInvoices.filter((invoice) => isInRange(invoice, ['invoiceDate', 'createdAt', 'date'], rangeBounds));
-  }, [allArInvoices, rangeBounds]);
+    const quarterFilter = timeRange === '90D'
+      ? (selectedQuarter === 'CURRENT'
+          ? fiscalQuarterInfo.currentQuarterKey
+          : selectedQuarter === 'PREV_Q'
+          ? (fiscalQuarterInfo.prevQ?.name || 'Q2')
+          : selectedQuarter)
+      : '';
+    return allArInvoices.filter((invoice) => isInRange(invoice, ['invoiceDate', 'createdAt', 'date'], rangeBounds, quarterFilter));
+  }, [allArInvoices, rangeBounds, timeRange, selectedQuarter, fiscalQuarterInfo]);
 
   const filteredSalesOrders = useMemo(() => {
     if (!salesOrders || salesOrders.length === 0) return [];
@@ -290,8 +297,18 @@ export default function DashboardView({
 
   // Dynamic Financial Computations strictly from Real Database Records
   const dynamicMetrics = useMemo(() => {
-    return calculateDynamicMetrics(filteredInvoices, filteredSalesOrders, filteredPurchaseOrders, timeRange, periodMeta, periodComparison);
-  }, [filteredInvoices, filteredSalesOrders, filteredPurchaseOrders, timeRange, periodMeta, periodComparison]);
+    return calculateDynamicMetrics(
+      filteredInvoices,
+      filteredSalesOrders,
+      filteredPurchaseOrders,
+      timeRange,
+      periodMeta,
+      periodComparison,
+      allArInvoices,
+      liveData.payments,
+      rangeBounds
+    );
+  }, [filteredInvoices, filteredSalesOrders, filteredPurchaseOrders, timeRange, periodMeta, periodComparison, allArInvoices, liveData.payments, rangeBounds]);
 
   // Backward compatibility alias
   const dynamicKpis = useMemo(() => {
@@ -964,10 +981,6 @@ export default function DashboardView({
             <div style={{ marginTop: '6px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '4px', color: dynamicMetrics.periodComparisonPositive === null ? PALETTE.slateMuted : dynamicMetrics.periodComparisonPositive ? '#16A34A' : PALETTE.rose }}>
               {dynamicMetrics.periodComparisonPositive === false ? <ArrowDownRight size={13} /> : <TrendingUp size={13} />}
               <span style={{ fontWeight: '700' }}>{dynamicMetrics.periodComparisonLabel}</span>
-              <span style={{ color: PALETTE.slateMuted, fontWeight: '500' }}>vs previous period</span>
-            </div>
-            <div style={{ fontSize: '10.5px', color: PALETTE.slateMuted, marginTop: '2px' }}>
-              {dynamicMetrics.periodBadge}
             </div>
           </div>
 
@@ -980,7 +993,7 @@ export default function DashboardView({
               {dynamicMetrics.totalCollectionsStr}
             </h3>
             <div style={{ marginTop: '6px', fontSize: '11.5px', color: '#059669', fontWeight: '600' }}>
-              Cleared bank receipts ({dynamicMetrics.periodBadge})
+              Cleared bank receipts ({dynamicMetrics.periodLabel})
             </div>
           </div>
 
@@ -993,7 +1006,7 @@ export default function DashboardView({
               {dynamicMetrics.outstandingReceivablesStr}
             </h3>
             <div style={{ marginTop: '6px', fontSize: '11.5px', color: '#D97706', fontWeight: '700' }}>
-              {dynamicMetrics.unpaidInvoicesCount} Pending Invoices ({dynamicMetrics.periodBadge})
+              {dynamicMetrics.unpaidInvoicesCount} Pending Invoices ({dynamicMetrics.periodLabel})
             </div>
           </div>
 
@@ -1007,7 +1020,7 @@ export default function DashboardView({
             </h3>
             <div style={{ marginTop: '6px', fontSize: '11.5px', color: '#DC2626', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '700' }}>
               <AlertCircle size={13} />
-              <span>{dynamicMetrics.overdueInvoicesCount} Overdue Invoices ({dynamicMetrics.periodBadge})</span>
+              <span>{dynamicMetrics.overdueInvoicesCount} Overdue Invoices ({dynamicMetrics.periodLabel})</span>
             </div>
           </div>
 
@@ -1038,7 +1051,7 @@ export default function DashboardView({
               {dynamicMetrics.vendorPaymentsDueStr}
             </h3>
             <div style={{ marginTop: '6px', fontSize: '11.5px', color: '#7C3AED', fontWeight: '600' }}>
-              {dynamicMetrics.pendingVendorsCount} Open Purchase Orders ({dynamicMetrics.periodBadge})
+              {dynamicMetrics.pendingVendorsCount} Open Purchase Orders ({dynamicMetrics.periodLabel})
             </div>
           </div>
 
