@@ -63,7 +63,7 @@ export default function FinanceReadyForDispatchView() {
 
   // Filters & Search
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('STAGED');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -155,7 +155,7 @@ export default function FinanceReadyForDispatchView() {
 
   const handleClearFilters = () => {
     setSearch('');
-    setStatusFilter('ALL');
+    setStatusFilter('STAGED');
     setStartDate('');
     setEndDate('');
     setPage(1);
@@ -244,7 +244,7 @@ export default function FinanceReadyForDispatchView() {
           </div>
           <h1>Ready for Dispatch Orders</h1>
           <p>
-            Authoritative visibility of production orders dispatched or staged for dispatch. Verified against live production and sales order records.
+            Authoritative visibility of production orders staged for dispatch. Verified against live production and sales order records.
           </p>
         </div>
 
@@ -255,8 +255,8 @@ export default function FinanceReadyForDispatchView() {
               <Package size={20} />
             </div>
             <div>
-              <strong>{summary.totalReady || 0}</strong>
-              <div><span>Total Staged / Dispatched</span></div>
+              <strong>{summary.stagedCount || summary.totalReady || 0}</strong>
+              <div><span>Staged for Dispatch</span></div>
             </div>
           </div>
 
@@ -266,7 +266,7 @@ export default function FinanceReadyForDispatchView() {
             </div>
             <div>
               <strong>{formatINR(summary.totalValueINR || 0)}</strong>
-              <div><span>Total Order Value</span></div>
+              <div><span>Staged Order Value</span></div>
             </div>
           </div>
         </div>
@@ -303,11 +303,7 @@ export default function FinanceReadyForDispatchView() {
               <div className={styles.selectWrapper}>
                 <Filter size={14} color="#64748b" />
                 <select value={statusFilter} onChange={handleStatusChange} aria-label="Filter by dispatch status">
-                  <option value="ALL">All Statuses</option>
                   <option value="STAGED">Staged for Dispatch</option>
-                  <option value="DISPATCHED">Dispatched</option>
-                  <option value="IN_TRANSIT">In Transit</option>
-                  <option value="DELIVERED">Delivered</option>
                 </select>
               </div>
 
@@ -334,7 +330,7 @@ export default function FinanceReadyForDispatchView() {
               </div>
 
               {/* Clear Filters */}
-              {(search || statusFilter !== 'ALL' || startDate || endDate) && (
+              {(search || startDate || endDate) && (
                 <button
                   type="button"
                   className={styles.btnAction}

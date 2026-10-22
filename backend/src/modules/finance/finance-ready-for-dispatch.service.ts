@@ -365,6 +365,8 @@ export class FinanceReadyForDispatchService {
       } else if (job.dispatchedAt) {
         resolvedDispatchStatus = 'DISPATCHED';
         physicalDispatchedAt = job.dispatchedAt;
+      } else if (so?.status === 'COMPLETED') {
+        resolvedDispatchStatus = 'COMPLETED';
       } else if (job.productionStatus === 'DISPATCHED') {
         resolvedDispatchStatus = 'STAGED'; // Sent to Dispatch (Staged)
       } else {
@@ -537,6 +539,21 @@ export class FinanceReadyForDispatchService {
       delete ord.rawSalesOrder; // Keep clean JSON payload
     }
 
+    // Ready for Dispatch must only show orders genuinely staged and waiting for dispatch.
+    // Exclude already physically dispatched, in-transit, delivered, or completed orders.
+    const EXCLUDED_DISPATCH_STATUSES = new Set([
+      'DELIVERED',
+      'IN_TRANSIT',
+      'DISPATCHED',
+      'OUT_FOR_DELIVERY',
+      'POD_RECEIVED',
+      'DISPATCH_CLOSED',
+      'COMPLETED',
+    ]);
+    allOrders = allOrders.filter(
+      (ord) => !EXCLUDED_DISPATCH_STATUSES.has(ord.dispatchStatus),
+    );
+
     // Apply Filters
     if (query.search?.trim()) {
       const q = query.search.toLowerCase().trim();
@@ -560,7 +577,7 @@ export class FinanceReadyForDispatchService {
       const s = query.status.toUpperCase().trim();
       allOrders = allOrders.filter((ord) => {
         const st = ord.dispatchStatus.toUpperCase();
-        if (s === 'STAGED') return st === 'STAGED' || st === 'READY_FOR_DISPATCH';
+        if (s === 'STAGED') return st === 'STAGED' || st === 'READY_FOR_DISPATCH' || st === 'READY_TO_SHIP';
         return st === s;
       });
     }
@@ -593,16 +610,14 @@ export class FinanceReadyForDispatchService {
       return String(b.salesOrderNumber || '').localeCompare(String(a.salesOrderNumber || ''));
     });
 
-    // Operational summary calculations
+    // Operational summary calculations (strictly for Staged for Dispatch)
     const summary = {
       totalOrders: allOrders.length,
       totalUnits: allOrders.reduce((sum, o) => sum + o.totalQuantity, 0),
-      stagedCount: allOrders.filter(
-        (o) => o.dispatchStatus === 'STAGED' || o.dispatchStatus === 'READY_FOR_DISPATCH',
-      ).length,
-      dispatchedCount: allOrders.filter((o) => o.dispatchStatus === 'DISPATCHED').length,
-      inTransitCount: allOrders.filter((o) => o.dispatchStatus === 'IN_TRANSIT').length,
-      deliveredCount: allOrders.filter((o) => o.dispatchStatus === 'DELIVERED').length,
+      stagedCount: allOrders.length,
+      dispatchedCount: 0,
+      inTransitCount: 0,
+      deliveredCount: 0,
       totalReady: allOrders.length,
       totalValueINR: allOrders.reduce((sum, o) => sum + (o.orderAmount || 0), 0),
     };

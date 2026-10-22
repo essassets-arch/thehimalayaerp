@@ -225,6 +225,79 @@ describe('FinanceReadyForDispatch', () => {
       expect(delivered.data.length).toBe(0);
     });
 
+    it('strictly excludes dispatched, in-transit, and delivered orders from ready-for-dispatch results', async () => {
+      const user = { role: 'FINANCE_MANAGER', companyId: mockCompanyId };
+      const mixedOrders = [
+        {
+          ...mockWorkOrders[0],
+          id: 'wo-staged',
+          workOrderNumber: 'WO-STAGED',
+          productionPlan: {
+            ...mockWorkOrders[0].productionPlan,
+            salesOrder: {
+              ...mockWorkOrders[0].productionPlan.salesOrder,
+              id: 'so-staged',
+              orderNumber: 'SO-STAGED',
+              dispatches: [],
+            },
+          },
+        },
+        {
+          ...mockWorkOrders[0],
+          id: 'wo-dispatched',
+          workOrderNumber: 'WO-DISP',
+          productionPlan: {
+            ...mockWorkOrders[0].productionPlan,
+            salesOrder: {
+              ...mockWorkOrders[0].productionPlan.salesOrder,
+              id: 'so-disp',
+              orderNumber: 'SO-DISP',
+              dispatches: [{ id: 'd-1', dispatchNo: 'D-1', status: 'DISPATCHED' }],
+            },
+          },
+        },
+        {
+          ...mockWorkOrders[0],
+          id: 'wo-transit',
+          workOrderNumber: 'WO-TRANS',
+          productionPlan: {
+            ...mockWorkOrders[0].productionPlan,
+            salesOrder: {
+              ...mockWorkOrders[0].productionPlan.salesOrder,
+              id: 'so-transit',
+              orderNumber: 'SO-TRANS',
+              dispatches: [{ id: 'd-2', dispatchNo: 'D-2', status: 'IN_TRANSIT' }],
+            },
+          },
+        },
+        {
+          ...mockWorkOrders[0],
+          id: 'wo-delivered',
+          workOrderNumber: 'WO-DELIV',
+          productionPlan: {
+            ...mockWorkOrders[0].productionPlan,
+            salesOrder: {
+              ...mockWorkOrders[0].productionPlan.salesOrder,
+              id: 'so-deliv',
+              orderNumber: 'SO-DELIV',
+              dispatches: [{ id: 'd-3', dispatchNo: 'D-3', status: 'DELIVERED' }],
+            },
+          },
+        },
+      ];
+
+      prisma.workOrder.findMany.mockResolvedValueOnce(mixedOrders);
+      const result = await service.getReadyForDispatchOrders(user, {});
+      expect(result.data.length).toBe(1);
+      expect(result.data[0].salesOrderNumber).toBe('SO-STAGED');
+      expect(result.data[0].dispatchStatus).toBe('STAGED');
+      expect(result.summary.totalOrders).toBe(1);
+      expect(result.summary.stagedCount).toBe(1);
+      expect(result.summary.dispatchedCount).toBe(0);
+      expect(result.summary.inTransitCount).toBe(0);
+      expect(result.summary.deliveredCount).toBe(0);
+    });
+
     it('controller handles query and sets anti-caching headers', async () => {
       const user = { role: 'FINANCE_MANAGER', companyId: mockCompanyId };
       const mockRes = { set: jest.fn() };
