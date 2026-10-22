@@ -144,14 +144,28 @@ export class SalesService {
     };
 
     if (status) {
+      const validEnumValues = Object.values(SalesOrderStatus);
       if (status.includes(',')) {
         const statuses = status.split(',').map((s) => s.trim()).filter(Boolean);
-        where.OR = [
-          { status: { in: statuses as any } },
+        const validEnumStatuses = statuses.filter((s) =>
+          validEnumValues.includes(s as any),
+        ) as SalesOrderStatus[];
+
+        const statusOrBranches: Prisma.SalesOrderWhereInput[] = [
           { workflowState: { code: { in: statuses } } },
         ];
+        if (validEnumStatuses.length > 0) {
+          statusOrBranches.unshift({ status: { in: validEnumStatuses } });
+        }
+        where.OR = statusOrBranches;
       } else {
-        where.OR = [{ status: status as any }, { workflowState: { code: status } }];
+        const trimmedStatus = status.trim();
+        const isValidEnum = validEnumValues.includes(trimmedStatus as any);
+        if (isValidEnum) {
+          where.OR = [{ status: trimmedStatus as any }, { workflowState: { code: trimmedStatus } }];
+        } else {
+          where.workflowState = { code: trimmedStatus };
+        }
       }
     }
 

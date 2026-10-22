@@ -1961,7 +1961,7 @@ export default function DispatchOrdersPage() {
           addr && addr !== "N/A" && addr !== "Factory Staging Area" && addr !== "—" && addr.trim().length > 3 && !addr.includes("SCIENCE CITY ROAD");
 
         if (hasSpecificAddress(item.deliveryAddress)) {
-          if (!hasSpecificAddress(existing.deliveryAddress) || isMismatchedShyam(existing.customerName)) {
+          if (!hasSpecificAddress(existing.deliveryAddress) || isGenericCust(existing.customerName)) {
             existing.deliveryAddress = item.deliveryAddress;
           }
         }
