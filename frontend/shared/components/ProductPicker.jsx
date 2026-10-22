@@ -1,8 +1,118 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { backendFetch } from '../../lib/backendFetch';
 
 /**
- * Helper to perform smart multi-field, multi-token fuzzy/exact search with relevance scoring.
+ * Maps raw backend products into standardized sales items and precalculates
+ * normalized search tokens once for zero-latency fuzzy matching.
+ */
+function mapProducts(rawList) {
+  const salesProducts = rawList.filter(p => {
+    const type = (p.productType || p.product_type || '').toUpperCase();
+    const cat = (p.category || p.product_family || '').toLowerCase();
+    if (type === 'HARDWARE' || type === 'RAW_MATERIAL') return false;
+    if (type === 'MANUFACTURING' || type === 'TRADING') return true;
+    if (cat === 'raw material' || cat === 'electric') return false;
+    return true;
+  });
+
+  return salesProducts.map(p => {
+    let cat = p.dispatchCategory || 'NONE';
+    if (cat === 'DISPATCH 1') cat = 'D1';
+    if (cat === 'DISPATCH 2') cat = 'D2';
+
+    const displayName = p.name || 'Unknown Product';
+    const productCode = p.sku || p.publicId || 'N/A';
+    const brand = p.brand || p.category || '';
+    const hsn = p.hsnCode || '';
+    const desc = p.description || '';
+
+    return {
+      id: p.id,
+      public_id: p.publicId || p.id,
+      product_name: displayName,
+      display_name: displayName,
+      product_code: productCode,
+      brand,
+      category: p.category || p.brand || 'Other',
+      gst_rate: p.gstRate != null ? p.gstRate : 18,
+      hsn_sac_code: hsn,
+      unit_of_measure: p.unit || 'pcs',
+      dispatch_category: cat,
+      selling_price: Number(p.unitPrice || 0),
+      price: Number(p.unitPrice || 0),
+      description: desc,
+      productType: p.productType || 'MANUFACTURING',
+
+      // Pre-calculated search index (lowercase + alpha-numeric normalized)
+      _nameLower: displayName.toLowerCase(),
+      _codeLower: productCode.toLowerCase(),
+      _brandLower: brand.toLowerCase(),
+      _hsnLower: hsn.toLowerCase(),
+      _descLower: desc.toLowerCase(),
+      _nameNorm: displayName.toLowerCase().replace(/[^a-z0-9]/g, ''),
+      _codeNorm: productCode.toLowerCase().replace(/[^a-z0-9]/g, ''),
+    };
+  });
+}
+
+/**
+ * Shared singleton in-memory sales catalog cache.
+ * Avoids redundant 2.5MB payload downloads across multiple rows and page switches.
+ */
+let globalSalesCatalog = null;
+let globalSalesCatalogPromise = null;
+const globalCatalogListeners = new Set();
+
+function notifyCatalogListeners(catalog) {
+  globalCatalogListeners.forEach(listener => {
+    try { listener(catalog); } catch (_) {}
+  });
+}
+
+export async function fetchSalesCatalogSingleton() {
+  if (globalSalesCatalog && globalSalesCatalog.length > 0) {
+    return globalSalesCatalog;
+  }
+  if (globalSalesCatalogPromise) {
+    return globalSalesCatalogPromise;
+  }
+
+  globalSalesCatalogPromise = (async () => {
+    try {
+      const response = await backendFetch('/api/backend/products?scope=sales', { cacheTtlMs: 120000 });
+      const products = Array.isArray(response) ? response : response?.data || [];
+      const mapped = mapProducts(products);
+      globalSalesCatalog = mapped;
+      notifyCatalogListeners(mapped);
+      return mapped;
+    } catch (err) {
+      console.warn('[ProductPicker] Failed to fetch sales catalog:', err);
+      return [];
+    } finally {
+      globalSalesCatalogPromise = null;
+    }
+  })();
+
+  return globalSalesCatalogPromise;
+}
+
+// Gentle idle prefetch: loads catalog in the background without blocking initial UI
+if (typeof window !== 'undefined') {
+  const idlePrefetch = () => {
+    if (!globalSalesCatalog && !globalSalesCatalogPromise) {
+      fetchSalesCatalogSingleton();
+    }
+  };
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(idlePrefetch, { timeout: 2500 });
+  } else {
+    setTimeout(idlePrefetch, 800);
+  }
+}
+
+/**
+ * High-performance smart multi-token fuzzy/exact search with relevance scoring.
+ * Uses pre-computed lowercase fields to eliminate string allocations in inner loops.
  */
 function smartSearchProducts(items, searchQuery) {
   if (!searchQuery || !searchQuery.trim()) return items;
@@ -12,15 +122,15 @@ function smartSearchProducts(items, searchQuery) {
   const tokens = raw.split(/\s+/).filter(Boolean);
   const scored = [];
 
-  for (const p of items) {
-    const name = (p.display_name || p.product_name || '').toLowerCase();
-    const code = (p.product_code || '').toLowerCase();
-    const brand = (p.brand || p.category || '').toLowerCase();
-    const hsn = (p.hsn_sac_code || '').toLowerCase();
-    const desc = (p.description || '').toLowerCase();
-
-    const normName = name.replace(/[^a-z0-9]/g, '');
-    const normCode = code.replace(/[^a-z0-9]/g, '');
+  for (let i = 0; i < items.length; i++) {
+    const p = items[i];
+    const name = p._nameLower;
+    const code = p._codeLower;
+    const brand = p._brandLower;
+    const hsn = p._hsnLower;
+    const desc = p._descLower;
+    const normName = p._nameNorm;
+    const normCode = p._codeNorm;
 
     let score = 0;
 
@@ -32,23 +142,23 @@ function smartSearchProducts(items, searchQuery) {
     }
 
     // 2. Starts with query
-    if (code.startsWith(raw) || normCode.startsWith(normalized)) {
+    if (code.startsWith(raw) || (normalized && normCode.startsWith(normalized))) {
       score += 80;
     }
-    if (name.startsWith(raw) || normName.startsWith(normalized)) {
+    if (name.startsWith(raw) || (normalized && normName.startsWith(normalized))) {
       score += 65;
     }
 
     // 3. Substring match
     if (code.includes(raw)) score += 40;
     if (name.includes(raw)) score += 35;
-    if (normCode.includes(normalized) && normalized.length >= 2) score += 30;
-    if (normName.includes(normalized) && normalized.length >= 2) score += 25;
+    if (normalized.length >= 2 && normCode.includes(normalized)) score += 30;
+    if (normalized.length >= 2 && normName.includes(normalized)) score += 25;
     if (brand.includes(raw)) score += 20;
     if (hsn.includes(raw)) score += 20;
     if (desc.includes(raw)) score += 15;
 
-    // 4. Multi-token match: all tokens present across any product attributes
+    // 4. Multi-token match: all tokens present across attributes
     if (tokens.length > 1) {
       const allTokensMatch = tokens.every(t => {
         const normT = t.replace(/[^a-z0-9]/g, '');
@@ -74,39 +184,39 @@ function smartSearchProducts(items, searchQuery) {
 }
 
 /**
- * Highlights matching search tokens in text strings.
+ * Highlights matching search tokens in text strings safely without regex compilation lag.
  */
-function highlightMatch(text, q) {
-  if (!text || !q || !q.trim()) return text;
-  const tokens = q.trim().split(/\s+/).filter(Boolean).map(t => t.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'));
-  if (tokens.length === 0) return text;
-  const regex = new RegExp(`(${tokens.join('|')})`, 'gi');
+function highlightMatch(text, query) {
+  if (!text || !query || !query.trim()) return text;
+  const rawTokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (rawTokens.length === 0) return text;
+
+  const escaped = rawTokens.map(t => t.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|');
+  const regex = new RegExp(`(${escaped})`, 'gi');
   const parts = String(text).split(regex);
-  return parts.map((part, i) =>
-    regex.test(part) ? (
+  if (parts.length <= 1) return text;
+
+  return parts.map((part, i) => {
+    const isMatch = rawTokens.includes(part.toLowerCase());
+    return isMatch ? (
       <mark key={i} style={{ background: '#fef08a', color: '#854d0e', fontWeight: 800, padding: '0 1px', borderRadius: '2px' }}>
         {part}
       </mark>
-    ) : part
-  );
+    ) : part;
+  });
 }
 
+// Dispatch badge styling
+const DISPATCH_BADGE = {
+  'D1':         { label: 'D1', bg: 'rgba(99,102,241,0.18)', color: '#818cf8' },
+  'D2':         { label: 'D2', bg: 'rgba(16,185,129,0.18)', color: '#34d399' },
+  'DISPATCH 1': { label: 'D1', bg: 'rgba(99,102,241,0.18)', color: '#818cf8' },
+  'DISPATCH 2': { label: 'D2', bg: 'rgba(16,185,129,0.18)', color: '#34d399' },
+  'NONE':       { label: '—',  bg: 'rgba(100,116,139,0.18)', color: '#8893A7' },
+};
+
 /**
- * ProductPicker — Centralized, searchable product selector.
- *
- * Props:
- *  value         — { id, product_code, display_name, brand, gst_rate, hsn_sac_code, unit_of_measure, dispatch_category }
- *  onChange      — called with selected product object (or null on clear)
- *  onOpenChange  — optional callback when dropdown opens/closes
- *  categoryId    — optional: pre-filter by category
- *  dispatchCat   — optional: pre-filter by dispatch category ('DISPATCH 1' | 'DISPATCH 2')
- *  placeholder   — input placeholder text
- *  disabled      — disables the picker
- *  className     — extra classes for the container
- *  showBadge     — show dispatch badge next to result (default: true)
- *  label         — visible label above the input
- *  required      — marks field as required
- *  error         — error message string
+ * ProductPicker — Centralized, ultra-fast searchable product selector.
  */
 export default function ProductPicker({
   value = null,
@@ -129,7 +239,6 @@ export default function ProductPicker({
   const [open, setOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  const catalogRef = useRef([]);
   const debounceRef = useRef(null);
   const searchSeqRef = useRef(0);
   const containerRef = useRef(null);
@@ -149,76 +258,33 @@ export default function ProductPicker({
     if (onOpenChange) onOpenChange(isOpen);
   }, [onOpenChange]);
 
-  // Dispatch badge styling
-  const DISPATCH_BADGE = {
-    'D1':         { label: 'D1', bg: 'rgba(99,102,241,0.18)', color: '#818cf8' },
-    'D2':         { label: 'D2', bg: 'rgba(16,185,129,0.18)', color: '#34d399' },
-    'DISPATCH 1': { label: 'D1', bg: 'rgba(99,102,241,0.18)', color: '#818cf8' },
-    'DISPATCH 2': { label: 'D2', bg: 'rgba(16,185,129,0.18)', color: '#34d399' },
-    'NONE':       { label: '—',  bg: 'rgba(100,116,139,0.18)', color: '#8893A7' },
-  };
-
-  const mapProducts = useCallback((rawList) => {
-    // Filter out internal Hardware and Raw Materials (unless explicitly MANUFACTURING or TRADING)
-    const salesProducts = rawList.filter(p => {
-      const type = (p.productType || p.product_type || '').toUpperCase();
-      const cat = (p.category || p.product_family || '').toLowerCase();
-      if (type === 'HARDWARE' || type === 'RAW_MATERIAL') return false;
-      if (type === 'MANUFACTURING' || type === 'TRADING') return true;
-      if (cat === 'raw material' || cat === 'electric') return false;
-      return true;
-    });
-
-    return salesProducts.map(p => {
-      let cat = p.dispatchCategory || 'NONE';
-      if (cat === 'DISPATCH 1') cat = 'D1';
-      if (cat === 'DISPATCH 2') cat = 'D2';
-      return {
-        id: p.id,
-        public_id: p.publicId || p.id,
-        product_name: p.name || 'Unknown Product',
-        product_code: p.sku || p.publicId || 'N/A',
-        brand: p.brand || p.category || '',
-        category: p.category || p.brand || 'Other',
-        gst_rate: p.gstRate != null ? p.gstRate : 18,
-        hsn_sac_code: p.hsnCode || '',
-        unit_of_measure: p.unit || 'pcs',
-        dispatch_category: cat,
-        selling_price: Number(p.unitPrice || 0),
-        price: Number(p.unitPrice || 0),
-        description: p.description || '',
-        productType: p.productType || 'MANUFACTURING',
-      };
-    });
-  }, []);
-
-  // Fetch full sales catalog once and cache in memory for 0ms instant smart search
-  const fetchCatalog = useCallback(async () => {
-    if (catalogRef.current.length > 0) return catalogRef.current;
-    try {
-      const response = await backendFetch('/api/backend/products?scope=sales', { cacheTtlMs: 30000 });
-      const products = Array.isArray(response) ? response : response?.data || [];
-      const mapped = mapProducts(products);
-      catalogRef.current = mapped;
-      return mapped;
-    } catch {
-      return [];
+  // Apply optional category or dispatch category prop filters
+  const applyPropFilters = useCallback((list) => {
+    let items = list;
+    if (dispatchCat) {
+      const norm = (dispatchCat === 'DISPATCH 1' || dispatchCat === 'D1') ? 'D1' : (dispatchCat === 'DISPATCH 2' || dispatchCat === 'D2') ? 'D2' : dispatchCat;
+      items = items.filter(p => p.dispatch_category === norm);
     }
-  }, [mapProducts]);
+    if (categoryId) {
+      items = items.filter(p => p.category === categoryId || p.brand === categoryId);
+    }
+    return items;
+  }, [categoryId, dispatchCat]);
 
-  // Combined smart search: 0ms instant client search + debounced backend query
+  // Combined smart search: 0ms instant client search + debounced backend sync
   const executeSearch = useCallback(async (q) => {
     const currentSeq = ++searchSeqRef.current;
+    const baseCatalog = globalSalesCatalog ? applyPropFilters(globalSalesCatalog) : [];
 
-    // 1. Instant client-side search from loaded catalog
-    if (catalogRef.current.length > 0) {
-      const filtered = smartSearchProducts(catalogRef.current, q);
+    // 1. Instant client-side search from loaded memory catalog
+    if (baseCatalog.length > 0) {
+      const filtered = smartSearchProducts(baseCatalog, q);
       setResults(filtered);
     }
 
-    // 2. Fetch or update from backend
-    if (catalogRef.current.length === 0 || q.trim().length > 1) {
-      setLoading(true);
+    // 2. Fetch or update from backend if not yet cached or user typed a query
+    if (!globalSalesCatalog || q.trim().length > 1) {
+      if (!globalSalesCatalog) setLoading(true);
       try {
         const queryParams = new URLSearchParams();
         queryParams.set('scope', 'sales');
@@ -228,22 +294,28 @@ export default function ProductPicker({
         const products = Array.isArray(response) ? response : response?.data || [];
         const mapped = mapProducts(products);
 
-        // Guard against stale asynchronous responses
         if (currentSeq === searchSeqRef.current) {
-          if (catalogRef.current.length === 0 && !q.trim()) {
-            catalogRef.current = mapped;
-          } else {
+          if (!globalSalesCatalog && !q.trim()) {
+            globalSalesCatalog = mapped;
+            notifyCatalogListeners(mapped);
+          } else if (globalSalesCatalog && mapped.length > 0) {
             // Merge any uniquely returned products into local catalog cache
-            const existingIds = new Set(catalogRef.current.map(p => p.id));
+            const existingIds = new Set(globalSalesCatalog.map(p => p.id));
+            let added = false;
             mapped.forEach(p => {
-              if (!existingIds.has(p.id)) catalogRef.current.push(p);
+              if (!existingIds.has(p.id)) {
+                globalSalesCatalog.push(p);
+                added = true;
+              }
             });
+            if (added) notifyCatalogListeners(globalSalesCatalog);
           }
-          const finalFiltered = smartSearchProducts(catalogRef.current, q);
-          setResults(finalFiltered);
+
+          const currentCatalog = globalSalesCatalog ? applyPropFilters(globalSalesCatalog) : mapped;
+          setResults(smartSearchProducts(currentCatalog, q));
         }
       } catch {
-        if (currentSeq === searchSeqRef.current && catalogRef.current.length === 0) {
+        if (currentSeq === searchSeqRef.current && (!globalSalesCatalog || globalSalesCatalog.length === 0)) {
           setResults([]);
         }
       } finally {
@@ -252,43 +324,53 @@ export default function ProductPicker({
         }
       }
     }
-  }, [mapProducts]);
+  }, [applyPropFilters]);
 
+  // Subscribe to singleton catalog updates (e.g. background prefetch completion)
+  useEffect(() => {
+    const onCatalogUpdate = (catalog) => {
+      const filtered = applyPropFilters(catalog);
+      setResults(smartSearchProducts(filtered, query));
+    };
+    globalCatalogListeners.add(onCatalogUpdate);
+    return () => {
+      globalCatalogListeners.delete(onCatalogUpdate);
+    };
+  }, [query, applyPropFilters]);
+
+  // React to query changes
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+
     if (!query.trim()) {
-      if (catalogRef.current.length > 0) {
-        setResults(catalogRef.current);
-      } else {
-        debounceRef.current = setTimeout(() => executeSearch(''), 0);
+      if (globalSalesCatalog && globalSalesCatalog.length > 0) {
+        setResults(applyPropFilters(globalSalesCatalog));
       }
     } else {
-      // Run instant filter on existing cache
-      if (catalogRef.current.length > 0) {
-        setResults(smartSearchProducts(catalogRef.current, query));
+      // Instant 0ms filter on memory cache
+      if (globalSalesCatalog && globalSalesCatalog.length > 0) {
+        setResults(smartSearchProducts(applyPropFilters(globalSalesCatalog), query));
       }
-      // Debounce server verification
-      debounceRef.current = setTimeout(() => executeSearch(query), 200);
+      // Debounce server query for new items
+      debounceRef.current = setTimeout(() => executeSearch(query), 220);
     }
-    return () => clearTimeout(debounceRef.current);
-  }, [query, executeSearch]);
 
-  // Close on outside click or touch
+    return () => clearTimeout(debounceRef.current);
+  }, [query, applyPropFilters, executeSearch]);
+
+  // Close dropdown on outside tap / click — only registered when dropdown is open
   useEffect(() => {
+    if (!open) return;
     const handler = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         handleSetOpen(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    document.addEventListener('touchstart', handler);
     document.addEventListener('pointerdown', handler);
     return () => {
-      document.removeEventListener('mousedown', handler);
-      document.removeEventListener('touchstart', handler);
       document.removeEventListener('pointerdown', handler);
     };
-  }, [handleSetOpen]);
+  }, [open, handleSetOpen]);
 
   const handleSelect = (product) => {
     onChange && onChange(product);
@@ -304,24 +386,34 @@ export default function ProductPicker({
 
   const handleInputFocus = () => {
     handleSetOpen(true);
-    if (catalogRef.current.length === 0) {
-      void fetchCatalog().then(items => {
-        setResults(smartSearchProducts(items, query));
+    if (!globalSalesCatalog || globalSalesCatalog.length === 0) {
+      setLoading(true);
+      void fetchSalesCatalogSingleton().then(items => {
+        setLoading(false);
+        const filtered = applyPropFilters(items);
+        setResults(smartSearchProducts(filtered, query));
       });
     } else {
-      setResults(smartSearchProducts(catalogRef.current, query));
+      setResults(smartSearchProducts(applyPropFilters(globalSalesCatalog), query));
     }
   };
 
-  // Group results by real category for display with item counts
-  const grouped = results.reduce((acc, p) => {
-    const family = (p.category || p.brand || p.product_family || 'Standard Products').trim().toUpperCase();
-    if (!acc[family]) acc[family] = [];
-    acc[family].push(p);
-    return acc;
-  }, {});
+  // Crucial performance limiter: cap rendered items to avoid 30,000+ DOM nodes on mobile
+  const MAX_RENDER_ITEMS = isMobile ? 35 : 60;
+  const visibleResults = useMemo(() => results.slice(0, MAX_RENDER_ITEMS), [results, MAX_RENDER_ITEMS]);
+  const hasMore = results.length > MAX_RENDER_ITEMS;
 
-  const badge = (p) => {
+  // Group ONLY visible results to keep grouping cost <1ms
+  const grouped = useMemo(() => {
+    return visibleResults.reduce((acc, p) => {
+      const family = (p.category || p.brand || p.product_family || 'Standard Products').trim().toUpperCase();
+      if (!acc[family]) acc[family] = [];
+      acc[family].push(p);
+      return acc;
+    }, {});
+  }, [visibleResults]);
+
+  const renderBadge = (p) => {
     const b = DISPATCH_BADGE[p.dispatch_category] || DISPATCH_BADGE['NONE'];
     return (
       <span style={{
@@ -370,7 +462,7 @@ export default function ProductPicker({
             boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
           }}
         >
-          {showBadge && badge(value)}
+          {showBadge && renderBadge(value)}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {value.display_name || value.product_name}
@@ -381,6 +473,7 @@ export default function ProductPicker({
           </div>
           {!disabled && (
             <button
+              type="button"
               onClick={handleClear}
               style={{
                 background: '#fee2e2', border: 'none', cursor: 'pointer',
@@ -447,7 +540,7 @@ export default function ProductPicker({
         <div style={{ fontSize: '12px', color: '#f87171', marginTop: '4px' }}>{error}</div>
       )}
 
-      {/* Dropdown — Responsive center-aligned on mobile, sleek clamped on desktop */}
+      {/* Dropdown — Optimized for touch and mobile viewports */}
       {open && !disabled && (
         <div
           className="product-picker-dropdown"
@@ -466,6 +559,8 @@ export default function ProductPicker({
             zIndex: 2147483647,
             maxHeight: isMobile ? 'min(340px, 48vh)' : '320px',
             overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
             boxShadow: '0 16px 40px rgba(15,23,42,0.24), 0 4px 12px rgba(0,0,0,0.08)',
           }}
         >
@@ -485,7 +580,7 @@ export default function ProductPicker({
                 background: '#e2e8f0', color: '#334155', padding: '1px 6px',
                 borderRadius: '10px', fontSize: '10px', fontWeight: 700
               }}>
-                {results.length}
+                {hasMore ? `${MAX_RENDER_ITEMS} of ${results.length}` : results.length}
               </span>
             </span>
             <button
@@ -503,7 +598,8 @@ export default function ProductPicker({
 
           {loading && results.length === 0 && (
             <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
-              Searching catalog…
+              <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', marginRight: '6px' }}>⟳</span>
+              Loading catalog…
             </div>
           )}
 
@@ -539,15 +635,17 @@ export default function ProductPicker({
                   onClick={() => handleSelect(p)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '10px',
-                    padding: isMobile ? '10px 12px' : '9px 12px',
+                    padding: isMobile ? '11px 12px' : '9px 12px',
+                    minHeight: isMobile ? '44px' : 'auto',
                     cursor: 'pointer',
                     transition: 'background 0.12s ease',
                     borderBottom: '1px solid #f8fafc',
+                    touchAction: 'manipulation',
                   }}
                   onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
-                  {showBadge && badge(p)}
+                  {showBadge && renderBadge(p)}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
                       fontSize: '13px', fontWeight: 700, color: '#1e293b',
@@ -578,6 +676,24 @@ export default function ProductPicker({
               ))}
             </div>
           ))}
+
+          {/* Results count cap footer to inform user on mobile */}
+          {hasMore && (
+            <div style={{
+              padding: '10px 14px',
+              textAlign: 'center',
+              background: '#f8fafc',
+              borderTop: '1px solid #e2e8f0',
+              color: '#64748b',
+              fontSize: '11.5px',
+              fontWeight: 600
+            }}>
+              Showing top {MAX_RENDER_ITEMS} of {results.length.toLocaleString()} matching products.
+              <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '2px' }}>
+                Type product name, code, or size to narrow search.
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

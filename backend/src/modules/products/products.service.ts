@@ -401,10 +401,33 @@ export class ProductsService {
       scope === 'production' ||
       scope === 'dispatch';
 
-    const products = await this.prisma.product.findMany({
+    const findArgs: any = {
       where,
       orderBy: isDailyReportScope ? { name: 'asc' } : { createdAt: 'desc' },
-    });
+    };
+
+    if (scope === 'sales') {
+      findArgs.select = {
+        id: true,
+        publicId: true,
+        name: true,
+        sku: true,
+        category: true,
+        brand: true,
+        gstRate: true,
+        hsnCode: true,
+        unit: true,
+        dispatchCategory: true,
+        unitPrice: true,
+        description: true,
+        productType: true,
+      };
+      if (search && search.trim()) {
+        findArgs.take = 80;
+      }
+    }
+
+    const products = await this.prisma.product.findMany(findArgs);
 
     if (scope === 'catalog') {
       return products.filter(isCatalogProduct);

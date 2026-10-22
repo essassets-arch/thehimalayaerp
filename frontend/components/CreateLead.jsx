@@ -3,112 +3,13 @@ import { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, User, MapPin, FlaskConical, Package, Search, AlertCircle, Trash2, Plus, Truck, Loader2, Check } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../shared/context/AuthContext';
-import { useERPStore } from '../shared/context/ERPContext';
 import { backendFetch } from '../lib/backendFetch';
 import ProductPicker from '../shared/components/ProductPicker';
 import { useFormDraft } from '../shared/hooks/useFormDraft';
 import { displayEntityId } from '../store/idGenerator';
 
-const PRODUCT_CATALOG = {
-  'FRC Manhole Covers': {
-    'Square Frame Round Cover': [
-      { name: 'Square Frame Round Cover 24x24', code: 'FRCSQRC2424' },
-      { name: 'Square Frame Round Cover 30x30', code: 'FRCSQRC3030' }
-    ],
-    'Round Frame Round Cover': [
-      { name: 'Round Frame Round Cover 18 Dia', code: 'FRCRFRC18' },
-      { name: 'Round Frame Round Cover 24 Dia', code: 'FRCRFRC24' }
-    ],
-    'Square Frame Square Cover': [
-      { name: 'Square Frame Square Cover 12x12', code: 'FRCSFSC1212' },
-      { name: 'Square Frame Square Cover 18x18', code: 'FRCSFSC1818' },
-      { name: 'Square Frame Square Cover 24x24', code: 'FRCSFSC2424' }
-    ],
-    'Round Covers': [
-      { name: 'Round Cover 18 Dia', code: 'FRCROFROC18' },
-      { name: 'Round Cover 24 Dia', code: 'FRCROFROC24' }
-    ],
-    'Cover Plates': [
-      { name: 'Cover Plate Standard', code: 'FRCCP-STD' }
-    ],
-    'Gully Tops': [
-      { name: 'Gully Top Standard', code: 'FRCGT-STD' }
-    ],
-    'Trench Covers (Open Channel)': [
-      { name: 'Trench Cover (Open Channel) Standard', code: 'FRCTSOC-STD' }
-    ],
-    'Trench Covers (Precast)': [
-      { name: 'Trench Cover (Precast) Standard', code: 'FRCTPEC-STD' }
-    ]
-  },
-  'Concrete Cover Blocks': {
-    'Wall Cover Blocks': [
-      { name: 'Wall Cover Block 20mm', code: 'WCB-20' },
-      { name: 'Wall Cover Block 25mm', code: 'WCB-25' }
-    ],
-    'Pile Cover Blocks': [
-      { name: 'Pile Cover Block 50mm', code: 'PCB-50' },
-      { name: 'Pile Cover Block 75mm', code: 'PCB-75' }
-    ],
-    'Heavy Duty Cover Blocks': [
-      { name: 'Heavy Duty Cover Block 40mm', code: 'HTCB-40' },
-      { name: 'Heavy Duty Cover Block 50mm', code: 'HTCB-50' }
-    ],
-    'Double Tie Cover Blocks': [
-      { name: 'Double Tie Cover Block 35mm', code: 'DTCB-35' },
-      { name: 'Double Tie Cover Block 40mm', code: 'DTCB-40' }
-    ]
-  },
-  'FRP Manhole Covers': {
-    'Square Manhole Covers': [
-      { name: 'FRP Square Manhole Cover 24x24', code: 'FRPMHC2424' },
-      { name: 'HIMALAYA FRP Square Manhole Cover 30x30', code: 'HIM-FRP-MHC3030' }
-    ],
-    'Round Manhole Covers': [
-      { name: 'FRP Round Manhole Cover 18 Dia', code: 'FRPMHC18DIA' },
-      { name: 'FRP Round Manhole Cover 24 Dia', code: 'FRPMHC24DIA' }
-    ]
-  },
-  'FRP Rainwater Covers': {
-    'Rainwater Covers': [
-      { name: 'HIMALAYA FRP Rainwater Cover Standard', code: 'HIM-FRP-RCS-STD' }
-    ]
-  },
-  'FRP Water Gully Covers': {
-    'Water Gully Covers': [
-      { name: 'HIMALAYA FRP Water Gully Cover Standard', code: 'HIM-FRP-WGC-STD' }
-    ]
-  },
-  'FRP Open Drain Covers': {
-    'Open Drain Covers': [
-      { name: 'HIMALAYA FRP Open Drain Cover Standard', code: 'HIM-FRP-ONGC-STD' }
-    ]
-  },
-  'FRP Gratings': {
-    'Moulded Gratings': [
-      { name: 'FRP Moulded Grating 38mm', code: 'FRP-MOULDED-GRATING-38' }
-    ]
-  }
-};
-
 export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, editingLead, onDeleteLead, leads = [] }) {
   const { user } = useAuth();
-  const erpState = useERPStore(s => s.state);
-  const dbCatalog = erpState?.productCatalog || [];
-  const currentCatalog = dbCatalog.length > 0
-    ? dbCatalog.map(p => ({
-        name: p.name,
-        code: p.id || p.code,
-        price: Number(p.price || p.selling_price || 100),
-        gst: Number(p.gst || p.gst_rate || 18),
-        description: p.description || ''
-      }))
-    : Object.values(PRODUCT_CATALOG).flatMap(subCats => Object.values(subCats).flat()).map(p => ({
-        ...p,
-        price: 100,
-        gst: 18,
-        description: ''
-      }));
 
   const getDefaultSpecification = (productName, catalogProduct) => {
     if (catalogProduct?.description?.trim()) return catalogProduct.description.trim();
