@@ -580,6 +580,9 @@ export class ProductionWorkflowController {
     'production.qc.read',
     'production.productionworkflow.read',
     'logistics.dispatches.read',
+    'finance.read',
+    'finance.invoices.read',
+    'sales.orders.read',
   )
   async getReadyForDispatchHistory(@Req() req: any) {
     const data = await this.workflowService.getReadyForDispatchHistory(

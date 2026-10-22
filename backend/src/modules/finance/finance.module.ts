@@ -12,6 +12,8 @@ import { FinanceSalesAnalyticsMetricService } from './finance-sales-analytics-me
 import { PaymentFollowupEngineService } from './payment-followup-engine.service';
 import { FinanceReportsController } from './finance-reports.controller';
 import { FinanceReportsService } from './finance-reports.service';
+import { FinanceReadyForDispatchController } from './finance-ready-for-dispatch.controller';
+import { FinanceReadyForDispatchService } from './finance-ready-for-dispatch.service';
 import { WorkflowModule } from '../workflow/workflow.module';
 
 @Module({
@@ -22,6 +24,7 @@ import { WorkflowModule } from '../workflow/workflow.module';
     LedgerController,
     FinanceSalesAnalyticsController,
     FinanceReportsController,
+    FinanceReadyForDispatchController,
   ],
   providers: [
     InvoicesService,
@@ -32,6 +35,7 @@ import { WorkflowModule } from '../workflow/workflow.module';
     FinanceSalesAnalyticsService,
     FinanceSalesAnalyticsMetricService,
     FinanceReportsService,
+    FinanceReadyForDispatchService,
   ],
   exports: [
     LedgerService,
@@ -40,6 +44,7 @@ import { WorkflowModule } from '../workflow/workflow.module';
     PaymentFollowupEngineService,
     PaymentsService,
     FinanceReportsService,
+    FinanceReadyForDispatchService,
   ],
 })
 export class FinanceModule {}

@@ -7,7 +7,7 @@ import {
   Clock, Users, FileText, AlertTriangle, ChevronRight, Zap, RefreshCw,
   BarChart3, CreditCard, Building, ArrowDownRight, Award, CheckSquare,
   AlertCircle, FileCheck, Layers, PieChart as PieChartIcon, Calendar,
-  ArrowRight, Activity, Percent, ShieldCheck
+  ArrowRight, Activity, Percent, ShieldCheck, Truck
 } from 'lucide-react';
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -1533,6 +1533,29 @@ export default function FinanceManagerDashboardView({
               </div>
               <span style={{ fontSize: '13px', fontWeight: '800', color: PALETTE.slate }}>Customer Ledger</span>
               <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Account balances</span>
+            </button>
+
+            <button
+              onClick={() => router.push('/finance/ready-for-dispatch')}
+              style={{
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                borderRadius: '12px',
+                padding: '14px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: '8px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ background: '#F0FDF4', padding: '6px', borderRadius: '8px', color: '#16A34A' }}>
+                <Truck size={18} />
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: '800', color: PALETTE.slate }}>Ready for Dispatch</span>
+              <span style={{ fontSize: '11px', color: PALETTE.slateMuted }}>Production staging</span>
             </button>
           </div>
         </div>

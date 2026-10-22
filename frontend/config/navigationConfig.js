@@ -267,12 +267,13 @@ export const navigationConfig = {
       icon: BadgeCheck,
       path: '/finance-executive/payment-verification',
       subItems: [
-        { id: 'payment-verification-queue', label: 'Payment Verification Queue', path: '/finance-executive/payment-verification' },
+        { id: 'payment-verification', label: 'Payment Verification Queue', path: '/finance-executive/payment-verification' },
         { id: 'payment-receipts', label: 'Payment Receipts', path: '/finance-executive/receipts' },
         { id: 'outstanding-payments', label: 'Outstanding Payments', path: '/finance-executive/outstanding' },
         { id: 'customers', label: 'Customers', path: '/finance-executive/customers' },
       ],
     },
+    { id: 'ready-for-dispatch', label: 'Ready for Dispatch', icon: Truck, path: '/finance/ready-for-dispatch' },
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/finance-executive/reports' },
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/finance-executive/profile' }
   ],
@@ -280,6 +281,7 @@ export const navigationConfig = {
   'Finance': [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, path: '/finance/dashboard' },
     { id: 'monthly-sales-collection', label: 'Monthly Sales & Collection', icon: TrendingUp, path: '/finance/monthly-sales-collection' },
+    { id: 'ready-for-dispatch', label: 'Ready for Dispatch', icon: Truck, path: '/finance/ready-for-dispatch' },
     { id: 'daily-tasks', label: 'Daily Tasks', icon: ClipboardList, path: '/finance/daily-tasks' },
     {
       id: 'payment-verification',

@@ -43,11 +43,13 @@ import SalesAnalyticsSummaryCard from '../components/SalesAnalyticsSummaryCard';
 import SalesPortal from '../../sales/pages/SalesPortal';
 import FinanceManagerDashboardView from '../components/FinanceManagerDashboardView';
 import ExpenseManagementView from '../../../shared/components/ExpenseManagementView';
+import FinanceReadyForDispatchView from '../components/FinanceReadyForDispatchView';
 
 const financeMenu = {
   "Finance": [
     "dashboard",
     "monthly-sales-collection",
+    "ready-for-dispatch",
     "daily-tasks",
     "sales",
     "sales-analytics",
@@ -78,6 +80,7 @@ const financeMenu = {
   "finance-lead": [
     "dashboard",
     "monthly-sales-collection",
+    "ready-for-dispatch",
     "daily-tasks",
     "sales",
     "sales-analytics",
@@ -108,6 +111,7 @@ const financeMenu = {
   "finance-executive": [
     "dashboard",
     "payment-verification",
+    "ready-for-dispatch",
     "daily-tasks",
     "receipts",
     "outstanding",
@@ -120,6 +124,7 @@ const financeMenu = {
   "Super Admin": [
     "dashboard",
     "monthly-sales-collection",
+    "ready-for-dispatch",
     "daily-tasks",
     "sales",
     "sales-analytics",
@@ -4173,6 +4178,7 @@ export default function FinancePortal({ initialView, forceView }) {
     <>
       {view === 'dashboard' && renderDashboard()}
       {view === 'monthly-sales-collection' && <div data-testid="finance-monthly-sales-view" className="sales-portal-view"><FinanceMonthlySalesWorkspace /></div>}
+      {view === 'ready-for-dispatch' && <div data-testid="finance-ready-for-dispatch-view" className="sales-portal-view"><FinanceReadyForDispatchView /></div>}
       {(view === 'sales' || view === 'sales-analytics') && <div data-testid="finance-sales-view" className="sales-portal-view">{renderFinanceSalesWorkspace()}</div>}
       {view === 'profile' && <div data-testid="finance-profile-view" className="sales-portal-view"><MyProfileView /></div>}
       {view === 'invoices' && <div data-testid="finance-invoices-view" className="sales-portal-view">{renderInvoices()}</div>}

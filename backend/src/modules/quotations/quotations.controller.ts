@@ -56,7 +56,12 @@ export class QuotationsController {
   }
 
   @Get(':id')
-  @RequirePermissions('crm.quotations.read')
+  @RequirePermissions(
+    'crm.quotations.read',
+    'sales.orders.read',
+    'finance.read',
+    'finance.invoices.read',
+  )
   async getQuotation(@Param('id') id: string, @Req() req: any) {
     const result = await this.quotationsService.getQuotation(
       id,
