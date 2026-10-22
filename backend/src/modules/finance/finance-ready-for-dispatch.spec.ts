@@ -243,5 +243,76 @@ describe('FinanceReadyForDispatch', () => {
       expect(result.success).toBe(true);
       expect(result.data.length).toBe(1);
     });
+
+    it('correctly partitions distinct data slices across page 1 and page 2 without repetition', async () => {
+      const user = { role: 'FINANCE_MANAGER', companyId: mockCompanyId };
+      const multiOrders = [
+        {
+          ...mockWorkOrders[0],
+          id: 'wo-1',
+          workOrderNumber: 'WO-1',
+          sentToDispatchAt: new Date('2026-10-21T10:00:00.000Z'),
+          productionPlan: {
+            ...mockWorkOrders[0].productionPlan,
+            salesOrder: {
+              ...mockWorkOrders[0].productionPlan.salesOrder,
+              id: 'so-1',
+              orderNumber: 'HCPPL/2627/0510',
+            },
+          },
+        },
+        {
+          ...mockWorkOrders[0],
+          id: 'wo-2',
+          workOrderNumber: 'WO-2',
+          sentToDispatchAt: new Date('2026-10-20T10:00:00.000Z'),
+          productionPlan: {
+            ...mockWorkOrders[0].productionPlan,
+            salesOrder: {
+              ...mockWorkOrders[0].productionPlan.salesOrder,
+              id: 'so-2',
+              orderNumber: 'HCPPL/2627/0525',
+            },
+          },
+        },
+        {
+          ...mockWorkOrders[0],
+          id: 'wo-3',
+          workOrderNumber: 'WO-3',
+          sentToDispatchAt: new Date('2026-10-19T10:00:00.000Z'),
+          productionPlan: {
+            ...mockWorkOrders[0].productionPlan,
+            salesOrder: {
+              ...mockWorkOrders[0].productionPlan.salesOrder,
+              id: 'so-3',
+              orderNumber: 'HCPPL/2627/0457',
+            },
+          },
+        },
+      ];
+
+      prisma.workOrder.findMany.mockResolvedValueOnce(multiOrders);
+      const page1 = await service.getReadyForDispatchOrders(user, { page: 1, limit: 1 });
+      expect(page1.pagination.totalItems).toBe(3);
+      expect(page1.pagination.totalPages).toBe(3);
+      expect(page1.pagination.currentPage).toBe(1);
+      expect(page1.data.length).toBe(1);
+      expect(page1.data[0].salesOrderNumber).toBe('HCPPL/2627/0510');
+
+      prisma.workOrder.findMany.mockResolvedValueOnce(multiOrders);
+      const page2 = await service.getReadyForDispatchOrders(user, { page: 2, limit: 1 });
+      expect(page2.pagination.currentPage).toBe(2);
+      expect(page2.data.length).toBe(1);
+      expect(page2.data[0].salesOrderNumber).toBe('HCPPL/2627/0525');
+
+      // Verify page 1 and page 2 have completely distinct orders
+      expect(page1.data[0].salesOrderNumber).not.toBe(page2.data[0].salesOrderNumber);
+
+      prisma.workOrder.findMany.mockResolvedValueOnce(multiOrders);
+      const page3 = await service.getReadyForDispatchOrders(user, { page: 3, limit: 1 });
+      expect(page3.pagination.currentPage).toBe(3);
+      expect(page3.data.length).toBe(1);
+      expect(page3.data[0].salesOrderNumber).toBe('HCPPL/2627/0457');
+    });
   });
 });

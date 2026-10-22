@@ -105,14 +105,24 @@ export default function FinanceReadyForDispatchView() {
         cacheTtlMs: 0,
       });
 
-      if (res && res.success) {
-        setOrders(Array.isArray(res.data) ? res.data : []);
+      if (res && (res.success || Array.isArray(res.data) || Array.isArray(res) || Array.isArray(res.items))) {
+        const orderData = Array.isArray(res.data)
+          ? res.data
+          : Array.isArray(res.items)
+          ? res.items
+          : Array.isArray(res)
+          ? res
+          : [];
+        setOrders(orderData);
         if (res.summary) {
           setSummary(res.summary);
         }
         if (res.pagination) {
-          setTotalItems(res.pagination.totalItems || 0);
-          setTotalPages(res.pagination.totalPages || 1);
+          setTotalItems(res.pagination.totalItems ?? orderData.length);
+          setTotalPages(res.pagination.totalPages ?? 1);
+        } else if (res.totalItems !== undefined) {
+          setTotalItems(res.totalItems);
+          setTotalPages(res.totalPages || Math.ceil(res.totalItems / limit) || 1);
         }
       } else {
         throw new Error(res?.message || 'Failed to retrieve ready-for-dispatch orders');

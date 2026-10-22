@@ -3,16 +3,58 @@ import {
   UnauthorizedException,
   Logger,
 } from '@nestjs/common';
+import { IsOptional, IsString, IsInt, Min, Max } from 'class-validator';
+import { Type } from 'class-transformer';
 import { PrismaService } from '../../database/prisma.service';
 import { isTradingProduct, isPureTradingOrder } from '../../common/utils/trading-product.util';
 
 export class ReadyForDispatchQueryDto {
-  page?: number;
-  limit?: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  limit?: number = 25;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  pageSize?: number;
+
+  @IsOptional()
+  @IsString()
   search?: string;
+
+  @IsOptional()
+  @IsString()
   status?: string;
+
+  @IsOptional()
+  @IsString()
   dateFrom?: string;
+
+  @IsOptional()
+  @IsString()
   dateTo?: string;
+
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  endDate?: string;
+
+  @IsOptional()
+  @IsString()
   companyId?: string;
 }
 
@@ -96,7 +138,6 @@ export class FinanceReadyForDispatchService {
               OR: [
                 { qcResult: 'FAIL' },
                 { productionStatus: 'QC_FAILED' },
-                { status: 'QC_FAILED' as any },
                 { productionStatus: 'QC_PENDING' },
                 { status: 'QC_PENDING' },
                 { status: 'CANCELLED' },
@@ -544,11 +585,12 @@ export class FinanceReadyForDispatchService {
       });
     }
 
-    // Sort by dispatchReadyDate descending
+    // Sort by dispatchReadyDate descending with deterministic tie-breaker
     allOrders.sort((a, b) => {
       const dateA = a.dispatchReadyDate ? new Date(a.dispatchReadyDate).getTime() : 0;
       const dateB = b.dispatchReadyDate ? new Date(b.dispatchReadyDate).getTime() : 0;
-      return dateB - dateA;
+      if (dateB !== dateA) return dateB - dateA;
+      return String(b.salesOrderNumber || '').localeCompare(String(a.salesOrderNumber || ''));
     });
 
     // Operational summary calculations
@@ -567,7 +609,10 @@ export class FinanceReadyForDispatchService {
 
     // Pagination
     const page = Math.max(1, Number(query.page) || 1);
-    const limit = Math.max(1, Math.min(100, Number(query.limit) || 25));
+    const limit = Math.max(
+      1,
+      Math.min(1000, Number(query.limit || query.pageSize) || 25),
+    );
     const totalItems = allOrders.length;
     const totalPages = Math.ceil(totalItems / limit) || 1;
     const startIndex = (page - 1) * limit;

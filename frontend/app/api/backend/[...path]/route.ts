@@ -252,7 +252,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
       path: backendPath,
       method: finalMethod,
       body,
-      query: new URL(request.url).searchParams,
+      query: request.nextUrl?.searchParams || new URL(request.url).searchParams,
       token,
       idempotencyKey: request.headers.get('idempotency-key') || undefined,
       requestId: request.headers.get('x-request-id') || undefined,
