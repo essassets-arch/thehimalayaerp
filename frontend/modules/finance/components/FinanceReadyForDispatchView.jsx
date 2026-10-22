@@ -5,7 +5,6 @@ import {
   Truck,
   Search,
   RefreshCw,
-  Eye,
   Filter,
   Calendar,
   AlertCircle,
@@ -470,16 +469,6 @@ export default function FinanceReadyForDispatchView() {
                       {/* 9. Actions */}
                       <td>
                         <div className={styles.actionGroup}>
-                          <button
-                            type="button"
-                            className={styles.btnViewDetails}
-                            onClick={() => setSelectedOrder(order)}
-                            title="View order details"
-                          >
-                            <Eye size={13} />
-                            Details
-                          </button>
-
                           {order.quotationNumber ? (
                             <button
                               type="button"
