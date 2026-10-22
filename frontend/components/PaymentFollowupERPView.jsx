@@ -84,6 +84,189 @@ const isFallbackInvoice = (inv) => {
   return !s || s === '-' || s === '—' || s.toLowerCase() === 'n/a' || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined';
 };
 
+export function isValidCustomerName(name) {
+  if (!name || typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  if (trimmed.length < 2) return false;
+  const lower = trimmed.toLowerCase();
+  if (
+    lower === 'customer' ||
+    lower === 'n/a' ||
+    lower === 'na' ||
+    lower === 'null' ||
+    lower === 'undefined' ||
+    lower === 'unknown' ||
+    lower === 'unknown customer' ||
+    lower === 'none' ||
+    lower === 'party' ||
+    lower === 'client' ||
+    lower === 'client order' ||
+    lower === 'factory stock staging' ||
+    lower === 'factory staging area' ||
+    lower === 'consignee client' ||
+    lower === 'customer designated delivery site' ||
+    lower === 'direct dispatch item' ||
+    trimmed === '—' ||
+    trimmed === '-' ||
+    trimmed === '--'
+  ) {
+    return false;
+  }
+  return true;
+}
+
+export function resolveCustomerName(order, { ordersMap, arCustomerMap, canonicalQuotations, allDispatchesList } = {}) {
+  if (!order) return '—';
+
+  // 1. Direct fields on the order object itself
+  const directCandidates = [
+    order.customer_name,
+    order.customerName,
+    order.customer?.companyName,
+    order.customer?.name,
+    order.customer?.clientName,
+    order.customer?.partyName,
+    order.companyName,
+    order.clientName,
+    order.partyName,
+    order.buyerName,
+  ];
+
+  for (const cand of directCandidates) {
+    if (isValidCustomerName(cand)) return cand.trim();
+  }
+
+  const orderNo = String(order.order_number || order.orderNumber || order.orderNo || order.id || '').trim();
+  const invoiceNo = String(order.invoice_number || order.invoiceNumber || order.invoiceNo || '').trim();
+
+  // 2. Check AR Register map (which has companyName by invoiceNumber, orderNumber, suffix)
+  if (arCustomerMap) {
+    const keysToCheck = [
+      orderNo.toLowerCase(),
+      orderNo.replace(/[^a-z0-9]/gi, '').toLowerCase(),
+      invoiceNo.toLowerCase(),
+      invoiceNo.replace(/[^a-z0-9]/gi, '').toLowerCase(),
+      String(order.id || '').toLowerCase(),
+    ];
+    const numMatch = orderNo.match(/\d{3,4}$/);
+    if (numMatch) {
+      keysToCheck.push(numMatch[0]);
+      keysToCheck.push(numMatch[0].replace(/^0+/, ''));
+    }
+    const invMatch = invoiceNo.match(/\d{3,4}$/);
+    if (invMatch) {
+      keysToCheck.push(invMatch[0]);
+      keysToCheck.push(invMatch[0].replace(/^0+/, ''));
+    }
+
+    for (const k of keysToCheck) {
+      if (k && arCustomerMap.has(k)) {
+        const val = arCustomerMap.get(k);
+        if (isValidCustomerName(val)) return val.trim();
+      }
+    }
+  }
+
+  // 3. Check matched full order record from orders / canonicalOrders
+  let matchedOrder = null;
+  if (ordersMap && orderNo) {
+    matchedOrder =
+      ordersMap.get(orderNo.toLowerCase()) ||
+      ordersMap.get(orderNo.replace(/[^a-z0-9]/gi, '').toLowerCase()) ||
+      (order.id ? ordersMap.get(String(order.id).toLowerCase()) : null);
+  }
+
+  if (matchedOrder) {
+    const matchedCandidates = [
+      matchedOrder.customer?.companyName,
+      matchedOrder.customer?.name,
+      matchedOrder.customer?.clientName,
+      matchedOrder.customerName,
+      matchedOrder.customer_name,
+      matchedOrder.companyName,
+      matchedOrder.clientName,
+      matchedOrder.quotation?.lead?.companyName,
+      matchedOrder.quotation?.lead?.name,
+      matchedOrder.quotation?.customerName,
+      matchedOrder.quotation?.companyName,
+      matchedOrder.quotation?.customer?.companyName,
+      matchedOrder.quotation?.customer?.name,
+      matchedOrder.sourceQuotation?.lead?.companyName,
+      matchedOrder.sourceQuotation?.customerName,
+      matchedOrder.sourceQuotation?.customer?.companyName,
+      matchedOrder.billingAddress?.companyName,
+      matchedOrder.billingAddress?.customerName,
+      matchedOrder.billingAddress?.name,
+      matchedOrder.shippingAddress?.companyName,
+      matchedOrder.shippingAddress?.customerName,
+      matchedOrder.shippingAddress?.name,
+      matchedOrder.customer?.contactPerson,
+      matchedOrder.quotation?.lead?.contactPerson,
+    ];
+    for (const cand of matchedCandidates) {
+      if (isValidCustomerName(cand)) return cand.trim();
+    }
+  }
+
+  // 4. Check quotation linked on order or from canonicalQuotations
+  const quotationId = order.quotationId || order.quotation_id || matchedOrder?.quotationId;
+  const qtn = (Array.isArray(canonicalQuotations) ? canonicalQuotations.find(q => String(q.id) === String(quotationId)) : null) || order.quotation;
+  if (qtn) {
+    const qtnCandidates = [
+      qtn.lead?.companyName,
+      qtn.lead?.name,
+      qtn.lead?.customerName,
+      qtn.customerName,
+      qtn.companyName,
+      qtn.customer?.companyName,
+      qtn.customer?.name,
+      qtn.billingAddress?.companyName,
+      qtn.billingAddress?.name,
+      qtn.lead?.contactPerson,
+    ];
+    for (const cand of qtnCandidates) {
+      if (isValidCustomerName(cand)) return cand.trim();
+    }
+  }
+
+  // 5. Check addresses directly on order
+  const orderAddrs = [order.billingAddress, order.shippingAddress];
+  for (const addr of orderAddrs) {
+    if (addr && typeof addr === 'object') {
+      const cand = addr.companyName || addr.customerName || addr.name || addr.contactPerson;
+      if (isValidCustomerName(cand)) return String(cand).trim();
+    }
+  }
+
+  // 6. Check dispatches list
+  if (Array.isArray(allDispatchesList) && orderNo) {
+    const cleanNo = orderNo.toLowerCase();
+    const d = allDispatchesList.find(disp => {
+      const dOrder = String(disp.salesOrderId || disp.salesOrder?.orderNumber || disp.orderNumber || disp.orderNo || '').toLowerCase();
+      return dOrder === cleanNo || (cleanNo && dOrder.includes(cleanNo));
+    });
+    if (d) {
+      const dispCandidates = [
+        d.customerName,
+        d.companyName,
+        d.salesOrder?.customer?.companyName,
+        d.salesOrder?.customer?.name,
+        d.receivedBy,
+      ];
+      for (const cand of dispCandidates) {
+        if (isValidCustomerName(cand)) return cand.trim();
+      }
+    }
+  }
+
+  // Final fallback: use orderNumber to give a descriptive reference instead of literal 'Customer'
+  if (orderNo) {
+    return `Client (${orderNo})`;
+  }
+
+  return '—';
+}
+
 const HISTORICAL_DISPATCH_INVOICES = {
   "HCPPL/2627/0088": "588",
   "fe7e13d2-8dd4-4ab2-ac7d-1997b12569ba": "588",
@@ -339,6 +522,8 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
   const [pendingFilter, setPendingFilter] = useState('pending'); // pending | confirmed
   const [pendingCollection, setPendingCollection] = useState([]);
   const [deliveredDispatches, setDeliveredDispatches] = useState([]);
+  const [hcpplArList, setHcpplArList] = useState([]);
+  const [applArList, setApplArList] = useState([]);
   const [followups, setFollowups] = useState([]);
   const [loadingPending, setLoadingPending] = useState(true);
   const [loadingFollowups, setLoadingFollowups] = useState(true);
@@ -409,13 +594,15 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
   const refreshPending = async () => {
     setLoadingPending(true);
     try {
-      const [resPending, resDispatches] = await Promise.allSettled([
+      const [resPending, resDispatches, resHcpplAr, resApplAr] = await Promise.allSettled([
         backendFetch('/api/backend/sales/orders/delivered/pending-payment').catch(() =>
           apiClient.get('/sales/orders/delivered/pending-payment')
         ),
         backendFetch('/api/backend/logistics/dispatches').catch(() =>
           backendFetch('/api/backend/logistics/dispatches?status=DELIVERED')
         ),
+        backendFetch('/api/backend/back-office/hcppl-ar/register?limit=1000').catch(() => null),
+        backendFetch('/api/backend/back-office/appl-ar?limit=1000').catch(() => null),
       ]);
       const rawPending = resPending.status === 'fulfilled' ? resPending.value : null;
       let pendingData = [];
@@ -435,16 +622,81 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
       } else if (rawDisp && rawDisp.success && Array.isArray(rawDisp.data)) {
         dispData = rawDisp.data;
       }
+
+      const parseList = (res) => {
+        if (!res) return [];
+        if (Array.isArray(res)) return res;
+        if (Array.isArray(res.data)) return res.data;
+        if (res.data && Array.isArray(res.data.items)) return res.data.items;
+        if (Array.isArray(res.items)) return res.items;
+        return [];
+      };
+
       setPendingCollection(pendingData);
       setDeliveredDispatches(dispData);
+      setHcpplArList(parseList(resHcpplAr.status === 'fulfilled' ? resHcpplAr.value : null));
+      setApplArList(parseList(resApplAr.status === 'fulfilled' ? resApplAr.value : null));
     } catch (err) {
       console.error(err);
       setPendingCollection([]);
       setDeliveredDispatches([]);
+      setHcpplArList([]);
+      setApplArList([]);
     } finally {
       setLoadingPending(false);
     }
   };
+
+  const arCustomerMap = useMemo(() => {
+    const map = new Map();
+    const register = (key, name) => {
+      if (!key || !isValidCustomerName(name)) return;
+      const cleanKey = String(key).trim().toLowerCase();
+      if (cleanKey && !map.has(cleanKey)) map.set(cleanKey, String(name).trim());
+      const norm = cleanKey.replace(/[^a-z0-9]/g, '');
+      if (norm && !map.has(norm)) map.set(norm, String(name).trim());
+      const numMatch = cleanKey.match(/\d{3,4}$/);
+      if (numMatch) {
+        if (!map.has(numMatch[0])) map.set(numMatch[0], String(name).trim());
+        const noZero = numMatch[0].replace(/^0+/, '');
+        if (noZero && !map.has(noZero)) map.set(noZero, String(name).trim());
+      }
+    };
+
+    [...(hcpplArList || []), ...(applArList || [])].forEach(item => {
+      const name = item.companyName || item.customerName || item.clientName || item.partyName;
+      if (name) {
+        register(item.invoiceNumber, name);
+        register(item.salesOrderId, name);
+        register(item.orderNumber, name);
+        register(item.orderNo, name);
+        register(item.id, name);
+      }
+    });
+
+    return map;
+  }, [hcpplArList, applArList]);
+
+  const ordersMap = useMemo(() => {
+    const map = new Map();
+    [...(orders || []), ...(canonicalOrders || [])].forEach(o => {
+      if (!o) return;
+      const ids = [o.id, o.orderNumber, o.order_number, o.orderNo, o.salesOrderId].filter(Boolean);
+      ids.forEach(k => {
+        const str = String(k).trim().toLowerCase();
+        if (!map.has(str)) map.set(str, o);
+        const norm = str.replace(/[^a-z0-9]/g, '');
+        if (norm && !map.has(norm)) map.set(norm, o);
+        const numMatch = str.match(/\d{3,4}$/);
+        if (numMatch) {
+          if (!map.has(numMatch[0])) map.set(numMatch[0], o);
+          const noZero = numMatch[0].replace(/^0+/, '');
+          if (noZero && !map.has(noZero)) map.set(noZero, o);
+        }
+      });
+    });
+    return map;
+  }, [orders, canonicalOrders]);
 
   const refreshFollowups = async () => {
     setLoadingFollowups(true);
@@ -504,11 +756,18 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
       const bal = o.balance_amount !== undefined ? Number(o.balance_amount) : (o.balanceAmount !== undefined ? Number(o.balanceAmount) : Math.max(0, total - paid));
 
       if (paySt === 'PAID' || (bal <= 0 && total > 0)) {
+        const resolvedCustomer = resolveCustomerName(o, { ordersMap, arCustomerMap, canonicalQuotations, allDispatchesList });
         map.set(key, {
           ...o,
           id: o.id || orderNo,
           order_number: orderNo,
-          customer_name: o.customer_name || o.customerName || o.customer?.name || 'Customer',
+          customer_name: resolvedCustomer,
+          customerName: resolvedCustomer,
+          customer: {
+            ...(o.customer || {}),
+            companyName: resolvedCustomer,
+            name: resolvedCustomer,
+          },
           grand_total: total,
           verified_paid_amount: paid,
           balance_amount: bal,
@@ -518,16 +777,17 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
       }
     });
     return Array.from(map.values());
-  }, [orders, canonicalOrders, pendingCollection, allDispatchesList]);
+  }, [orders, canonicalOrders, pendingCollection, allDispatchesList, ordersMap, arCustomerMap, canonicalQuotations]);
 
   const openAddFollowup = async (order) => {
     const today = new Date().toISOString().split('T')[0];
+    const customerDisplay = resolveCustomerName(order, { ordersMap, arCustomerMap, canonicalQuotations, allDispatchesList });
     const { value: formValues } = await Swal.fire({
       title: 'Add Follow-up',
       html: `
         <div style="text-align:left; display:flex; flex-direction:column; gap:12px;">
           <div style="display:grid; grid-template-columns:110px 1fr; gap:8px; font-size:13px;">
-            <span><strong>Customer</strong></span><span>${order.customer_name || 'N/A'}</span>
+            <span><strong>Customer</strong></span><span>${customerDisplay}</span>
             <span><strong>Order</strong></span><span style="font-family:monospace;">${order.order_number || `ORD-${order.id}`}</span>
             <span><strong>Balance</strong></span><span style="color:#ef4444; font-weight:800;">${formatINR(order.balance_amount ?? (Number(order.grand_total || 0) - Number(order.verified_paid_amount || 0)))}</span>
           </div>
@@ -558,7 +818,7 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
     if (!formValues) return;
     try {
       const orderNo = order.order_number || order.orderNo || order.id;
-      const custName = order.customer_name || order.customerName || 'Customer';
+      const custName = customerDisplay;
       const balAmt = Number(order.balance_amount ?? (Number(order.grand_total || 0) - Number(order.verified_paid_amount || 0)));
 
       await remindersService.create({
@@ -643,11 +903,14 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
       const status = f.status || 'Pending';
       const order_id = f.order_id || f.moduleId || '';
       const notes = f.followup_note || f.remarks || f.description || '';
+      const resolvedCustomer = resolveCustomerName(f, { ordersMap, arCustomerMap, canonicalQuotations, allDispatchesList });
 
       return {
         ...f,
         id: f.id,
         order_id,
+        customer_name: resolvedCustomer,
+        customerName: resolvedCustomer,
         followup_note: notes,
         next_reminder_date,
         status,
@@ -655,7 +918,7 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
         computed_status: computeReminderStatus(isoDate(next_reminder_date), status),
       };
     });
-  }, [followups]);
+  }, [followups, ordersMap, arCustomerMap, canonicalQuotations, allDispatchesList]);
 
   const filteredReminders = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -1035,11 +1298,19 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
 
       const resolvedPodUrl = extractPodUrl(o, allDispatchesList);
 
+      const resolvedCustomer = resolveCustomerName(o, { ordersMap, arCustomerMap, canonicalQuotations, allDispatchesList });
+
       const normalized = {
         id: o.id || orderNo,
         customerId: o.customerId || o.customer_id || o.customer?.id || 'unknown',
         order_number: orderNo,
-        customer_name: o.customer_name || o.customerName || o.customer?.name || 'ABC Infrastructure Pvt Ltd',
+        customer_name: resolvedCustomer,
+        customerName: resolvedCustomer,
+        customer: {
+          ...(o.customer || {}),
+          companyName: resolvedCustomer,
+          name: resolvedCustomer,
+        },
         grand_total: resolvedTotal,
         invoice_number: resolvedInvoiceNumber,
         invoiceNumber: resolvedInvoiceNumber,
@@ -1117,6 +1388,8 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
     activeTab,
     agingFilter,
     allDispatchesList,
+    ordersMap,
+    arCustomerMap,
   ]);
 
   const partialRows = useMemo(() => {
@@ -1470,7 +1743,9 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
                       </div>
 
                       {/* Customer Name */}
-                      <div className="pmc-customer-name">{o.customer_name}</div>
+                      <div className="pmc-customer-name">
+                        {isValidCustomerName(o.customer_name) ? o.customer_name : resolveCustomerName(o, { ordersMap, arCustomerMap, canonicalQuotations, allDispatchesList })}
+                      </div>
 
                       {/* Financial Metrics Grid */}
                       <div className="pmc-metrics-grid">
@@ -1672,7 +1947,9 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
                               <span style={{ color: '#94a3b8', fontWeight: 500 }}>—</span>
                             )}
                           </td>
-                          <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer_name}</td>
+                          <td data-label="Customer" style={{ fontWeight: 700 }}>
+                            {isValidCustomerName(o.customer_name) ? o.customer_name : resolveCustomerName(o, { ordersMap, arCustomerMap, canonicalQuotations, allDispatchesList })}
+                          </td>
                           <td data-label="Delivery Date">{isoDate(o.delivered_at) || '—'}</td>
                           <td data-label="Proof (POD)">
                             {o.pod_url ? (
@@ -1880,7 +2157,9 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
                       </div>
 
                       {/* Customer Name */}
-                      <div className="pmc-customer-name">{o.customer_name}</div>
+                      <div className="pmc-customer-name">
+                        {isValidCustomerName(o.customer_name) ? o.customer_name : resolveCustomerName(o, { ordersMap, arCustomerMap, canonicalQuotations, allDispatchesList })}
+                      </div>
 
                       {/* Partial Badges */}
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '4px 0' }}>
@@ -2004,7 +2283,9 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
                               <span style={{ color: '#94a3b8', fontWeight: 500 }}>—</span>
                             )}
                           </td>
-                          <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer_name}</td>
+                          <td data-label="Customer" style={{ fontWeight: 700 }}>
+                            {isValidCustomerName(o.customer_name) ? o.customer_name : resolveCustomerName(o, { ordersMap, arCustomerMap, canonicalQuotations, allDispatchesList })}
+                          </td>
                           <td data-label="Delivery Date">{isoDate(o.delivered_at) || '—'}</td>
                           <td data-label="Proof (POD)">
                             {o.pod_url ? (
@@ -2195,7 +2476,9 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
                       </div>
                     </div>
 
-                    <div className="pmc-customer-name">{r.customer_name || '-'}</div>
+                    <div className="pmc-customer-name">
+                      {isValidCustomerName(r.customer_name) ? r.customer_name : resolveCustomerName(r, { ordersMap, arCustomerMap, canonicalQuotations, allDispatchesList })}
+                    </div>
                     <div style={{ fontSize: '12px', fontFamily: 'monospace', color: '#64748b' }}>Order: {r.order_number || '-'}</div>
                     
                     {r.followup_note && (
@@ -2272,7 +2555,9 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
                     pagedFilteredReminders.map(r => (
                       <tr key={r.id}>
                         <td data-label="Reminder Date">{r.reminder_date || '-'}</td>
-                        <td data-label="Customer" style={{ fontWeight: 700 }}>{r.customer_name || '-'}</td>
+                        <td data-label="Customer" style={{ fontWeight: 700 }}>
+                          {isValidCustomerName(r.customer_name) ? r.customer_name : resolveCustomerName(r, { ordersMap, arCustomerMap, canonicalQuotations, allDispatchesList })}
+                        </td>
                         <td data-label="Order" style={{ fontFamily: 'monospace', fontWeight: 800 }}>{r.order_number || '-'}</td>
                         <td data-label="Balance" style={{ textAlign: 'right', fontWeight: 900, color: '#ef4444' }}>{formatINR(r.balance_amount || 0)}</td>
                         <td data-label="Conversation" style={{ color: 'var(--color-text-secondary)' }}>{r.followup_note}</td>
@@ -2382,7 +2667,9 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
                       <strong style={{ fontFamily: 'monospace', color: '#0f172a' }}>{o.orderNo || o.order_number || o.id}</strong>
                       <span className="due-chip chip-success">Paid in Full</span>
                     </div>
-                    <div className="pmc-customer-name">{o.customer?.name || o.customerName || o.customer_name || 'Customer'}</div>
+                    <div className="pmc-customer-name">
+                      {isValidCustomerName(o.customer_name) ? o.customer_name : resolveCustomerName(o, { ordersMap, arCustomerMap, canonicalQuotations, allDispatchesList })}
+                    </div>
                     <div className="pmc-metrics-grid">
                       <div className="pmc-metric-item">
                         <span>Total:</span>
@@ -2436,7 +2723,9 @@ function PaymentFollowupContent({ orders = [], searchQuery: propSearchQuery = ''
                     pagedCompletedOrders.map(o => (
                       <tr key={o.orderNo || o.order_number || o.id}>
                         <td data-label="Order" style={{ fontFamily: 'monospace', fontWeight: 800 }}>{o.orderNo || o.order_number || o.id}</td>
-                        <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer?.name || o.customerName || o.customer_name || 'ABC Infrastructure Pvt Ltd'}</td>
+                        <td data-label="Customer" style={{ fontWeight: 700 }}>
+                          {isValidCustomerName(o.customer_name) ? o.customer_name : resolveCustomerName(o, { ordersMap, arCustomerMap, canonicalQuotations, allDispatchesList })}
+                        </td>
                         <td data-label="Total" style={{ textAlign: 'right', fontWeight: 800 }}>{formatINR(o.totalAmount || o.grandTotal || o.grand_total || 0)}</td>
                         <td data-label="Paid" style={{ textAlign: 'right', fontWeight: 800, color: '#10b981' }}>{formatINR(o.verifiedPaidAmount || o.verified_paid_amount || ((o.totalAmount || o.grandTotal || o.grand_total || 0) - (o.balanceAmount || o.balance_amount || 0)))}</td>
                         <td data-label="Verified Date">-</td>

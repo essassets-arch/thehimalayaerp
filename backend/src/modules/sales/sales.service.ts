@@ -403,8 +403,8 @@ export class SalesService {
   async listDeliveredPendingPayment(userId?: string, role?: string) {
     const scope = getOrderSalesScope(userId, role);
 
-    // Fetch real dispatch invoices from Postgres to link any dispatches created by dispatch user
-    const [dispatchesWithInvoice, salesInvoicesWithInvoice] = await Promise.all([
+    // Fetch real dispatch invoices and AR register to link invoices and customer names
+    const [dispatchesWithInvoice, salesInvoicesWithInvoice, backOfficeArInvoices] = await Promise.all([
       this.prisma.dispatch.findMany({
         where: {
           invoiceNumber: { not: null },
@@ -453,7 +453,38 @@ export class SalesService {
         },
         orderBy: { createdAt: 'desc' },
       }).catch(() => []),
+      this.prisma.backOfficeArInvoice.findMany({
+        select: {
+          invoiceNumber: true,
+          companyName: true,
+          salesOrderId: true,
+        },
+      }).catch(() => []),
     ]);
+
+    const arCustomerByNumber = new Map<string, string>();
+    for (const ar of backOfficeArInvoices) {
+      if (ar.companyName && typeof ar.companyName === 'string' && ar.companyName.trim()) {
+        const cName = ar.companyName.trim();
+        const registerAr = (k?: string | null) => {
+          if (!k) return;
+          const s = String(k).trim().toLowerCase();
+          if (s) {
+            if (!arCustomerByNumber.has(s)) arCustomerByNumber.set(s, cName);
+            const norm = s.replace(/[^a-z0-9]/g, '');
+            if (norm && !arCustomerByNumber.has(norm)) arCustomerByNumber.set(norm, cName);
+            const numMatch = s.match(/\d{3,4}$/);
+            if (numMatch) {
+              if (!arCustomerByNumber.has(numMatch[0])) arCustomerByNumber.set(numMatch[0], cName);
+              const noZero = numMatch[0].replace(/^0+/, '');
+              if (noZero && !arCustomerByNumber.has(noZero)) arCustomerByNumber.set(noZero, cName);
+            }
+          }
+        };
+        registerAr(ar.invoiceNumber);
+        registerAr(ar.salesOrderId);
+      }
+    }
 
     const dispatchInvByOrderId = new Map<string, string>();
     const registerHelper = (raw: string | null | undefined, inv: string) => {
@@ -516,7 +547,16 @@ export class SalesService {
       include: {
         customer: true,
         salesExecutive: { select: { id: true, name: true, email: true } },
-        quotation: { select: { paymentTerms: true, paymentTermDays: true } },
+        quotation: {
+          include: {
+            lead: true,
+          },
+        },
+        sourceQuotation: {
+          include: {
+            lead: true,
+          },
+        },
         invoices: {
           select: {
             id: true,
@@ -642,13 +682,46 @@ export class SalesService {
 
       const isActualInvoice = Boolean(resolvedInvoiceNo);
 
+      const isValidCust = (name: any): boolean => {
+        if (!name || typeof name !== 'string') return false;
+        const t = name.trim();
+        if (t.length < 2) return false;
+        const low = t.toLowerCase();
+        return !['customer', 'n/a', 'na', 'null', 'undefined', 'unknown', 'unknown customer', 'none', 'party', 'client', 'client order', '—', '-', '--'].includes(low);
+      };
+
+      const arCust =
+        (resolvedInvoiceNo ? arCustomerByNumber.get(resolvedInvoiceNo.toLowerCase()) : null) ||
+        (resolvedInvoiceNo ? arCustomerByNumber.get(resolvedInvoiceNo.replace(/[^a-z0-9]/gi, '').toLowerCase()) : null) ||
+        (order.orderNumber ? arCustomerByNumber.get(order.orderNumber.toLowerCase()) : null) ||
+        (order.orderNumber ? arCustomerByNumber.get(order.orderNumber.replace(/[^a-z0-9]/gi, '').toLowerCase()) : null) ||
+        (order.id ? arCustomerByNumber.get(order.id.toLowerCase()) : null);
+
+      const resolvedCust =
+        (isValidCust(order.customer?.companyName) ? order.customer!.companyName : null) ||
+        (isValidCust((order.customer as any)?.name) ? (order.customer as any).name : null) ||
+        (isValidCust(arCust) ? arCust : null) ||
+        (isValidCust(order.quotation?.lead?.companyName) ? order.quotation!.lead!.companyName : null) ||
+        (isValidCust(order.sourceQuotation?.lead?.companyName) ? order.sourceQuotation!.lead!.companyName : null) ||
+        (isValidCust((order.quotation as any)?.customerName) ? (order.quotation as any).customerName : null) ||
+        (isValidCust((order.sourceQuotation as any)?.customerName) ? (order.sourceQuotation as any).customerName : null) ||
+        (isValidCust((order.billingAddress as any)?.companyName) ? (order.billingAddress as any).companyName : null) ||
+        (isValidCust((order.shippingAddress as any)?.companyName) ? (order.shippingAddress as any).companyName : null) ||
+        (isValidCust((order.billingAddress as any)?.name) ? (order.billingAddress as any).name : null) ||
+        (isValidCust(order.customer?.contactPerson) ? order.customer!.contactPerson : null) ||
+        (isValidCust(order.quotation?.lead?.contactPerson) ? order.quotation!.lead!.contactPerson : null) ||
+        (order.orderNumber ? `Client (${order.orderNumber})` : 'Client Order');
+
       return {
         id: order.id,
         order_number: order.orderNumber,
         orderNumber: order.orderNumber,
         customerId: order.customerId,
-        customer_name: order.customer?.companyName || 'Customer',
-        customerName: order.customer?.companyName || 'Customer',
+        customer_name: resolvedCust,
+        customerName: resolvedCust,
+        customer: order.customer
+          ? { ...order.customer, companyName: resolvedCust }
+          : { companyName: resolvedCust, name: resolvedCust },
         salesperson: order.salesExecutive?.name || 'Sales Executive',
         grand_total: totalAmount,
         grandTotal: totalAmount,
