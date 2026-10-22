@@ -298,6 +298,25 @@ describe('FinanceReadyForDispatch', () => {
       expect(result.summary.deliveredCount).toBe(0);
     });
 
+    it('queries only work orders that have been sent to dispatch from production', async () => {
+      const user = { role: 'FINANCE_MANAGER', companyId: mockCompanyId };
+      await service.getReadyForDispatchOrders(user, {});
+      expect(prisma.workOrder.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            AND: expect.arrayContaining([
+              {
+                OR: [
+                  { sentToDispatchAt: { not: null } },
+                  { productionStatus: 'DISPATCHED' },
+                ],
+              },
+            ]),
+          }),
+        }),
+      );
+    });
+
     it('controller handles query and sets anti-caching headers', async () => {
       const user = { role: 'FINANCE_MANAGER', companyId: mockCompanyId };
       const mockRes = { set: jest.fn() };

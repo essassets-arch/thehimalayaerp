@@ -117,36 +117,16 @@ export class FinanceReadyForDispatchService {
     const defaultCompanyName =
       companyRecord?.name || 'Himalaya FRP & Construction Products';
 
-    // Authoritative criteria for production ready-for-dispatch:
-    // 1. WorkOrder has passed QC and reached READY_FOR_DISPATCH, DISPATCHED, or sentToDispatchAt != null,
-    //    or parent sales order is in READY_FOR_DISPATCH status.
-    // 2. Strict exclusions: failed QC, awaiting QC, cancelled, closed, or incomplete production.
+    // Authoritative criteria: Only show orders genuinely sent to dispatch from production
+    // (matches production /production/ready-for-dispatch send-to-dispatch workflow)
     const workOrders = await this.prisma.workOrder.findMany({
       where: {
         AND: [
           {
             OR: [
-              { productionStatus: { in: ['READY_FOR_DISPATCH', 'DISPATCHED'] } },
-              { status: { in: ['READY_FOR_DISPATCH', 'DISPATCHED'] } },
               { sentToDispatchAt: { not: null } },
-              { productionPlan: { salesOrder: { status: 'READY_FOR_DISPATCH' } } },
-              { salesOrderItem: { salesOrder: { status: 'READY_FOR_DISPATCH' } } },
+              { productionStatus: 'DISPATCHED' },
             ],
-          },
-          {
-            NOT: {
-              OR: [
-                { qcResult: 'FAIL' },
-                { productionStatus: 'QC_FAILED' },
-                { productionStatus: 'QC_PENDING' },
-                { status: 'QC_PENDING' },
-                { status: 'CANCELLED' },
-                { status: 'CLOSED' },
-                { status: 'CREATED' },
-                { status: 'STARTED' },
-                { status: 'MATERIAL_PENDING' },
-              ],
-            },
           },
           tenantScope,
         ],
@@ -257,9 +237,12 @@ export class FinanceReadyForDispatchService {
       },
     });
 
-    // Filter out pure trading items as per existing production workflow logic
+    // Filter out pure trading items, cancelled, or defective items as per existing production workflow logic
     const eligibleWorkOrders = (Array.isArray(workOrders) ? workOrders : []).filter(
       (wo: any) => {
+        if (wo.qcResult === 'FAIL' || wo.productionStatus === 'QC_FAILED' || wo.status === 'CANCELLED') {
+          return false;
+        }
         if (
           isTradingProduct(wo.salesOrderItem?.product, wo.salesOrderItem)
         )
