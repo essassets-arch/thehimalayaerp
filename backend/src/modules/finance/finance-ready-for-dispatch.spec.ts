@@ -192,6 +192,8 @@ describe('FinanceReadyForDispatch', () => {
         dispatchedCount: 0,
         inTransitCount: 0,
         deliveredCount: 0,
+        totalReady: 1,
+        totalValueINR: 52423.86,
       });
     });
 

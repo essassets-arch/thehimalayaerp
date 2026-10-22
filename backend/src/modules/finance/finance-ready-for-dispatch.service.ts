@@ -75,16 +75,37 @@ export class FinanceReadyForDispatchService {
     const defaultCompanyName =
       companyRecord?.name || 'Himalaya FRP & Construction Products';
 
-    // Query all work orders sent to dispatch (productionStatus === 'DISPATCHED' or sentToDispatchAt != null)
+    // Authoritative criteria for production ready-for-dispatch:
+    // 1. WorkOrder has passed QC and reached READY_FOR_DISPATCH, DISPATCHED, or sentToDispatchAt != null,
+    //    or parent sales order is in READY_FOR_DISPATCH status.
+    // 2. Strict exclusions: failed QC, awaiting QC, cancelled, closed, or incomplete production.
     const workOrders = await this.prisma.workOrder.findMany({
       where: {
         AND: [
           {
             OR: [
-              { productionStatus: 'DISPATCHED' },
-              { status: 'DISPATCHED' },
+              { productionStatus: { in: ['READY_FOR_DISPATCH', 'DISPATCHED'] } },
+              { status: { in: ['READY_FOR_DISPATCH', 'DISPATCHED'] } },
               { sentToDispatchAt: { not: null } },
+              { productionPlan: { salesOrder: { status: 'READY_FOR_DISPATCH' } } },
+              { salesOrderItem: { salesOrder: { status: 'READY_FOR_DISPATCH' } } },
             ],
+          },
+          {
+            NOT: {
+              OR: [
+                { qcResult: 'FAIL' },
+                { productionStatus: 'QC_FAILED' },
+                { status: 'QC_FAILED' as any },
+                { productionStatus: 'QC_PENDING' },
+                { status: 'QC_PENDING' },
+                { status: 'CANCELLED' },
+                { status: 'CLOSED' },
+                { status: 'CREATED' },
+                { status: 'STARTED' },
+                { status: 'MATERIAL_PENDING' },
+              ],
+            },
           },
           tenantScope,
         ],
@@ -230,15 +251,36 @@ export class FinanceReadyForDispatchService {
         so?.lead ||
         {};
 
+      const isGeneric = (name?: string) => {
+        if (!name) return true;
+        const u = String(name).trim().toUpperCase();
+        return (
+          u === 'CUSTOMER' ||
+          u === 'CONSIGNEE CLIENT' ||
+          u === 'CLIENT ORDER' ||
+          u.startsWith('CLIENT ORDER (') ||
+          u === 'TEST COMPANY CUSTOMER' ||
+          u === 'UNKNOWN' ||
+          u === 'UNKNOWN CUSTOMER' ||
+          u === 'FINISHED PRODUCT' ||
+          u === '—' ||
+          u === '-' ||
+          u === 'N/A' ||
+          u === 'NA'
+        );
+      };
+
       const customerName =
-        (leadObj?.groupName && String(leadObj.groupName).trim()) ||
+        (!isGeneric(customerObj.companyName) ? customerObj.companyName : null) ||
+        (!isGeneric(leadObj?.companyName) ? leadObj?.companyName : null) ||
+        (!isGeneric(leadObj?.groupName) ? leadObj?.groupName : null) ||
+        (!isGeneric(customerObj.name) ? customerObj.name : null) ||
+        (!isGeneric(so?.customerName) ? so?.customerName : null) ||
+        (!isGeneric(customerObj.contactPerson) ? customerObj.contactPerson : null) ||
+        (!isGeneric(leadObj?.customerName) ? leadObj?.customerName : null) ||
         customerObj.companyName ||
-        customerObj.name ||
         leadObj?.companyName ||
-        leadObj?.projectName ||
-        leadObj?.customerName ||
-        so?.customerName ||
-        'Consignee Client';
+        (rawSoNo ? `Client (${rawSoNo})` : 'Client');
 
       const customerCode = customerObj.customerCode || customerObj.id || null;
       const customerGstin =
@@ -475,21 +517,26 @@ export class FinanceReadyForDispatchService {
 
     if (query.status?.trim() && query.status.toUpperCase() !== 'ALL') {
       const s = query.status.toUpperCase().trim();
-      allOrders = allOrders.filter(
-        (ord) => ord.dispatchStatus.toUpperCase() === s,
-      );
+      allOrders = allOrders.filter((ord) => {
+        const st = ord.dispatchStatus.toUpperCase();
+        if (s === 'STAGED') return st === 'STAGED' || st === 'READY_FOR_DISPATCH';
+        return st === s;
+      });
     }
 
-    if (query.dateFrom?.trim()) {
-      const from = new Date(query.dateFrom);
+    const fromDateStr = query.dateFrom || (query as any).startDate;
+    const toDateStr = query.dateTo || (query as any).endDate;
+
+    if (fromDateStr?.trim()) {
+      const from = new Date(fromDateStr);
       allOrders = allOrders.filter((ord) => {
         const d = ord.dispatchReadyDate || ord.orderDate;
         return d ? new Date(d) >= from : false;
       });
     }
 
-    if (query.dateTo?.trim()) {
-      const to = new Date(query.dateTo);
+    if (toDateStr?.trim()) {
+      const to = new Date(toDateStr);
       to.setHours(23, 59, 59, 999);
       allOrders = allOrders.filter((ord) => {
         const d = ord.dispatchReadyDate || ord.orderDate;
@@ -508,10 +555,14 @@ export class FinanceReadyForDispatchService {
     const summary = {
       totalOrders: allOrders.length,
       totalUnits: allOrders.reduce((sum, o) => sum + o.totalQuantity, 0),
-      stagedCount: allOrders.filter((o) => o.dispatchStatus === 'STAGED').length,
+      stagedCount: allOrders.filter(
+        (o) => o.dispatchStatus === 'STAGED' || o.dispatchStatus === 'READY_FOR_DISPATCH',
+      ).length,
       dispatchedCount: allOrders.filter((o) => o.dispatchStatus === 'DISPATCHED').length,
       inTransitCount: allOrders.filter((o) => o.dispatchStatus === 'IN_TRANSIT').length,
       deliveredCount: allOrders.filter((o) => o.dispatchStatus === 'DELIVERED').length,
+      totalReady: allOrders.length,
+      totalValueINR: allOrders.reduce((sum, o) => sum + (o.orderAmount || 0), 0),
     };
 
     // Pagination

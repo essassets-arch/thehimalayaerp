@@ -43,12 +43,8 @@ describe('DispatchService queue tenant isolation', () => {
     expect(workOrderFindMany.mock.calls[0][0].where.AND[1]).toEqual({
       OR: [
         { salesOrderItem: { product: { companyId: 'tenant-a' } } },
-        {
-          AND: [
-            { salesOrderItem: null },
-            { productionPlan: { salesOrder: { customer: { companyId: 'tenant-a' } } } },
-          ],
-        },
+        { salesOrderItem: { salesOrder: { customer: { companyId: 'tenant-a' } } } },
+        { productionPlan: { salesOrder: { customer: { companyId: 'tenant-a' } } } },
       ],
     });
     expect(finishedGoodsFindMany.mock.calls[0][0].where.product).toEqual({ companyId: 'tenant-a' });

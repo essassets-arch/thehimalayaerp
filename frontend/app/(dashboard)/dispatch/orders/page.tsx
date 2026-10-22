@@ -998,23 +998,23 @@ export default function DispatchOrdersPage() {
           ? Promise.resolve([])
           : backendFetch<any>(
               "/api/backend/production/work-orders?status=READY_FOR_DISPATCH,SENT_TO_DISPATCH,QC_APPROVED,COMPLETED,DISPATCHED",
-              { cacheTtlMs: 15000 }
+              { cacheTtlMs: 0 }
             ),
         isCategoryD2
           ? Promise.resolve([])
-          : backendFetch<any>("/api/backend/production/ready-for-dispatch", { cacheTtlMs: 15000 }),
+          : backendFetch<any>("/api/backend/production/ready-for-dispatch", { cacheTtlMs: 0 }),
         isCategoryD2
           ? Promise.resolve([])
-          : backendFetch<any>("/api/backend/production/ready-for-dispatch-history", { cacheTtlMs: 15000 }),
+          : backendFetch<any>("/api/backend/production/ready-for-dispatch-history", { cacheTtlMs: 0 }),
         backendFetch<any>(
           "/api/backend/sales/orders?limit=300&status=CONFIRMED,IN_PRODUCTION,READY_FOR_PRODUCTION,PLANT_APPROVED,SENT_TO_PLANT,READY_FOR_DISPATCH,COMPLETED,DISPATCHED,PARTIALLY_DISPATCHED",
-          { cacheTtlMs: 15000 }
+          { cacheTtlMs: 0 }
         ),
         isCategoryD2
           ? Promise.resolve([])
-          : backendFetch<any>("/api/backend/production/finished-goods", { cacheTtlMs: 15000 }),
-        backendFetch<any>(`/api/backend/logistics/dispatches/queue?category=${currentCategory}`, { cacheTtlMs: 15000 }),
-        backendFetch<any>(`/api/backend/logistics/dispatches?category=${currentCategory}`, { cacheTtlMs: 15000 }),
+          : backendFetch<any>("/api/backend/production/finished-goods", { cacheTtlMs: 0 }),
+        backendFetch<any>(`/api/backend/logistics/dispatches/queue?category=${currentCategory}`, { cacheTtlMs: 0 }),
+        backendFetch<any>(`/api/backend/logistics/dispatches?category=${currentCategory}`, { cacheTtlMs: 0 }),
       ]);
 
       const workOrders: any[] =
@@ -1075,26 +1075,7 @@ export default function DispatchOrdersPage() {
       let rawSalesOrders =
         salesOrdersPayload.status === "fulfilled" ? extractArray(salesOrdersPayload.value) : [];
 
-      // Merge local store sales orders if available
-      if (typeof window !== "undefined") {
-        try {
-          const localStoreStr = localStorage.getItem("himalaya_erp_store");
-          if (localStoreStr) {
-            const parsed = JSON.parse(localStoreStr);
-            const localOrders = parsed?.state?.salesOrders || parsed?.salesOrders || [];
-            if (Array.isArray(localOrders) && localOrders.length > 0) {
-              const existingIds = new Set(rawSalesOrders.map((o: any) => o.id || o.orderNumber));
-              localOrders.forEach((lo: any) => {
-                if (lo && !existingIds.has(lo.id) && !existingIds.has(lo.orderNumber) && !existingIds.has(lo.orderNo)) {
-                  rawSalesOrders.push(lo);
-                }
-              });
-            }
-          }
-        } catch (e) {
-          // ignore parsing error
-        }
-      }
+
 
       const rawFinishedGoods =
         finishedGoodsPayload.status === "fulfilled" ? extractArray(finishedGoodsPayload.value) : [];
@@ -1158,45 +1139,7 @@ export default function DispatchOrdersPage() {
         }
       });
 
-      if (typeof window !== "undefined") {
-        try {
-          const rawTracker = localStorage.getItem("himalaya_dispatched_items_tracker");
-          if (rawTracker) {
-            const tracker = JSON.parse(rawTracker);
-            Object.entries(tracker).forEach(([k, v]) => {
-              const q = Number(v || 0);
-              if (q > 0) {
-                const lowerK = k.toLowerCase();
-                dispatchedBySalesOrderItem.set(lowerK, Math.max(dispatchedBySalesOrderItem.get(lowerK) || 0, q));
-                dispatchedByWorkOrder.set(lowerK, Math.max(dispatchedByWorkOrder.get(lowerK) || 0, q));
-                dispatchedBySalesOrderProduct.set(lowerK, Math.max(dispatchedBySalesOrderProduct.get(lowerK) || 0, q));
-              }
-            });
-          }
-        } catch {}
-      }
 
-      if (typeof window !== "undefined") {
-        try {
-          const rawFullMeta = localStorage.getItem("himalaya_dispatches_full_metadata");
-          if (rawFullMeta) {
-            const metaMap = JSON.parse(rawFullMeta);
-            Object.keys(metaMap).forEach((k) => {
-              ordersWithPriorDispatches.add(k.toLowerCase());
-              ordersWithPriorDispatches.add(normalizeKey(k));
-              const entry = metaMap[k];
-              if (entry?.orderNumber) {
-                ordersWithPriorDispatches.add(entry.orderNumber.toLowerCase());
-                ordersWithPriorDispatches.add(normalizeKey(entry.orderNumber));
-              }
-              if (entry?.orderId) {
-                ordersWithPriorDispatches.add(entry.orderId.toLowerCase());
-                ordersWithPriorDispatches.add(normalizeKey(entry.orderId));
-              }
-            });
-          }
-        } catch {}
-      }
 
       // Build index maps of sales orders for deep metadata lookup
       const salesOrdersMap = new Map<string, any>();
@@ -1549,8 +1492,8 @@ export default function DispatchOrdersPage() {
 
         const soStatus = String(so.status || so.workflowState?.code || "").toUpperCase();
 
-        // 1. Skip invalid, draft, or cancelled orders
-        if (["CANCELLED", "LOST", "DRAFT", "PENDING_APPROVAL", "REJECTED"].includes(soStatus)) {
+        // 1. Skip completed, invalid, draft, or cancelled orders
+        if (["COMPLETED", "CANCELLED", "LOST", "DRAFT", "PENDING_APPROVAL", "REJECTED"].includes(soStatus)) {
           return;
         }
 
@@ -1571,7 +1514,7 @@ export default function DispatchOrdersPage() {
             if (!isTrading) {
               const soProdStatus = String(so.productionStatus || "").toUpperCase();
               if (
-                !["READY_FOR_DISPATCH", "COMPLETED", "DISPATCHED_PARTIAL"].includes(soStatus) ||
+                !["READY_FOR_DISPATCH", "DISPATCHED_PARTIAL"].includes(soStatus) ||
                 [
                   "SENT_TO_PLANT", "SENT_TO_PLANT_HEAD", "PLANT_PENDING",
                   "PLANT_APPROVED", "PLANT_HEAD_ACCEPTED", "PRODUCTION_PLANNED",
@@ -1584,7 +1527,7 @@ export default function DispatchOrdersPage() {
             } else {
               // Trading products (D2): DIRECT Sales -> Dispatch 2!
               // All confirmed/active sales orders route trading items directly to Dispatch 2
-              if (["DRAFT", "CANCELLED", "LOST", "REJECTED", "PENDING_APPROVAL"].includes(soStatus)) {
+              if (["COMPLETED", "DRAFT", "CANCELLED", "LOST", "REJECTED", "PENDING_APPROVAL"].includes(soStatus)) {
                 return;
               }
             }
@@ -1833,9 +1776,9 @@ export default function DispatchOrdersPage() {
         return rem > 0;
       });
     },
-    refetchInterval: 30000,
-    staleTime: 15000,
-    refetchOnWindowFocus: false,
+    refetchInterval: 15000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 
   // Query 2: History dispatches for inline history tab
