@@ -350,10 +350,10 @@ export class FinanceReadyForDispatchService {
         physicalDispatchedAt = job.dispatchedAt;
       } else if (so?.status === 'COMPLETED') {
         resolvedDispatchStatus = 'COMPLETED';
-      } else if (job.productionStatus === 'DISPATCHED') {
+      } else if (job.productionStatus === 'DISPATCHED' || job.sentToDispatchAt) {
         resolvedDispatchStatus = 'STAGED'; // Sent to Dispatch (Staged)
       } else {
-        resolvedDispatchStatus = 'READY_FOR_DISPATCH';
+        resolvedDispatchStatus = 'STAGED';
       }
 
       if (!groupedMap.has(orderKey)) {
