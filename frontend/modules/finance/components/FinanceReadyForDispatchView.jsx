@@ -152,66 +152,42 @@ export default function FinanceReadyForDispatchView() {
     setPage(1);
   };
 
-  // Open Quotation handler with live fetch fallback if needed
+  // Open Quotation handler with immediate render and live fetch enhancement
   const handleOpenQuotation = async (order) => {
     if (!order) return;
 
-    // If quotation object is already populated with items
-    if (order.quotation) {
-      setQuotationModal({
-        isOpen: true,
-        quotation: order.quotation,
-        salesOrderNumber: order.salesOrderNumber,
-        customerName: order.customerName,
-        loading: false,
-      });
-      return;
-    }
+    const qId = order.quotationId || order.quotation?.id;
+    const initialQuotation = order.quotation || null;
 
-    // If order has quotationId, try fetching directly
-    if (order.quotationId) {
-      setQuotationModal({
-        isOpen: true,
-        quotation: null,
-        salesOrderNumber: order.salesOrderNumber,
-        customerName: order.customerName,
-        loading: true,
-      });
+    setQuotationModal({
+      isOpen: true,
+      quotation: initialQuotation,
+      salesOrderNumber: order.salesOrderNumber,
+      customerName: order.customerName,
+      loading: Boolean(qId && !initialQuotation),
+    });
 
+    if (qId) {
       try {
-        const quoteRes = await backendFetch(`/api/backend/quotations/${order.quotationId}`, {
+        const quoteRes = await backendFetch(`/api/backend/quotations/${qId}`, {
           cacheTtlMs: 0,
         });
         const quoteData = quoteRes?.data || quoteRes;
-        setQuotationModal({
-          isOpen: true,
-          quotation: quoteData || null,
-          salesOrderNumber: order.salesOrderNumber,
-          customerName: order.customerName,
-          loading: false,
-        });
+        if (quoteData && typeof quoteData === 'object' && (quoteData.id || quoteData.quotationNumber)) {
+          setQuotationModal((prev) => ({
+            ...prev,
+            quotation: {
+              ...(initialQuotation || {}),
+              ...quoteData,
+            },
+            loading: false,
+          }));
+        }
       } catch (err) {
-        console.warn('Could not fetch linked quotation:', err);
-        // Fallback to clear unavailable quotation screen
-        setQuotationModal({
-          isOpen: true,
-          quotation: null,
-          salesOrderNumber: order.salesOrderNumber,
-          customerName: order.customerName,
-          loading: false,
-        });
+        console.warn('Could not fetch linked full quotation from API, using embedded fallback:', err);
+        setQuotationModal((prev) => ({ ...prev, loading: false }));
       }
-      return;
     }
-
-    // No linked quotation
-    setQuotationModal({
-      isOpen: true,
-      quotation: null,
-      salesOrderNumber: order.salesOrderNumber,
-      customerName: order.customerName,
-      loading: false,
-    });
   };
 
   const renderStatusBadge = (status) => {
@@ -398,10 +374,7 @@ export default function FinanceReadyForDispatchView() {
               <tr>
                 <th className={styles.srNo}>Sr. No.</th>
                 <th>Sales Order No.</th>
-                <th>Production Plan No.</th>
-                <th>Work Order No.</th>
                 <th>Customer Name</th>
-                <th>Company / Tenant</th>
                 <th>Quotation No.</th>
                 <th>Order Date</th>
                 <th>Dispatch-Ready Date</th>
@@ -415,14 +388,14 @@ export default function FinanceReadyForDispatchView() {
                 // Skeleton Rows
                 Array.from({ length: 5 }).map((_, idx) => (
                   <tr key={`skeleton-${idx}`}>
-                    <td colSpan={12}>
+                    <td colSpan={9}>
                       <div className={styles.skeletonRow} />
                     </td>
                   </tr>
                 ))
               ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan={12}>
+                  <td colSpan={9}>
                     <div className={styles.emptyState}>
                       <Package size={36} color="#94a3b8" />
                       <h3>No Ready-for-Dispatch Orders Found</h3>
@@ -453,51 +426,14 @@ export default function FinanceReadyForDispatchView() {
                         </span>
                       </td>
 
-                      {/* 3. Production Plan No. */}
-                      <td>
-                        <span className={styles.planRef}>
-                          {order.productionPlanNumber || '—'}
-                        </span>
-                      </td>
-
-                      {/* 4. Work Order No. */}
-                      <td>
-                        {Array.isArray(order.workOrderNumbers) && order.workOrderNumbers.length > 0 ? (
-                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                            {order.workOrderNumbers.slice(0, 2).map((wo) => (
-                              <span key={wo} className={styles.woChip}>
-                                {wo}
-                              </span>
-                            ))}
-                            {order.workOrderNumbers.length > 2 && (
-                              <span
-                                className={styles.woChip}
-                                title={order.workOrderNumbers.join(', ')}
-                              >
-                                +{order.workOrderNumbers.length - 2}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-
-                      {/* 5. Customer Name */}
+                      {/* 3. Customer Name */}
                       <td>
                         <div className={styles.customerName} title={order.customerName}>
                           {order.customerName || '—'}
                         </div>
                       </td>
 
-                      {/* 6. Company / Tenant */}
-                      <td>
-                        <span className={styles.tenantBadge} title={order.companyName}>
-                          {order.companyName || '—'}
-                        </span>
-                      </td>
-
-                      {/* 7. Quotation No. */}
+                      {/* 4. Quotation No. */}
                       <td>
                         {order.quotationNumber ? (
                           <span
@@ -513,25 +449,25 @@ export default function FinanceReadyForDispatchView() {
                         )}
                       </td>
 
-                      {/* 8. Order Date */}
+                      {/* 5. Order Date */}
                       <td className={styles.dateCell}>
                         {formatDate(order.orderDate)}
                       </td>
 
-                      {/* 9. Dispatch-Ready Date */}
+                      {/* 6. Dispatch-Ready Date */}
                       <td className={styles.dateCell}>
                         {formatDate(order.dispatchReadyDate)}
                       </td>
 
-                      {/* 10. Order Amount */}
+                      {/* 7. Order Amount */}
                       <td className={styles.amountCell}>
                         {formatINR(order.orderAmount)}
                       </td>
 
-                      {/* 11. Dispatch Status */}
+                      {/* 8. Dispatch Status */}
                       <td>{renderStatusBadge(order.dispatchStatus)}</td>
 
-                      {/* 12. Actions */}
+                      {/* 9. Actions */}
                       <td>
                         <div className={styles.actionGroup}>
                           <button
@@ -611,6 +547,7 @@ export default function FinanceReadyForDispatchView() {
           quotation={quotationModal.quotation}
           salesOrderNumber={quotationModal.salesOrderNumber}
           customerName={quotationModal.customerName}
+          loading={quotationModal.loading}
           onClose={() =>
             setQuotationModal({
               isOpen: false,
