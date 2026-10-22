@@ -154,10 +154,6 @@ export default function TestCertificateDocument({ report, id = 'test-certificate
                 <div className={styles.logoTagline1}>Manhole Covers</div>
                 <div className={styles.logoTagline2}>Unbeatable • Unmatchable</div>
               </div>
-              <div className={styles.verificationBadge}>
-                <span className={styles.verificationDot} />
-                <span>EN-124 VERIFIED RECORD</span>
-              </div>
             </div>
           </header>
 
@@ -409,15 +405,6 @@ export default function TestCertificateDocument({ report, id = 'test-certificate
               </div>
             </div>
           </footer>
-
-          {/* ── Micro Security Traceability Bar ── */}
-          <div className={styles.securityBar}>
-            <span className={styles.securityDocHash}>
-              REF: HCL/QA/TC-{report.reportNumber || '2026'} • AUTHENTIC LABORATORY CERTIFICATE
-            </span>
-            <span>HIMALAYA COMPOSITE &amp; PRECAST PVT. LTD.</span>
-            <span>PAGE 1 OF 1</span>
-          </div>
         </div>
       </div>
     </div>
