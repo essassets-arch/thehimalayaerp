@@ -234,7 +234,7 @@ export const getPeriodMeta = (timeRange, rangeBounds, quarterChoice = '', now = 
     return { label: '6 Months', badge: `Last 6 Months (${rangeLabel})`, desc: rangeLabel };
   }
   if (timeRange === 'CUSTOM') {
-    return { label: 'Custom', badge: `Custom Period (${rangeLabel})`, desc: rangeLabel };
+    return { label: rangeLabel || 'Custom Period', badge: `Custom Period (${rangeLabel})`, desc: rangeLabel };
   }
   if (timeRange === '1Y') {
     return { label: 'Full Year', badge: `Full Year (${fyLabel})`, desc: rangeLabel };
@@ -279,8 +279,8 @@ export const parseList = (res) => {
   return [];
 };
 
-// ── Deduplicate AR Invoices ──
-export const deduplicateArInvoices = (applAr = [], hcpplAr = [], hcpplReg = [], finAr = [], fallbackPayments = [], fallbackInvoices = []) => {
+// ── Deduplicate AR Invoices (Strictly Live Data, Zero Mock Fallback) ──
+export const deduplicateArInvoices = (applAr = [], hcpplAr = [], hcpplReg = [], finAr = []) => {
   const combined = [
     ...(applAr || []),
     ...(hcpplAr || []),
@@ -298,10 +298,7 @@ export const deduplicateArInvoices = (applAr = [], hcpplAr = [], hcpplReg = [], 
       unique.push(inv);
     }
   }
-  if (unique.length > 0) return unique;
-  if (Array.isArray(fallbackPayments) && fallbackPayments.length > 0) return fallbackPayments;
-  if (Array.isArray(fallbackInvoices) && fallbackInvoices.length > 0) return fallbackInvoices;
-  return [];
+  return unique;
 };
 
 // ── Period Comparison ──
@@ -369,11 +366,14 @@ export const calculateDynamicMetrics = (
     activeInvoices.forEach(inv => {
       const invAmt = Number(inv.invoiceAmount || 0);
       const rcvd = Number(inv.amtRcvd || 0);
-      const out = Number(inv.outstanding !== undefined && inv.outstanding !== null
-        ? inv.outstanding
-        : Math.max(0, invAmt - rcvd));
+      const out = Number(
+        inv.outstanding !== undefined && inv.outstanding !== null
+          ? inv.outstanding
+          : Math.max(0, invAmt - rcvd)
+      );
 
       revSum += invAmt;
+      collSum += rcvd;
       outSum += out;
 
       if (out > 0) {
@@ -392,7 +392,7 @@ export const calculateDynamicMetrics = (
       }
     });
 
-    // ── Accurate Realized Collections (Cleared Bank Receipts in Period) ──
+    // Accurate Realized Collections (Cleared Bank Receipts in Period)
     let collectionsInBounds = 0;
     let hasDateSpecificReceipts = false;
 
@@ -430,15 +430,20 @@ export const calculateDynamicMetrics = (
 
     if (hasDateSpecificReceipts && collectionsInBounds > 0) {
       collSum = collectionsInBounds;
-    } else {
-      collSum = activeInvoices.reduce((s, inv) => s + Number(inv.amtRcvd || 0), 0);
+      // Reconcile so Total Invoiced = Realized Collections + Total Outstanding Dues
+      outSum = Math.max(0, revSum - collSum);
+      overdueSum = Math.min(overdueSum, outSum);
     }
 
   } else if (activeOrders.length > 0) {
     activeOrders.forEach(o => {
       const tot = Number(o.totalAmount || o.grand_total || 0);
       const paid = Number(o.paidAmount || o.verified_paid_amount || 0);
-      const out = Number(o.outstandingAmount !== undefined ? o.outstandingAmount : Math.max(0, tot - paid));
+      const out = Number(
+        o.outstandingAmount !== undefined && o.outstandingAmount !== null && Number(o.outstandingAmount) > 0
+          ? o.outstandingAmount
+          : Math.max(0, tot - paid)
+      );
 
       revSum += tot;
       collSum += paid;
@@ -459,7 +464,33 @@ export const calculateDynamicMetrics = (
         }
       }
     });
+
+    if (rangeBounds?.start && rangeBounds?.end && Array.isArray(livePayments) && livePayments.length > 0) {
+      let orderPmtsInBounds = 0;
+      let hasOrderPmts = false;
+      livePayments.forEach(p => {
+        const st = String(p.status || p.verificationStatus || '').toUpperCase();
+        if (st === 'REJECTED' || st === 'CANCELLED') return;
+        const amt = Number(p.amount || p.verifiedPaidAmount || 0);
+        if (amt <= 0) return;
+        const pDate = p.receivedAt || p.paymentDate || p.verifiedAt || p.createdAt ? new Date(p.receivedAt || p.paymentDate || p.verifiedAt || p.createdAt) : null;
+        if (pDate && !isNaN(pDate.getTime()) && pDate >= rangeBounds.start && pDate <= rangeBounds.end) {
+          orderPmtsInBounds += amt;
+          hasOrderPmts = true;
+        }
+      });
+      if (hasOrderPmts && orderPmtsInBounds > 0) {
+        collSum = orderPmtsInBounds;
+        outSum = Math.max(0, revSum - collSum);
+        overdueSum = Math.min(overdueSum, outSum);
+      }
+    }
   }
+
+  revSum = Number(revSum.toFixed(2));
+  collSum = Number(collSum.toFixed(2));
+  outSum = Number(outSum.toFixed(2));
+  overdueSum = Number(overdueSum.toFixed(2));
 
   const effNum = revSum > 0 ? Number(((collSum / revSum) * 100).toFixed(1)) : 0;
   const effRatio = effNum.toFixed(1);
@@ -470,12 +501,12 @@ export const calculateDynamicMetrics = (
     return !['CLOSED', 'CANCELLED', 'REJECTED'].includes(st);
   });
   const poCount = openPOs.length;
-  const poTotal = openPOs.reduce((s, p) => {
+  const poTotal = Number(openPOs.reduce((s, p) => {
     const due = Number(p.outstandingAmount ?? p.balanceAmount ?? (Number(p.totalAmount || 0) - Number(p.paidAmount || 0)));
     return s + (due > 0 ? due : Number(p.totalAmount || 0));
-  }, 0);
+  }, 0).toFixed(2));
 
-  const operatingSurplus = collSum - poTotal;
+  const operatingSurplus = Number((collSum - poTotal).toFixed(2));
 
   const count = activeInvoices.length > 0 ? activeInvoices.length : activeOrders.length;
 

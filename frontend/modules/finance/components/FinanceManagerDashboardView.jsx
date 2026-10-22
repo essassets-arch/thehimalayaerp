@@ -123,7 +123,7 @@ export default function FinanceManagerDashboardView({
         backendFetch('/api/backend/back-office/hcppl-ar/entries?limit=1000').catch(() => null),
         backendFetch('/api/backend/back-office/hcppl-ar/register?limit=1000').catch(() => null),
         backendFetch('/api/backend/reports/finance/ar-invoices?limit=1000').catch(() => null),
-        backendFetch('/api/backend/purchase-orders?limit=1000').catch(() => null),
+        backendFetch('/api/backend/procurement/purchase-orders?limit=1000').catch(() => null),
         backendFetch('/api/backend/expenses?limit=1000').catch(() => null),
         backendFetch('/api/backend/brand-analysis-requests?limit=1000').catch(() => null),
         backendFetch('/api/backend/users?limit=500').catch(() => null),
@@ -169,25 +169,21 @@ export default function FinanceManagerDashboardView({
     fetchAllFinanceData();
   }, [fetchAllFinanceData]);
 
-  // Combined AR Invoices (APPL + HCPPL + Finance AR)
+  // Combined AR Invoices (APPL + HCPPL + Finance AR) - Strictly Live Backend Data
   const allArInvoices = useMemo(() => {
     return deduplicateArInvoices(
       liveData.applArInvoices,
       liveData.hcpplArInvoices,
       liveData.hcpplRegInvoices,
-      liveData.financeArInvoices,
-      liveData.payments.length > 0 ? liveData.payments : propPayments,
-      state.invoices
+      liveData.financeArInvoices
     );
-  }, [liveData.applArInvoices, liveData.hcpplArInvoices, liveData.hcpplRegInvoices, liveData.financeArInvoices, liveData.payments, propPayments, state.invoices]);
+  }, [liveData.applArInvoices, liveData.hcpplArInvoices, liveData.hcpplRegInvoices, liveData.financeArInvoices]);
 
-  // Combined Sales Orders
+  // Combined Sales Orders - Strictly Live Backend Data
   const salesOrders = useMemo(() => {
     if (Array.isArray(liveData.salesOrders) && liveData.salesOrders.length > 0) return liveData.salesOrders;
-    if (Array.isArray(state.sales?.orders) && state.sales.orders.length > 0) return state.sales.orders;
-    if (Array.isArray(state.orders) && state.orders.length > 0) return state.orders;
     return [];
-  }, [liveData.salesOrders, state.sales?.orders, state.orders]);
+  }, [liveData.salesOrders]);
 
   // Period label & human-readable badge
   const periodMeta = useMemo(() => {
@@ -215,7 +211,7 @@ export default function FinanceManagerDashboardView({
 
   // ── Filtered Purchase Orders according to Active Horizon ──
   const filteredPurchaseOrders = useMemo(() => {
-    const list = liveData.purchaseOrders || [];
+    const list = Array.isArray(liveData.purchaseOrders) ? liveData.purchaseOrders : [];
     if (list.length === 0) return [];
     return list.filter((po) => isInRange(po, ['issuedAt', 'createdAt', 'poDate', 'date'], rangeBounds));
   }, [liveData.purchaseOrders, rangeBounds]);

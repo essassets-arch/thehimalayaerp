@@ -1050,41 +1050,6 @@ export default function FinancePortal({ initialView, forceView }) {
 
       const filtered = expenses.filter(e => e.category === filterCategory);
 
-      // If list is empty, generate some highly realistic mock items to look premium
-      if (filtered.length === 0) {
-        if (expenseTab === 'Office Expenses') {
-          return [
-            { id: 101, item: 'A4 Printing Paper & Office Stationery', amount: 4800, category: 'Operations', date: '2026-07-01' },
-            { id: 102, item: 'High-speed Fiber Broadband Internet Bill', amount: 3500, category: 'Operations', date: '2026-07-02' },
-            { id: 103, item: 'Ergonomic Desk Chairs for Staff Cabin', amount: 24000, category: 'Operations', date: '2026-07-05' }
-          ];
-        }
-        if (expenseTab === 'Factory Expenses') {
-          return [
-            { id: 201, item: 'Machinery Lubricants & Consumable Oils', amount: 18500, category: 'Procurement', date: '2026-07-03' },
-            { id: 202, item: 'Safety Gloves, Helmets & PPE Kits Refill', amount: 12400, category: 'Procurement', date: '2026-07-04' }
-          ];
-        }
-        if (expenseTab === 'Utility Bills') {
-          return [
-            { id: 301, item: 'State Electricity Board Power Consumption Bill', amount: 89600, category: 'Logistics', date: '2026-07-01' },
-            { id: 302, item: 'Municipal Water Supply & Sewage Charges', amount: 6200, category: 'Logistics', date: '2026-07-02' }
-          ];
-        }
-        if (expenseTab === 'Salary Payments') {
-          return [
-            { id: 401, item: 'Production Line Staff Salary (June Month)', amount: 480000, category: 'Salary', date: '2026-07-01' },
-            { id: 402, item: 'Quality Control Department Payroll Clear', amount: 145000, category: 'Salary', date: '2026-07-01' },
-            { id: 403, item: 'Dispatch Logistics Supervisors Salary Roll', amount: 98000, category: 'Salary', date: '2026-07-01' }
-          ];
-        }
-        if (expenseTab === 'Misc Expenses') {
-          return [
-            { id: 501, item: 'Minor Office Roof Leak Repair Work', amount: 7500, category: 'Maintenance', date: '2026-07-04' },
-            { id: 502, item: 'Air Conditioner Servicing & Filter Cleaning', amount: 5200, category: 'Maintenance', date: '2026-07-06' }
-          ];
-        }
-      }
       return filtered;
     };
 
