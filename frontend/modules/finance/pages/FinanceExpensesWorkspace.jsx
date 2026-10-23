@@ -5,7 +5,8 @@ import {
   Plus, Receipt, Calendar, DollarSign, Filter, Download,
   Eye, Edit2, Layers, Tag, ChevronRight, Search, FileText,
   CheckCircle2, AlertCircle, X, Loader2, TrendingUp, FolderPlus,
-  RefreshCw, Upload, Check, Printer
+  RefreshCw, Upload, Check, Printer, ChevronLeft, ChevronsLeft,
+  ChevronsRight, PieChart as PieChartIcon, ArrowRight
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -13,12 +14,7 @@ import {
   Pie,
   Cell,
   Tooltip,
-  Legend,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid
+  Legend
 } from 'recharts';
 import Swal from 'sweetalert2';
 import { financeExpenseService } from '../../../services/financeExpenseService';
@@ -26,9 +22,9 @@ import { exportToCSV } from '../../../services/export.service';
 import { useAuthStore } from '@/store/authStore';
 
 const CHART_COLORS = [
-  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#6366f1',
-  '#84cc16', '#a855f7'
+  '#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+  '#EC4899', '#06B6D4', '#14B8A6', '#F97316', '#6366F1',
+  '#84CC16', '#A855F7'
 ];
 
 export default function FinanceExpensesWorkspace() {
@@ -95,7 +91,7 @@ export default function FinanceExpensesWorkspace() {
   const [newHeaderDesc, setNewHeaderDesc] = useState('');
   const [isSavingCategory, setIsSavingCategory] = useState(false);
 
-  // Determine allowed roles for Master Management
+  // Role resolution
   const rawRole = typeof user?.role === 'object' ? user?.role?.code || user?.role?.name : user?.role;
   const isSuperAdmin = String(rawRole || '').toUpperCase().includes('SUPER_ADMIN') || String(rawRole || '').toUpperCase().includes('ADMIN');
   const isFinanceManager = isSuperAdmin || String(rawRole || '').toLowerCase().includes('finance manager') || String(rawRole || '').toLowerCase().includes('finance-lead');
@@ -174,11 +170,6 @@ export default function FinanceExpensesWorkspace() {
       }
     } catch (err) {
       console.error('Failed to load finance expense data:', err);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error Loading Expenses',
-        text: err?.message || 'Unable to synchronize expense transactions with database.',
-      });
     } finally {
       setIsLoadingData(false);
     }
@@ -198,60 +189,13 @@ export default function FinanceExpensesWorkspace() {
     fetchData();
   }, [fetchData]);
 
-  // Handle Category Filter Change (clears incompatible header)
-  const handleCategoryFilterChange = (catId) => {
-    setSelectedCategory(catId);
-    setSelectedHeader('');
-    setPage(1);
-  };
-
-  // Handle Form Category Change
-  const handleFormCategoryChange = (catId) => {
-    setFormData((prev) => ({
-      ...prev,
-      categoryId: catId,
-      headerId: '', // Reset incompatible header
-    }));
-  };
-
-  // Handle Receipt Upload
-  const handleReceiptUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 10 * 1024 * 1024) {
-      Swal.fire('File Too Large', 'Maximum allowed receipt attachment size is 10MB.', 'warning');
-      return;
-    }
-
-    try {
-      setUploadingReceipt(true);
-      const res = await financeExpenseService.uploadReceipt(file);
-      if (res?.fileUrl || res?.path || res?.fileName) {
-        const url = res.fileUrl || res.path || res.fileName;
-        setFormData((prev) => ({ ...prev, receiptUrl: url }));
-        Swal.fire({
-          icon: 'success',
-          title: 'Receipt Uploaded',
-          text: 'Receipt bill attachment processed securely.',
-          timer: 1500,
-          showConfirmButton: false,
-        });
-      }
-    } catch (err) {
-      Swal.fire('Upload Error', err?.message || 'Failed to upload receipt attachment.', 'error');
-    } finally {
-      setUploadingReceipt(false);
-    }
-  };
-
-  // Handle Open Create Modal
+  // Open Create Modal
   const handleOpenCreateModal = () => {
     setEditingExpenseId(null);
     setFormData({
       expenseDate: new Date().toISOString().split('T')[0],
-      categoryId: categories[0]?.id || '',
-      headerId: categories[0]?.headers?.[0]?.id || '',
+      categoryId: '',
+      headerId: '',
       amount: '',
       description: '',
       paidTo: '',
@@ -264,39 +208,79 @@ export default function FinanceExpensesWorkspace() {
     setShowAddModal(true);
   };
 
-  // Handle Open Edit Modal
-  const handleOpenEditModal = (exp) => {
-    setEditingExpenseId(exp.id);
+  // Open Edit Modal
+  const handleOpenEditModal = (expense) => {
+    setEditingExpenseId(expense.id);
     setFormData({
-      expenseDate: exp.expenseDate ? new Date(exp.expenseDate).toISOString().split('T')[0] : '',
-      categoryId: exp.categoryId || '',
-      headerId: exp.headerId || '',
-      amount: String(exp.amount),
-      description: exp.description || '',
-      paidTo: exp.paidTo || '',
-      paymentMethod: exp.paymentMethod || 'Bank',
-      voucherNumber: exp.voucherNumber || '',
-      invoiceNumber: exp.invoiceNumber || '',
-      receiptUrl: exp.receiptUrl || '',
-      notes: exp.notes || '',
+      expenseDate: expense.expenseDate ? new Date(expense.expenseDate).toISOString().split('T')[0] : '',
+      categoryId: expense.categoryId || '',
+      headerId: expense.headerId || '',
+      amount: expense.amount || '',
+      description: expense.description || '',
+      paidTo: expense.paidTo || '',
+      paymentMethod: expense.paymentMethod || 'Bank',
+      voucherNumber: expense.voucherNumber || '',
+      invoiceNumber: expense.invoiceNumber || '',
+      receiptUrl: expense.receiptUrl || '',
+      notes: expense.notes || '',
     });
     setShowAddModal(true);
   };
 
-  // Handle Submit Expense
+  // Category filter change
+  const handleCategoryFilterChange = (catId) => {
+    setSelectedCategory(catId);
+    setSelectedHeader('');
+    setPage(1);
+  };
+
+  // Handle category change in Create/Edit Form
+  const handleFormCategoryChange = (catId) => {
+    setFormData((prev) => ({
+      ...prev,
+      categoryId: catId,
+      headerId: '',
+    }));
+  };
+
+  // Handle Receipt Upload
+  const handleReceiptUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingReceipt(true);
+      const res = await financeExpenseService.uploadReceipt(file);
+      if (res && res.receiptUrl) {
+        setFormData((prev) => ({ ...prev, receiptUrl: res.receiptUrl }));
+        Swal.fire({
+          icon: 'success',
+          title: 'Receipt Uploaded',
+          text: 'Receipt attached successfully.',
+          timer: 1500,
+          showConfirmButton: false,
+        });
+      }
+    } catch (err) {
+      Swal.fire('Upload Failed', err?.message || 'Could not upload receipt image.', 'error');
+    } finally {
+      setUploadingReceipt(false);
+    }
+  };
+
+  // Submit Expense Form
   const handleSubmitExpense = async (e) => {
     e.preventDefault();
-
     if (!formData.categoryId) {
-      Swal.fire('Missing Category', 'Please select an Expense Category.', 'warning');
+      Swal.fire('Missing Category', 'Please select an expense category.', 'warning');
       return;
     }
     if (!formData.amount || Number(formData.amount) <= 0) {
-      Swal.fire('Invalid Amount', 'Please enter a valid numeric amount greater than zero.', 'warning');
+      Swal.fire('Invalid Amount', 'Please enter a valid expense amount greater than 0.', 'warning');
       return;
     }
-    if (!formData.description.trim()) {
-      Swal.fire('Missing Description', 'Please provide an expense description or purpose.', 'warning');
+    if (!formData.description || formData.description.trim().length === 0) {
+      Swal.fire('Missing Description', 'Please enter an expense description or purpose.', 'warning');
       return;
     }
 
@@ -305,15 +289,15 @@ export default function FinanceExpensesWorkspace() {
       const payload = {
         expenseDate: formData.expenseDate,
         categoryId: formData.categoryId,
-        headerId: formData.headerId || undefined,
+        headerId: formData.headerId || null,
         amount: Number(formData.amount),
         description: formData.description.trim(),
-        paidTo: formData.paidTo?.trim() || undefined,
-        paymentMethod: formData.paymentMethod || undefined,
-        voucherNumber: formData.voucherNumber?.trim() || undefined,
-        invoiceNumber: formData.invoiceNumber?.trim() || undefined,
-        receiptUrl: formData.receiptUrl || undefined,
-        notes: formData.notes?.trim() || undefined,
+        paidTo: formData.paidTo ? formData.paidTo.trim() : null,
+        paymentMethod: formData.paymentMethod,
+        voucherNumber: formData.voucherNumber ? formData.voucherNumber.trim() : null,
+        invoiceNumber: formData.invoiceNumber ? formData.invoiceNumber.trim() : null,
+        receiptUrl: formData.receiptUrl || null,
+        notes: formData.notes ? formData.notes.trim() : null,
       };
 
       if (editingExpenseId) {
@@ -321,17 +305,17 @@ export default function FinanceExpensesWorkspace() {
         Swal.fire({
           icon: 'success',
           title: 'Expense Updated',
-          text: 'The expense transaction has been updated successfully.',
-          timer: 1800,
+          text: 'The expense transaction was successfully updated.',
+          timer: 1500,
           showConfirmButton: false,
         });
       } else {
         await financeExpenseService.createExpense(payload);
         Swal.fire({
           icon: 'success',
-          title: 'Expense Logged',
-          text: 'Expense saved and verified in PostgreSQL ledger.',
-          timer: 1800,
+          title: 'Expense Recorded',
+          text: 'New expense transaction created and register updated.',
+          timer: 1500,
           showConfirmButton: false,
         });
       }
@@ -339,56 +323,39 @@ export default function FinanceExpensesWorkspace() {
       setShowAddModal(false);
       fetchData();
     } catch (err) {
-      console.error('Expense submission failed:', err);
-      Swal.fire({
-        icon: 'error',
-        title: 'Save Failed',
-        text: err?.message || 'Could not save expense transaction. Form data has been preserved.',
-      });
+      console.error('Failed to save expense:', err);
+      Swal.fire('Error', err?.message || 'Could not save expense.', 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Handle Category Master Add Category
-  const handleCreateCategory = async (e) => {
-    e.preventDefault();
-    if (!newCatName.trim()) return;
-
-    try {
-      setIsSavingCategory(true);
-      await financeExpenseService.createCategory({
-        name: newCatName.trim(),
-        description: newCatDesc.trim() || undefined,
-      });
-      setNewCatName('');
-      setNewCatDesc('');
-      Swal.fire('Success', 'Category created successfully.', 'success');
-      fetchCategories();
-    } catch (err) {
-      Swal.fire('Error', err?.message || 'Failed to create category.', 'error');
-    } finally {
-      setIsSavingCategory(false);
-    }
-  };
-
-  // Handle Category Master Add Header
+  // Create Header in Master
   const handleCreateHeader = async (e) => {
     e.preventDefault();
-    if (!selectedCatForHeader || !newHeaderName.trim()) return;
+    if (!selectedCatForHeader || !newHeaderName.trim()) {
+      Swal.fire('Required Fields', 'Please select a category and header name.', 'warning');
+      return;
+    }
 
     try {
       setIsSavingCategory(true);
       await financeExpenseService.createHeader(selectedCatForHeader, {
         name: newHeaderName.trim(),
-        description: newHeaderDesc.trim() || undefined,
+        description: newHeaderDesc ? newHeaderDesc.trim() : undefined,
       });
       setNewHeaderName('');
       setNewHeaderDesc('');
-      Swal.fire('Success', 'Header added to category successfully.', 'success');
+      Swal.fire({
+        icon: 'success',
+        title: 'Header Created',
+        text: 'Header added to category successfully.',
+        timer: 1500,
+        showConfirmButton: false,
+      });
       fetchCategories();
     } catch (err) {
-      Swal.fire('Error', err?.message || 'Failed to add header.', 'error');
+      Swal.fire('Error', err?.message || 'Could not create header.', 'error');
     } finally {
       setIsSavingCategory(false);
     }
@@ -441,38 +408,98 @@ export default function FinanceExpensesWorkspace() {
     }
   };
 
-  // Helper formatting for currency
+  // Standard Indian Rupee Formatter
   const formatINR = (val) => {
     const num = Number(val || 0);
     return `₹${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  const getPageNumbers = () => {
+    const pages = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (page > 3) pages.push('...');
+      const start = Math.max(2, page - 1);
+      const end = Math.min(totalPages - 1, page + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (page < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '4px' }}>
-      {/* 1. Header & Navigation Breadcrumb Bar */}
+    <div style={{
+      width: '100%',
+      minHeight: '100%',
+      padding: '16px 20px',
+      background: '#F8FAFC',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '20px',
+      boxSizing: 'border-box',
+      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    }}>
+
+      {/* ────────────────────────────────────────────────────────── */}
+      {/* 1. TOP HEADER WITH ENTERPRISE ACTION BAR                   */}
+      {/* ────────────────────────────────────────────────────────── */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
         gap: '16px',
-        padding: '16px 20px',
-        background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%)',
-        borderRadius: '16px',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        backdropFilter: 'blur(12px)',
+        background: '#FFFFFF',
+        padding: '18px 24px',
+        borderRadius: '12px',
+        border: '1px solid #E2E8F0',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
-            <span>Finance Department</span>
-            <ChevronRight size={13} />
-            <span style={{ color: '#38bdf8', fontWeight: 600 }}>Finance Expense</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+            <span style={{
+              fontSize: '11px',
+              fontWeight: '800',
+              color: '#0284C7',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              background: '#E0F2FE',
+              padding: '3px 8px',
+              borderRadius: '4px'
+            }}>
+              FINANCE
+            </span>
+            <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B' }}>
+              Expense Register & Ledger
+            </span>
           </div>
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Receipt size={24} color="#38bdf8" />
+          <h1 style={{
+            fontSize: '22px',
+            fontWeight: '850',
+            color: '#0F172A',
+            margin: 0,
+            letterSpacing: '-0.02em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: '#EFF6FF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Receipt size={18} color="#2563EB" />
+            </div>
             Finance Expense Management
           </h1>
-          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
             Authoritative enterprise expense register, category allocation & P&L cost tracking.
           </p>
         </div>
@@ -480,206 +507,281 @@ export default function FinanceExpensesWorkspace() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           {isFinanceManager && (
             <button
+              type="button"
               onClick={() => setShowCategoryMasterModal(true)}
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '8px 16px',
-                background: 'rgba(56, 189, 248, 0.1)',
-                border: '1px solid rgba(56, 189, 248, 0.3)',
+                padding: '8px 14px',
+                background: '#FFFFFF',
+                border: '1px solid #CBD5E1',
                 borderRadius: '8px',
-                color: '#38bdf8',
-                fontSize: '13px',
-                fontWeight: 600,
+                color: '#1E293B',
+                fontSize: '12.5px',
+                fontWeight: '700',
                 cursor: 'pointer',
-                transition: 'all 0.2s',
+                transition: 'background 0.15s ease'
               }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF'; }}
             >
-              <FolderPlus size={16} />
-              Category Master
+              <FolderPlus size={15} color="#2563EB" />
+              <span>Category Master</span>
             </button>
           )}
 
           <button
+            type="button"
             onClick={handleExportCSV}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 16px',
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: '8px',
-              color: '#e2e8f0',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            <Download size={16} />
-            Export CSV
-          </button>
-
-          <button
-            onClick={() => window.print()}
-            style={{
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
               padding: '8px 14px',
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
+              background: '#FFFFFF',
+              border: '1px solid #CBD5E1',
               borderRadius: '8px',
-              color: '#cbd5e1',
-              fontSize: '13px',
-              fontWeight: 600,
+              color: '#334155',
+              fontSize: '12.5px',
+              fontWeight: '700',
               cursor: 'pointer',
+              transition: 'background 0.15s ease'
             }}
-            title="Print Report"
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF'; }}
           >
-            <Printer size={16} />
+            <Download size={15} color="#64748B" />
+            <span>Export CSV</span>
           </button>
 
           <button
+            type="button"
+            onClick={() => window.print()}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 12px',
+              background: '#FFFFFF',
+              border: '1px solid #CBD5E1',
+              borderRadius: '8px',
+              color: '#64748B',
+              fontSize: '12.5px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'background 0.15s ease'
+            }}
+            title="Print Report"
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF'; }}
+          >
+            <Printer size={15} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => fetchData()}
+            disabled={isLoadingData}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 12px',
+              background: '#FFFFFF',
+              border: '1px solid #CBD5E1',
+              borderRadius: '8px',
+              color: '#334155',
+              fontSize: '12.5px',
+              fontWeight: '700',
+              cursor: isLoadingData ? 'not-allowed' : 'pointer'
+            }}
+            title="Refresh Data"
+          >
+            <RefreshCw size={14} className={isLoadingData ? 'animate-spin' : ''} />
+          </button>
+
+          <button
+            type="button"
             onClick={handleOpenCreateModal}
             style={{
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '9px 20px',
-              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-              border: 'none',
+              gap: '6px',
+              padding: '8px 18px',
+              background: '#002E5D',
+              border: '1px solid #002E5D',
               borderRadius: '8px',
-              color: '#ffffff',
-              fontSize: '13.5px',
-              fontWeight: 700,
+              fontSize: '13px',
+              fontWeight: '750',
+              color: '#FFFFFF',
               cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)',
-              transition: 'all 0.2s',
+              boxShadow: '0 2px 4px rgba(0, 46, 93, 0.2)',
+              transition: 'all 0.15s ease'
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#002244'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = '#002E5D'; }}
           >
-            <Plus size={18} />
-            + Add Expense
+            <Plus size={16} />
+            <span>+ Add Expense</span>
           </button>
         </div>
       </div>
 
-      {/* 2. Authoritative Summary Cards */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        gap: '16px',
-      }}>
-        {/* Card A: Total Expenses */}
+      {/* ────────────────────────────────────────────────────────── */}
+      {/* 2. 4 EXECUTIVE STAT KPI CARDS (Crisp Light Enterprise Grid)  */}
+      {/* ────────────────────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+        {/* Card 1: Total Expenses */}
         <div style={{
-          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%)',
-          padding: '20px',
-          borderRadius: '16px',
-          border: '1px solid rgba(59, 130, 246, 0.2)',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
+          background: '#FFFFFF',
+          borderRadius: '12px',
+          border: '1px solid #E2E8F0',
+          padding: '18px 20px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '8px',
+          gap: '6px'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>Total Expenses</span>
-            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <DollarSign size={20} color="#3b82f6" />
+            <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              TOTAL EXPENSES
+            </span>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <DollarSign size={18} color="#2563EB" />
             </div>
           </div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.5px' }}>
+          <div style={{ fontSize: '26px', fontWeight: '900', color: '#0F172A', letterSpacing: '-0.02em' }}>
             {formatINR(summary.totalExpenses)}
           </div>
-          <span style={{ fontSize: '12px', color: '#64748b' }}>Matching active filters</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+            <span>Filtered Scope</span>
+            <span style={{ fontSize: '11px', fontWeight: '700', background: '#EFF6FF', color: '#2563EB', padding: '1px 6px', borderRadius: '4px' }}>
+              Active Filter
+            </span>
+          </div>
         </div>
 
-        {/* Card B: This Month */}
+        {/* Card 2: This Month */}
         <div style={{
-          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%)',
-          padding: '20px',
-          borderRadius: '16px',
-          border: '1px solid rgba(16, 185, 129, 0.2)',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
+          background: '#FFFFFF',
+          borderRadius: '12px',
+          border: '1px solid #E2E8F0',
+          padding: '18px 20px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '8px',
+          gap: '6px'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>This Month</span>
-            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Calendar size={20} color="#10b981" />
+            <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              THIS MONTH
+            </span>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Calendar size={18} color="#16A34A" />
             </div>
           </div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.5px' }}>
+          <div style={{ fontSize: '26px', fontWeight: '900', color: '#0F172A', letterSpacing: '-0.02em' }}>
             {formatINR(summary.thisMonth)}
           </div>
-          <span style={{ fontSize: '12px', color: '#64748b' }}>Calendar month total</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+            <span>Calendar Month Total</span>
+            <span style={{ fontSize: '11px', fontWeight: '700', background: '#DCFCE7', color: '#16A34A', padding: '1px 6px', borderRadius: '4px' }}>
+              Current
+            </span>
+          </div>
         </div>
 
-        {/* Card C: Total Entries */}
+        {/* Card 3: Total Entries */}
         <div style={{
-          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%)',
-          padding: '20px',
-          borderRadius: '16px',
-          border: '1px solid rgba(245, 158, 11, 0.2)',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
+          background: '#FFFFFF',
+          borderRadius: '12px',
+          border: '1px solid #E2E8F0',
+          padding: '18px 20px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '8px',
+          gap: '6px'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>Total Entries</span>
-            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Layers size={20} color="#f59e0b" />
+            <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              TOTAL TRANSACTIONS
+            </span>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#FFFBEB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Layers size={18} color="#D97706" />
             </div>
           </div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.5px' }}>
+          <div style={{ fontSize: '26px', fontWeight: '900', color: '#0F172A', letterSpacing: '-0.02em' }}>
             {summary.totalEntries}
           </div>
-          <span style={{ fontSize: '12px', color: '#64748b' }}>Recorded transactions</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+            <span>Recorded Vouchers</span>
+            <span style={{ color: '#D97706', fontWeight: '750' }}>
+              {totalCount} Total
+            </span>
+          </div>
         </div>
 
-        {/* Card D: Top Expense Category */}
+        {/* Card 4: Top Category */}
         <div style={{
-          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%)',
-          padding: '20px',
-          borderRadius: '16px',
-          border: '1px solid rgba(139, 92, 246, 0.2)',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
+          background: '#FFFFFF',
+          borderRadius: '12px',
+          border: '1px solid #E2E8F0',
+          padding: '18px 20px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '8px',
+          gap: '6px'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>Top Expense Category</span>
-            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(139, 92, 246, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <TrendingUp size={20} color="#8b5cf6" />
+            <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              TOP EXPENSE CATEGORY
+            </span>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#F5F3FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <TrendingUp size={18} color="#7C3AED" />
             </div>
           </div>
-          <div style={{ fontSize: '18px', fontWeight: 800, color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{
+            fontSize: summary.topCategory ? '20px' : '26px',
+            fontWeight: '900',
+            color: '#0F172A',
+            letterSpacing: '-0.02em',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}>
             {summary.topCategory ? summary.topCategory.categoryName : '—'}
           </div>
-          <span style={{ fontSize: '12px', color: '#a78bfa', fontWeight: 600 }}>
-            {summary.topCategory ? `${formatINR(summary.topCategory.amount)} (${summary.topCategory.percentage}%)` : 'No expenses recorded'}
-          </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+            <span style={{ color: summary.topCategory ? '#7C3AED' : '#94A3B8', fontWeight: '700' }}>
+              {summary.topCategory ? `${formatINR(summary.topCategory.amount)}` : 'No expenses in filter'}
+            </span>
+            {summary.topCategory && (
+              <span style={{ fontSize: '11px', fontWeight: '800', background: '#EDE9FE', color: '#7C3AED', padding: '1px 6px', borderRadius: '4px' }}>
+                {summary.topCategory.percentage}%
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* 3. Comprehensive Filter Bar */}
+      {/* ────────────────────────────────────────────────────────── */}
+      {/* 3. COMPREHENSIVE FILTER & SEARCH BAR                        */}
+      {/* ────────────────────────────────────────────────────────── */}
       <div style={{
-        background: 'rgba(30, 41, 59, 0.5)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        borderRadius: '16px',
+        background: '#FFFFFF',
+        borderRadius: '12px',
+        border: '1px solid #E2E8F0',
         padding: '16px 20px',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '14px',
+        gap: '14px'
       }}>
-        {/* Row 1: Date Presets */}
+        {/* Row 1: Date Period Presets */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '6px' }}>
-            <Calendar size={15} color="#38bdf8" />
+          <span style={{ fontSize: '12.5px', fontWeight: '800', color: '#1E293B', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '6px' }}>
+            <Calendar size={15} color="#002E5D" />
             Period:
           </span>
           {[
@@ -693,6 +795,7 @@ export default function FinanceExpensesWorkspace() {
             return (
               <button
                 key={preset.id}
+                type="button"
                 onClick={() => {
                   setDatePreset(preset.id);
                   setPage(1);
@@ -700,13 +803,13 @@ export default function FinanceExpensesWorkspace() {
                 style={{
                   padding: '6px 14px',
                   borderRadius: '8px',
-                  border: isActive ? '1px solid #0284c7' : '1px solid rgba(255, 255, 255, 0.1)',
-                  background: isActive ? '#0284c7' : 'rgba(255, 255, 255, 0.04)',
-                  color: isActive ? '#ffffff' : '#94a3b8',
-                  fontSize: '12.5px',
-                  fontWeight: 600,
+                  border: isActive ? '1px solid #002E5D' : '1px solid #E2E8F0',
+                  background: isActive ? '#002E5D' : '#F8FAFC',
+                  color: isActive ? '#FFFFFF' : '#475569',
+                  fontSize: '12px',
+                  fontWeight: isActive ? '750' : '600',
                   cursor: 'pointer',
-                  transition: 'all 0.15s ease',
+                  transition: 'all 0.15s ease'
                 }}
               >
                 {preset.label}
@@ -715,7 +818,7 @@ export default function FinanceExpensesWorkspace() {
           })}
         </div>
 
-        {/* Row 2: Custom Date Inputs & Filters */}
+        {/* Row 2: Selects, Custom Dates & Search */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           {datePreset === 'custom' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -727,15 +830,16 @@ export default function FinanceExpensesWorkspace() {
                   setPage(1);
                 }}
                 style={{
-                  padding: '6px 10px',
-                  background: 'rgba(15, 23, 42, 0.7)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  padding: '7px 10px',
+                  background: '#FFFFFF',
+                  border: '1px solid #CBD5E1',
                   borderRadius: '6px',
-                  color: '#f8fafc',
+                  color: '#0F172A',
                   fontSize: '12.5px',
+                  outline: 'none'
                 }}
               />
-              <span style={{ color: '#64748b', fontSize: '12px' }}>to</span>
+              <span style={{ color: '#64748B', fontSize: '12px', fontWeight: '600' }}>to</span>
               <input
                 type="date"
                 value={customTo}
@@ -744,33 +848,37 @@ export default function FinanceExpensesWorkspace() {
                   setPage(1);
                 }}
                 style={{
-                  padding: '6px 10px',
-                  background: 'rgba(15, 23, 42, 0.7)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  padding: '7px 10px',
+                  background: '#FFFFFF',
+                  border: '1px solid #CBD5E1',
                   borderRadius: '6px',
-                  color: '#f8fafc',
+                  color: '#0F172A',
                   fontSize: '12.5px',
+                  outline: 'none'
                 }}
               />
             </div>
           )}
 
           {/* Category Dropdown */}
-          <div style={{ minWidth: '180px' }}>
+          <div style={{ minWidth: '200px', flex: '1 1 200px' }}>
             <select
               value={selectedCategory}
               onChange={(e) => handleCategoryFilterChange(e.target.value)}
               style={{
                 width: '100%',
-                padding: '7px 12px',
-                background: 'rgba(15, 23, 42, 0.8)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                padding: '8px 12px',
+                background: '#FFFFFF',
+                border: '1px solid #CBD5E1',
                 borderRadius: '8px',
-                color: '#f8fafc',
+                color: selectedCategory ? '#0F172A' : '#64748B',
                 fontSize: '12.5px',
+                fontWeight: selectedCategory ? '700' : '500',
+                outline: 'none',
+                cursor: 'pointer'
               }}
             >
-              <option value="">All Categories / Subheaders</option>
+              <option value="">📂 All Categories / Subheaders</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -780,7 +888,7 @@ export default function FinanceExpensesWorkspace() {
           </div>
 
           {/* Header Dropdown */}
-          <div style={{ minWidth: '180px' }}>
+          <div style={{ minWidth: '180px', flex: '1 1 180px' }}>
             <select
               value={selectedHeader}
               onChange={(e) => {
@@ -790,16 +898,19 @@ export default function FinanceExpensesWorkspace() {
               disabled={!selectedCategory || filterAvailableHeaders.length === 0}
               style={{
                 width: '100%',
-                padding: '7px 12px',
-                background: 'rgba(15, 23, 42, 0.8)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                padding: '8px 12px',
+                background: '#FFFFFF',
+                border: '1px solid #CBD5E1',
                 borderRadius: '8px',
-                color: '#f8fafc',
+                color: selectedHeader ? '#0F172A' : '#64748B',
                 fontSize: '12.5px',
-                opacity: !selectedCategory || filterAvailableHeaders.length === 0 ? 0.5 : 1,
+                fontWeight: selectedHeader ? '700' : '500',
+                outline: 'none',
+                cursor: !selectedCategory || filterAvailableHeaders.length === 0 ? 'not-allowed' : 'pointer',
+                opacity: !selectedCategory || filterAvailableHeaders.length === 0 ? 0.6 : 1,
               }}
             >
-              <option value="">All Category Headers</option>
+              <option value="">🏷️ All Category Headers</option>
               {filterAvailableHeaders.map((h) => (
                 <option key={h.id} value={h.id}>
                   {h.name}
@@ -809,7 +920,7 @@ export default function FinanceExpensesWorkspace() {
           </div>
 
           {/* Payment Method Filter */}
-          <div style={{ minWidth: '140px' }}>
+          <div style={{ minWidth: '150px' }}>
             <select
               value={paymentMethodFilter}
               onChange={(e) => {
@@ -818,29 +929,32 @@ export default function FinanceExpensesWorkspace() {
               }}
               style={{
                 width: '100%',
-                padding: '7px 12px',
-                background: 'rgba(15, 23, 42, 0.8)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                padding: '8px 12px',
+                background: '#FFFFFF',
+                border: '1px solid #CBD5E1',
                 borderRadius: '8px',
-                color: '#f8fafc',
+                color: paymentMethodFilter ? '#0F172A' : '#64748B',
                 fontSize: '12.5px',
+                fontWeight: paymentMethodFilter ? '700' : '500',
+                outline: 'none',
+                cursor: 'pointer'
               }}
             >
-              <option value="">All Methods</option>
-              <option value="Bank">Bank Transfer</option>
+              <option value="">💳 All Payment Methods</option>
+              <option value="Bank">Bank Transfer / NEFT</option>
               <option value="Cash">Cash</option>
-              <option value="UPI">UPI</option>
+              <option value="UPI">UPI / GPay</option>
               <option value="Cheque">Cheque</option>
               <option value="Other">Other</option>
             </select>
           </div>
 
           {/* Search Box */}
-          <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+          <div style={{ flex: '2 1 240px', position: 'relative' }}>
             <Search
               size={15}
-              color="#64748b"
-              style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }}
+              color="#94A3B8"
+              style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
             />
             <input
               type="text"
@@ -852,12 +966,14 @@ export default function FinanceExpensesWorkspace() {
               }}
               style={{
                 width: '100%',
-                padding: '7px 12px 7px 32px',
-                background: 'rgba(15, 23, 42, 0.8)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                padding: '8px 12px 8px 36px',
+                background: '#FFFFFF',
+                border: '1px solid #CBD5E1',
                 borderRadius: '8px',
-                color: '#f8fafc',
+                color: '#0F172A',
                 fontSize: '12.5px',
+                outline: 'none',
+                boxSizing: 'border-box'
               }}
             />
           </div>
@@ -865,6 +981,7 @@ export default function FinanceExpensesWorkspace() {
           {/* Reset Filters Button */}
           {(selectedCategory || selectedHeader || paymentMethodFilter || searchQuery || datePreset !== 'this_month') && (
             <button
+              type="button"
               onClick={() => {
                 setDatePreset('this_month');
                 setCustomFrom('');
@@ -877,42 +994,116 @@ export default function FinanceExpensesWorkspace() {
               }}
               style={{
                 padding: '7px 14px',
-                background: 'transparent',
-                border: '1px solid rgba(239, 68, 68, 0.4)',
+                background: '#FEF2F2',
+                border: '1px solid #FCA5A5',
                 borderRadius: '8px',
-                color: '#ef4444',
+                color: '#DC2626',
                 fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
+                fontWeight: '700',
+                cursor: 'pointer'
               }}
             >
-              Reset
+              Reset Filters
             </button>
           )}
         </div>
       </div>
 
-      {/* 4. Analytics & Category Breakdown Section */}
+      {/* ────────────────────────────────────────────────────────── */}
+      {/* 4. VISUAL ANALYTICS & CATEGORY BREAKDOWN CARDS              */}
+      {/* ────────────────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px' }}>
-        {/* Category Breakdown Donut / Bar Chart */}
+        {/* Left Card: Category Allocation Overview */}
         <div style={{
-          background: 'rgba(30, 41, 59, 0.5)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: '16px',
+          background: '#FFFFFF',
+          borderRadius: '12px',
+          border: '1px solid #E2E8F0',
           padding: '20px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '12px',
-          minHeight: '340px',
+          gap: '14px',
+          minHeight: '340px'
         }}>
-          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <TrendingUp size={18} color="#38bdf8" />
-            Category Allocation Overview
-          </h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{
+              margin: 0,
+              fontSize: '15px',
+              fontWeight: '800',
+              color: '#0F172A',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <div style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '6px',
+                background: '#EFF6FF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <PieChartIcon size={16} color="#2563EB" />
+              </div>
+              Category Allocation Overview
+            </h3>
+            <span style={{ fontSize: '11.5px', color: '#64748B', fontWeight: '600' }}>
+              P&L Share
+            </span>
+          </div>
 
           {chartData.length === 0 ? (
-            <div style={{ height: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '13px' }}>
-              No expenses recorded for the selected period.
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '30px 20px',
+              textAlign: 'center',
+              background: '#F8FAFC',
+              borderRadius: '8px',
+              border: '1px dashed #CBD5E1'
+            }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                background: '#EFF6FF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '10px'
+              }}>
+                <PieChartIcon size={24} color="#3B82F6" />
+              </div>
+              <span style={{ fontSize: '14px', fontWeight: '750', color: '#1E293B', marginBottom: '4px' }}>
+                No Expenses in Selected Period
+              </span>
+              <p style={{ margin: 0, fontSize: '12px', color: '#64748B', maxWidth: '300px' }}>
+                Recorded expenses will automatically display category share and P&L allocation here.
+              </p>
+              <button
+                type="button"
+                onClick={handleOpenCreateModal}
+                style={{
+                  marginTop: '12px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '6px 12px',
+                  background: '#FFFFFF',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  color: '#002E5D',
+                  cursor: 'pointer'
+                }}
+              >
+                <Plus size={14} /> Record First Expense
+              </button>
             </div>
           ) : (
             <div style={{ height: '260px', width: '100%' }}>
@@ -923,9 +1114,9 @@ export default function FinanceExpensesWorkspace() {
                     dataKey="amount"
                     nameKey="categoryName"
                     cx="50%"
-                    cy="50%"
+                    cy="45%"
                     innerRadius={60}
-                    outerRadius={95}
+                    outerRadius={92}
                     paddingAngle={3}
                   >
                     {chartData.slice(0, 8).map((entry, index) => (
@@ -933,14 +1124,22 @@ export default function FinanceExpensesWorkspace() {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(val) => formatINR(val)}
-                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                    formatter={(val) => [formatINR(val), 'Amount']}
+                    contentStyle={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                      fontSize: '12px',
+                      color: '#0F172A',
+                      fontWeight: '600'
+                    }}
                   />
                   <Legend
                     layout="horizontal"
                     verticalAlign="bottom"
                     align="center"
-                    wrapperStyle={{ fontSize: '11px', color: '#94a3b8' }}
+                    wrapperStyle={{ fontSize: '11px', color: '#475569', paddingTop: '10px' }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -948,29 +1147,79 @@ export default function FinanceExpensesWorkspace() {
           )}
         </div>
 
-        {/* Category-wise Summary & Drill-down List */}
+        {/* Right Card: Category-wise Breakdown Drill-down */}
         <div style={{
-          background: 'rgba(30, 41, 59, 0.5)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: '16px',
+          background: '#FFFFFF',
+          borderRadius: '12px',
+          border: '1px solid #E2E8F0',
           padding: '20px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '12px',
-          maxHeight: '360px',
-          overflowY: 'auto',
+          gap: '14px',
+          minHeight: '340px',
+          maxHeight: '380px',
+          overflowY: 'auto'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Layers size={18} color="#10b981" />
+            <h3 style={{
+              margin: 0,
+              fontSize: '15px',
+              fontWeight: '800',
+              color: '#0F172A',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <div style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '6px',
+                background: '#F0FDF4',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Layers size={16} color="#16A34A" />
+              </div>
               Category & Header Breakdown
             </h3>
-            <span style={{ fontSize: '11.5px', color: '#64748b' }}>Click row to filter register</span>
+            <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>
+              Click row to filter register
+            </span>
           </div>
 
           {categoryBreakdown.length === 0 ? (
-            <div style={{ height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '13px' }}>
-              No category aggregates available.
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '30px 20px',
+              textAlign: 'center',
+              background: '#F8FAFC',
+              borderRadius: '8px',
+              border: '1px dashed #CBD5E1'
+            }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                background: '#F0FDF4',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '10px'
+              }}>
+                <Layers size={24} color="#16A34A" />
+              </div>
+              <span style={{ fontSize: '14px', fontWeight: '750', color: '#1E293B', marginBottom: '4px' }}>
+                No Category Aggregates
+              </span>
+              <p style={{ margin: 0, fontSize: '12px', color: '#64748B', maxWidth: '300px' }}>
+                Breakdown of expenses by category, header, and transaction volume will appear here.
+              </p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -984,31 +1233,46 @@ export default function FinanceExpensesWorkspace() {
                   }}
                   style={{
                     display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
+                    flexDirection: 'column',
+                    gap: '6px',
                     padding: '10px 14px',
-                    background: 'rgba(15, 23, 42, 0.6)',
+                    background: '#F8FAFC',
                     borderRadius: '8px',
-                    border: '1px solid rgba(255, 255, 255, 0.04)',
+                    border: '1px solid #E2E8F0',
                     cursor: 'pointer',
-                    transition: 'all 0.15s ease',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#EFF6FF';
+                    e.currentTarget.style.borderColor = '#93C5FD';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#F8FAFC';
+                    e.currentTarget.style.borderColor = '#E2E8F0';
                   }}
                 >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc' }}>
-                      {row.categoryName}
-                    </span>
-                    <span style={{ fontSize: '11.5px', color: '#94a3b8' }}>
-                      Header: <strong style={{ color: '#cbd5e1' }}>{row.headerName}</strong> ({row.transactionCount} txn{row.transactionCount !== 1 ? 's' : ''})
-                    </span>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#38bdf8' }}>
-                      {formatINR(row.totalAmount)}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '750', color: '#0F172A' }}>
+                        {row.categoryName}
+                      </span>
+                      <span style={{ fontSize: '11.5px', color: '#64748B' }}>
+                        Header: <strong style={{ color: '#1E293B' }}>{row.headerName}</strong> ({row.transactionCount} txn{row.transactionCount !== 1 ? 's' : ''})
+                      </span>
                     </div>
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>
-                      {row.percentage}% of total
-                    </span>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A' }}>
+                        {formatINR(row.totalAmount)}
+                      </div>
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: '#2563EB' }}>
+                        {row.percentage}% of total
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Visual Proportion Bar */}
+                  <div style={{ width: '100%', height: '4px', background: '#E2E8F0', borderRadius: '2px', overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.min(100, Math.max(2, row.percentage))}%`, height: '100%', background: '#2563EB', borderRadius: '2px' }} />
                   </div>
                 </div>
               ))}
@@ -1017,28 +1281,31 @@ export default function FinanceExpensesWorkspace() {
         </div>
       </div>
 
-      {/* 5. Expense Register Table */}
+      {/* ────────────────────────────────────────────────────────── */}
+      {/* 5. MAIN EXPENSE REGISTER TABLE CARD                         */}
+      {/* ────────────────────────────────────────────────────────── */}
       <div style={{
-        background: 'rgba(30, 41, 59, 0.5)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        borderRadius: '16px',
+        background: '#FFFFFF',
+        borderRadius: '12px',
+        border: '1px solid #E2E8F0',
         padding: '20px',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '16px',
+        gap: '16px'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#f8fafc' }}>
+            <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '850', color: '#0F172A' }}>
               Expense Transaction Register
             </h2>
-            <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#94a3b8' }}>
-              Showing {expenses.length} of {totalCount} records
+            <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748B' }}>
+              Showing {expenses.length} of {totalCount} records matching active filters
             </p>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '12.5px', color: '#94a3b8' }}>Rows per page:</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '600' }}>Rows per page:</span>
             <select
               value={limit}
               onChange={(e) => {
@@ -1046,12 +1313,15 @@ export default function FinanceExpensesWorkspace() {
                 setPage(1);
               }}
               style={{
-                padding: '4px 8px',
-                background: 'rgba(15, 23, 42, 0.8)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                padding: '5px 8px',
+                background: '#FFFFFF',
+                border: '1px solid #CBD5E1',
                 borderRadius: '6px',
-                color: '#f8fafc',
+                color: '#0F172A',
                 fontSize: '12px',
+                fontWeight: '600',
+                outline: 'none',
+                cursor: 'pointer'
               }}
             >
               <option value="15">15</option>
@@ -1062,40 +1332,41 @@ export default function FinanceExpensesWorkspace() {
           </div>
         </div>
 
-        {/* Table Content */}
-        <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+        {/* Crisp Data Table */}
+        <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12.5px' }}>
             <thead>
-              <tr style={{ background: 'rgba(15, 23, 42, 0.85)', color: '#94a3b8', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                <th style={{ padding: '12px 14px', fontWeight: 700 }}>Sr. No.</th>
-                <th style={{ padding: '12px 14px', fontWeight: 700 }}>Expense No.</th>
-                <th style={{ padding: '12px 14px', fontWeight: 700 }}>Date</th>
-                <th style={{ padding: '12px 14px', fontWeight: 700 }}>Category / Subheader</th>
-                <th style={{ padding: '12px 14px', fontWeight: 700 }}>Header</th>
-                <th style={{ padding: '12px 14px', fontWeight: 700 }}>Description</th>
-                <th style={{ padding: '12px 14px', fontWeight: 700 }}>Paid To</th>
-                <th style={{ padding: '12px 14px', fontWeight: 700 }}>Method</th>
-                <th style={{ padding: '12px 14px', fontWeight: 700 }}>Voucher/Bill</th>
-                <th style={{ padding: '12px 14px', fontWeight: 700, textAlign: 'right' }}>Amount (₹)</th>
-                <th style={{ padding: '12px 14px', fontWeight: 700, textAlign: 'center' }}>Receipt</th>
-                <th style={{ padding: '12px 14px', fontWeight: 700, textAlign: 'center' }}>Actions</th>
+              <tr style={{ background: '#F8FAFC', color: '#475569', borderBottom: '2px solid #E2E8F0' }}>
+                <th style={{ padding: '12px 14px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sr. No.</th>
+                <th style={{ padding: '12px 14px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Voucher No.</th>
+                <th style={{ padding: '12px 14px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Date</th>
+                <th style={{ padding: '12px 14px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Category</th>
+                <th style={{ padding: '12px 14px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Header</th>
+                <th style={{ padding: '12px 14px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Description</th>
+                <th style={{ padding: '12px 14px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Paid To</th>
+                <th style={{ padding: '12px 14px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Method</th>
+                <th style={{ padding: '12px 14px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Bill / Ref</th>
+                <th style={{ padding: '12px 14px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'right' }}>Amount (₹)</th>
+                <th style={{ padding: '12px 14px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center' }}>Receipt</th>
+                <th style={{ padding: '12px 14px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {isLoadingData ? (
                 <tr>
-                  <td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#38bdf8' }}>
+                  <td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#2563EB' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                      <Loader2 size={18} className="spin" />
-                      Loading database expense records...
+                      <Loader2 size={18} className="animate-spin" />
+                      <span style={{ fontWeight: '600' }}>Loading expense transactions from database...</span>
                     </div>
                   </td>
                 </tr>
               ) : expenses.length === 0 ? (
                 <tr>
-                  <td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-                    <Receipt size={32} style={{ margin: '0 auto 8px auto', display: 'block', opacity: 0.4 }} />
-                    No expense transactions found matching active filters.
+                  <td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#64748B' }}>
+                    <Receipt size={32} style={{ margin: '0 auto 8px auto', display: 'block', opacity: 0.3 }} />
+                    <span style={{ fontWeight: '600', display: 'block' }}>No expense transactions found matching active filters.</span>
+                    <span style={{ fontSize: '11.5px', color: '#94A3B8' }}>Try adjusting your date period, category selection, or record a new expense.</span>
                   </td>
                 </tr>
               ) : (
@@ -1107,54 +1378,95 @@ export default function FinanceExpensesWorkspace() {
                     year: 'numeric',
                   });
 
+                  // Method badge style
+                  let methodBadgeBg = '#EFF6FF';
+                  let methodBadgeColor = '#1D4ED8';
+                  if (row.paymentMethod === 'Cash') {
+                    methodBadgeBg = '#FEF3C7';
+                    methodBadgeColor = '#B45309';
+                  } else if (row.paymentMethod === 'UPI') {
+                    methodBadgeBg = '#F0FDF4';
+                    methodBadgeColor = '#15803D';
+                  } else if (row.paymentMethod === 'Cheque') {
+                    methodBadgeBg = '#F3E8FF';
+                    methodBadgeColor = '#7E22CE';
+                  }
+
                   return (
                     <tr
                       key={row.id}
                       style={{
-                        borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
-                        background: idx % 2 === 0 ? 'transparent' : 'rgba(255, 255, 255, 0.015)',
-                        transition: 'background 0.15s ease',
+                        borderBottom: '1px solid #F1F5F9',
+                        background: idx % 2 === 0 ? '#FFFFFF' : '#FAFAFA',
+                        transition: 'background 0.12s ease'
                       }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#F1F5F9'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = idx % 2 === 0 ? '#FFFFFF' : '#FAFAFA'; }}
                     >
-                      <td style={{ padding: '10px 14px', color: '#64748b' }}>{srNo}</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#f8fafc' }}>
-                        {row.expenseNumber}
+                      <td style={{ padding: '11px 14px', color: '#64748B', fontWeight: '600' }}>{srNo}</td>
+                      <td style={{ padding: '11px 14px' }}>
+                        <span style={{
+                          fontFamily: 'monospace',
+                          fontSize: '11.5px',
+                          fontWeight: '800',
+                          color: '#1D4ED8',
+                          background: '#EFF6FF',
+                          padding: '3px 8px',
+                          borderRadius: '5px',
+                          border: '1px solid #DBEAFE'
+                        }}>
+                          {row.expenseNumber}
+                        </span>
                       </td>
-                      <td style={{ padding: '10px 14px', color: '#cbd5e1', whiteSpace: 'nowrap' }}>
+                      <td style={{ padding: '11px 14px', color: '#334155', whiteSpace: 'nowrap', fontWeight: '500' }}>
                         {formattedDate}
                       </td>
-                      <td style={{ padding: '10px 14px' }}>
+                      <td style={{ padding: '11px 14px' }}>
                         <span style={{
                           display: 'inline-block',
-                          padding: '2px 8px',
-                          background: 'rgba(56, 189, 248, 0.12)',
-                          color: '#38bdf8',
-                          borderRadius: '4px',
-                          fontWeight: 600,
+                          padding: '3px 8px',
+                          background: '#F1F5F9',
+                          color: '#0F172A',
+                          borderRadius: '5px',
+                          fontWeight: '700',
                           fontSize: '11.5px',
+                          border: '1px solid #E2E8F0'
                         }}>
                           {row.category?.name || 'Uncategorized'}
                         </span>
                       </td>
-                      <td style={{ padding: '10px 14px', color: '#cbd5e1' }}>
-                        {row.header?.name || <span style={{ color: '#64748b' }}>—</span>}
+                      <td style={{ padding: '11px 14px', color: '#475569', fontWeight: '600' }}>
+                        {row.header?.name || <span style={{ color: '#94A3B8' }}>—</span>}
                       </td>
-                      <td style={{ padding: '10px 14px', color: '#e2e8f0', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.description}>
+                      <td
+                        style={{ padding: '11px 14px', color: '#1E293B', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        title={row.description}
+                      >
                         {row.description}
                       </td>
-                      <td style={{ padding: '10px 14px', color: '#94a3b8' }}>
+                      <td style={{ padding: '11px 14px', color: '#475569' }}>
                         {row.paidTo || '—'}
                       </td>
-                      <td style={{ padding: '10px 14px', color: '#94a3b8' }}>
-                        {row.paymentMethod || '—'}
+                      <td style={{ padding: '11px 14px' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          background: methodBadgeBg,
+                          color: methodBadgeColor,
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: '750'
+                        }}>
+                          {row.paymentMethod || '—'}
+                        </span>
                       </td>
-                      <td style={{ padding: '10px 14px', color: '#94a3b8' }}>
+                      <td style={{ padding: '11px 14px', color: '#64748B', fontFamily: 'monospace', fontSize: '11.5px' }}>
                         {row.voucherNumber || row.invoiceNumber || '—'}
                       </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: '#f8fafc' }}>
+                      <td style={{ padding: '11px 14px', textAlign: 'right', fontWeight: '850', color: '#0F172A', fontSize: '13px' }}>
                         {formatINR(row.amount)}
                       </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                      <td style={{ padding: '11px 14px', textAlign: 'center' }}>
                         {row.receiptUrl ? (
                           <a
                             href={`/api/backend/finance/expenses/${row.id}/receipt`}
@@ -1165,54 +1477,63 @@ export default function FinanceExpensesWorkspace() {
                               alignItems: 'center',
                               gap: '4px',
                               padding: '2px 8px',
-                              background: 'rgba(16, 185, 129, 0.15)',
-                              color: '#10b981',
+                              background: '#ECFDF5',
+                              border: '1px solid #A7F3D0',
+                              color: '#059669',
                               borderRadius: '4px',
                               fontSize: '11px',
                               textDecoration: 'none',
-                              fontWeight: 600,
+                              fontWeight: '750',
                             }}
                           >
                             <FileText size={12} />
                             View
                           </a>
                         ) : (
-                          <span style={{ color: '#64748b', fontSize: '11px' }}>None</span>
+                          <span style={{ color: '#94A3B8', fontSize: '11px' }}>—</span>
                         )}
                       </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                      <td style={{ padding: '11px 14px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                           <button
+                            type="button"
                             onClick={() => {
                               setSelectedExpense(row);
                               setShowDetailModal(true);
                             }}
                             title="View Details"
                             style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: '#38bdf8',
+                              background: '#F1F5F9',
+                              border: '1px solid #CBD5E1',
+                              color: '#2563EB',
                               cursor: 'pointer',
-                              padding: '4px',
-                              borderRadius: '4px',
+                              padding: '5px',
+                              borderRadius: '6px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
                             }}
                           >
-                            <Eye size={16} />
+                            <Eye size={14} />
                           </button>
                           {row.status !== 'POSTED' && (
                             <button
+                              type="button"
                               onClick={() => handleOpenEditModal(row)}
                               title="Edit Expense"
                               style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#e2e8f0',
+                                background: '#F1F5F9',
+                                border: '1px solid #CBD5E1',
+                                color: '#475569',
                                 cursor: 'pointer',
-                                padding: '4px',
-                                borderRadius: '4px',
+                                padding: '5px',
+                                borderRadius: '6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
                               }}
                             >
-                              <Edit2 size={15} />
+                              <Edit2 size={13} />
                             </button>
                           )}
                         </div>
@@ -1225,59 +1546,140 @@ export default function FinanceExpensesWorkspace() {
           </table>
         </div>
 
-        {/* Pagination Controls */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-            Page {page} of {totalPages}
+        {/* ────────────────────────────────────────────────────────── */}
+        {/* Pagination Bar (Standard Enterprise Navigation)           */}
+        {/* ────────────────────────────────────────────────────────── */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+          paddingTop: '6px'
+        }}>
+          <span style={{ fontSize: '12.5px', color: '#64748B', fontWeight: '500' }}>
+            Page <strong style={{ color: '#0F172A' }}>{page}</strong> of <strong style={{ color: '#0F172A' }}>{totalPages}</strong>
           </span>
-          <div style={{ display: 'flex', gap: '6px' }}>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
             <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              type="button"
               disabled={page <= 1}
+              onClick={() => setPage(1)}
               style={{
-                padding: '6px 12px',
+                padding: '6px 8px',
                 borderRadius: '6px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: page <= 1 ? '#475569' : '#e2e8f0',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: page <= 1 ? 'not-allowed' : 'pointer',
+                border: '1px solid #CBD5E1',
+                background: '#FFFFFF',
+                color: page <= 1 ? '#CBD5E1' : '#334155',
+                cursor: page <= 1 ? 'not-allowed' : 'pointer'
               }}
+              title="First Page"
             >
-              Previous
+              <ChevronsLeft size={14} />
             </button>
             <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
               style={{
-                padding: '6px 12px',
+                padding: '6px 10px',
                 borderRadius: '6px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: page >= totalPages ? '#475569' : '#e2e8f0',
+                border: '1px solid #CBD5E1',
+                background: '#FFFFFF',
+                color: page <= 1 ? '#CBD5E1' : '#334155',
                 fontSize: '12px',
-                fontWeight: 600,
-                cursor: page >= totalPages ? 'not-allowed' : 'pointer',
+                fontWeight: '750',
+                cursor: page <= 1 ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px'
               }}
             >
-              Next
+              <ChevronLeft size={14} />
+              <span>Prev</span>
+            </button>
+
+            {getPageNumbers().map((p, idx) => {
+              if (p === '...') {
+                return <span key={`ellipsis-${idx}`} style={{ padding: '0 4px', color: '#94A3B8', fontSize: '12px' }}>...</span>;
+              }
+              const isAct = p === page;
+              return (
+                <button
+                  key={`page-${p}-${idx}`}
+                  type="button"
+                  onClick={() => setPage(p)}
+                  style={{
+                    minWidth: '32px',
+                    height: '30px',
+                    padding: '0 6px',
+                    borderRadius: '6px',
+                    border: isAct ? '1.5px solid #002E5D' : '1px solid #CBD5E1',
+                    background: isAct ? '#002E5D' : '#FFFFFF',
+                    color: isAct ? '#FFFFFF' : '#334155',
+                    fontSize: '12px',
+                    fontWeight: isAct ? '800' : '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {p}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              style={{
+                padding: '6px 10px',
+                borderRadius: '6px',
+                border: '1px solid #CBD5E1',
+                background: '#FFFFFF',
+                color: page >= totalPages ? '#CBD5E1' : '#334155',
+                fontSize: '12px',
+                fontWeight: '750',
+                cursor: page >= totalPages ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px'
+              }}
+            >
+              <span>Next</span>
+              <ChevronRight size={14} />
+            </button>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage(totalPages)}
+              style={{
+                padding: '6px 8px',
+                borderRadius: '6px',
+                border: '1px solid #CBD5E1',
+                background: '#FFFFFF',
+                color: page >= totalPages ? '#CBD5E1' : '#334155',
+                cursor: page >= totalPages ? 'not-allowed' : 'pointer'
+              }}
+              title="Last Page"
+            >
+              <ChevronsRight size={14} />
             </button>
           </div>
         </div>
       </div>
 
       {/* ============================================================== */}
-      {/* 6. MODAL: Add / Edit Expense                                    */}
+      {/* 6. MODAL: Add / Edit Expense (Crisp Enterprise White Theme)     */}
       {/* ============================================================== */}
       {showAddModal && (
         <div
-          className="modal-overlay active"
           onClick={() => !isSubmitting && setShowAddModal(false)}
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.75)',
+            background: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1288,31 +1690,32 @@ export default function FinanceExpensesWorkspace() {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: '#0f172a',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              borderRadius: '20px',
-              width: '560px',
+              background: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderRadius: '16px',
+              width: '580px',
               maxWidth: '100%',
               maxHeight: '90vh',
               overflowY: 'auto',
               padding: '24px',
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid #F1F5F9', paddingBottom: '12px' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '850', color: '#0F172A' }}>
                   {editingExpenseId ? 'Edit Finance Expense' : '+ Add New Finance Expense'}
                 </h3>
-                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
-                  Complete the workflow: Category → Header → Amount → Submit
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748B' }}>
+                  Category ➔ Header ➔ Amount ➔ Instant Register & Summary Update
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => !isSubmitting && setShowAddModal(false)}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '6px', color: '#64748B', cursor: 'pointer' }}
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
@@ -1320,8 +1723,8 @@ export default function FinanceExpensesWorkspace() {
               {/* Row 1: Date & Amount */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>
-                    Expense Date <span style={{ color: '#ef4444' }}>*</span>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                    Expense Date <span style={{ color: '#EF4444' }}>*</span>
                   </label>
                   <input
                     type="date"
@@ -1331,18 +1734,20 @@ export default function FinanceExpensesWorkspace() {
                     style={{
                       width: '100%',
                       padding: '8px 12px',
-                      background: 'rgba(30, 41, 59, 0.8)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      background: '#FFFFFF',
+                      border: '1px solid #CBD5E1',
                       borderRadius: '8px',
-                      color: '#f8fafc',
+                      color: '#0F172A',
                       fontSize: '13px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>
-                    Amount (₹) <span style={{ color: '#ef4444' }}>*</span>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                    Amount (₹) <span style={{ color: '#EF4444' }}>*</span>
                   </label>
                   <input
                     type="number"
@@ -1355,12 +1760,14 @@ export default function FinanceExpensesWorkspace() {
                     style={{
                       width: '100%',
                       padding: '8px 12px',
-                      background: 'rgba(30, 41, 59, 0.8)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      background: '#FFFFFF',
+                      border: '1px solid #CBD5E1',
                       borderRadius: '8px',
-                      color: '#f8fafc',
+                      color: '#0F172A',
                       fontSize: '13px',
-                      fontWeight: 700,
+                      fontWeight: '750',
+                      outline: 'none',
+                      boxSizing: 'border-box'
                     }}
                   />
                 </div>
@@ -1369,8 +1776,8 @@ export default function FinanceExpensesWorkspace() {
               {/* Row 2: Category & Header Selection */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>
-                    Expense Category <span style={{ color: '#ef4444' }}>*</span>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                    Expense Category <span style={{ color: '#EF4444' }}>*</span>
                   </label>
                   <select
                     required
@@ -1379,11 +1786,15 @@ export default function FinanceExpensesWorkspace() {
                     style={{
                       width: '100%',
                       padding: '8px 12px',
-                      background: 'rgba(30, 41, 59, 0.8)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      background: '#FFFFFF',
+                      border: '1px solid #CBD5E1',
                       borderRadius: '8px',
-                      color: '#f8fafc',
+                      color: '#0F172A',
                       fontSize: '13px',
+                      fontWeight: '600',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      boxSizing: 'border-box'
                     }}
                   >
                     <option value="">Select Category...</option>
@@ -1396,8 +1807,8 @@ export default function FinanceExpensesWorkspace() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>
-                    Header <span style={{ color: '#94a3b8', fontSize: '11px' }}>(Optional)</span>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                    Header <span style={{ color: '#64748B', fontSize: '11px', fontWeight: '500' }}>(Optional)</span>
                   </label>
                   <select
                     value={formData.headerId}
@@ -1406,12 +1817,15 @@ export default function FinanceExpensesWorkspace() {
                     style={{
                       width: '100%',
                       padding: '8px 12px',
-                      background: 'rgba(30, 41, 59, 0.8)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      background: '#FFFFFF',
+                      border: '1px solid #CBD5E1',
                       borderRadius: '8px',
-                      color: '#f8fafc',
+                      color: '#0F172A',
                       fontSize: '13px',
-                      opacity: !formData.categoryId || formAvailableHeaders.length === 0 ? 0.5 : 1,
+                      outline: 'none',
+                      cursor: !formData.categoryId || formAvailableHeaders.length === 0 ? 'not-allowed' : 'pointer',
+                      opacity: !formData.categoryId || formAvailableHeaders.length === 0 ? 0.6 : 1,
+                      boxSizing: 'border-box'
                     }}
                   >
                     <option value="">
@@ -1428,8 +1842,8 @@ export default function FinanceExpensesWorkspace() {
 
               {/* Row 3: Description */}
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>
-                  Description / Purpose <span style={{ color: '#ef4444' }}>*</span>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                  Description / Purpose <span style={{ color: '#EF4444' }}>*</span>
                 </label>
                 <input
                   type="text"
@@ -1440,18 +1854,20 @@ export default function FinanceExpensesWorkspace() {
                   style={{
                     width: '100%',
                     padding: '8px 12px',
-                    background: 'rgba(30, 41, 59, 0.8)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    background: '#FFFFFF',
+                    border: '1px solid #CBD5E1',
                     borderRadius: '8px',
-                    color: '#f8fafc',
+                    color: '#0F172A',
                     fontSize: '13px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
                   }}
                 />
               </div>
 
               {/* Optional Section Divider */}
-              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)', margin: '4px 0', paddingTop: '10px' }}>
-                <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#64748b', fontWeight: 700 }}>
+              <div style={{ borderTop: '1px solid #F1F5F9', margin: '4px 0', paddingTop: '10px' }}>
+                <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748B', fontWeight: '800' }}>
                   Optional Accounting & Verification Details
                 </span>
               </div>
@@ -1459,7 +1875,7 @@ export default function FinanceExpensesWorkspace() {
               {/* Row 4: Paid To & Payment Method */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
                     Paid To (Payee / Vendor)
                   </label>
                   <input
@@ -1470,17 +1886,19 @@ export default function FinanceExpensesWorkspace() {
                     style={{
                       width: '100%',
                       padding: '8px 12px',
-                      background: 'rgba(30, 41, 59, 0.8)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      background: '#FFFFFF',
+                      border: '1px solid #CBD5E1',
                       borderRadius: '8px',
-                      color: '#f8fafc',
+                      color: '#0F172A',
                       fontSize: '13px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
                     Payment Method
                   </label>
                   <select
@@ -1489,11 +1907,13 @@ export default function FinanceExpensesWorkspace() {
                     style={{
                       width: '100%',
                       padding: '8px 12px',
-                      background: 'rgba(30, 41, 59, 0.8)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      background: '#FFFFFF',
+                      border: '1px solid #CBD5E1',
                       borderRadius: '8px',
-                      color: '#f8fafc',
+                      color: '#0F172A',
                       fontSize: '13px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
                     }}
                   >
                     <option value="Bank">Bank Transfer / NEFT</option>
@@ -1508,7 +1928,7 @@ export default function FinanceExpensesWorkspace() {
               {/* Row 5: Voucher & Bill Number */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
                     Voucher / Reference No.
                   </label>
                   <input
@@ -1519,17 +1939,19 @@ export default function FinanceExpensesWorkspace() {
                     style={{
                       width: '100%',
                       padding: '8px 12px',
-                      background: 'rgba(30, 41, 59, 0.8)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      background: '#FFFFFF',
+                      border: '1px solid #CBD5E1',
                       borderRadius: '8px',
-                      color: '#f8fafc',
+                      color: '#0F172A',
                       fontSize: '13px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
                     Invoice / Bill Number
                   </label>
                   <input
@@ -1540,11 +1962,13 @@ export default function FinanceExpensesWorkspace() {
                     style={{
                       width: '100%',
                       padding: '8px 12px',
-                      background: 'rgba(30, 41, 59, 0.8)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      background: '#FFFFFF',
+                      border: '1px solid #CBD5E1',
                       borderRadius: '8px',
-                      color: '#f8fafc',
+                      color: '#0F172A',
                       fontSize: '13px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
                     }}
                   />
                 </div>
@@ -1552,24 +1976,32 @@ export default function FinanceExpensesWorkspace() {
 
               {/* Row 6: Receipt Bill Upload */}
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
                   Receipt / Bill Attachment
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  background: '#F8FAFC',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  border: '1px dashed #CBD5E1'
+                }}>
                   <input
                     type="file"
                     accept=".jpg,.jpeg,.png,.webp,.pdf"
                     onChange={handleReceiptUpload}
                     disabled={uploadingReceipt}
-                    style={{ fontSize: '12px', color: '#94a3b8' }}
+                    style={{ fontSize: '12px', color: '#475569' }}
                   />
                   {uploadingReceipt && (
-                    <span style={{ fontSize: '12px', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Loader2 size={14} className="spin" /> Uploading...
+                    <span style={{ fontSize: '12px', color: '#2563EB', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '600' }}>
+                      <Loader2 size={14} className="animate-spin" /> Uploading...
                     </span>
                   )}
                   {formData.receiptUrl && !uploadingReceipt && (
-                    <span style={{ fontSize: '12px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '12px', color: '#16A34A', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '700' }}>
                       <CheckCircle2 size={14} /> Attached
                     </span>
                   )}
@@ -1577,19 +2009,19 @@ export default function FinanceExpensesWorkspace() {
               </div>
 
               {/* Actions Row */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '14px', borderTop: '1px solid #F1F5F9', paddingTop: '14px' }}>
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
                   disabled={isSubmitting}
                   style={{
                     padding: '8px 18px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: '#FFFFFF',
+                    border: '1px solid #CBD5E1',
                     borderRadius: '8px',
-                    color: '#94a3b8',
+                    color: '#475569',
                     fontSize: '13px',
-                    fontWeight: 600,
+                    fontWeight: '700',
                     cursor: 'pointer',
                   }}
                 >
@@ -1599,22 +2031,22 @@ export default function FinanceExpensesWorkspace() {
                   type="submit"
                   disabled={isSubmitting || uploadingReceipt}
                   style={{
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    padding: '9px 24px',
-                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                    border: 'none',
+                    gap: '6px',
+                    padding: '8px 22px',
+                    background: '#002E5D',
+                    border: '1px solid #002E5D',
                     borderRadius: '8px',
-                    color: '#ffffff',
-                    fontSize: '13.5px',
-                    fontWeight: 700,
+                    color: '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: '750',
                     cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)',
+                    boxShadow: '0 2px 4px rgba(0, 46, 93, 0.2)'
                   }}
                 >
-                  {isSubmitting && <Loader2 size={16} className="spin" />}
-                  {editingExpenseId ? 'Update Expense' : 'Submit Expense'}
+                  {isSubmitting && <Loader2 size={15} className="animate-spin" />}
+                  <span>{editingExpenseId ? 'Update Expense' : 'Record Expense'}</span>
                 </button>
               </div>
             </form>
@@ -1623,16 +2055,16 @@ export default function FinanceExpensesWorkspace() {
       )}
 
       {/* ============================================================== */}
-      {/* 7. MODAL: Expense Details View                                 */}
+      {/* 7. MODAL: Expense Details View (Clean Enterprise Drawer)       */}
       {/* ============================================================== */}
       {showDetailModal && selectedExpense && (
         <div
-          className="modal-overlay active"
           onClick={() => setShowDetailModal(false)}
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.75)',
+            background: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1643,36 +2075,37 @@ export default function FinanceExpensesWorkspace() {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: '#0f172a',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              borderRadius: '20px',
+              background: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderRadius: '16px',
               width: '580px',
               maxWidth: '100%',
               padding: '24px',
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid #F1F5F9', paddingBottom: '12px' }}>
               <div>
-                <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#38bdf8', fontWeight: 700 }}>
-                  Expense Details
+                <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#2563EB', fontWeight: '800', letterSpacing: '0.05em' }}>
+                  Voucher Details
                 </span>
-                <h3 style={{ margin: '2px 0 0 0', fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
+                <h3 style={{ margin: '2px 0 0 0', fontSize: '18px', fontWeight: '850', color: '#0F172A' }}>
                   {selectedExpense.expenseNumber}
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setShowDetailModal(false)}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '6px', color: '#64748B', cursor: 'pointer' }}
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', fontSize: '13px' }}>
               <div>
-                <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block' }}>Date</span>
-                <strong style={{ color: '#f8fafc' }}>
+                <span style={{ color: '#64748B', fontSize: '11.5px', fontWeight: '600', display: 'block' }}>Date</span>
+                <strong style={{ color: '#0F172A' }}>
                   {new Date(selectedExpense.expenseDate).toLocaleDateString('en-IN', {
                     day: '2-digit',
                     month: 'long',
@@ -1682,53 +2115,53 @@ export default function FinanceExpensesWorkspace() {
               </div>
 
               <div>
-                <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block' }}>Amount</span>
-                <strong style={{ color: '#38bdf8', fontSize: '16px' }}>
+                <span style={{ color: '#64748B', fontSize: '11.5px', fontWeight: '600', display: 'block' }}>Amount</span>
+                <strong style={{ color: '#002E5D', fontSize: '16px', fontWeight: '900' }}>
                   {formatINR(selectedExpense.amount)}
                 </strong>
               </div>
 
               <div>
-                <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block' }}>Category</span>
-                <strong style={{ color: '#f8fafc' }}>{selectedExpense.category?.name || '—'}</strong>
+                <span style={{ color: '#64748B', fontSize: '11.5px', fontWeight: '600', display: 'block' }}>Category</span>
+                <strong style={{ color: '#0F172A' }}>{selectedExpense.category?.name || '—'}</strong>
               </div>
 
               <div>
-                <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block' }}>Header</span>
-                <strong style={{ color: '#f8fafc' }}>{selectedExpense.header?.name || '—'}</strong>
+                <span style={{ color: '#64748B', fontSize: '11.5px', fontWeight: '600', display: 'block' }}>Header</span>
+                <strong style={{ color: '#0F172A' }}>{selectedExpense.header?.name || '—'}</strong>
               </div>
 
               <div>
-                <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block' }}>Paid To</span>
-                <strong style={{ color: '#f8fafc' }}>{selectedExpense.paidTo || '—'}</strong>
+                <span style={{ color: '#64748B', fontSize: '11.5px', fontWeight: '600', display: 'block' }}>Paid To</span>
+                <strong style={{ color: '#0F172A' }}>{selectedExpense.paidTo || '—'}</strong>
               </div>
 
               <div>
-                <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block' }}>Payment Method</span>
-                <strong style={{ color: '#f8fafc' }}>{selectedExpense.paymentMethod || '—'}</strong>
+                <span style={{ color: '#64748B', fontSize: '11.5px', fontWeight: '600', display: 'block' }}>Payment Method</span>
+                <strong style={{ color: '#0F172A' }}>{selectedExpense.paymentMethod || '—'}</strong>
               </div>
 
               <div>
-                <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block' }}>Voucher Ref</span>
-                <strong style={{ color: '#f8fafc' }}>{selectedExpense.voucherNumber || '—'}</strong>
+                <span style={{ color: '#64748B', fontSize: '11.5px', fontWeight: '600', display: 'block' }}>Voucher Ref</span>
+                <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{selectedExpense.voucherNumber || '—'}</strong>
               </div>
 
               <div>
-                <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block' }}>Invoice/Bill No</span>
-                <strong style={{ color: '#f8fafc' }}>{selectedExpense.invoiceNumber || '—'}</strong>
+                <span style={{ color: '#64748B', fontSize: '11.5px', fontWeight: '600', display: 'block' }}>Invoice/Bill No</span>
+                <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{selectedExpense.invoiceNumber || '—'}</strong>
               </div>
             </div>
 
-            <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '12px' }}>
-              <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block' }}>Description</span>
-              <p style={{ margin: '4px 0 0 0', color: '#e2e8f0', fontSize: '13px', lineHeight: '1.5' }}>
+            <div style={{ marginTop: '14px', borderTop: '1px solid #F1F5F9', paddingTop: '12px' }}>
+              <span style={{ color: '#64748B', fontSize: '11.5px', fontWeight: '600', display: 'block' }}>Description</span>
+              <p style={{ margin: '4px 0 0 0', color: '#1E293B', fontSize: '13px', lineHeight: '1.5' }}>
                 {selectedExpense.description}
               </p>
             </div>
 
             {selectedExpense.receiptUrl && (
-              <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '12px' }}>
-                <span style={{ color: '#64748b', fontSize: '11.5px', display: 'block', marginBottom: '6px' }}>Receipt Bill Attachment</span>
+              <div style={{ marginTop: '14px', borderTop: '1px solid #F1F5F9', paddingTop: '12px' }}>
+                <span style={{ color: '#64748B', fontSize: '11.5px', fontWeight: '600', display: 'block', marginBottom: '6px' }}>Receipt Bill Attachment</span>
                 <a
                   href={`/api/backend/finance/expenses/${selectedExpense.id}/receipt`}
                   target="_blank"
@@ -1738,31 +2171,32 @@ export default function FinanceExpensesWorkspace() {
                     alignItems: 'center',
                     gap: '6px',
                     padding: '6px 14px',
-                    background: 'rgba(56, 189, 248, 0.1)',
-                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    background: '#EFF6FF',
+                    border: '1px solid #BFDBFE',
                     borderRadius: '6px',
-                    color: '#38bdf8',
+                    color: '#1D4ED8',
                     textDecoration: 'none',
                     fontSize: '12.5px',
-                    fontWeight: 600,
+                    fontWeight: '700',
                   }}
                 >
-                  <Download size={14} /> Download Receipt Bill
+                  <Download size={14} /> Download / View Receipt Bill
                 </a>
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px', borderTop: '1px solid #F1F5F9', paddingTop: '14px' }}>
               <button
+                type="button"
                 onClick={() => setShowDetailModal(false)}
                 style={{
                   padding: '8px 18px',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  background: '#FFFFFF',
+                  border: '1px solid #CBD5E1',
                   borderRadius: '8px',
-                  color: '#e2e8f0',
+                  color: '#334155',
                   fontSize: '13px',
-                  fontWeight: 600,
+                  fontWeight: '700',
                   cursor: 'pointer',
                 }}
               >
@@ -1774,16 +2208,16 @@ export default function FinanceExpensesWorkspace() {
       )}
 
       {/* ============================================================== */}
-      {/* 8. MODAL: Category Master Management UI                        */}
+      {/* 8. MODAL: Category Master Management UI (Clean Enterprise)     */}
       {/* ============================================================== */}
       {showCategoryMasterModal && (
         <div
-          className="modal-overlay active"
           onClick={() => setShowCategoryMasterModal(false)}
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.75)',
+            background: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1794,43 +2228,44 @@ export default function FinanceExpensesWorkspace() {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: '#0f172a',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              borderRadius: '20px',
+              background: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderRadius: '16px',
               width: '740px',
               maxWidth: '100%',
               maxHeight: '90vh',
               overflowY: 'auto',
               padding: '24px',
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid #F1F5F9', paddingBottom: '12px' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '850', color: '#0F172A' }}>
                   Expense Category & Header Master
                 </h3>
-                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748B' }}>
                   Manage authorized category hierarchies, configure headers, and toggle active states.
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowCategoryMasterModal(false)}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '6px', color: '#64748B', cursor: 'pointer' }}
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
             {/* Sub-form: Add Header to Category */}
             <div style={{
-              background: 'rgba(30, 41, 59, 0.5)',
+              background: '#F8FAFC',
               borderRadius: '12px',
-              padding: '14px',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              marginBottom: '16px',
+              padding: '16px',
+              border: '1px solid #E2E8F0',
+              marginBottom: '18px',
             }}>
-              <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#38bdf8', display: 'block', marginBottom: '10px' }}>
+              <span style={{ fontSize: '12.5px', fontWeight: '800', color: '#002E5D', display: 'block', marginBottom: '10px' }}>
                 + Configure New Header for a Category
               </span>
               <form onSubmit={handleCreateHeader} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '10px' }}>
@@ -1840,11 +2275,14 @@ export default function FinanceExpensesWorkspace() {
                   onChange={(e) => setSelectedCatForHeader(e.target.value)}
                   style={{
                     padding: '8px 10px',
-                    background: 'rgba(15, 23, 42, 0.8)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    background: '#FFFFFF',
+                    border: '1px solid #CBD5E1',
                     borderRadius: '6px',
-                    color: '#f8fafc',
+                    color: '#0F172A',
                     fontSize: '12.5px',
+                    fontWeight: '600',
+                    outline: 'none',
+                    cursor: 'pointer'
                   }}
                 >
                   <option value="">Select Category...</option>
@@ -1863,11 +2301,12 @@ export default function FinanceExpensesWorkspace() {
                   onChange={(e) => setNewHeaderName(e.target.value)}
                   style={{
                     padding: '8px 10px',
-                    background: 'rgba(15, 23, 42, 0.8)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    background: '#FFFFFF',
+                    border: '1px solid #CBD5E1',
                     borderRadius: '6px',
-                    color: '#f8fafc',
+                    color: '#0F172A',
                     fontSize: '12.5px',
+                    outline: 'none'
                   }}
                 />
 
@@ -1876,12 +2315,12 @@ export default function FinanceExpensesWorkspace() {
                   disabled={isSavingCategory}
                   style={{
                     padding: '8px 16px',
-                    background: '#0284c7',
-                    border: 'none',
+                    background: '#002E5D',
+                    border: '1px solid #002E5D',
                     borderRadius: '6px',
-                    color: '#fff',
+                    color: '#FFFFFF',
                     fontSize: '12.5px',
-                    fontWeight: 700,
+                    fontWeight: '750',
                     cursor: 'pointer',
                   }}
                 >
@@ -1892,7 +2331,7 @@ export default function FinanceExpensesWorkspace() {
 
             {/* Category Master List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#94a3b8' }}>
+              <span style={{ fontSize: '12px', fontWeight: '800', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Active & Configured Categories ({categories.length})
               </span>
 
@@ -1901,34 +2340,37 @@ export default function FinanceExpensesWorkspace() {
                   key={cat.id}
                   style={{
                     padding: '12px 16px',
-                    background: 'rgba(15, 23, 42, 0.6)',
-                    borderRadius: '10px',
-                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                    background: '#FFFFFF',
+                    borderRadius: '8px',
+                    border: '1px solid #E2E8F0',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '8px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 700 }}>#{idx + 1}</span>
-                      <strong style={{ fontSize: '13.5px', color: '#f8fafc' }}>{cat.name}</strong>
+                      <span style={{ color: '#64748B', fontSize: '12px', fontWeight: '750' }}>#{idx + 1}</span>
+                      <strong style={{ fontSize: '13.5px', color: '#0F172A' }}>{cat.name}</strong>
                       {!cat.isActive && (
-                        <span style={{ fontSize: '10px', padding: '1px 6px', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', borderRadius: '4px' }}>
+                        <span style={{ fontSize: '10px', padding: '1px 6px', background: '#FEE2E2', color: '#DC2626', borderRadius: '4px', fontWeight: '700' }}>
                           Inactive
                         </span>
                       )}
                     </div>
 
                     <button
+                      type="button"
                       onClick={() => handleToggleCategoryActive(cat)}
                       style={{
-                        padding: '3px 10px',
-                        background: 'transparent',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        padding: '4px 10px',
+                        background: '#FFFFFF',
+                        border: '1px solid #CBD5E1',
                         borderRadius: '4px',
-                        color: cat.isActive ? '#ef4444' : '#10b981',
+                        color: cat.isActive ? '#DC2626' : '#16A34A',
                         fontSize: '11px',
+                        fontWeight: '750',
                         cursor: 'pointer',
                       }}
                     >
@@ -1947,15 +2389,17 @@ export default function FinanceExpensesWorkspace() {
                             alignItems: 'center',
                             gap: '6px',
                             padding: '3px 8px',
-                            background: h.isActive ? 'rgba(56, 189, 248, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                            border: `1px solid ${h.isActive ? 'rgba(56, 189, 248, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
-                            color: h.isActive ? '#93c5fd' : '#f87171',
+                            background: h.isActive ? '#EFF6FF' : '#FEF2F2',
+                            border: `1px solid ${h.isActive ? '#BFDBFE' : '#FECACA'}`,
+                            color: h.isActive ? '#1D4ED8' : '#DC2626',
                             borderRadius: '6px',
                             fontSize: '11.5px',
+                            fontWeight: '600'
                           }}
                         >
                           {h.name}
                           <button
+                            type="button"
                             onClick={() => handleToggleHeaderActive(cat.id, h)}
                             style={{
                               background: 'transparent',
@@ -1964,7 +2408,7 @@ export default function FinanceExpensesWorkspace() {
                               cursor: 'pointer',
                               padding: 0,
                               fontSize: '10px',
-                              opacity: 0.6,
+                              opacity: 0.7,
                             }}
                             title={h.isActive ? 'Deactivate Header' : 'Activate Header'}
                           >
@@ -1973,7 +2417,7 @@ export default function FinanceExpensesWorkspace() {
                         </span>
                       ))
                     ) : (
-                      <span style={{ fontSize: '11.5px', color: '#64748b', fontStyle: 'italic' }}>
+                      <span style={{ fontSize: '11.5px', color: '#94A3B8', fontStyle: 'italic' }}>
                         No headers configured yet
                       </span>
                     )}
@@ -1982,17 +2426,18 @@ export default function FinanceExpensesWorkspace() {
               ))}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px', borderTop: '1px solid #F1F5F9', paddingTop: '14px' }}>
               <button
+                type="button"
                 onClick={() => setShowCategoryMasterModal(false)}
                 style={{
                   padding: '8px 18px',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  background: '#FFFFFF',
+                  border: '1px solid #CBD5E1',
                   borderRadius: '8px',
-                  color: '#e2e8f0',
+                  color: '#334155',
                   fontSize: '13px',
-                  fontWeight: 600,
+                  fontWeight: '700',
                   cursor: 'pointer',
                 }}
               >
