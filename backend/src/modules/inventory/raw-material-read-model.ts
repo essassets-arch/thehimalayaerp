@@ -19,7 +19,26 @@ export function materialMovement(type: string, quantity: number) {
   return { kind: 'UNKNOWN', delta: 0 };
 }
 
-export async function loadRawMaterialCatalog(db: Database, companyId: string) {
+export interface RawMaterialCatalogItem {
+  id: string;
+  rawMaterialId: string | null;
+  productId: string | null;
+  companyId: string;
+  name: string;
+  sku: string;
+  publicId?: string | null;
+  category: string;
+  unit: string;
+  minimumStock: number;
+  unitPrice: number | null;
+  storageLocation: string;
+  description: string;
+  isActive: boolean;
+  productType: string;
+  aliases: string[];
+}
+
+export async function loadRawMaterialCatalog(db: Database, companyId: string): Promise<RawMaterialCatalogItem[]> {
   if (!companyId?.trim()) throw new BadRequestException('Authenticated company is required');
   let [raw, products] = await Promise.all([
     db.rawMaterial.findMany({ where: { companyId, isActive: true }, orderBy: { sku: 'asc' } }),
@@ -30,49 +49,83 @@ export async function loadRawMaterialCatalog(db: Database, companyId: string) {
   if (raw.length === 0) {
     raw = await db.rawMaterial.findMany({ where: { isActive: true }, orderBy: { sku: 'asc' } });
   }
-  const used = new Set<string>();
-  const make = (rm: typeof raw[number] | null, product?: typeof products[number]) => ({
-    id: rm?.id || product!.id,
-    rawMaterialId: rm?.id || null,
-    productId: product?.id || null,
-    companyId,
-    name: rm?.name || product!.name,
-    sku: rm?.sku || product?.sku || '',
-    publicId: rm?.publicId || product?.publicId,
-    category: rm?.category || product?.category || 'Not recorded',
-    unit: materialUnit(rm?.unit || product?.unit),
-    minimumStock: Number(rm?.minimumStock ?? product?.minimumStock ?? 0),
-    unitPrice: product?.unitPrice == null ? null : Number(product.unitPrice),
-    storageLocation: rm?.storageLocation || '',
-    description: product?.description || '',
-    isActive: rm?.isActive ?? product?.isActive ?? true,
-    productType: 'RAW_MATERIAL',
-    aliases: [rm?.id, product?.id].filter((id): id is string => !!id),
-  });
-  const materials = raw.map(rm => {
-    // Match mirror product by SKU (or by Name if SKU is absent)
-    const product = products.find(p =>
-      !used.has(p.id) &&
-      (
+
+  // When raw materials exist in RawMaterial table, it is the sole authoritative catalog for Store Raw Inventory.
+  // We pair each RawMaterial with any mirror Product records so alias tracking handles all transactions seamlessly.
+  if (raw.length > 0) {
+    const materials: RawMaterialCatalogItem[] = raw.map(rm => {
+      // Find all mirror products matching this raw material (by direct ID, SKU, or Name)
+      const matchingProducts = products.filter(p =>
+        (p.id === rm.id) ||
         (key(rm.sku) && key(p.sku) === key(rm.sku)) ||
         (!key(rm.sku) && key(p.name) === key(rm.name))
-      ) &&
-      materialUnit(p.unit) === materialUnit(rm.unit)
-    );
-    if (product) used.add(product.id);
-    return make(rm, product);
-  });
+      );
+
+      const primaryProd = matchingProducts[0] || null;
+      const allAliases: string[] = [rm.id, ...matchingProducts.map(p => p.id)].filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+      return {
+        id: rm.id,
+        rawMaterialId: rm.id,
+        productId: primaryProd?.id || rm.id,
+        companyId,
+        name: rm.name,
+        sku: rm.sku || primaryProd?.sku || '',
+        publicId: rm.publicId || primaryProd?.publicId,
+        category: rm.category || primaryProd?.category || 'Raw Material',
+        unit: materialUnit(rm.unit || primaryProd?.unit),
+        minimumStock: Number(rm.minimumStock ?? primaryProd?.minimumStock ?? 0),
+        unitPrice: primaryProd?.unitPrice == null ? 0 : Number(primaryProd.unitPrice),
+        storageLocation: rm.storageLocation || '',
+        description: primaryProd?.description || '',
+        isActive: true,
+        productType: 'RAW_MATERIAL',
+        aliases: Array.from(new Set(allAliases)),
+      };
+    });
+
+    return materials.sort((a, b) => (a.sku || a.name).localeCompare(b.sku || b.name));
+  }
+
+  // Fallback ONLY when no RawMaterial records exist at all:
+  // Deduplicate products strictly by SKU so no duplicate rows are ever generated
+  const seenSkus = new Set<string>();
+  const materials: RawMaterialCatalogItem[] = [];
   for (const product of products) {
-    if (!used.has(product.id)) {
-      materials.push(make(null, product));
-    }
+    const normSku = key(product.sku) || key(product.name);
+    if (!normSku || seenSkus.has(normSku)) continue;
+    seenSkus.add(normSku);
+    materials.push({
+      id: product.id,
+      rawMaterialId: null,
+      productId: product.id,
+      companyId,
+      name: product.name,
+      sku: product.sku || '',
+      publicId: product.publicId,
+      category: product.category || 'Raw Material',
+      unit: materialUnit(product.unit),
+      minimumStock: Number(product.minimumStock ?? 0),
+      unitPrice: product.unitPrice == null ? null : Number(product.unitPrice),
+      storageLocation: '',
+      description: product.description || '',
+      isActive: product.isActive ?? true,
+      productType: 'RAW_MATERIAL',
+      aliases: [product.id],
+    });
   }
   return materials.sort((a, b) => (a.sku || a.name).localeCompare(b.sku || b.name));
 }
 
 export type RawCatalog = Awaited<ReturnType<typeof loadRawMaterialCatalog>>;
-export function materialLookup(catalog: RawCatalog) {
-  return new Map(catalog.flatMap(material => material.aliases.map(id => [id, material.id] as const)));
+export function materialLookup(catalog: RawCatalog): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const material of catalog) {
+    for (const id of material.aliases) {
+      if (id) map.set(id, material.id);
+    }
+  }
+  return map;
 }
 
 export async function rawBalances(db: Database, companyId: string, catalog: RawCatalog, before?: Date) {

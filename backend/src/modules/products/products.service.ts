@@ -48,10 +48,38 @@ export class ProductsService {
       let rm: any = null;
       if (sku) {
         rm = await this.prisma.rawMaterial.findFirst({
-          where: { companyId, sku },
+          where: { companyId, sku: { equals: sku, mode: 'insensitive' } },
         });
       }
-      if (!rm) {
+      if (!rm && name) {
+        rm = await this.prisma.rawMaterial.findFirst({
+          where: { companyId, name: { equals: name, mode: 'insensitive' } },
+        });
+      }
+
+      if (rm) {
+        if (rm.isActive) {
+          throw new ConflictException(
+            `A raw material with code "${sku || rm.sku}" or name "${name || rm.name}" already exists.`
+          );
+        }
+        rm = await this.prisma.rawMaterial.update({
+          where: { id: rm.id },
+          data: {
+            name,
+            sku: sku || rm.sku,
+            category: category || 'Raw Material',
+            unit,
+            minimumStock: dto.minimumStock || 0,
+            storageLocation:
+              dto.storageLocation ||
+              dto.storage_location ||
+              dto.description ||
+              null,
+            isActive: true,
+          },
+        });
+      } else {
         rm = await this.prisma.rawMaterial.create({
           data: {
             publicId: `RM-${randomId}`,
@@ -73,15 +101,22 @@ export class ProductsService {
 
       // Also create/sync mirror Product record so POs, Indents, and Transactions referencing Product work seamlessly
       try {
-        const existingProd = sku
+        let existingProd = sku
           ? await this.prisma.product.findFirst({
-              where: { companyId, sku },
+              where: { companyId, sku: { equals: sku, mode: 'insensitive' } },
             })
           : null;
+
+        if (!existingProd && name) {
+          existingProd = await this.prisma.product.findFirst({
+            where: { companyId, name: { equals: name, mode: 'insensitive' }, productType: 'RAW_MATERIAL' },
+          });
+        }
 
         if (!existingProd) {
           await this.prisma.product.create({
             data: {
+              id: rm.id,
               publicId: `PRD-${randomId}`,
               companyId,
               name,
@@ -93,6 +128,35 @@ export class ProductsService {
               unit,
               unitPrice: dto.unitPrice || 0,
               minimumStock: dto.minimumStock || 0,
+              isActive: true,
+            },
+          }).catch(async () => {
+            await this.prisma.product.create({
+              data: {
+                publicId: `PRD-${randomId}`,
+                companyId,
+                name,
+                sku,
+                description: dto.description || dto.storageLocation || dto.storage_location || null,
+                category: category || 'Raw Material',
+                productType: 'RAW_MATERIAL',
+                brand: dto.brand || 'HIMALAYA',
+                unit,
+                unitPrice: dto.unitPrice || 0,
+                minimumStock: dto.minimumStock || 0,
+                isActive: true,
+              },
+            });
+          });
+        } else {
+          await this.prisma.product.update({
+            where: { id: existingProd.id },
+            data: {
+              name,
+              category: category || 'Raw Material',
+              unit,
+              minimumStock: dto.minimumStock || 0,
+              unitPrice: dto.unitPrice || 0,
               isActive: true,
             },
           });

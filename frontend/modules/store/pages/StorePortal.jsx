@@ -738,6 +738,7 @@ export default function StorePortal() {
     };
   }, [currentView, fetchRawInventory, fetchServerIndents]);
   const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
+  const [isSubmittingMaterial, setIsSubmittingMaterial] = useState(false);
   const [showAddStockModal, setShowAddStockModal] = useState(false);
   const [showEditMaterialModal, setShowEditMaterialModal] = useState(false);
   const [showDetailDrawer, setShowDetailDrawer] = useState(false);
@@ -1282,43 +1283,44 @@ export default function StorePortal() {
 
   const handleAddMaterialSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingMaterial) return;
+
     if (!matCode || !matName || !matUnit || !matMinStock) {
       showToast('Please fill in Material Name, Code, Unit and Minimum Stock Level.');
       return;
     }
 
     const list = dbRawInventory || [];
-    const exists = list.some(i => i.material.toLowerCase() === matName.toLowerCase() || i.code.toLowerCase() === matCode.toLowerCase());
+    const exists = list.some(i => (i.material || '').toLowerCase() === matName.trim().toLowerCase() || (i.code || '').toLowerCase() === matCode.trim().toLowerCase());
     if (exists) {
       Swal.fire({ icon: 'error', title: 'Duplicate Registry', text: `A material with name "${matName}" or code "${matCode}" already exists.` });
       return;
     }
 
     try {
+      setIsSubmittingMaterial(true);
       showToast('Registering material...');
-      const prodRes = await apiClient.post('/products', {
-        sku: matCode,
-        name: matName,
+      const matRes = await apiClient.post('/inventory/raw-materials', {
+        code: matCode.trim(),
+        material: matName.trim(),
         category: matCategory || 'Raw Material',
-        unit: matUnit,
+        unit: matUnit.trim(),
         minimumStock: Number(matMinStock) || 0,
-        unitPrice: Number(matRate) || 0,
-        description: [
-          matDescription,
-          matStorageLocation ? `Storage Location: ${matStorageLocation}` : ''
-        ].filter(Boolean).join('\n'),
-        productType: 'RAW_MATERIAL'
+        rate: Number(matRate) || 0,
+        storageLocation: matStorageLocation ? matStorageLocation.trim() : '',
+        description: matDescription ? matDescription.trim() : '',
       });
       
-      const newProdId = prodRes?.data?.id || prodRes?.id;
+      const newMatId = matRes?.data?.id || matRes?.id;
 
-      if (Number(matOpeningStock) > 0 && newProdId) {
+      if (Number(matOpeningStock) > 0 && newMatId) {
         await apiClient.post('/inventory/transactions', {
-          productId: newProdId,
+          rawMaterialId: newMatId,
+          productId: newMatId,
           type: 'IN',
           quantity: Number(matOpeningStock),
           referenceType: 'OPENING_STOCK',
-          referenceId: matCode
+          referenceId: matCode.trim()
         });
       }
       
@@ -1330,6 +1332,8 @@ export default function StorePortal() {
     } catch (err) {
       console.error('Add material failed:', err);
       Swal.fire({ icon: 'error', title: 'Error Adding Material', text: err.response?.data?.message || err.message });
+    } finally {
+      setIsSubmittingMaterial(false);
     }
   };
 
@@ -5881,8 +5885,15 @@ export default function StorePortal() {
               </div>
             </div>
             <div className="store-form-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
-              <button type="button" className="m-theme-btn-secondary" onClick={() => navigate.push('/store/raw-inventory')}>Cancel</button>
-              <button type="submit" className="m-theme-btn-primary"><Plus size={16} /> Save Product Material</button>
+              <button type="button" className="m-theme-btn-secondary" onClick={() => navigate.push('/store/raw-inventory')} disabled={isSubmittingMaterial}>Cancel</button>
+              <button
+                type="submit"
+                className="m-theme-btn-primary"
+                disabled={isSubmittingMaterial}
+                style={{ opacity: isSubmittingMaterial ? 0.7 : 1, cursor: isSubmittingMaterial ? 'not-allowed' : 'pointer' }}
+              >
+                {isSubmittingMaterial ? 'Saving Material...' : <><Plus size={16} /> Save Product Material</>}
+              </button>
             </div>
           </form>
         </div>

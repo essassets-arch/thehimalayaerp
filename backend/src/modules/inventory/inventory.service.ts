@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
@@ -2259,8 +2260,9 @@ export class InventoryService {
   }
 
   async createRawMaterial(companyId: string, data: any) {
-    const name = data.name || data.material || 'Unnamed Item';
-    const sku = data.sku || data.code || null;
+    const name = String(data.name || data.material || 'Unnamed Item').trim();
+    const rawSku = data.sku || data.code || null;
+    const sku = rawSku ? String(rawSku).trim() : null;
     const category = data.category || 'Raw Material';
     const unit = data.unit || 'PCS';
     const minimumStock = Number(data.minimumStock ?? data.reorderLevel ?? 0);
@@ -2271,11 +2273,42 @@ export class InventoryService {
     let rm: any = null;
     if (sku) {
       rm = await this.prisma.rawMaterial.findFirst({
-        where: { companyId, sku },
+        where: {
+          companyId,
+          sku: { equals: sku, mode: 'insensitive' },
+        },
       });
     }
 
-    if (!rm) {
+    if (!rm && name) {
+      rm = await this.prisma.rawMaterial.findFirst({
+        where: {
+          companyId,
+          name: { equals: name, mode: 'insensitive' },
+        },
+      });
+    }
+
+    if (rm) {
+      if (rm.isActive) {
+        throw new ConflictException(
+          `A raw material with code "${sku || rm.sku}" or name "${name || rm.name}" already exists.`
+        );
+      }
+      // If inactive, reactivate it with updated details
+      rm = await this.prisma.rawMaterial.update({
+        where: { id: rm.id },
+        data: {
+          name,
+          sku: sku || rm.sku,
+          category,
+          unit,
+          minimumStock,
+          storageLocation,
+          isActive: true,
+        },
+      });
+    } else {
       rm = await this.prisma.rawMaterial.create({
         data: {
           publicId: `RM-${randomId}`,
@@ -2291,17 +2324,28 @@ export class InventoryService {
       });
     }
 
-    // Mirror Product
+    // Mirror Product sync (maintains single mirror product per raw material for POs / Indents)
     try {
-      const existingProd = sku
+      let existingProd = sku
         ? await this.prisma.product.findFirst({
-            where: { companyId, sku },
+            where: { companyId, sku: { equals: sku, mode: 'insensitive' } },
           })
         : null;
+
+      if (!existingProd && name) {
+        existingProd = await this.prisma.product.findFirst({
+          where: {
+            companyId,
+            name: { equals: name, mode: 'insensitive' },
+            productType: 'RAW_MATERIAL',
+          },
+        });
+      }
 
       if (!existingProd) {
         await this.prisma.product.create({
           data: {
+            id: rm.id,
             publicId: `PRD-${randomId}`,
             companyId,
             name,
@@ -2315,10 +2359,39 @@ export class InventoryService {
             minimumStock,
             isActive: true,
           },
+        }).catch(async () => {
+          await this.prisma.product.create({
+            data: {
+              publicId: `PRD-${randomId}`,
+              companyId,
+              name,
+              sku,
+              description: data.description || storageLocation || null,
+              category,
+              productType: 'RAW_MATERIAL',
+              brand: 'HIMALAYA',
+              unit,
+              unitPrice,
+              minimumStock,
+              isActive: true,
+            },
+          });
+        });
+      } else {
+        await this.prisma.product.update({
+          where: { id: existingProd.id },
+          data: {
+            name,
+            category,
+            unit,
+            minimumStock,
+            unitPrice,
+            isActive: true,
+          },
         });
       }
     } catch (err: any) {
-      console.warn('[InventoryService.createRawMaterial] Mirror product error:', err?.message);
+      console.warn('[InventoryService.createRawMaterial] Mirror product sync error:', err?.message);
     }
 
     return rm;

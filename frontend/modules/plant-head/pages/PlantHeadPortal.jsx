@@ -795,6 +795,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
   const [matMinStock, setMatMinStock] = useState('');
   const [matRate, setMatRate] = useState('');
   const [matDescription, setMatDescription] = useState('');
+  const [isSubmittingMaterial, setIsSubmittingMaterial] = useState(false);
 
   // Edit Material Form fields
   const [editMatId, setEditMatId] = useState('');
@@ -1225,13 +1226,15 @@ export default function PlantHeadPortal({ overrideView } = {}) {
 
   const handleAddMaterialSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingMaterial) return;
+
     if (!matCode || !matName || !matCategory) {
       showToast('Please fill in Code, Name and Category.');
       return;
     }
 
     const list = getMappedInventory(state.rawInventory || []);
-    const exists = list.some(i => (i.material || '').toLowerCase() === matName.toLowerCase() || (i.code || '').toLowerCase() === matCode.toLowerCase());
+    const exists = list.some(i => (i.material || '').toLowerCase() === matName.trim().toLowerCase() || (i.code || '').toLowerCase() === matCode.trim().toLowerCase());
     if (exists) {
       Swal.fire({
         icon: 'error',
@@ -1242,36 +1245,35 @@ export default function PlantHeadPortal({ overrideView } = {}) {
     }
 
     try {
+      setIsSubmittingMaterial(true);
       showToast('Registering material...');
-      await apiClient.post('/store/raw-materials', {
-        code: matCode,
-        material: matName,
-        category: matCategory,
+      await apiClient.post('/inventory/raw-materials', {
+        code: matCode.trim(),
+        material: matName.trim(),
+        category: matCategory.trim(),
         unit: matUnit,
         reorderLevel: Number(matMinStock) || 0,
         rate: Number(matRate) || 0,
-        description: matDescription
+        description: matDescription ? matDescription.trim() : ''
       });
       await syncData();
       showToast(`Material "${matName}" added to registry.`);
+      navigate.push('/plant-head/raw-inventory');
     } catch (err) {
-      dispatch({
-        type: 'ADD_RAW_MATERIAL',
-        payload: {
-          code: matCode,
-          material: matName,
-          category: matCategory,
-          unit: matUnit,
-          reorderLevel: Number(matMinStock) || 0,
-          rate: Number(matRate) || 0,
-          description: matDescription
-        }
+      console.error('Failed to add material:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error Registering Material',
+        text: err.response?.data?.message || err.message || 'Failed to create material registry.'
       });
-      showToast(`Material "${matName}" added (local). Note: ${err.message}`);
+    } finally {
+      setIsSubmittingMaterial(false);
     }
+  };
 
-    // Reset fields
-    setMatCode('');
+  // Reset fields helper
+  const resetFormFields = () => {
+      setMatCode('');
     setMatName('');
     setMatCategory('');
     setMatUnit('Kg');
@@ -5367,9 +5369,10 @@ export default function PlantHeadPortal({ overrideView } = {}) {
               <button
                 type="submit"
                 className="action-btn"
-                style={{ padding: '12px 32px', background: 'var(--color-primary, #2F4375)', border: 'none', borderRadius: '10px', fontWeight: 'bold', color: '#ffffff', cursor: 'pointer' }}
+                disabled={isSubmittingMaterial}
+                style={{ padding: '12px 32px', background: 'var(--color-primary, #2F4375)', border: 'none', borderRadius: '10px', fontWeight: 'bold', color: '#ffffff', cursor: isSubmittingMaterial ? 'not-allowed' : 'pointer', opacity: isSubmittingMaterial ? 0.7 : 1 }}
               >
-                Create Registry
+                {isSubmittingMaterial ? 'Creating Registry...' : 'Create Registry'}
               </button>
             </div>
           </form>
