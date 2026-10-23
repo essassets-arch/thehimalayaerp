@@ -331,6 +331,7 @@ export const navigationConfig = {
     },
 
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/finance/reports' },
+    { id: 'finance-expenses', label: 'Finance Expense', icon: Receipt, path: '/finance/expenses' },
     { id: 'expense-management', label: 'Expense Management', icon: CreditCard, path: '/finance/expense-management' },
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/finance/profile' }
   ],
@@ -450,6 +451,7 @@ export const navigationConfig = {
     { id: 'analytics-dispatch', label: 'Dispatch Analytics', icon: Truck, path: '/super-admin/analytics/dispatch' },
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/super-admin/reports' },
     { id: 'notifications', label: 'Notification Management', icon: Bell, path: '/super-admin/notifications' },
+    { id: 'finance-expenses', label: 'Finance Expense', icon: Receipt, path: '/finance/expenses' },
     { id: 'expense-management', label: 'Expense Management', icon: CreditCard, path: '/super-admin/expense-management' },
     { id: 'leave-approvals', label: 'Leave Approvals', icon: Calendar, path: '/super-admin/leave-approvals' }
   ]

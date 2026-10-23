@@ -82,6 +82,8 @@ model Company {
   employeeLocationSessions       EmployeeLocationSession[]
   employeeLocationPoints         EmployeeLocationPoint[]
   employeeRouteStops             EmployeeRouteStop[]
+  financeExpenses                FinanceExpense[]
+  financeExpenseCategories       FinanceExpenseCategory[]
 }
 
 model Branch {
@@ -198,6 +200,8 @@ model User {
   testingRecords                ProductionTestingRecord[]
   employeeLocationSessions      EmployeeLocationSession[]
   employeeLocationPoints        EmployeeLocationPoint[]
+  createdFinanceExpenses        FinanceExpense[]       @relation("FinanceExpenseCreatedBy")
+  updatedFinanceExpenses        FinanceExpense[]       @relation("FinanceExpenseUpdatedBy")
 }
 
 model RefreshSession {
@@ -4635,9 +4639,74 @@ model PaymentFollowUpEntry {
   @@index([createdAt])
 }
 
+model FinanceExpenseCategory {
+  id          String                 @id @default(uuid())
+  publicId    String                 @unique @default(uuid())
+  companyId   String
+  name        String
+  description String?
+  isActive    Boolean                @default(true)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
 
+  company     Company                @relation(fields: [companyId], references: [id])
+  headers     FinanceExpenseHeader[]
+  expenses    FinanceExpense[]
 
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
+  @@map("finance_expense_categories")
+}
 
+model FinanceExpenseHeader {
+  id          String                 @id @default(uuid())
+  publicId    String                 @unique @default(uuid())
+  categoryId  String
+  name        String
+  description String?
+  isActive    Boolean                @default(true)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
 
+  category    FinanceExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  expenses    FinanceExpense[]
 
+  @@unique([categoryId, name])
+  @@index([categoryId, isActive])
+  @@map("finance_expense_headers")
+}
 
+model FinanceExpense {
+  id            String                 @id @default(uuid())
+  publicId      String                 @unique @default(uuid())
+  expenseNumber String                 @unique
+  companyId     String
+  expenseDate   DateTime
+  categoryId    String
+  headerId      String?
+  amount        Decimal                @db.Decimal(14, 2)
+  description   String                 @db.Text
+  paidTo        String?
+  paymentMethod String?
+  voucherNumber String?
+  invoiceNumber String?
+  receiptUrl    String?                @db.Text
+  notes         String?                @db.Text
+  status        String                 @default("RECORDED")
+  createdById   String
+  updatedById   String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  company       Company                @relation(fields: [companyId], references: [id])
+  category      FinanceExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  header        FinanceExpenseHeader?  @relation(fields: [headerId], references: [id], onDelete: Restrict)
+  createdBy     User                   @relation("FinanceExpenseCreatedBy", fields: [createdById], references: [id])
+  updatedBy     User?                  @relation("FinanceExpenseUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([companyId, expenseDate])
+  @@index([companyId, categoryId])
+  @@index([companyId, headerId])
+  @@index([createdAt])
+  @@map("finance_expenses")
+}

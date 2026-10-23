@@ -44,6 +44,7 @@ import SalesPortal from '../../sales/pages/SalesPortal';
 import FinanceManagerDashboardView from '../components/FinanceManagerDashboardView';
 import ExpenseManagementView from '../../../shared/components/ExpenseManagementView';
 import FinanceReadyForDispatchView from '../components/FinanceReadyForDispatchView';
+import FinanceExpensesWorkspace from './FinanceExpensesWorkspace';
 
 const financeMenu = {
   "Finance": [
@@ -4160,7 +4161,7 @@ export default function FinancePortal({ initialView, forceView }) {
 
       {/* Procurement & Vendor Views */}
       {view === 'vendors' && <div data-testid="finance-vendors-view" className="sales-portal-view"><VendorManagement /></div>}
-      {view === 'expenses' && <div data-testid="finance-expenses-view" className="sales-portal-view">{renderExpenses()}</div>}
+      {view === 'expenses' && <div data-testid="finance-expenses-view" className="sales-portal-view"><FinanceExpensesWorkspace /></div>}
       {view === 'expense-management' && <div data-testid="finance-expense-management-view" className="sales-portal-view"><ExpenseManagementView roleMode="FINANCE" /></div>}
 
       {/* Accounting & Ledger Views */}

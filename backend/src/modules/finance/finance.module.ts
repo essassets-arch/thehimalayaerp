@@ -14,10 +14,16 @@ import { FinanceReportsController } from './finance-reports.controller';
 import { FinanceReportsService } from './finance-reports.service';
 import { FinanceReadyForDispatchController } from './finance-ready-for-dispatch.controller';
 import { FinanceReadyForDispatchService } from './finance-ready-for-dispatch.service';
+import {
+  FinanceExpensesController,
+  FinanceExpenseCategoriesController,
+} from './finance-expenses.controller';
+import { FinanceExpensesService } from './finance-expenses.service';
 import { WorkflowModule } from '../workflow/workflow.module';
+import { FilesModule } from '../files/files.module';
 
 @Module({
-  imports: [WorkflowModule],
+  imports: [WorkflowModule, FilesModule],
   controllers: [
     InvoicesController,
     PaymentsController,
@@ -25,6 +31,8 @@ import { WorkflowModule } from '../workflow/workflow.module';
     FinanceSalesAnalyticsController,
     FinanceReportsController,
     FinanceReadyForDispatchController,
+    FinanceExpensesController,
+    FinanceExpenseCategoriesController,
   ],
   providers: [
     InvoicesService,
@@ -36,6 +44,7 @@ import { WorkflowModule } from '../workflow/workflow.module';
     FinanceSalesAnalyticsMetricService,
     FinanceReportsService,
     FinanceReadyForDispatchService,
+    FinanceExpensesService,
   ],
   exports: [
     LedgerService,
@@ -45,6 +54,7 @@ import { WorkflowModule } from '../workflow/workflow.module';
     PaymentsService,
     FinanceReportsService,
     FinanceReadyForDispatchService,
+    FinanceExpensesService,
   ],
 })
 export class FinanceModule {}

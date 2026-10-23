@@ -101,6 +101,11 @@ done
 echo " ✅ Backend is healthy!"
 
 echo ""
+echo "🌱 Step 5b: Seeding Finance Expense Categories & Headers..."
+docker compose exec -T backend node prisma/seed-finance-expense-categories.js 2>/dev/null || true
+echo " ✅ Expense categories verified."
+
+echo ""
 echo "🌐 Step 6: Updating frontend service..."
 docker compose up -d frontend
 
