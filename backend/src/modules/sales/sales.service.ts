@@ -1129,6 +1129,25 @@ export class SalesService {
       });
       if (!order) throw new NotFoundException(`Sales Order ${cleanId} not found`);
 
+      if (actionName === 'SEND_TO_PLANT' || actionName === 'SEND_TO_DISPATCH_2') {
+        const nonRoutableStatuses: SalesOrderStatus[] = [
+          SalesOrderStatus.SENT_TO_PLANT,
+          SalesOrderStatus.SENT_TO_PLANT_HEAD,
+          SalesOrderStatus.PLANT_APPROVED,
+          SalesOrderStatus.READY_FOR_PRODUCTION,
+          SalesOrderStatus.IN_PRODUCTION,
+          SalesOrderStatus.READY_FOR_DISPATCH,
+          SalesOrderStatus.COMPLETED,
+          SalesOrderStatus.CANCELLED,
+          SalesOrderStatus.LOST,
+        ];
+        if (nonRoutableStatuses.includes(order.status as SalesOrderStatus)) {
+          throw new BadRequestException(
+            `Order ${order.orderNumber} is already in state '${order.status}' and cannot be routed to Plant Head or Dispatch 2.`,
+          );
+        }
+      }
+
       if (actionName === 'SUBMIT') {
         const orderTotal = order.items.reduce(
           (sum, item) => sum + Number(item.lineTotal),
