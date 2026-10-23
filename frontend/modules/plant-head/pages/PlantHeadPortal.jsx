@@ -49,6 +49,8 @@ import AttendanceView from '../../../shared/components/AttendanceView';
 import CustomerComplaintManagement from '../../../components/CustomerComplaintManagement';
 import HRSOPsView from '../../hr/components/HRSOPsView';
 import FinishedGoodsStockView from '../../../components/FinishedGoodsStockView';
+import PlantHeadProductionTargetView from './PlantHeadProductionTargetView';
+import PlantHeadDispatchTargetView from './PlantHeadDispatchTargetView';
 
 const isMaterialMatch = (invName, reqName) => {
   const inv = (invName || '').toLowerCase();
@@ -5939,8 +5941,14 @@ export default function PlantHeadPortal({ overrideView } = {}) {
       {(currentView === 'sops' || currentView === 'hr-sops' || currentView === 'sop') && (
         <HRSOPsView roleMode="PLANT_HEAD" />
       )}
+      {(currentView === 'production-target' || currentView === 'production-targets') && (
+        <PlantHeadProductionTargetView />
+      )}
+      {(currentView === 'dispatch-target' || currentView === 'dispatch-targets') && (
+        <PlantHeadDispatchTargetView />
+      )}
 
-      {!['dashboard', 'daily-summary', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'customer-complaints', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'add-material', 'edit-material', 'indent-approvals', 'purchase-approvals', 'profile', 'leave-approvals', 'daily-reports', 'attendance', 'sops', 'hr-sops', 'sop'].includes(currentView) && (
+      {!['dashboard', 'daily-summary', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'customer-complaints', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'add-material', 'edit-material', 'indent-approvals', 'purchase-approvals', 'profile', 'leave-approvals', 'daily-reports', 'attendance', 'sops', 'hr-sops', 'sop', 'production-target', 'production-targets', 'dispatch-target', 'dispatch-targets'].includes(currentView) && (
         <ModulePlaceholder
           title="Module Not Available"
           description="This Plant Head feature is not implemented yet."

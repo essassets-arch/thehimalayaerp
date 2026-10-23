@@ -24,7 +24,7 @@ export class ProductionTargetController {
   constructor(private readonly service: ProductionTargetService) {}
 
   @Post()
-  @RequirePermissions('super-admin')
+  @RequirePermissions('super-admin', 'production.targets.create', 'production.targets.manage', 'planthead.create', 'plant-head.create')
   async create(@Req() req, @Body() dto: CreateProductionTargetDto) {
     const userId = req.user?.sub || req.user?.id;
     const data = await this.service.create(dto, userId);
@@ -32,7 +32,7 @@ export class ProductionTargetController {
   }
 
   @Get()
-  @RequirePermissions('super-admin')
+  @RequirePermissions('super-admin', 'production.targets.read', 'production.targets.manage', 'planthead.read', 'plant-head.read')
   async findAll() {
     const data = await this.service.findAll();
     return { data };
@@ -47,14 +47,14 @@ export class ProductionTargetController {
   }
 
   @Get(':id')
-  @RequirePermissions('super-admin')
+  @RequirePermissions('super-admin', 'production.targets.read', 'production.targets.manage', 'planthead.read', 'plant-head.read')
   async findOne(@Param('id') id: string) {
     const data = await this.service.findOne(id);
     return { data };
   }
 
   @Patch(':id')
-  @RequirePermissions('super-admin')
+  @RequirePermissions('super-admin', 'production.targets.update', 'production.targets.manage', 'planthead.create', 'plant-head.create')
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateProductionTargetDto,
@@ -66,7 +66,7 @@ export class ProductionTargetController {
   }
 
   @Delete(':id')
-  @RequirePermissions('super-admin')
+  @RequirePermissions('super-admin', 'production.targets.delete', 'production.targets.manage', 'planthead.create', 'plant-head.create')
   async remove(@Param('id') id: string) {
     return this.service.remove(id);
   }

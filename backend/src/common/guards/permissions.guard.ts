@@ -448,6 +448,16 @@ export class PermissionsGuard implements CanActivate {
         'reports.daily.create',
         'daily-reports.read',
         'daily-reports.create',
+        'production.targets.manage',
+        'production.targets.read',
+        'production.targets.create',
+        'production.targets.update',
+        'production.targets.delete',
+        'dispatch.targets.manage',
+        'dispatch.targets.read',
+        'dispatch.targets.create',
+        'dispatch.targets.update',
+        'dispatch.targets.delete',
       ].forEach((p) => userPermSet.add(p));
     }
 

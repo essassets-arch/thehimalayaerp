@@ -40,6 +40,8 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     backendPath = backendPath.replace('/backend/sales-targets', '/sales-targets');
   } else if (backendPath.startsWith('/backend/production-targets')) {
     backendPath = backendPath.replace('/backend/production-targets', '/production-targets');
+  } else if (backendPath.startsWith('/backend/dispatch-targets')) {
+    backendPath = backendPath.replace('/backend/dispatch-targets', '/dispatch-targets');
   } else if (backendPath.startsWith('/backend/users')) {
     backendPath = backendPath.replace('/backend/users', '/users');
   } else if (backendPath.startsWith('/admin/companies')) {

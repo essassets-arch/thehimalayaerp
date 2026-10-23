@@ -3671,6 +3671,30 @@ model ProductionTarget {
   @@map("production_targets")
 }
 
+enum DispatchTargetStatus {
+  ACTIVE
+  CANCELLED
+}
+
+model DispatchTarget {
+  id             String               @id @default(cuid())
+  targetPeriod   TargetPeriod         @map("target_period")
+  startDate      DateTime             @map("start_date") @db.Date
+  endDate        DateTime             @map("end_date") @db.Date
+  quantityTarget Int                  @map("quantity_target")
+  remarks        String?              @map("remarks") @db.VarChar(500)
+  status         DispatchTargetStatus @default(ACTIVE) @map("status")
+  depot          String?              @default("ALL") @map("depot")
+  createdById    String?              @map("created_by_id")
+  updatedById    String?              @map("updated_by_id")
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamp
+  updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamp
+
+  @@index([startDate, endDate])
+  @@index([status, targetPeriod])
+  @@map("dispatch_targets")
+}
+
 enum ExpenseStatus {
   PENDING_HR
   PENDING_SUPER_ADMIN

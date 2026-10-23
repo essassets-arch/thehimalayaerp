@@ -678,7 +678,7 @@ export default function ProductionOperationsDashboard({
         {/* KPI 2: Plan Achievement */}
         <div 
           className="pod-kpi-card"
-          title={kpis.planAchievement.hasTarget && kpis.planAchievement.targetQty ? `Super Admin Target: ${Number(kpis.planAchievement.targetQty).toLocaleString('en-IN')} Units (${kpis.planAchievement.period || 'Monthly'}) | Achieved: ${Number(kpis.planAchievement.achievedQty || 0).toLocaleString('en-IN')} Units (${kpis.planAchievement.percentage}%)` : 'Super Admin Production Target Adherence'}
+          title={kpis.planAchievement.hasTarget && kpis.planAchievement.targetQty ? `Plant Head Target: ${Number(kpis.planAchievement.targetQty).toLocaleString('en-IN')} Units (${kpis.planAchievement.period || 'Monthly'}) | Achieved: ${Number(kpis.planAchievement.achievedQty || 0).toLocaleString('en-IN')} Units (${kpis.planAchievement.percentage}%)` : 'Plant Head Production Target Adherence'}
         >
           <div className="pod-kpi-top">
             <div className="pod-kpi-icon-box green">

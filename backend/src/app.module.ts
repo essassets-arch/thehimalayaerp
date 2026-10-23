@@ -50,6 +50,7 @@ import { BrandAnalysisModule } from './modules/brand-analysis/brand-analysis.mod
 import { SalesReportsModule } from './modules/sales-reports/sales-reports.module';
 import { SalesTargetModule } from './modules/sales-target/sales-target.module';
 import { ProductionTargetModule } from './modules/production-target/production-target.module';
+import { DispatchTargetModule } from './modules/dispatch-target/dispatch-target.module';
 import { PlantHeadModule } from './modules/plant-head/plant-head.module';
 import { StoreReportsModule } from './modules/store-reports/store-reports.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
@@ -89,6 +90,7 @@ import { ComplaintsModule } from './modules/complaints/complaints.module';
     BrandAnalysisModule,
     SalesTargetModule,
     ProductionTargetModule,
+    DispatchTargetModule,
     CustomersModule,
     SalesModule,
     SequenceModule,

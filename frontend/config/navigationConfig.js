@@ -84,6 +84,8 @@ export const navigationConfig = {
 
     { id: 'incoming-orders', label: 'Incoming Orders', icon: Box, path: '/plant-head/incoming-orders', group: 'Planning Board' },
     { id: 'planning', label: 'Planning', icon: Wrench, path: '/plant-head/planning', group: 'Planning Board' },
+    { id: 'production-target', label: 'Production Target', icon: Target, path: '/plant-head/production-target', group: 'Target Management' },
+    { id: 'dispatch-target', label: 'Dispatch Target', icon: Truck, path: '/plant-head/dispatch-target', group: 'Target Management' },
 
 
     { id: 'products', label: 'Products', icon: Package, path: '/plant-head/products', group: 'Catalog Management' },
