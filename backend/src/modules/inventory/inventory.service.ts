@@ -419,24 +419,16 @@ export class InventoryService {
   }
 
   async getDashboardData(companyId: string) {
-    let [rawMaterials, rawProducts, transactions, warehouses, qcInspections, materialRequests, purchaseIndents] =
+    if (!companyId?.trim()) {
+      throw new BadRequestException('Company ID is required');
+    }
+
+    // 1. Load authoritative Raw Material catalog & live balances (100% database-driven)
+    const inventoryItems = await loadRawInventory(this.prisma, companyId);
+
+    // 2. Fetch live transactions, QC inspections, material requests, purchase indents, and GRNs in parallel
+    const [transactions, qcInspections, materialRequests, purchaseIndents, goodsReceiptNotes] =
       await Promise.all([
-        this.prisma.rawMaterial.findMany({
-          where: { companyId, isActive: true },
-          orderBy: { name: 'asc' },
-        }),
-        this.prisma.product.findMany({
-          where: {
-            companyId,
-            isActive: true,
-            OR: [
-              { type: 'RAW_MATERIAL' },
-              { productType: 'RAW_MATERIAL' },
-              { category: { contains: 'Raw', mode: 'insensitive' } },
-            ],
-          },
-          orderBy: { name: 'asc' },
-        }),
         this.prisma.inventoryTransaction.findMany({
           where: { companyId },
           orderBy: { createdAt: 'desc' },
@@ -446,7 +438,6 @@ export class InventoryService {
             rawMaterial: { select: { name: true, sku: true, unit: true, category: true, storageLocation: true } },
           },
         }),
-        this.prisma.warehouse.findMany({ where: { companyId } }),
         (this.prisma as any).qCInspection
           ?.findMany({
             where: { companyId },
@@ -466,61 +457,40 @@ export class InventoryService {
             orderBy: { createdAt: 'desc' },
           })
           .catch(() => []) ?? Promise.resolve([]),
+        (this.prisma as any).goodsReceiptNote
+          ?.findMany({
+            where: { companyId },
+            include: { items: true },
+            orderBy: { createdAt: 'desc' },
+          })
+          .catch(() => []) ?? Promise.resolve([]),
       ]);
 
-    if (rawMaterials.length === 0) {
-      rawMaterials = await this.prisma.rawMaterial.findMany({
-        where: { isActive: true },
-        orderBy: { name: 'asc' },
-      });
-    }
-
-    // 1. Build Unified Catalog Items (matching Store Panel)
-    const catalogMap = new Map<string, any>();
-
-    rawMaterials.forEach((rm) => {
-      const key = (rm.sku || rm.id).trim().toLowerCase();
-      catalogMap.set(key, {
-        id: rm.id,
-        code: rm.sku || rm.publicId || 'RM-' + rm.id.slice(0, 6),
-        name: rm.name,
-        category: rm.category || 'Raw Material',
-        warehouse: 'Main Central Store',
-        unit: rm.unit || 'KG',
-        min: Number(rm.minimumStock) || 0,
-        max: Number(rm.minimumStock) > 0 ? Number(rm.minimumStock) * 8 : 100,
-        price: 250,
-        storageLocation: rm.storageLocation || 'Central Store',
-        createdAt: rm.createdAt,
-      });
-    });
-
-    rawProducts.forEach((p) => {
-      const key = (p.sku || p.id).trim().toLowerCase();
-      if (!catalogMap.has(key)) {
-        catalogMap.set(key, {
-          id: p.id,
-          code: p.sku || p.publicId || 'RM-' + p.id.slice(0, 6),
-          name: p.name,
-          category: p.category || 'Raw Material',
-          warehouse: 'Main Central Store',
-          unit: p.unit || 'PCS',
-          min: Number(p.minimumStock) || 0,
-          max: Number(p.minimumStock) > 0 ? Number(p.minimumStock) * 8 : 100,
-          price: Number(p.unitPrice) || 250,
-          storageLocation: (p as any).storageLocation || 'Central Store',
-          createdAt: p.createdAt,
+    // 3. Build canonical lookup mapping for every alias to item.id
+    const aliasMap = new Map<string, string>();
+    inventoryItems.forEach((m) => {
+      aliasMap.set(m.id.toLowerCase(), m.id);
+      if (m.sku) aliasMap.set(m.sku.trim().toLowerCase(), m.id);
+      if (m.name) aliasMap.set(m.name.trim().toLowerCase(), m.id);
+      if (m.publicId) aliasMap.set(m.publicId.trim().toLowerCase(), m.id);
+      if (Array.isArray(m.aliases)) {
+        m.aliases.forEach((a) => {
+          if (a) aliasMap.set(String(a).trim().toLowerCase(), m.id);
         });
-      } else {
-        const existing = catalogMap.get(key);
-        if (Number(p.unitPrice) > 0) existing.price = Number(p.unitPrice);
-        if ((p as any).storageLocation) existing.storageLocation = (p as any).storageLocation;
       }
     });
 
-    const catalogItems = Array.from(catalogMap.values());
+    const resolveItemId = (tx: any): string | null => {
+      if (tx.rawMaterialId && aliasMap.has(tx.rawMaterialId.toLowerCase())) return aliasMap.get(tx.rawMaterialId.toLowerCase())!;
+      if (tx.productId && aliasMap.has(tx.productId.toLowerCase())) return aliasMap.get(tx.productId.toLowerCase())!;
+      if (tx.rawMaterial?.sku && aliasMap.has(tx.rawMaterial.sku.toLowerCase())) return aliasMap.get(tx.rawMaterial.sku.toLowerCase())!;
+      if (tx.product?.sku && aliasMap.has(tx.product.sku.toLowerCase())) return aliasMap.get(tx.product.sku.toLowerCase())!;
+      if (tx.rawMaterial?.name && aliasMap.has(tx.rawMaterial.name.toLowerCase())) return aliasMap.get(tx.rawMaterial.name.toLowerCase())!;
+      if (tx.product?.name && aliasMap.has(tx.product.name.toLowerCase())) return aliasMap.get(tx.product.name.toLowerCase())!;
+      return null;
+    };
 
-    // 2. Compute On-Hand Stock & Transaction Statistics
+    // 4. Compute per-item transaction statistics
     const positiveTypes = [
       'IN',
       'PURCHASE_RECEIPT',
@@ -539,39 +509,35 @@ export class InventoryService {
       'PRODUCTION_ISSUE',
     ];
 
-    const stockMap = new Map<string, number>();
     const txItemStats = new Map<
       string,
-      { received: 0; issued: 0; returns: 0; adjustments: 0; latestTxDate: Date; warehouseName: string }
+      { received: number; issued: number; returns: number; adjustments: number; latestTxDate: Date; warehouseName: string }
     >();
+
+    const now = Date.now();
+    let issuedTotalQty = 0;
+    const issuedMaterialIds = new Set<string>();
 
     transactions.forEach((tx) => {
       const qty = Math.abs(Number(tx.quantity || 0));
       const tType = (tx.type || '').toUpperCase();
-      let delta = 0;
       const isPositive = positiveTypes.includes(tType);
       const isNegative = negativeTypes.includes(tType) || tx.referenceType === 'ISSUE_TO_PRODUCTION';
-      const isAdjustment = tType === 'ADJUSTMENT';
+      const isReturn = tType.includes('RETURN');
+      const isAdjustment = tType === 'ADJUSTMENT' || tType === 'VARIANCE';
 
-      if (isPositive) delta = qty;
-      else if (isNegative) delta = -qty;
-      else if (isAdjustment) delta = Number(tx.quantity || 0);
+      if (isNegative) {
+        issuedTotalQty += qty;
+      }
 
-      const idsToUpdate = [
-        tx.productId,
-        tx.rawMaterialId,
-        tx.product?.sku,
-        tx.rawMaterial?.sku,
-        tx.product?.name,
-        tx.rawMaterial?.name,
-      ].filter(Boolean);
+      const canonicalId = resolveItemId(tx);
+      if (canonicalId) {
+        if (isNegative) {
+          issuedMaterialIds.add(canonicalId);
+        }
 
-      idsToUpdate.forEach((rawId) => {
-        const k = String(rawId).trim().toLowerCase();
-        stockMap.set(k, (stockMap.get(k) || 0) + delta);
-
-        if (!txItemStats.has(k)) {
-          txItemStats.set(k, {
+        if (!txItemStats.has(canonicalId)) {
+          txItemStats.set(canonicalId, {
             received: 0,
             issued: 0,
             returns: 0,
@@ -580,18 +546,36 @@ export class InventoryService {
             warehouseName: tx.warehouse?.name || 'Main Central Store',
           });
         }
-        const st = txItemStats.get(k)!;
-        if (isPositive) (st as any).received += qty;
-        if (isNegative) (st as any).issued += qty;
-        if (tType.includes('RETURN')) (st as any).returns += qty;
-        if (isAdjustment) (st as any).adjustments += qty;
+        const st = txItemStats.get(canonicalId)!;
+        if (isPositive) st.received += qty;
+        if (isNegative) st.issued += qty;
+        if (isReturn) st.returns += qty;
+        if (isAdjustment) st.adjustments += qty;
         if (new Date(tx.createdAt) > new Date(st.latestTxDate)) {
           st.latestTxDate = tx.createdAt;
           if (tx.warehouse?.name) st.warehouseName = tx.warehouse.name;
         }
+      }
+    });
+
+    // Cross-check Material Requests for any issued items
+    materialRequests.forEach((mr: any) => {
+      const items = Array.isArray(mr.items) ? mr.items : [];
+      items.forEach((it: any) => {
+        const q = Number(it.issuedQuantity ?? it.issuedQty ?? 0);
+        if (q > 0) {
+          const key = it.productId || it.materialId || it.materialName;
+          if (key) {
+            const canonicalId = aliasMap.get(String(key).toLowerCase());
+            if (canonicalId) {
+              issuedMaterialIds.add(canonicalId);
+            }
+          }
+        }
       });
     });
 
+    // 5. Build authoritative catalog items with live stock, valuation & aging
     let totalAvailableStock = 0;
     let totalInventoryValuation = 0;
     let belowMinCount = 0;
@@ -599,101 +583,91 @@ export class InventoryService {
     let inStockCount = 0;
     let outOfStockCount = 0;
     let deadStockValuation = 0;
-    const now = Date.now();
+    let slowCount = 0;
+    let fastCount = 0;
+    let nonCount = 0;
 
-    catalogItems.forEach((item) => {
-      const k1 = item.id.toLowerCase();
-      const k2 = (item.code || '').trim().toLowerCase();
-      const k3 = (item.name || '').trim().toLowerCase();
-
-      const onHand = Math.max(0, stockMap.get(k1) ?? stockMap.get(k2) ?? stockMap.get(k3) ?? 0);
-      const st = txItemStats.get(k1) || txItemStats.get(k2) || txItemStats.get(k3);
-      const itemCreatedAt = new Date(item.createdAt).getTime();
+    const catalogItems = inventoryItems.map((item) => {
+      const onHand = Math.max(0, Number(item.quantity ?? 0));
+      const st = txItemStats.get(item.id);
+      const itemCreatedAt = new Date((item as any).createdAt || now).getTime();
       const latestDate = st?.latestTxDate ? new Date(st.latestTxDate).getTime() : itemCreatedAt;
       const ageDays = Math.max(0, Math.floor((now - latestDate) / (1000 * 60 * 60 * 24)));
-
-      item.available = onHand;
-      item.valuation = onHand * item.price;
-      item.aging = ageDays;
-      if (st?.warehouseName) item.warehouse = st.warehouseName;
+      const unitPrice = Number(item.unitPrice || 0);
+      const valuation = Number((onHand * unitPrice).toFixed(2));
+      const minStock = Number(item.minimumStock || 0);
 
       totalAvailableStock += onHand;
-      totalInventoryValuation += item.valuation;
+      totalInventoryValuation += valuation;
 
       if (onHand <= 0) {
         outOfStockCount++;
-      } else if (item.min > 0 && onHand <= item.min) {
+      } else if (minStock > 0 && onHand < minStock) {
         belowMinCount++;
       } else {
         inStockCount++;
       }
 
-      if (item.max > 0 && onHand > item.max) {
-        aboveMaxCount++;
+      if (item.movement === 'Fast Moving') fastCount++;
+      else if (item.movement === 'Slow Moving') slowCount++;
+      else nonCount++;
+
+      if (ageDays > 180 && onHand > 0 && item.movement === 'Non-Moving') {
+        deadStockValuation += valuation;
       }
 
-      if (ageDays > 180 && onHand > 0) {
-        deadStockValuation += item.valuation;
-      }
+      const abcClass = valuation > 50000 ? 'Class A' : valuation > 10000 ? 'Class B' : 'Class C';
 
-      item.fsn = st && (st as any).issued > 0 ? 'Fast Moving' : st && (st as any).received > 0 ? 'Slow Moving' : 'Non-Moving';
-      item.abc = item.valuation > 50000 ? 'Class A' : item.valuation > 10000 ? 'Class B' : 'Class C';
+      return {
+        id: item.id,
+        code: item.sku || item.publicId || item.id,
+        name: item.name,
+        category: item.category || 'Raw Material',
+        warehouse: st?.warehouseName || (item.storageLocation ? item.storageLocation : 'Main Central Store'),
+        unit: item.unit || 'PCS',
+        min: minStock,
+        max: 0,
+        price: unitPrice,
+        storageLocation: item.storageLocation || 'Central Store',
+        available: onHand,
+        reserved: 0,
+        valuation,
+        aging: ageDays,
+        fsn: item.movement,
+        abc: abcClass,
+        rejections: 0,
+        createdAt: (item as any).createdAt,
+      };
     });
 
-    // 3. Authoritative Store Issues to Production
-    let issuedTotalQty = 0;
-    const issuedMaterialIds = new Set<string>();
+    // 6. QC Rejection Rate Calculation (from real QC Inspections and GRN Items)
+    let totalInspected = 0;
+    let totalRejected = 0;
 
-    transactions.forEach((tx) => {
-      const isIssue =
-        (tx.type || '').toUpperCase() === 'OUT' &&
-        (tx.referenceType === 'ISSUE_TO_PRODUCTION' || (tx.type || '').toUpperCase() === 'PRODUCTION_ISSUE');
-      if (isIssue) {
-        const q = Math.abs(Number(tx.quantity || 0));
-        issuedTotalQty += q;
-        const mKey = tx.productId || tx.rawMaterialId || tx.referenceId;
-        if (mKey) issuedMaterialIds.add(String(mKey).toLowerCase());
-      }
+    qcInspections.forEach((q: any) => {
+      const app = Number(q.approvedQuantity || 0);
+      const rej = Number(q.rejectedQuantity || q.quantityRejected || 0);
+      const insp = Number(q.quantityInspected || q.inspectedQty) || (app + rej);
+      totalInspected += insp;
+      totalRejected += rej;
     });
 
-    if (issuedTotalQty === 0 && Array.isArray(materialRequests)) {
-      materialRequests.forEach((mr: any) => {
-        const items = Array.isArray(mr.items) ? mr.items : [];
-        items.forEach((it: any) => {
-          const q = Number(it.issuedQuantity ?? it.issuedQty ?? 0);
-          if (q > 0) {
-            issuedTotalQty += q;
-            const mKey = it.productId || it.materialId || it.materialName;
-            if (mKey) issuedMaterialIds.add(String(mKey).toLowerCase());
-          }
-        });
+    goodsReceiptNotes.forEach((grn: any) => {
+      const items = Array.isArray(grn.items) ? grn.items : [];
+      items.forEach((it: any) => {
+        const acc = Number(it.acceptedQuantity || 0);
+        const rej = Number(it.rejectedQuantity || 0);
+        const rec = Number(it.receivedQuantity || 0);
+        const total = rec > 0 ? rec : (acc + rej);
+        totalInspected += total;
+        totalRejected += rej;
       });
-    }
+    });
 
-    const issuedMaterialsCount = issuedMaterialIds.size;
+    const rejectionRate = totalInspected > 0 ? Number(((totalRejected / totalInspected) * 100).toFixed(1)) : 0;
 
-    // 4. QC Rejection Rate
-    let rejectionRate = 0;
-    if (Array.isArray(qcInspections) && qcInspections.length > 0) {
-      const totalInspected = qcInspections.reduce(
-        (sum: number, q: any) => sum + (Number(q.quantityInspected || q.inspectedQty) || 0),
-        0,
-      );
-      const totalRejected = qcInspections.reduce(
-        (sum: number, q: any) => sum + (Number(q.quantityRejected || q.rejectedQty) || 0),
-        0,
-      );
-      if (totalInspected > 0) {
-        rejectionRate = Number(((totalRejected / totalInspected) * 100).toFixed(1));
-      }
-    }
-
-    // 5. Consumption Trend Data
-    const consumptionTrend: {
-      Today: Array<{ period: string; IssuedQuantity: number; TargetConsumption: number }>;
-      'This Week': Array<{ period: string; IssuedQuantity: number; TargetConsumption: number }>;
-      'This Month': Array<{ period: string; IssuedQuantity: number; TargetConsumption: number }>;
-    } = {
+    // 7. Consumption Trend Data (Today, This Week, This Month - 100% Dynamic)
+    const consumptionTrend = {
       Today: ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'].map((period) => ({
         period,
         IssuedQuantity: 0,
@@ -712,35 +686,64 @@ export class InventoryService {
     };
 
     transactions.forEach((tx) => {
+      const tType = (tx.type || '').toUpperCase();
       const isOut =
-        ((tx.type || '').toUpperCase() === 'OUT' && tx.referenceType === 'ISSUE_TO_PRODUCTION') ||
-        (tx.type || '').toUpperCase() === 'PRODUCTION_ISSUE';
+        (tType === 'OUT' && (tx.referenceType === 'ISSUE_TO_PRODUCTION' || ((tx as any).notes || '').toLowerCase().includes('production'))) ||
+        tType === 'PRODUCTION_ISSUE' ||
+        tx.referenceType === 'ISSUE_TO_PRODUCTION';
       if (!isOut) return;
       const qty = Math.abs(Number(tx.quantity || 0));
       const d = new Date(tx.createdAt);
+
       const day = d.toLocaleDateString('en-US', { weekday: 'short' });
       const weekEntry = consumptionTrend['This Week'].find((w) => w.period === day);
       if (weekEntry) {
         weekEntry.IssuedQuantity += qty;
-        weekEntry.TargetConsumption += Math.round(qty * 1.1);
       }
+
       const hour = d.getHours();
       const hourBucket = `${(Math.floor(hour / 2) * 2).toString().padStart(2, '0')}:00`;
       const todayEntry = consumptionTrend.Today.find((t) => t.period === hourBucket);
       if (todayEntry) {
         todayEntry.IssuedQuantity += qty;
-        todayEntry.TargetConsumption += Math.round(qty * 1.1);
       }
+
       const dayOfMonth = d.getDate();
       const wkIdx = Math.min(3, Math.floor((dayOfMonth - 1) / 7));
       const monthEntry = consumptionTrend['This Month'][wkIdx];
       if (monthEntry) {
         monthEntry.IssuedQuantity += qty;
-        monthEntry.TargetConsumption += Math.round(qty * 1.1);
       }
     });
 
-    // 6. Stock Movement Data (Mon-Sun)
+    // Fill TargetConsumption from real Material Requests (no fake multipliers)
+    materialRequests.forEach((mr: any) => {
+      const items = Array.isArray(mr.items) ? mr.items : [];
+      const reqDate = new Date(mr.requestDate || mr.createdAt);
+      const reqDay = reqDate.toLocaleDateString('en-US', { weekday: 'short' });
+      const dayOfMonth = reqDate.getDate();
+      const wkIdx = Math.min(3, Math.floor((dayOfMonth - 1) / 7));
+      const hour = reqDate.getHours();
+      const hourBucket = `${(Math.floor(hour / 2) * 2).toString().padStart(2, '0')}:00`;
+
+      let reqTotalQty = 0;
+      items.forEach((it: any) => {
+        reqTotalQty += Number(it.quantity || 0);
+      });
+
+      if (reqTotalQty > 0) {
+        const weekEntry = consumptionTrend['This Week'].find((w) => w.period === reqDay);
+        if (weekEntry) weekEntry.TargetConsumption += reqTotalQty;
+
+        const todayEntry = consumptionTrend.Today.find((t) => t.period === hourBucket);
+        if (todayEntry) todayEntry.TargetConsumption += reqTotalQty;
+
+        const monthEntry = consumptionTrend['This Month'][wkIdx];
+        if (monthEntry) monthEntry.TargetConsumption += reqTotalQty;
+      }
+    });
+
+    // 8. Stock Movement Data (Mon-Sun)
     const stockMovementData = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => ({
       period: day,
       received: 0,
@@ -759,13 +762,15 @@ export class InventoryService {
         if (positiveTypes.includes(tType)) entry.received += qty;
         else if (negativeTypes.includes(tType) || tx.referenceType === 'ISSUE_TO_PRODUCTION') entry.issued += qty;
         else if (tType.includes('RETURN')) entry.returns += qty;
-        else if (tType === 'ADJUSTMENT') entry.adjustments += qty;
+        else if (tType === 'ADJUSTMENT' || tType === 'VARIANCE') entry.adjustments += qty;
       }
     });
 
-    // 7. ABC Analysis (Donut)
+    // 9. ABC Analysis (Donut)
     const sortedByVal = [...catalogItems].sort((a, b) => b.valuation - a.valuation);
-    let classAVal = 0, classBVal = 0, classCVal = 0;
+    let classAVal = 0;
+    let classBVal = 0;
+    let classCVal = 0;
     if (totalInventoryValuation > 0) {
       sortedByVal.forEach((item, idx) => {
         const v = item.valuation / 100000;
@@ -794,23 +799,14 @@ export class InventoryService {
       },
     ];
 
-    // 8. FSN Analysis (Donut)
-    let fastCount = 0, slowCount = 0, nonCount = 0;
-    catalogItems.forEach((item) => {
-      const k = item.id.toLowerCase();
-      const st = txItemStats.get(k) || txItemStats.get((item.code || '').toLowerCase());
-      if (st && (st as any).issued > 0) fastCount++;
-      else if (st && (st as any).received > 0) slowCount++;
-      else nonCount++;
-    });
-
+    // 10. FSN Analysis (Donut)
     const fsnDonutData = [
       { name: `⚡ Fast Moving (${fastCount} SKUs)`, value: fastCount, color: '#10b981' },
       { name: `🐢 Slow Moving (${slowCount} SKUs)`, value: slowCount, color: '#f59e0b' },
       { name: `🛑 Non-Moving (${nonCount} SKUs)`, value: nonCount, color: '#ef4444' },
     ];
 
-    // 9. Stock Aging Distribution
+    // 11. Stock Aging Distribution
     let a0_30 = 0, a31_90 = 0, a91_180 = 0, a180Plus = 0;
     catalogItems.forEach((item) => {
       const ageDays = item.aging || 0;
@@ -827,35 +823,35 @@ export class InventoryService {
       { bucket: '>180 Days', percent: totalAgeCount > 0 ? Math.round((a180Plus / totalAgeCount) * 100) : 0, skus: a180Plus, color: '#ef4444' },
     ];
 
-    // 10. Top 10 Materials Consumed
+    // 12. Top 10 Materials Consumed
     const topMaterialsConsumed = [...catalogItems]
       .map((item) => {
-        const k = item.id.toLowerCase();
-        const st = txItemStats.get(k) || txItemStats.get((item.code || '').toLowerCase()) || { received: 0, issued: 0, returns: 0 };
-        const opening = Math.max(0, item.available + (st as any).issued - (st as any).received - (st as any).returns);
+        const st = txItemStats.get(item.id) || { received: 0, issued: 0, returns: 0 };
+        const opening = Math.max(0, item.available + st.issued - st.received - st.returns);
         return {
           id: item.id,
           code: item.code,
           name: item.name,
           category: item.category,
           storageLocation: item.storageLocation,
-          quantity: (st as any).issued > 0 ? (st as any).issued : item.available,
+          quantity: st.issued,
           unit: item.unit,
           available: item.available,
           opening,
-          received: (st as any).received,
-          issued: (st as any).issued,
-          returnQty: (st as any).returns,
+          received: st.received,
+          issued: st.issued,
+          returnQty: st.returns,
           closing: item.available,
           min: item.min,
-          max: item.max,
+          max: 0,
           price: item.price,
         };
       })
+      .filter((item) => item.quantity > 0)
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 10);
 
-    // 11. Attention Required Panel Metrics
+    // 13. Attention Required Panel Metrics
     const pendingQC = qcInspections.filter(
       (q: any) => q.status === 'PENDING' || q.status === 'IN_PROGRESS' || q.status === 'SCHEDULED',
     ).length;
@@ -868,6 +864,9 @@ export class InventoryService {
     const quarantineStock = qcInspections.filter(
       (q: any) => q.status === 'REJECTED' || q.status === 'FAILED',
     ).length;
+    const stockVariance = transactions.filter(
+      (t: any) => (t.type || '').toUpperCase() === 'ADJUSTMENT' || (t.type || '').toUpperCase() === 'VARIANCE',
+    ).length;
 
     const attentionMetrics = {
       belowMin: belowMinCount,
@@ -877,27 +876,48 @@ export class InventoryService {
       pendingQC,
       pendingRequests,
       pendingGRN,
-      stockVariance: 0,
+      stockVariance,
       quarantineStock,
     };
 
-    // 12. Consumption Table Rows
-    const consumptionTableData = topMaterialsConsumed.map((row) => {
-      let status = 'Healthy';
-      if (row.closing === 0) status = 'Out of Stock';
-      else if (row.closing < (row.min || 10)) status = 'Below Min';
-      else if (row.min > 0 && row.closing <= row.min * 1.25) status = 'Near Min';
-      return { ...row, status };
-    });
+    // 14. Consumption Table Rows (Active Materials)
+    const activeMaterials = [...catalogItems]
+      .map((item) => {
+        const st = txItemStats.get(item.id) || { received: 0, issued: 0, returns: 0 };
+        const opening = Math.max(0, item.available + st.issued - st.received - st.returns);
+        let status = 'Healthy';
+        if (item.available === 0) status = 'Out of Stock';
+        else if (item.min > 0 && item.available < item.min) status = 'Below Min';
+        else if (item.min > 0 && item.available <= item.min * 1.25) status = 'Near Min';
+
+        return {
+          id: item.id,
+          code: item.code,
+          name: item.name,
+          opening,
+          received: st.received,
+          issued: st.issued,
+          returnQty: st.returns,
+          closing: item.available,
+          unit: item.unit,
+          status,
+          warehouse: item.warehouse,
+          min: item.min,
+          price: item.price,
+        };
+      })
+      .sort((a, b) => (b.issued + b.received) - (a.issued + a.received) || b.closing - a.closing)
+      .slice(0, 15);
 
     return {
       summary: {
         inventoryValue: Number(totalInventoryValuation.toFixed(2)),
+        totalValuation: Number(totalInventoryValuation.toFixed(2)),
         totalSkus: catalogItems.length,
         totalRawMaterials: catalogItems.length,
         availableStock: totalAvailableStock,
         issuedTotalQty: Number(issuedTotalQty.toFixed(2)),
-        issuedMaterialsCount,
+        issuedMaterialsCount: issuedMaterialIds.size,
         belowMinStock: belowMinCount,
         aboveMaxStock: aboveMaxCount,
         deadStockValue: Number(deadStockValuation.toFixed(2)),
@@ -907,7 +927,7 @@ export class InventoryService {
         rejectionRate,
         auditAccuracy: catalogItems.length > 0 ? 100 : 0,
         turnoverRatio: totalAvailableStock > 0 ? Number((issuedTotalQty / totalAvailableStock).toFixed(2)) : 0,
-        warehouseUtilization: catalogItems.length > 0 ? 78 : 0,
+        warehouseUtilization: catalogItems.length > 0 ? Math.round((inStockCount / catalogItems.length) * 100) : 0,
       },
       consumptionTrend,
       stockMovement: stockMovementData,
@@ -916,7 +936,7 @@ export class InventoryService {
       stockAging: stockAgingData,
       topConsumed: topMaterialsConsumed,
       attentionMetrics,
-      consumptionTable: consumptionTableData,
+      consumptionTable: activeMaterials,
       inventory: catalogItems,
       transactions: transactions.slice(0, 50),
     };

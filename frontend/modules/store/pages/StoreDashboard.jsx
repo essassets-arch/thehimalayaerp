@@ -69,7 +69,7 @@ export const StoreDashboard = () => {
       const [dashRes, transactionsRes, rawMaterialsRes, matReqRes, qcRes, indentsRes] = await Promise.allSettled([
         backendFetch('/api/backend/inventory/dashboard'),
         backendFetch('/api/backend/inventory/transactions'),
-        backendFetch('/api/backend/products?type=RAW_MATERIAL'),
+        backendFetch('/api/backend/inventory/raw-material-snapshot'),
         backendFetch('/api/backend/material-requests'),
         backendFetch('/api/backend/qc/inspections'),
         backendFetch('/api/backend/procurement/indents')
@@ -135,8 +135,10 @@ export const StoreDashboard = () => {
       }
 
       // 3. Process Raw Materials List
-      if (rawMaterialsRes.status === 'fulfilled' && Array.isArray(rawMaterialsRes.value)) {
-        setRawMaterialsList(rawMaterialsRes.value);
+      if (rawMaterialsRes.status === 'fulfilled') {
+        const val = rawMaterialsRes.value;
+        const list = Array.isArray(val) ? val : (Array.isArray(val?.data) ? val.data : []);
+        setRawMaterialsList(list);
       } else {
         setRawMaterialsList([]);
       }
@@ -265,11 +267,11 @@ export const StoreDashboard = () => {
     const calculatedMaterialsCount = Math.max(txIssuedMaterials.size, reqIssuedMaterials.size);
 
     const issuedTotalQty = summaryData?.issuedTotalQty !== undefined && summaryData.issuedTotalQty !== null
-      ? Math.max(Number(summaryData.issuedTotalQty), calculatedIssuedQty)
+      ? Number(summaryData.issuedTotalQty)
       : calculatedIssuedQty;
 
     const issuedMaterialsCount = summaryData?.issuedMaterialsCount !== undefined && summaryData.issuedMaterialsCount !== null
-      ? Math.max(Number(summaryData.issuedMaterialsCount), calculatedMaterialsCount)
+      ? Number(summaryData.issuedMaterialsCount)
       : calculatedMaterialsCount;
 
     // Calculate dynamic QC rejection rate
@@ -285,8 +287,8 @@ export const StoreDashboard = () => {
     }
 
     return {
-      totalVal: summaryData?.totalValuation ?? totalVal,
-      rawMaterialCount: rawMatCount,
+      totalVal: summaryData?.totalValuation ?? summaryData?.inventoryValue ?? totalVal,
+      rawMaterialCount: summaryData?.totalRawMaterials ?? summaryData?.totalSkus ?? (liveInventory.length > 0 ? liveInventory.length : rawMaterialsList.length),
       totalAvailableQty: availableQtyDisplay,
       issuedTotalQty,
       issuedMaterialsCount,
@@ -381,7 +383,7 @@ export const StoreDashboard = () => {
       return {
         period,
         IssuedQuantity: qty,
-        TargetConsumption: Math.round(qty * 1.1)
+        TargetConsumption: 0
       };
     });
   }, [stockTransactions, consumptionTimeRange, selectedMaterialFilter, selectedProductionLine, selectedDepartment, consumptionTrendBackend]);
@@ -528,7 +530,7 @@ export const StoreDashboard = () => {
         return {
           code: inv.code || '',
           name: inv.name || 'Raw Material',
-          quantity: issued > 0 ? issued : closing,
+          quantity: issued,
           unit: inv.unit || 'Pcs',
           available: inv.available,
           opening,
@@ -540,7 +542,7 @@ export const StoreDashboard = () => {
         };
       });
 
-      return list.sort((a, b) => b.quantity - a.quantity).slice(0, 10);
+      return list.filter(item => item.quantity > 0).sort((a, b) => b.quantity - a.quantity).slice(0, 10);
     }
 
     return [];
