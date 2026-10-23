@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Plus, Receipt, Calendar, DollarSign, Filter, Download,
   Eye, Edit2, Layers, Tag, ChevronRight, Search, FileText,
   CheckCircle2, AlertCircle, X, Loader2, TrendingUp, FolderPlus,
   RefreshCw, Upload, Check, Printer, ChevronLeft, ChevronsLeft,
-  ChevronsRight, PieChart as PieChartIcon, ArrowRight
+  ChevronsRight, ChevronDown, PieChart as PieChartIcon, ArrowRight
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -26,6 +26,731 @@ const CHART_COLORS = [
   '#EC4899', '#06B6D4', '#14B8A6', '#F97316', '#6366F1',
   '#84CC16', '#A855F7'
 ];
+
+// ──────────────────────────────────────────────────────────
+// SMART SEARCHABLE COMBOBOX FOR EXPENSE CATEGORIES
+// ──────────────────────────────────────────────────────────
+function CategorySmartSearch({
+  categories = [],
+  selectedCategoryId = '',
+  onSelectCategory,
+  placeholder = 'Type to search 23 categories (e.g. Petrol, Salary, Repair)...',
+  allowAll = false,
+  allLabel = '📂 All Categories / Subheaders',
+  required = false,
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const containerRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Active categories
+  const activeCategories = useMemo(() => {
+    return categories.filter((c) => c.isActive !== false);
+  }, [categories]);
+
+  // Selected Category
+  const selectedCategory = useMemo(() => {
+    return categories.find((c) => c.id === selectedCategoryId) || null;
+  }, [categories, selectedCategoryId]);
+
+  // Filtered categories: searches category name and subheader names
+  const filteredCategories = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return activeCategories;
+    return activeCategories.filter((c) => {
+      const matchName = (c.name || '').toLowerCase().includes(q);
+      const matchHeader = (c.headers || []).some((h) => (h.name || '').toLowerCase().includes(q));
+      return matchName || matchHeader;
+    });
+  }, [activeCategories, searchQuery]);
+
+  // Close when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // Auto focus input when opened
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  // Reset highlight index when filter changes
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [filteredCategories]);
+
+  // Keyboard navigation
+  const handleKeyDown = (e) => {
+    if (!isOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') {
+        e.preventDefault();
+        setIsOpen(true);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev + 1) % Math.max(1, filteredCategories.length));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev - 1 + filteredCategories.length) % Math.max(1, filteredCategories.length));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredCategories[highlightedIndex]) {
+        onSelectCategory(filteredCategories[highlightedIndex].id);
+        setIsOpen(false);
+        setSearchQuery('');
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsOpen(false);
+    }
+  };
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+      {/* Hidden input for HTML5 required form validation */}
+      {required && (
+        <input
+          tabIndex={-1}
+          type="text"
+          required
+          value={selectedCategoryId || ''}
+          onChange={() => {}}
+          style={{
+            position: 'absolute',
+            opacity: 0,
+            pointerEvents: 'none',
+            top: '50%',
+            left: '50%',
+            width: 1,
+            height: 1
+          }}
+        />
+      )}
+
+      {/* Main Trigger / Search Box */}
+      {!isOpen ? (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => {
+            setIsOpen(true);
+            setSearchQuery('');
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setIsOpen(true);
+            }
+          }}
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            background: '#FFFFFF',
+            border: selectedCategory ? '1.5px solid #2563EB' : '1px solid #CBD5E1',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            boxSizing: 'border-box',
+            transition: 'border-color 0.15s, box-shadow 0.15s',
+            minHeight: '38px',
+            boxShadow: selectedCategory ? '0 0 0 1px #2563EB' : 'none'
+          }}
+        >
+          {selectedCategory ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', flex: 1 }}>
+              <span style={{
+                background: '#EFF6FF',
+                color: '#1D4ED8',
+                padding: '2px 7px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                fontWeight: '800',
+                letterSpacing: '0.04em',
+                flexShrink: 0
+              }}>
+                CATEGORY
+              </span>
+              <span style={{
+                fontSize: '13px',
+                fontWeight: '800',
+                color: '#0F172A',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                {selectedCategory.name}
+              </span>
+              {selectedCategory.headers && selectedCategory.headers.length > 0 && (
+                <span style={{
+                  fontSize: '11px',
+                  color: '#64748B',
+                  background: '#F1F5F9',
+                  padding: '1px 6px',
+                  borderRadius: '10px',
+                  flexShrink: 0
+                }}>
+                  {selectedCategory.headers.length} header{selectedCategory.headers.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748B', fontSize: '13px' }}>
+              <Search size={15} color="#94A3B8" />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{placeholder}</span>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            {selectedCategory && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectCategory('');
+                  setSearchQuery('');
+                }}
+                style={{
+                  background: '#F1F5F9',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '18px',
+                  height: '18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#64748B',
+                  cursor: 'pointer'
+                }}
+                title="Clear selection"
+              >
+                <X size={12} />
+              </button>
+            )}
+            <ChevronDown size={15} color="#64748B" />
+          </div>
+        </div>
+      ) : (
+        /* Active Search Input */
+        <div style={{ position: 'relative', width: '100%' }}>
+          <Search size={15} color="#2563EB" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Type to filter categories or headers..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setHighlightedIndex(0);
+            }}
+            onKeyDown={handleKeyDown}
+            style={{
+              width: '100%',
+              padding: '8px 34px 8px 34px',
+              background: '#FFFFFF',
+              border: '1.5px solid #2563EB',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: '600',
+              color: '#0F172A',
+              outline: 'none',
+              boxShadow: '0 0 0 3px rgba(37, 99, 235, 0.15)',
+              boxSizing: 'border-box'
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              setSearchQuery('');
+            }}
+            style={{
+              position: 'absolute',
+              right: '10px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: '#F1F5F9',
+              border: 'none',
+              borderRadius: '50%',
+              width: '18px',
+              height: '18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#64748B',
+              cursor: 'pointer'
+            }}
+            title="Close"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
+      {/* Floating Dropdown Results */}
+      {isOpen && (
+        <div style={{
+          position: 'absolute',
+          top: 'calc(100% + 4px)',
+          left: 0,
+          right: 0,
+          zIndex: 10050,
+          background: '#FFFFFF',
+          borderRadius: '10px',
+          border: '1px solid #CBD5E1',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.06)',
+          maxHeight: '270px',
+          overflowY: 'auto'
+        }}>
+          {/* Header Info */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '7px 12px',
+            background: '#F8FAFC',
+            borderBottom: '1px solid #F1F5F9',
+            fontSize: '11px',
+            color: '#64748B',
+            fontWeight: '700'
+          }}>
+            <span>
+              {searchQuery ? `Matching Categories (${filteredCategories.length})` : `All Categories (${filteredCategories.length})`}
+            </span>
+            <span style={{ fontSize: '10.5px', color: '#94A3B8' }}>
+              ↑↓ Navigate • ↵ Select
+            </span>
+          </div>
+
+          {/* Optional "All Categories" option for filters */}
+          {allowAll && (
+            <div
+              onClick={() => {
+                onSelectCategory('');
+                setIsOpen(false);
+                setSearchQuery('');
+              }}
+              style={{
+                padding: '9px 12px',
+                borderBottom: '1px solid #F1F5F9',
+                cursor: 'pointer',
+                background: !selectedCategoryId ? '#EFF6FF' : '#FFFFFF',
+                color: !selectedCategoryId ? '#1D4ED8' : '#0F172A',
+                fontWeight: !selectedCategoryId ? '800' : '600',
+                fontSize: '12.5px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#F8FAFC'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = !selectedCategoryId ? '#EFF6FF' : '#FFFFFF'; }}
+            >
+              <span>{allLabel}</span>
+              {!selectedCategoryId && <Check size={14} color="#2563EB" />}
+            </div>
+          )}
+
+          {/* Results List */}
+          {filteredCategories.length === 0 ? (
+            <div style={{ padding: '24px 16px', textAlign: 'center', color: '#64748B', fontSize: '12.5px' }}>
+              <p style={{ margin: 0, fontWeight: '700', color: '#0F172A' }}>
+                No categories found matching "{searchQuery}"
+              </p>
+              <span style={{ fontSize: '11.5px', color: '#94A3B8', display: 'block', marginTop: '4px' }}>
+                Try searching for a different term or clear the search.
+              </span>
+            </div>
+          ) : (
+            filteredCategories.map((cat, idx) => {
+              const isSelected = cat.id === selectedCategoryId;
+              const isHighlighted = idx === highlightedIndex;
+
+              // Check if any subheaders match search query
+              const matchingHeaders = searchQuery
+                ? (cat.headers || []).filter((h) => h.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+                : [];
+
+              return (
+                <div
+                  key={cat.id}
+                  onClick={() => {
+                    onSelectCategory(cat.id);
+                    setIsOpen(false);
+                    setSearchQuery('');
+                  }}
+                  onMouseEnter={() => setHighlightedIndex(idx)}
+                  style={{
+                    padding: '9px 12px',
+                    cursor: 'pointer',
+                    background: isSelected ? '#EFF6FF' : isHighlighted ? '#F8FAFC' : '#FFFFFF',
+                    borderBottom: '1px solid #F8FAFC',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px',
+                    transition: 'background 0.1s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{
+                        fontSize: '13px',
+                        fontWeight: isSelected ? '850' : '700',
+                        color: isSelected ? '#1D4ED8' : '#0F172A'
+                      }}>
+                        {cat.name}
+                      </span>
+                      {cat.headers && cat.headers.length > 0 && (
+                        <span style={{
+                          fontSize: '10.5px',
+                          color: '#64748B',
+                          background: isSelected ? '#DBEAFE' : '#F1F5F9',
+                          padding: '1px 6px',
+                          borderRadius: '10px'
+                        }}>
+                          {cat.headers.length} headers
+                        </span>
+                      )}
+                    </div>
+                    {isSelected && <Check size={15} color="#2563EB" />}
+                  </div>
+
+                  {/* Subheader hint when searching */}
+                  {matchingHeaders.length > 0 && (
+                    <div style={{ fontSize: '11px', color: '#2563EB', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}>
+                      <span style={{ color: '#64748B' }}>Matches header:</span>
+                      <strong style={{ background: '#EFF6FF', padding: '1px 5px', borderRadius: '3px' }}>
+                        {matchingHeaders[0].name}
+                      </strong>
+                      {matchingHeaders.length > 1 && (
+                        <span style={{ color: '#64748B' }}>+{matchingHeaders.length - 1} more</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────
+// SMART SEARCHABLE COMBOBOX FOR HEADERS
+// ──────────────────────────────────────────────────────────
+function HeaderSmartSearch({
+  headers = [],
+  selectedHeaderId = '',
+  onSelectHeader,
+  disabled = false,
+  placeholder = 'Select or search header (optional)...'
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const containerRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const activeHeaders = useMemo(() => {
+    return headers.filter((h) => h.isActive !== false);
+  }, [headers]);
+
+  const selectedHeader = useMemo(() => {
+    return headers.find((h) => h.id === selectedHeaderId) || null;
+  }, [headers, selectedHeaderId]);
+
+  const filteredHeaders = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return activeHeaders;
+    return activeHeaders.filter((h) => (h.name || '').toLowerCase().includes(q));
+  }, [activeHeaders, searchQuery]);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  const handleKeyDown = (e) => {
+    if (!isOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') {
+        e.preventDefault();
+        setIsOpen(true);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev + 1) % Math.max(1, filteredHeaders.length));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev - 1 + filteredHeaders.length) % Math.max(1, filteredHeaders.length));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredHeaders[highlightedIndex]) {
+        onSelectHeader(filteredHeaders[highlightedIndex].id);
+        setIsOpen(false);
+        setSearchQuery('');
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsOpen(false);
+    }
+  };
+
+  if (disabled || headers.length === 0) {
+    return (
+      <div style={{
+        width: '100%',
+        padding: '8px 12px',
+        background: '#F8FAFC',
+        border: '1px solid #E2E8F0',
+        borderRadius: '8px',
+        color: '#94A3B8',
+        fontSize: '12.5px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        cursor: 'not-allowed',
+        boxSizing: 'border-box'
+      }}>
+        <span>{disabled ? 'Select a category first' : 'No headers configured (optional)'}</span>
+        <ChevronDown size={14} color="#CBD5E1" />
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+      {!isOpen ? (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => {
+            setIsOpen(true);
+            setSearchQuery('');
+          }}
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            background: '#FFFFFF',
+            border: selectedHeader ? '1.5px solid #2563EB' : '1px solid #CBD5E1',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            boxSizing: 'border-box',
+            minHeight: '38px',
+            boxShadow: selectedHeader ? '0 0 0 1px #2563EB' : 'none'
+          }}
+        >
+          {selectedHeader ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flex: 1 }}>
+              <span style={{
+                background: '#F1F5F9',
+                color: '#334155',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                fontSize: '10.5px',
+                fontWeight: '700',
+                flexShrink: 0
+              }}>
+                HEADER
+              </span>
+              <span style={{
+                fontSize: '13px',
+                fontWeight: '750',
+                color: '#0F172A',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                {selectedHeader.name}
+              </span>
+            </div>
+          ) : (
+            <span style={{ color: '#64748B', fontSize: '13px' }}>{placeholder}</span>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            {selectedHeader && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectHeader('');
+                  setSearchQuery('');
+                }}
+                style={{
+                  background: '#F1F5F9',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '18px',
+                  height: '18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#64748B',
+                  cursor: 'pointer'
+                }}
+                title="Clear header"
+              >
+                <X size={12} />
+              </button>
+            )}
+            <ChevronDown size={15} color="#64748B" />
+          </div>
+        </div>
+      ) : (
+        <div style={{ position: 'relative', width: '100%' }}>
+          <Search size={15} color="#2563EB" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Search headers..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setHighlightedIndex(0);
+            }}
+            onKeyDown={handleKeyDown}
+            style={{
+              width: '100%',
+              padding: '8px 34px 8px 34px',
+              background: '#FFFFFF',
+              border: '1.5px solid #2563EB',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: '600',
+              color: '#0F172A',
+              outline: 'none',
+              boxShadow: '0 0 0 3px rgba(37, 99, 235, 0.15)',
+              boxSizing: 'border-box'
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              setSearchQuery('');
+            }}
+            style={{
+              position: 'absolute',
+              right: '10px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: '#F1F5F9',
+              border: 'none',
+              borderRadius: '50%',
+              width: '18px',
+              height: '18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#64748B',
+              cursor: 'pointer'
+            }}
+            title="Close"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
+      {isOpen && (
+        <div style={{
+          position: 'absolute',
+          top: 'calc(100% + 4px)',
+          left: 0,
+          right: 0,
+          zIndex: 10050,
+          background: '#FFFFFF',
+          borderRadius: '10px',
+          border: '1px solid #CBD5E1',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.06)',
+          maxHeight: '220px',
+          overflowY: 'auto'
+        }}>
+          {filteredHeaders.length === 0 ? (
+            <div style={{ padding: '16px', textAlign: 'center', color: '#64748B', fontSize: '12px' }}>
+              No headers found matching "{searchQuery}"
+            </div>
+          ) : (
+            filteredHeaders.map((h, idx) => {
+              const isSelected = h.id === selectedHeaderId;
+              const isHighlighted = idx === highlightedIndex;
+
+              return (
+                <div
+                  key={h.id}
+                  onClick={() => {
+                    onSelectHeader(h.id);
+                    setIsOpen(false);
+                    setSearchQuery('');
+                  }}
+                  onMouseEnter={() => setHighlightedIndex(idx)}
+                  style={{
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    background: isSelected ? '#EFF6FF' : isHighlighted ? '#F8FAFC' : '#FFFFFF',
+                    borderBottom: '1px solid #F8FAFC',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '12.5px',
+                    fontWeight: isSelected ? '800' : '600',
+                    color: isSelected ? '#1D4ED8' : '#0F172A',
+                    transition: 'background 0.1s ease'
+                  }}
+                >
+                  <span>{h.name}</span>
+                  {isSelected && <Check size={14} color="#2563EB" />}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function FinanceExpensesWorkspace() {
   const user = useAuthStore((s) => s.user);
@@ -860,63 +1585,30 @@ export default function FinanceExpensesWorkspace() {
             </div>
           )}
 
-          {/* Category Dropdown */}
-          <div style={{ minWidth: '200px', flex: '1 1 200px' }}>
-            <select
-              value={selectedCategory}
-              onChange={(e) => handleCategoryFilterChange(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                background: '#FFFFFF',
-                border: '1px solid #CBD5E1',
-                borderRadius: '8px',
-                color: selectedCategory ? '#0F172A' : '#64748B',
-                fontSize: '12.5px',
-                fontWeight: selectedCategory ? '700' : '500',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="">📂 All Categories / Subheaders</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+          {/* Category Smart Search in Filter Bar */}
+          <div style={{ minWidth: '220px', flex: '1 1 220px' }}>
+            <CategorySmartSearch
+              allowAll
+              allLabel="📂 All Categories / Subheaders"
+              categories={categories}
+              selectedCategoryId={selectedCategory}
+              onSelectCategory={handleCategoryFilterChange}
+              placeholder="📂 All Categories / Subheaders"
+            />
           </div>
 
-          {/* Header Dropdown */}
-          <div style={{ minWidth: '180px', flex: '1 1 180px' }}>
-            <select
-              value={selectedHeader}
-              onChange={(e) => {
-                setSelectedHeader(e.target.value);
+          {/* Header Smart Search in Filter Bar */}
+          <div style={{ minWidth: '200px', flex: '1 1 200px' }}>
+            <HeaderSmartSearch
+              headers={filterAvailableHeaders}
+              selectedHeaderId={selectedHeader}
+              onSelectHeader={(id) => {
+                setSelectedHeader(id);
                 setPage(1);
               }}
               disabled={!selectedCategory || filterAvailableHeaders.length === 0}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                background: '#FFFFFF',
-                border: '1px solid #CBD5E1',
-                borderRadius: '8px',
-                color: selectedHeader ? '#0F172A' : '#64748B',
-                fontSize: '12.5px',
-                fontWeight: selectedHeader ? '700' : '500',
-                outline: 'none',
-                cursor: !selectedCategory || filterAvailableHeaders.length === 0 ? 'not-allowed' : 'pointer',
-                opacity: !selectedCategory || filterAvailableHeaders.length === 0 ? 0.6 : 1,
-              }}
-            >
-              <option value="">🏷️ All Category Headers</option>
-              {filterAvailableHeaders.map((h) => (
-                <option key={h.id} value={h.id}>
-                  {h.name}
-                </option>
-              ))}
-            </select>
+              placeholder={!selectedCategory ? '🏷️ Select Category First' : filterAvailableHeaders.length === 0 ? 'No Headers for Category' : '🏷️ All Category Headers'}
+            />
           </div>
 
           {/* Payment Method Filter */}
@@ -1773,70 +2465,44 @@ export default function FinanceExpensesWorkspace() {
                 </div>
               </div>
 
-              {/* Row 2: Category & Header Selection */}
+              {/* Row 2: Category & Header Selection with Smart Search */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
-                    Expense Category <span style={{ color: '#EF4444' }}>*</span>
-                  </label>
-                  <select
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>
+                      Expense Category <span style={{ color: '#EF4444' }}>*</span>
+                    </label>
+                    <span style={{ fontSize: '10.5px', color: '#2563EB', fontWeight: '700' }}>
+                      Smart Search
+                    </span>
+                  </div>
+                  <CategorySmartSearch
                     required
-                    value={formData.categoryId}
-                    onChange={(e) => handleFormCategoryChange(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      background: '#FFFFFF',
-                      border: '1px solid #CBD5E1',
-                      borderRadius: '8px',
-                      color: '#0F172A',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      outline: 'none',
-                      cursor: 'pointer',
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    <option value="">Select Category...</option>
-                    {categories.filter((c) => c.isActive).map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                    categories={categories}
+                    selectedCategoryId={formData.categoryId}
+                    onSelectCategory={handleFormCategoryChange}
+                    placeholder="Type to search category..."
+                  />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
-                    Header <span style={{ color: '#64748B', fontSize: '11px', fontWeight: '500' }}>(Optional)</span>
-                  </label>
-                  <select
-                    value={formData.headerId}
-                    onChange={(e) => setFormData({ ...formData, headerId: e.target.value })}
-                    disabled={!formData.categoryId || formAvailableHeaders.length === 0}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      background: '#FFFFFF',
-                      border: '1px solid #CBD5E1',
-                      borderRadius: '8px',
-                      color: '#0F172A',
-                      fontSize: '13px',
-                      outline: 'none',
-                      cursor: !formData.categoryId || formAvailableHeaders.length === 0 ? 'not-allowed' : 'pointer',
-                      opacity: !formData.categoryId || formAvailableHeaders.length === 0 ? 0.6 : 1,
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    <option value="">
-                      {formAvailableHeaders.length === 0 ? 'Not yet configured' : 'Select Header...'}
-                    </option>
-                    {formAvailableHeaders.map((h) => (
-                      <option key={h.id} value={h.id}>
-                        {h.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>
+                      Header <span style={{ color: '#64748B', fontSize: '11px', fontWeight: '500' }}>(Optional)</span>
+                    </label>
+                    {formAvailableHeaders.length > 0 && (
+                      <span style={{ fontSize: '10.5px', color: '#16A34A', fontWeight: '750' }}>
+                        {formAvailableHeaders.length} available
+                      </span>
+                    )}
+                  </div>
+                  <HeaderSmartSearch
+                    headers={formAvailableHeaders}
+                    selectedHeaderId={formData.headerId}
+                    onSelectHeader={(id) => setFormData({ ...formData, headerId: id })}
+                    disabled={!formData.categoryId}
+                    placeholder={!formData.categoryId ? 'Select category first' : formAvailableHeaders.length === 0 ? 'No headers configured (optional)' : 'Search or select header...'}
+                  />
                 </div>
               </div>
 
