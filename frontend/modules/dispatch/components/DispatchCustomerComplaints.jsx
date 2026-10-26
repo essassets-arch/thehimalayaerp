@@ -42,6 +42,69 @@ const formatDate = (val) => {
   }
 };
 
+const formatAddress = (addr) => {
+  if (!addr) return 'Standard plant delivery';
+  if (typeof addr === 'string') {
+    const trimmed = addr.trim();
+    if (!trimmed) return 'Standard plant delivery';
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === 'object') {
+        return formatAddress(parsed);
+      }
+    } catch {
+      // not a JSON string, plain string
+    }
+    return trimmed;
+  }
+  if (typeof addr === 'object' && addr !== null) {
+    if (addr.deliveryAddress && typeof addr.deliveryAddress === 'string') {
+      return addr.deliveryAddress;
+    }
+    const parts = [
+      addr.line1 || addr.addressLine1 || addr.street || addr.address,
+      addr.line2 || addr.addressLine2,
+      addr.city,
+      addr.state,
+      addr.pincode || addr.postalCode,
+      addr.country,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : 'Standard plant delivery';
+  }
+  return String(addr || 'Standard plant delivery');
+};
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('[DispatchCustomerComplaints ErrorBoundary caught]:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '24px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', color: '#991b1b', margin: '16px 0' }}>
+          <h3 style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: '800' }}>Something went wrong displaying this section</h3>
+          <p style={{ margin: '0 0 12px', fontSize: '13px' }}>{this.state.error?.message || 'Unexpected display error'}</p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, error: null })}
+            style={{ padding: '6px 12px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function DispatchCustomerComplaints({ portalTitle = 'Dispatch' }) {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -222,6 +285,7 @@ export default function DispatchCustomerComplaints({ portalTitle = 'Dispatch' })
   }
 
   return (
+    <ErrorBoundary>
     <div style={{ padding: '20px 24px', width: '100%', maxWidth: '100%', margin: 0, boxSizing: 'border-box', minWidth: 0 }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
@@ -522,24 +586,24 @@ export default function DispatchCustomerComplaints({ portalTitle = 'Dispatch' })
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 16px' }}>
                   <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>CUSTOMER</span>
                   <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b', marginTop: '4px' }}>
-                    {selectedComplaint.customer?.companyName}
+                    {selectedComplaint.customer?.companyName || '—'}
                   </div>
                   <div style={{ fontSize: '12px', color: '#64748b' }}>
-                    Contact: {selectedComplaint.customer?.phone || selectedComplaint.customer?.contactPerson || '—'}
+                    Contact: {selectedComplaint.customer?.phone || (typeof selectedComplaint.customer?.contactPerson === 'object' ? (selectedComplaint.customer?.contactPerson?.name || selectedComplaint.customer?.contactPerson?.phone || '—') : selectedComplaint.customer?.contactPerson) || '—'}
                   </div>
                 </div>
 
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 16px' }}>
                   <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>SHIPPING ADDRESS</span>
                   <div style={{ fontSize: '12.5px', color: '#334155', marginTop: '4px', lineHeight: 1.4 }}>
-                    {selectedComplaint.order?.shippingAddress || selectedComplaint.customer?.shippingAddress || selectedComplaint.customer?.address || 'Standard plant delivery'}
+                    {formatAddress(selectedComplaint.order?.shippingAddress || selectedComplaint.customer?.shippingAddress || selectedComplaint.customer?.address)}
                   </div>
                 </div>
 
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 16px' }}>
                   <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>SALES EXECUTIVE</span>
                   <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b', marginTop: '4px' }}>
-                    {selectedComplaint.salesExecutive?.name || 'Sales Representative'}
+                    {typeof selectedComplaint.salesExecutive === 'object' ? (selectedComplaint.salesExecutive?.name || 'Sales Representative') : (selectedComplaint.salesExecutive || 'Sales Representative')}
                   </div>
                   <div style={{ fontSize: '12px', color: '#2563eb', fontWeight: '600' }}>
                     Total Order Bill: {formatCurrency(selectedComplaint.order?.totalAmount)}
@@ -608,7 +672,7 @@ export default function DispatchCustomerComplaints({ portalTitle = 'Dispatch' })
                     SALES COMPLAINT NOTE
                   </span>
                   <div style={{ fontSize: '13px', color: '#334155' }}>
-                    {selectedComplaint.description}
+                    {typeof selectedComplaint.description === 'string' ? selectedComplaint.description : (selectedComplaint.description ? String(selectedComplaint.description) : '—')}
                   </div>
                 </div>
 
@@ -617,7 +681,7 @@ export default function DispatchCustomerComplaints({ portalTitle = 'Dispatch' })
                     PLANT HEAD INSTRUCTION
                   </span>
                   <div style={{ fontSize: '13px', color: '#166534', fontWeight: '600' }}>
-                    {selectedComplaint.adminRemarks || 'Approved for dispatch inspection and physical return verification.'}
+                    {typeof selectedComplaint.adminRemarks === 'string' ? selectedComplaint.adminRemarks : (selectedComplaint.adminRemarks ? String(selectedComplaint.adminRemarks) : 'Approved for dispatch inspection and physical return verification.')}
                   </div>
                 </div>
               </div>
@@ -636,10 +700,10 @@ export default function DispatchCustomerComplaints({ portalTitle = 'Dispatch' })
                     />
                     <div>
                       <div style={{ fontSize: '13px', color: '#1e3a8a', fontWeight: '600' }}>
-                        Notes: {selectedComplaint.dispatchRemarks || 'No inspection notes'}
+                        Notes: {typeof selectedComplaint.dispatchRemarks === 'string' ? selectedComplaint.dispatchRemarks : (selectedComplaint.dispatchRemarks ? String(selectedComplaint.dispatchRemarks) : 'No inspection notes')}
                       </div>
                       <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px' }}>
-                        Completed: {formatDate(selectedComplaint.dispatchCompletedAt)} by {selectedComplaint.dispatchCompletedBy || 'Dispatch Team'}
+                        Completed: {formatDate(selectedComplaint.dispatchCompletedAt)} by {typeof selectedComplaint.dispatchCompletedBy === 'object' ? (selectedComplaint.dispatchCompletedBy?.name || 'Dispatch Team') : (selectedComplaint.dispatchCompletedBy || 'Dispatch Team')}
                       </div>
                       <a
                         href={selectedComplaint.dispatchEvidence}
@@ -904,5 +968,6 @@ export default function DispatchCustomerComplaints({ portalTitle = 'Dispatch' })
         </div>
       )}
     </div>
+    </ErrorBoundary>
   );
 }
