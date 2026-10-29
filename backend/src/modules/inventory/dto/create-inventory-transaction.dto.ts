@@ -8,6 +8,10 @@ export class CreateInventoryTransactionDto {
 
   @IsString()
   @IsOptional()
+  rawMaterialId?: string;
+
+  @IsString()
+  @IsOptional()
   warehouseId?: string;
 
   @IsString()

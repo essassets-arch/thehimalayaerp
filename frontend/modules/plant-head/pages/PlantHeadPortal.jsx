@@ -1247,7 +1247,34 @@ export default function PlantHeadPortal({ overrideView } = {}) {
     try {
       setIsSubmittingMaterial(true);
       showToast('Registering material...');
-      await apiClient.post('/inventory/raw-materials', {
+      let matRes = await apiClient.post('/inventory/raw-materials', {
+        code: matCode.trim(),
+        sku: matCode.trim(),
+        material: matName.trim(),
+        name: matName.trim(),
+        category: matCategory.trim(),
+        unit: matUnit,
+        minimumStock: Number(matMinStock) || 0,
+        reorderLevel: Number(matMinStock) || 0,
+        rate: Number(matRate) || 0,
+        description: matDescription ? matDescription.trim() : ''
+      });
+      if (matRes && matRes.success === false) {
+        matRes = await apiClient.post('/products', {
+          sku: matCode.trim(),
+          name: matName.trim(),
+          category: matCategory.trim(),
+          productType: 'RAW_MATERIAL',
+          unit: matUnit,
+          minimumStock: Number(matMinStock) || 0,
+          unitPrice: Number(matRate) || 0,
+          description: matDescription ? matDescription.trim() : ''
+        });
+      }
+      if (!matRes || matRes.success === false) {
+        throw new Error(matRes?.message || 'Failed to register material.');
+      }
+      const legacyPostUnused = ({
         code: matCode.trim(),
         material: matName.trim(),
         category: matCategory.trim(),

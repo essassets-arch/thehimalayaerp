@@ -718,7 +718,7 @@ export default function StorePortal() {
   }, []);
 
   useEffect(() => {
-    if (currentView === 'raw-inventory' || currentView === 'dashboard' || currentView === 'low-stock-alerts' || currentView === 'edit-material') {
+    if (currentView === 'raw-inventory' || currentView === 'dashboard' || currentView === 'low-stock-alerts' || currentView === 'edit-material' || currentView === 'add-material') {
       fetchRawInventory();
     }
     if (currentView === 'low-stock-alerts' || currentView === 'dashboard') {
@@ -949,6 +949,8 @@ export default function StorePortal() {
   useEffect(() => {
     if (currentView === 'add-material') {
       setMatCategory('Raw Material');
+      setMatUnit((prev) => prev || 'Kg');
+      setMatCode((prev) => prev || generateNextMaterialCode());
     }
   }, [currentView]);
 
@@ -1270,10 +1272,10 @@ export default function StorePortal() {
   };
 
   const resetAddMaterialForm = () => {
-    setMatCode('');
+    setMatCode(generateNextMaterialCode());
     setMatName('');
     setMatCategory('Raw Material');
-    setMatUnit('');
+    setMatUnit('Kg');
     setMatMinStock('');
     setMatOpeningStock('0');
     setMatRate('');
@@ -1285,13 +1287,17 @@ export default function StorePortal() {
     e.preventDefault();
     if (isSubmittingMaterial) return;
 
-    if (!matCode || !matName || !matUnit || !matMinStock) {
+    const finalCode = (matCode || generateNextMaterialCode()).trim();
+    const finalName = (matName || '').trim();
+    const finalUnit = (matUnit || 'Kg').trim();
+    const finalMinStock = matMinStock === '' || matMinStock === null || matMinStock === undefined ? 0 : Number(matMinStock);
+    if (!finalCode || !finalName || !finalUnit) {
       showToast('Please fill in Material Name, Code, Unit and Minimum Stock Level.');
       return;
     }
 
     const list = dbRawInventory || [];
-    const exists = list.some(i => (i.material || '').toLowerCase() === matName.trim().toLowerCase() || (i.code || '').toLowerCase() === matCode.trim().toLowerCase());
+    const exists = list.some(i => (i.material || '').toLowerCase() === finalName.toLowerCase() || (i.code || '').toLowerCase() === finalCode.toLowerCase());
     if (exists) {
       Swal.fire({ icon: 'error', title: 'Duplicate Registry', text: `A material with name "${matName}" or code "${matCode}" already exists.` });
       return;
@@ -1300,7 +1306,7 @@ export default function StorePortal() {
     try {
       setIsSubmittingMaterial(true);
       showToast('Registering material...');
-      const matRes = await apiClient.post('/inventory/raw-materials', {
+      const initialPayload = ({
         code: matCode.trim(),
         material: matName.trim(),
         category: matCategory || 'Raw Material',
@@ -1311,7 +1317,35 @@ export default function StorePortal() {
         description: matDescription ? matDescription.trim() : '',
       });
       
-      const newMatId = matRes?.data?.id || matRes?.id;
+      let matRes = await apiClient.post('/inventory/raw-materials', {
+        code: finalCode,
+        sku: finalCode,
+        material: finalName,
+        name: finalName,
+        category: matCategory || 'Raw Material',
+        unit: finalUnit,
+        minimumStock: finalMinStock,
+        rate: Number(matRate) || 0,
+        storageLocation: matStorageLocation ? matStorageLocation.trim() : '',
+        description: matDescription ? matDescription.trim() : '',
+      });
+      if (matRes && matRes.success === false) {
+        matRes = await apiClient.post('/products', {
+          sku: finalCode,
+          name: finalName,
+          category: matCategory || 'Raw Material',
+          productType: 'RAW_MATERIAL',
+          unit: finalUnit,
+          minimumStock: finalMinStock,
+          unitPrice: Number(matRate) || 0,
+          storageLocation: matStorageLocation ? matStorageLocation.trim() : '',
+          description: matDescription ? matDescription.trim() : '',
+        });
+      }
+      if (!matRes || matRes.success === false) {
+        throw new Error(matRes?.message || 'Failed to register material.');
+      }
+      const newMatId = matRes?.data?.data?.id || matRes?.data?.id || matRes?.id;
 
       if (Number(matOpeningStock) > 0 && newMatId) {
         await apiClient.post('/inventory/transactions', {
@@ -1351,7 +1385,35 @@ export default function StorePortal() {
 
     try {
       showToast('Updating material...');
-      await apiClient.patch(`/products/${editMatId}`, {
+      let updateRes = await apiClient.patch(`/inventory/raw-materials/${editMatId}`, {
+        code: editMatCode,
+        sku: editMatCode,
+        material: editMatName,
+        name: editMatName,
+        category: finalCategory,
+        unit: editMatUnit,
+        minimumStock: Number(editMatMinStock) || 0,
+        rate: Number(editMatRate) || 0,
+        unitPrice: Number(editMatRate) || 0,
+        description: editMatDescription,
+        storageLocation: editMatStorageLocation
+      });
+      if (!updateRes || updateRes.success === false) {
+        updateRes = await apiClient.patch(`/products/${editMatId}`, {
+          sku: editMatCode,
+          name: editMatName,
+          category: finalCategory,
+          unit: editMatUnit,
+          minimumStock: Number(editMatMinStock) || 0,
+          unitPrice: Number(editMatRate) || 0,
+          description: editMatDescription,
+          storageLocation: editMatStorageLocation
+        });
+      }
+      if (!updateRes || updateRes.success === false) {
+        throw new Error(updateRes?.message || 'Failed to update material.');
+      }
+      const legacyPatchUnused = ({
         sku: editMatCode,
         name: editMatName,
         category: finalCategory,
@@ -1453,7 +1515,16 @@ export default function StorePortal() {
     try {
       showToast('Deleting material...');
       try {
-        await apiClient.delete(`/inventory/raw-materials/${encodeURIComponent(item.id)}`);
+        let delRes = await apiClient.delete(`/inventory/raw-materials/${encodeURIComponent(item.id)}`);
+        if (!delRes || delRes.success === false) {
+          delRes = await apiClient.delete(`/store/raw-materials/${encodeURIComponent(item.id)}`);
+        }
+        if (!delRes || delRes.success === false) {
+          delRes = await apiClient.delete(`/products/${encodeURIComponent(item.id)}`);
+        }
+        if (!delRes || delRes.success === false) {
+          throw new Error(delRes?.message || 'Failed to delete material.');
+        }
       } catch (firstErr) {
         try {
           await apiClient.delete(`/store/raw-materials/${encodeURIComponent(item.id)}`);

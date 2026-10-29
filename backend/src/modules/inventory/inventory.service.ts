@@ -24,6 +24,7 @@ export class InventoryService {
 
     const itemQuery =
       dto.productId ||
+      dto.rawMaterialId ||
       (dto as any).material_name ||
       (dto as any).materialName ||
       (dto as any).material;

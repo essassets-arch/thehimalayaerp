@@ -230,6 +230,16 @@ export class InventoryController {
     'products.create',
     'planthead.create',
     'plant-head.create',
+    'inventory.items.manage',
+    'inventory.stock.read',
+    'inventory.inventory.read',
+    'store.read',
+    'store.view',
+    'store.rawinventory.read',
+    'products.read',
+    'admin.products.read',
+    'planthead.read',
+    'plant-head.read',
   )
   @Post('raw-materials')
   createRawMaterial(@CurrentUser() user: any, @Body() body: any) {
@@ -246,6 +256,16 @@ export class InventoryController {
     'products.update',
     'planthead.update',
     'plant-head.update',
+    'inventory.items.manage',
+    'inventory.stock.read',
+    'inventory.inventory.read',
+    'store.read',
+    'store.view',
+    'store.rawinventory.read',
+    'products.read',
+    'admin.products.read',
+    'planthead.read',
+    'plant-head.read',
   )
   @Put('raw-materials/:id')
   @Patch('raw-materials/:id')
@@ -265,11 +285,17 @@ export class InventoryController {
     'store.materials.delete',
     'admin.products.delete',
     'products.delete',
+    'inventory.items.manage',
+    'inventory.stock.read',
+    'inventory.inventory.read',
     'products.read',
+    'admin.products.read',
     'store.read',
     'store.view',
     'store.rawinventory.read',
     'inventory.read',
+    'planthead.read',
+    'plant-head.read',
   )
   @Delete(['raw-materials/:id', 'raw-material/:id', 'materials/:id'])
   deleteRawMaterial(@CurrentUser() user: any, @Param('id') id: string) {
