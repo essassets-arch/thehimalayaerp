@@ -85,8 +85,13 @@ export const payrollService = {
   getSalaryStructures: () => backendFetch<any[]>(`${root}/salary-structures`, { cacheTtlMs: 0 }),
   getSalaryStructure: (id: string) => backendFetch<any>(`${root}/salary-structures/${id}`, { cacheTtlMs: 0 }),
   getEmployeeSalaryStructure: (employeeId: string) => backendFetch<any>(`${root}/salary-structures/employee/${employeeId}`, { cacheTtlMs: 0 }),
-  getPayrollAttendanceSummary: (employeeId: string, month?: string) =>
-    backendFetch<any>(`${root}/payroll/attendance-summary/${employeeId}${month ? `?month=${month}` : ''}`, { cacheTtlMs: 0 }),
+  getPayrollAttendanceSummary: (employeeId: string, month?: string, effectiveFrom?: string) => {
+    const params = new URLSearchParams();
+    if (month) params.append('month', month);
+    if (effectiveFrom) params.append('effectiveFrom', effectiveFrom);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return backendFetch<any>(`${root}/payroll/attendance-summary/${employeeId}${qs}`, { cacheTtlMs: 0 });
+  },
   createSalaryStructure: (body: any) => post<any>(`${root}/salary-structures`, body),
   updateSalaryStructure: (id: string, body: any) => backendFetch<any>(`${root}/salary-structures/${id}`, { method: 'PUT', body }),
   deleteSalaryStructure: (id: string) => backendFetch<any>(`${root}/salary-structures/${id}`, { method: 'DELETE' }),

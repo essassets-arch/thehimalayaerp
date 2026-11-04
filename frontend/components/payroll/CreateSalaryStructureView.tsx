@@ -89,6 +89,7 @@ export function CreateSalaryStructureView({
   const [ltaPct, setLtaPct] = useState<number>(5);
   const [eduPct, setEduPct] = useState<number>(5);
   const [convPct, setConvPct] = useState<number>(5);
+  const [specialAllowanceAmount, setSpecialAllowanceAmount] = useState<number>(0);
 
   const [empEpfPct, setEmpEpfPct] = useState<number>(12);
   const [empEsicPct, setEmpEsicPct] = useState<number>(0.75);
@@ -152,9 +153,10 @@ export function CreateSalaryStructureView({
 
             // If allowances exist in currency amounts but percentages are 0, compute percentages dynamically
             const hra = Number(struct.hraAmount ?? struct.hra ?? 0);
-            const lta = Number(struct.ltaAmount ?? struct.lta ?? struct.specialAllowance ?? 0);
+            const lta = Number(struct.ltaAmount ?? struct.lta ?? 0);
             const edu = Number(struct.educationAllowanceAmount ?? struct.educationAllowance ?? struct.otherAllowance ?? 0);
             const conv = Number(struct.conveyanceAllowance ?? struct.conveyanceAmount ?? 0);
+            const sp = Number(struct.specialAllowance ?? struct.specialAllowanceAmount ?? 0);
 
             const hraPercentage = struct.hraPercentage !== undefined && struct.hraPercentage !== null
               ? Number(struct.hraPercentage)
@@ -173,6 +175,7 @@ export function CreateSalaryStructureView({
             setLtaPct(ltaPercentage);
             setEduPct(eduPercentage);
             setConvPct(convPercentage);
+            setSpecialAllowanceAmount(sp);
 
             const epfPct = struct.employeeEpfPercentage !== undefined && struct.employeeEpfPercentage !== null
               ? Number(struct.employeeEpfPercentage)
@@ -237,12 +240,13 @@ export function CreateSalaryStructureView({
   }, [selectedEmployeeId, existingStructures, structureId]);
 
   // Refetch attendance helper
-  const fetchAttendance = useCallback(async () => {
+  const fetchAttendance = useCallback(async (customEff?: string) => {
     if (!selectedEmployeeId) return;
     setLoadingAttendance(true);
     setAttendanceError(null);
     try {
-      const res = await payrollService.getPayrollAttendanceSummary(selectedEmployeeId, payrollMonth);
+      const eff = customEff ?? effectiveFrom;
+      const res = await payrollService.getPayrollAttendanceSummary(selectedEmployeeId, payrollMonth, eff);
       setAttendanceData(res);
     } catch (err: any) {
       console.error('Failed to fetch attendance summary:', err);
@@ -250,7 +254,7 @@ export function CreateSalaryStructureView({
     } finally {
       setLoadingAttendance(false);
     }
-  }, [selectedEmployeeId, payrollMonth]);
+  }, [selectedEmployeeId, payrollMonth, effectiveFrom]);
 
   // AUTOMATIC ATTENDANCE & LEAVE FETCHING ON EMPLOYEE / MONTH SELECTION
   useEffect(() => {
@@ -261,7 +265,7 @@ export function CreateSalaryStructureView({
       return;
     }
     void fetchAttendance();
-  }, [selectedEmployeeId, fetchAttendance]);
+  }, [selectedEmployeeId, payrollMonth, effectiveFrom, fetchAttendance]);
 
   // Auto-fill basic salary from employee master if starting fresh
   const handleSelectEmployee = (emp: EmployeeOption) => {
@@ -277,6 +281,7 @@ export function CreateSalaryStructureView({
         setLtaPct(existing.ltaPercentage !== undefined ? Number(existing.ltaPercentage) : 5);
         setEduPct(existing.educationAllowancePercentage !== undefined ? Number(existing.educationAllowancePercentage) : 5);
         setConvPct(existing.conveyancePercentage !== undefined ? Number(existing.conveyancePercentage) : 5);
+        setSpecialAllowanceAmount(Number(existing.specialAllowance ?? existing.specialAllowanceAmount ?? 0));
         setEmpEpfPct(existing.employeeEpfPercentage !== undefined ? Number(existing.employeeEpfPercentage) : 12);
         setEmpEsicPct(existing.employeeEsicPercentage !== undefined ? Number(existing.employeeEsicPercentage) : 0.75);
         setPtPct(existing.professionalTaxPercentage !== undefined ? Number(existing.professionalTaxPercentage) : 0);
@@ -288,18 +293,44 @@ export function CreateSalaryStructureView({
         setCompEsicPct(existing.companyEsicPercentage !== undefined ? Number(existing.companyEsicPercentage) : 3.25);
         setGratuityPct(existing.gratuityPercentage !== undefined ? Number(existing.gratuityPercentage) : 4.81);
         if (existing.wef) setWef(existing.wef);
+        if (existing.effectiveFrom) {
+          try {
+            setEffectiveFrom(new Date(existing.effectiveFrom).toISOString().split('T')[0]);
+          } catch {}
+        }
       } else if (emp.baseSalary && Number(emp.baseSalary) > 0) {
-        setBasicSalary(Number(emp.baseSalary));
+        const grossTarget = Number(emp.baseSalary);
+        // Formulate 50% Basic + 40% HRA + 10% LTA + 10% Education + 10% Conveyance + Special Allowance remainder
+        const basic = Math.round(grossTarget * 0.5);
+        const hra = Math.round(basic * 0.4);
+        const lta = Math.round(basic * 0.1);
+        const edu = Math.round(basic * 0.1);
+        const conv = Math.round(basic * 0.1);
+        const remainderSpecial = Math.max(0, grossTarget - (basic + hra + lta + edu + conv));
+
+        setBasicSalary(basic);
+        setHraPct(40);
+        setLtaPct(10);
+        setEduPct(10);
+        setConvPct(10);
+        setSpecialAllowanceAmount(remainderSpecial);
+        setPtAmountOverride(200);
       }
     }
   };
 
   // Preset 50/30/20 Standard Rule
   const applyStandardPreset = () => {
+    const currentGross = calculation.grossTotalA > 0 ? calculation.grossTotalA : 45000;
+    const newBasic = Math.round(currentGross * 0.5);
+    setBasicSalary(newBasic);
     setHraPct(40);
-    setLtaPct(5);
-    setEduPct(5);
-    setConvPct(5);
+    setLtaPct(10);
+    setEduPct(10);
+    setConvPct(10);
+    const subAllow = Math.round(newBasic * 0.7);
+    const remSpecial = Math.max(0, currentGross - (newBasic + subAllow));
+    setSpecialAllowanceAmount(remSpecial);
     setEmpEpfPct(12);
     setEmpEsicPct(0.75);
     setPtPct(0);
@@ -334,6 +365,7 @@ export function CreateSalaryStructureView({
       ltaPercentage: Number(ltaPct) || 0,
       educationAllowancePercentage: Number(eduPct) || 0,
       conveyancePercentage: Number(convPct) || 0,
+      specialAllowance: Number(specialAllowanceAmount) || 0,
       employeeEpfPercentage: Number(empEpfPct) || 0,
       employeeEsicPercentage: Number(empEsicPct) || 0,
       professionalTaxPercentage: Number(ptPct) || 0,
@@ -350,6 +382,7 @@ export function CreateSalaryStructureView({
     ltaPct,
     eduPct,
     convPct,
+    specialAllowanceAmount,
     empEpfPct,
     empEsicPct,
     ptPct,
@@ -455,6 +488,7 @@ export function CreateSalaryStructureView({
       educationAllowanceAmount: calculation.educationAllowanceAmount,
       conveyancePercentage: calculation.conveyancePercentage,
       conveyanceAllowance: calculation.conveyanceAmount,
+      specialAllowance: calculation.specialAllowanceAmount || specialAllowanceAmount,
       grossSalary: calculation.grossTotalA,
       employeeEpfPercentage: calculation.employeeEpfPercentage,
       employeeEpfAmount: calculation.employeeEpfAmount,
@@ -836,7 +870,11 @@ export function CreateSalaryStructureView({
                   type="date"
                   disabled={isReadOnly}
                   value={effectiveFrom}
-                  onChange={(e) => setEffectiveFrom(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEffectiveFrom(val);
+                    setWef(val);
+                  }}
                   className="form-input"
                 />
               </div>
@@ -1302,6 +1340,29 @@ export function CreateSalaryStructureView({
                   )}
                 </div>
                 <div className="ctc-allowance-result">{fmt(calculation.conveyanceAmount)}</div>
+              </div>
+
+              {/* Special Allowance */}
+              <div className="ctc-allowance-card">
+                <div className="ctc-allowance-title">
+                  <span>Special Allowance</span>
+                  <span className="ctc-allowance-tag">Flexible Balancing</span>
+                </div>
+                <div className="ctc-allowance-control">
+                  <span className="ctc-pct-symbol" style={{ marginRight: '6px' }}>₹</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    disabled={isReadOnly}
+                    value={specialAllowanceAmount || ''}
+                    onChange={(e) => setSpecialAllowanceAmount(parseFloat(e.target.value) || 0)}
+                    placeholder="0"
+                    className="ctc-pct-input"
+                    style={{ width: '130px' }}
+                  />
+                </div>
+                <div className="ctc-allowance-result">{fmt(calculation.specialAllowanceAmount || specialAllowanceAmount)}</div>
               </div>
             </div>
           </div>

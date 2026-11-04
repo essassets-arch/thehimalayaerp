@@ -80,12 +80,14 @@ export class PayrollController {
   getPayrollAttendanceSummary(
     @Param('employeeId') employeeId: string,
     @Query('month') month: string,
+    @Query('effectiveFrom') effectiveFrom: string,
     @Req() req: any,
   ) {
     return this.service.getPayrollAttendanceSummary(
       employeeId,
       month,
       req.user,
+      effectiveFrom,
     );
   }
 

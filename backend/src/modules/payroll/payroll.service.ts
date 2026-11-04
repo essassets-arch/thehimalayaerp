@@ -2802,7 +2802,7 @@ export class PayrollService {
             educationAllowanceAmount: calc.educationAllowanceAmount,
             conveyancePercentage: calc.conveyancePercentage,
             conveyanceAllowance: calc.conveyanceAmount,
-            specialAllowance: Number(body.specialAllowance || calc.ltaAmount || 0),
+            specialAllowance: Number(body.specialAllowance ?? calc.specialAllowanceAmount ?? 0),
             otherAllowance: Number(body.otherAllowance || calc.educationAllowanceAmount || 0),
             grossSalary: calc.grossTotalA,
             employeeEpfPercentage: calc.employeeEpfPercentage,
@@ -2960,7 +2960,7 @@ export class PayrollService {
         educationAllowanceAmount: calc.educationAllowanceAmount,
         conveyancePercentage: calc.conveyancePercentage,
         conveyanceAllowance: calc.conveyanceAmount,
-        specialAllowance: Number(body.specialAllowance || calc.ltaAmount || 0),
+        specialAllowance: Number(body.specialAllowance ?? calc.specialAllowanceAmount ?? 0),
         otherAllowance: Number(body.otherAllowance || calc.educationAllowanceAmount || 0),
         grossSalary: calc.grossTotalA,
         employeeEpfPercentage: calc.employeeEpfPercentage,
@@ -3033,6 +3033,7 @@ export class PayrollService {
     employeeId: string,
     monthInput?: string,
     user?: any,
+    effectiveFromInput?: string,
   ) {
     if (!employeeId) {
       throw new BadRequestException('Employee ID is required.');
@@ -3189,6 +3190,11 @@ export class PayrollService {
     let totalOvertimeMinutes = 0;
 
     const todayKolkataStr = formatKolkataDateStr(now);
+    const effectiveDateStr = effectiveFromInput
+      ? formatKolkataDateStr(effectiveFromInput)
+      : null;
+    const hasTrackedAttendance =
+      attendances.length > 0 || (punches && punches.length > 0);
 
     for (let d = 1; d <= totalCalendarDays; d++) {
       const dayNumStr = d.toString().padStart(2, '0');
@@ -3291,16 +3297,25 @@ export class PayrollService {
         };
       }
 
+      const isFuture = dateStr > todayKolkataStr;
+      const isPreEffective = effectiveDateStr && dateStr < effectiveDateStr;
+
       // Strict Priority Resolution:
-      // 1. Approved Leave
-      // 2. Valid Attendance
+      // 1. Pre-Effective cutoff
+      // 2. Approved Leave
       // 3. Weekly Off / Holiday
-      // 4. Absent
+      // 4. Biometric Attendance (Absent / Half Day / Present)
+      // 5. Scheduled Future Day
+      // 6. Regular Working Day (Non-biometric / Salaried employee)
+      // 7. Unexcused Past Absence
       let finalStatus = 'ABSENT';
       let payableFactor = 0;
       const attendanceStatus = att?.status || (punchIn ? 'PRESENT' : null);
 
-      if (approvedLeave && leaveData) {
+      if (isPreEffective) {
+        finalStatus = 'PRE_EFFECTIVE';
+        payableFactor = 0.0;
+      } else if (approvedLeave && leaveData) {
         scheduledWorkingDays += 1;
         if (leaveData.isHalfDay) {
           halfDays += 1;
@@ -3333,25 +3348,6 @@ export class PayrollService {
             payableFactor = 0.0;
           }
         }
-      } else if (
-        punchIn &&
-        (punchOut ||
-          workedMinutes > 0 ||
-          att?.status === 'PRESENT' ||
-          att?.status === 'PUNCHED_IN')
-      ) {
-        scheduledWorkingDays += 1;
-        if (att?.status === 'HALF_DAY') {
-          finalStatus = 'HALF_DAY';
-          halfDays += 1;
-          presentDays += 0.5;
-          absentDays += 0.5;
-          payableFactor = 0.5;
-        } else {
-          finalStatus = 'PRESENT';
-          presentDays += 1;
-          payableFactor = 1.0;
-        }
       } else if (calendarType === 'WEEKLY_OFF') {
         finalStatus = 'WEEKLY_OFF';
         weeklyOffDays += 1;
@@ -3360,8 +3356,39 @@ export class PayrollService {
         finalStatus = 'HOLIDAY';
         holidayDays += 1;
         payableFactor = 1.0;
+      } else if (att?.status === 'ABSENT') {
+        scheduledWorkingDays += 1;
+        finalStatus = 'ABSENT';
+        absentDays += 1;
+        payableFactor = 0.0;
+      } else if (att?.status === 'HALF_DAY') {
+        scheduledWorkingDays += 1;
+        finalStatus = 'HALF_DAY';
+        halfDays += 1;
+        presentDays += 0.5;
+        absentDays += 0.5;
+        payableFactor = 0.5;
+      } else if (
+        punchIn ||
+        att?.status === 'PRESENT' ||
+        att?.status === 'PUNCHED_IN' ||
+        workedMinutes > 0
+      ) {
+        scheduledWorkingDays += 1;
+        finalStatus = 'PRESENT';
+        presentDays += 1;
+        payableFactor = 1.0;
+      } else if (isFuture) {
+        scheduledWorkingDays += 1;
+        finalStatus = 'SCHEDULED';
+        presentDays += 1;
+        payableFactor = 1.0;
+      } else if (!hasTrackedAttendance) {
+        scheduledWorkingDays += 1;
+        finalStatus = 'REGULAR';
+        presentDays += 1;
+        payableFactor = 1.0;
       } else {
-        // Working day with no punch and no approved leave -> ABSENT (Loss of Pay)
         scheduledWorkingDays += 1;
         finalStatus = 'ABSENT';
         absentDays += 1;

@@ -4,6 +4,8 @@ export interface SalaryInputData {
   ltaPercentage?: number;
   educationAllowancePercentage?: number;
   conveyancePercentage?: number;
+  specialAllowance?: number;
+  specialAllowanceAmount?: number;
   employeeEpfPercentage?: number;
   employeeEsicPercentage?: number;
   professionalTaxPercentage?: number;
@@ -29,6 +31,8 @@ export interface CalculatedSalaryOutput {
   educationAllowanceAmount: number;
   conveyancePercentage: number;
   conveyanceAmount: number;
+  specialAllowance: number;
+  specialAllowanceAmount: number;
   grossTotalA: number;
   employeeEpfPercentage: number;
   employeeEpfAmount: number;
@@ -62,8 +66,22 @@ export function calculateSalaryStructure(input: SalaryInputData): CalculatedSala
   const ltaAmount = round((basic * ltaPct) / 100);
   const educationAllowanceAmount = round((basic * eduPct) / 100);
   const conveyanceAmount = round((basic * convPct) / 100);
+  const specialAllowanceAmount = round(
+    Number(
+      (input as any).specialAllowanceAmount ??
+        (input as any).specialAllowance ??
+        0,
+    ),
+  );
 
-  const grossTotalA = round(basic + hraAmount + ltaAmount + educationAllowanceAmount + conveyanceAmount);
+  const grossTotalA = round(
+    basic +
+      hraAmount +
+      ltaAmount +
+      educationAllowanceAmount +
+      conveyanceAmount +
+      specialAllowanceAmount,
+  );
 
   const epfPct = round(Number(input.employeeEpfPercentage) || 0);
   const esicPct = round(Number(input.employeeEsicPercentage) || 0);
@@ -72,11 +90,18 @@ export function calculateSalaryStructure(input: SalaryInputData): CalculatedSala
 
   // Statutory EPF Wage Ceiling is ₹15,000 (12% of 15,000 = ₹1,800)
   const epfWage = basic > 15000 && epfPct === 12 ? 15000 : basic;
-  const employeeEpfAmount = round((epfWage * epfPct) / 100);
+  const employeeEpfAmount =
+    (input as any).employeeEpfAmount !== undefined && (input as any).employeeEpfAmount !== null && Number((input as any).employeeEpfAmount) >= 0
+      ? round(Number((input as any).employeeEpfAmount))
+      : round((epfWage * epfPct) / 100);
 
-  // Statutory ESIC Wage Ceiling is ₹21,000 (0.75% of 21,000 = ₹157.50 / ₹158)
-  const esicWage = grossTotalA > 21000 ? 21000 : grossTotalA;
-  const employeeEsicAmount = round((esicWage * esicPct) / 100);
+  // Statutory ESIC Wage Ceiling is ₹21,000 (0.75% applies ONLY if gross <= 21,000)
+  const isEsicApplicable = grossTotalA <= 21000;
+  const esicWage = isEsicApplicable ? grossTotalA : 0;
+  const employeeEsicAmount =
+    (input as any).employeeEsicAmount !== undefined && (input as any).employeeEsicAmount !== null && Number((input as any).employeeEsicAmount) >= 0
+      ? round(Number((input as any).employeeEsicAmount))
+      : round((esicWage * esicPct) / 100);
 
   // Professional Tax: standard ₹200 if gross >= 12,000, or explicit override
   const professionalTaxAmount =
@@ -98,12 +123,23 @@ export function calculateSalaryStructure(input: SalaryInputData): CalculatedSala
   const gratuityPct = round(
     input.gratuityPercentage !== undefined && input.gratuityPercentage !== null && !isNaN(Number(input.gratuityPercentage))
       ? Number(input.gratuityPercentage)
-      : 0
+      : 4.81
   );
 
-  const companyEpfAmount = round((epfWage * compEpfPct) / 100);
-  const companyEsicAmount = round((esicWage * compEsicPct) / 100);
-  const gratuityAmount = round((basic * gratuityPct) / 100);
+  const companyEpfAmount =
+    (input as any).companyEpfAmount !== undefined && (input as any).companyEpfAmount !== null && Number((input as any).companyEpfAmount) >= 0
+      ? round(Number((input as any).companyEpfAmount))
+      : round((epfWage * compEpfPct) / 100);
+
+  const companyEsicAmount =
+    (input as any).companyEsicAmount !== undefined && (input as any).companyEsicAmount !== null && Number((input as any).companyEsicAmount) >= 0
+      ? round(Number((input as any).companyEsicAmount))
+      : round((esicWage * compEsicPct) / 100);
+
+  const gratuityAmount =
+    (input as any).gratuityAmount !== undefined && (input as any).gratuityAmount !== null && Number((input as any).gratuityAmount) >= 0
+      ? round(Number((input as any).gratuityAmount))
+      : round((basic * gratuityPct) / 100);
 
   const totalCompanyContributionD = round(companyEpfAmount + companyEsicAmount + gratuityAmount);
   const ctcPerMonthE = round(grossTotalA + totalCompanyContributionD);
@@ -119,6 +155,8 @@ export function calculateSalaryStructure(input: SalaryInputData): CalculatedSala
     educationAllowanceAmount,
     conveyancePercentage: convPct,
     conveyanceAmount,
+    specialAllowance: specialAllowanceAmount,
+    specialAllowanceAmount,
     grossTotalA,
     employeeEpfPercentage: epfPct,
     employeeEpfAmount,
@@ -141,4 +179,3 @@ export function calculateSalaryStructure(input: SalaryInputData): CalculatedSala
     ctcPerAnnum,
   };
 }
-
