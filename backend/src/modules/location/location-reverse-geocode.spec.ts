@@ -121,4 +121,60 @@ describe('LocationService — Google Reverse Geocode', () => {
     expect(res.state).toBe('Karnataka');
     expect(res.pincode).toBe('560001');
   });
+
+  it('gracefully falls back to OpenStreetMap when Google Maps billing is disabled or request is denied', async () => {
+    process.env.GOOGLE_MAPS_API_KEY = 'billing-disabled-key';
+
+    const mockGoogleDenied = {
+      error_message: 'You must enable Billing on the Google Cloud Project at https://console.cloud.google.com/project/_/billing/enable',
+      results: [],
+      status: 'REQUEST_DENIED',
+    };
+
+    const mockOsmResponse = {
+      place_id: 247833381,
+      display_name: 'Ambawadi, Navrangpura, SabarmatiTaluka, Ahmedabad, Gujarat, 380006, India',
+      address: {
+        suburb: 'Ambawadi',
+        village: 'Navrangpura',
+        state_district: 'Ahmedabad',
+        state: 'Gujarat',
+        postcode: '380006',
+        country: 'India',
+      },
+    };
+
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockGoogleDenied,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockOsmResponse,
+      }) as any;
+
+    const res = await controller.reverseGeocode('23.0232', '72.5567', '110');
+
+    expect(res.success).toBe(true);
+    expect(res.formattedAddress).toContain('Ahmedabad');
+    expect(res.city).toBe('Ahmedabad');
+    expect(res.state).toBe('Gujarat');
+    expect(res.pincode).toBe('380006');
+    expect(res.country).toBe('India');
+  });
+
+  it('gracefully falls back to coordinate address if all external geocode services fail without throwing 400', async () => {
+    process.env.GOOGLE_MAPS_API_KEY = '';
+
+    global.fetch = jest.fn().mockRejectedValue(new Error('Network offline')) as any;
+
+    const res = await controller.reverseGeocode('21.1702', '72.8311', '50');
+
+    expect(res.success).toBe(true);
+    expect(res.formattedAddress).toBe('21.1702, 72.8311 (Accuracy: ±50m)');
+    expect(res.latitude).toBe(21.1702);
+    expect(res.longitude).toBe(72.8311);
+    expect(res.accuracy).toBe(50);
+  });
 });

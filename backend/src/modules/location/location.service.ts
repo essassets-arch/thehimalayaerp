@@ -1169,84 +1169,212 @@ export class LocationService {
       process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
       '';
 
-    if (!apiKey) {
-      this.logger.warn('Google Maps API key is not configured.');
-      throw new BadRequestException('Google Maps API key is not configured.');
-    }
+    // Tier 1: Try Google Maps Geocoding API if configured
+    if (apiKey) {
+      try {
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`;
+        const response = await fetch(url, { signal: AbortSignal.timeout(6000) });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.status === 'OK' && Array.isArray(data.results) && data.results.length > 0) {
+            const place = data.results[0];
+            let streetNumber = '';
+            let route = '';
+            let sublocality = '';
+            let locality = '';
+            let adminArea2 = '';
+            let state = '';
+            let postalCode = '';
+            let country = 'India';
 
-    try {
-      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`;
-      const response = await fetch(url, { signal: AbortSignal.timeout(6000) });
-      if (!response.ok) {
-        throw new Error(`Google Maps API responded with HTTP ${response.status}`);
-      }
-      const data = await response.json();
-      if (data.status === 'OK' && data.results && data.results.length > 0) {
-        const place = data.results[0];
-        let streetNumber = '';
-        let route = '';
-        let sublocality = '';
-        let locality = '';
-        let adminArea2 = '';
-        let state = '';
-        let postalCode = '';
-        let country = 'India';
-
-        if (Array.isArray(place.address_components)) {
-          place.address_components.forEach((component: any) => {
-            const types = component.types || [];
-            if (types.includes('street_number')) streetNumber = component.long_name;
-            if (types.includes('route')) route = component.long_name;
-            if (
-              types.includes('sublocality') ||
-              types.includes('sublocality_level_1') ||
-              types.includes('sublocality_level_2')
-            ) {
-              if (sublocality) sublocality = `${sublocality}, ${component.long_name}`;
-              else sublocality = component.long_name;
+            if (Array.isArray(place.address_components)) {
+              place.address_components.forEach((component: any) => {
+                const types = component.types || [];
+                if (types.includes('street_number')) streetNumber = component.long_name;
+                if (types.includes('route')) route = component.long_name;
+                if (
+                  types.includes('sublocality') ||
+                  types.includes('sublocality_level_1') ||
+                  types.includes('sublocality_level_2')
+                ) {
+                  if (sublocality) sublocality = `${sublocality}, ${component.long_name}`;
+                  else sublocality = component.long_name;
+                }
+                if (types.includes('locality')) locality = component.long_name;
+                if (types.includes('administrative_area_level_2')) adminArea2 = component.long_name;
+                if (types.includes('administrative_area_level_1')) state = component.long_name;
+                if (types.includes('postal_code')) postalCode = component.long_name;
+                if (types.includes('country')) country = component.long_name;
+              });
             }
-            if (types.includes('locality')) locality = component.long_name;
-            if (types.includes('administrative_area_level_2')) adminArea2 = component.long_name;
-            if (types.includes('administrative_area_level_1')) state = component.long_name;
-            if (types.includes('postal_code')) postalCode = component.long_name;
-            if (types.includes('country')) country = component.long_name;
-          });
+
+            const addressParts: string[] = [];
+            if (streetNumber) addressParts.push(streetNumber);
+            if (route) addressParts.push(route);
+            if (sublocality) addressParts.push(sublocality);
+
+            let line1 = addressParts.join(', ');
+            if (!line1) {
+              line1 = place.formatted_address ? place.formatted_address.split(',')[0] : '';
+            }
+
+            const result = {
+              success: true,
+              formattedAddress: place.formatted_address || line1,
+              placeId: place.place_id || '',
+              line1,
+              city: locality || adminArea2 || sublocality || '',
+              state,
+              pincode: postalCode,
+              country,
+              latitude,
+              longitude,
+              accuracy: accuracy != null ? Math.round(accuracy) : null,
+              addressComponents: place.address_components || [],
+            };
+
+            this.geocodeCache.set(cacheKey, result);
+            return result;
+          } else {
+            this.logger.warn(
+              `Google reverse geocode returned status ${data.status}: ${data.error_message || ''}. Falling back to OpenStreetMap.`,
+            );
+          }
         }
-
-        const addressParts: string[] = [];
-        if (streetNumber) addressParts.push(streetNumber);
-        if (route) addressParts.push(route);
-        if (sublocality) addressParts.push(sublocality);
-
-        let line1 = addressParts.join(', ');
-        if (!line1) {
-          line1 = place.formatted_address ? place.formatted_address.split(',')[0] : '';
-        }
-
-        const result = {
-          success: true,
-          formattedAddress: place.formatted_address || line1,
-          placeId: place.place_id || '',
-          line1,
-          city: locality || adminArea2 || sublocality || '',
-          state,
-          pincode: postalCode,
-          country,
-          latitude,
-          longitude,
-          accuracy: accuracy != null ? Math.round(accuracy) : null,
-          addressComponents: place.address_components || [],
-        };
-
-        this.geocodeCache.set(cacheKey, result);
-        return result;
-      } else {
-        throw new Error(data.error_message || `Geocoding status: ${data.status}`);
+      } catch (err: any) {
+        this.logger.warn(`Google reverse geocoding request failed: ${err?.message || err}. Falling back to OpenStreetMap.`);
       }
-    } catch (err: any) {
-      this.logger.warn(`Google reverse geocoding failed: ${err?.message || err}`);
-      throw new BadRequestException(err?.message || 'Reverse geocoding failed for given coordinates.');
+    } else {
+      this.logger.debug('Google Maps API key not set, using OpenStreetMap Nominatim fallback.');
     }
+
+    // Tier 2: OpenStreetMap Nominatim (Free, high-accuracy reverse geocoder)
+    try {
+      const osmUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`;
+      const osmRes = await fetch(osmUrl, {
+        headers: { 'User-Agent': 'HimalayaERP/1.0 (contact@thehimalaya.cloud)' },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (osmRes.ok) {
+        const osmData = await osmRes.json();
+        if (osmData && (osmData.display_name || osmData.address)) {
+          const addr = osmData.address || {};
+          const line1 =
+            addr.suburb ||
+            addr.neighbourhood ||
+            addr.residential ||
+            addr.road ||
+            addr.village ||
+            '';
+          const city =
+            addr.city ||
+            addr.town ||
+            addr.municipality ||
+            addr.state_district ||
+            addr.county ||
+            addr.village ||
+            '';
+          const state = addr.state || '';
+          const pincode = addr.postcode || '';
+          const country = addr.country || 'India';
+          const formattedAddress =
+            osmData.display_name ||
+            [line1, city, state, pincode, country].filter(Boolean).join(', ');
+
+          const result = {
+            success: true,
+            formattedAddress,
+            placeId: osmData.place_id ? String(osmData.place_id) : '',
+            line1,
+            city,
+            state,
+            pincode,
+            country,
+            latitude,
+            longitude,
+            accuracy: accuracy != null ? Math.round(accuracy) : null,
+            addressComponents: Object.entries(addr).map(([k, v]) => ({
+              long_name: String(v),
+              short_name: String(v),
+              types: [k],
+            })),
+          };
+
+          this.geocodeCache.set(cacheKey, result);
+          return result;
+        }
+      }
+    } catch (osmErr: any) {
+      this.logger.warn(`OpenStreetMap reverse geocode failed: ${osmErr?.message || osmErr}. Falling back to BigDataCloud.`);
+    }
+
+    // Tier 3: BigDataCloud Free Client Reverse Geocoding API
+    try {
+      const bdcUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`;
+      const bdcRes = await fetch(bdcUrl, { signal: AbortSignal.timeout(4000) });
+      if (bdcRes.ok) {
+        const bdcData = await bdcRes.json();
+        if (bdcData && (bdcData.city || bdcData.locality || bdcData.principalSubdivision)) {
+          const city = bdcData.city || bdcData.locality || '';
+          const state = bdcData.principalSubdivision || '';
+          const country = bdcData.countryName || 'India';
+          const line1 = bdcData.locality || city;
+          const formattedAddress = [line1, city, state, country].filter(Boolean).join(', ');
+
+          const result = {
+            success: true,
+            formattedAddress,
+            placeId: bdcData.plusCode || '',
+            line1,
+            city,
+            state,
+            pincode: bdcData.postcode || '',
+            country,
+            latitude,
+            longitude,
+            accuracy: accuracy != null ? Math.round(accuracy) : null,
+            addressComponents: Array.isArray(bdcData.localityInfo?.administrative)
+              ? bdcData.localityInfo.administrative.map((item: any) => ({
+                  long_name: item.name,
+                  short_name: item.isoCode || item.name,
+                  types: [item.description],
+                }))
+              : [],
+          };
+
+          this.geocodeCache.set(cacheKey, result);
+          return result;
+        }
+      }
+    } catch (bdcErr: any) {
+      this.logger.warn(`BigDataCloud reverse geocode failed: ${bdcErr?.message || bdcErr}. Falling back to coordinates.`);
+    }
+
+    // Tier 4: Honest Coordinate-Based Structured Fallback (Guaranteed Success)
+    const latFixed = Number(latitude).toFixed(4);
+    const lngFixed = Number(longitude).toFixed(4);
+    const formattedFallback =
+      accuracy != null && accuracy > 0
+        ? `${latFixed}, ${lngFixed} (Accuracy: ±${Math.round(accuracy)}m)`
+        : `${latFixed}, ${lngFixed}`;
+
+    const fallbackResult = {
+      success: true,
+      formattedAddress: formattedFallback,
+      placeId: `coord_${latFixed}_${lngFixed}`,
+      line1: `Location (${latFixed}, ${lngFixed})`,
+      city: '',
+      state: '',
+      pincode: '',
+      country: 'India',
+      latitude,
+      longitude,
+      accuracy: accuracy != null ? Math.round(accuracy) : null,
+      addressComponents: [],
+    };
+
+    this.geocodeCache.set(cacheKey, fallbackResult);
+    return fallbackResult;
   }
 }
 

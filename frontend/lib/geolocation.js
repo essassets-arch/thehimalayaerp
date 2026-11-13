@@ -270,7 +270,9 @@ export async function reverseGeocodeViaBackend(latitude, longitude, accuracy) {
       return res.data.address.trim();
     }
   } catch (err) {
-    console.warn('[geolocation] Central backend reverse geocode error:', err?.message || err);
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+      console.warn('[geolocation] Central backend reverse geocode unavailable, using coordinate fallback:', err?.message || err);
+    }
   }
 
   return honestCoords;
