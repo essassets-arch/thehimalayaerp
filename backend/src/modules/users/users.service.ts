@@ -3,38 +3,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { hash } from 'bcrypt';
 import { randomUUID } from 'crypto';
 
-export const KNOWN_USER_PASSWORDS: Record<string, string> = {
-  'super.admin@himalayaerp.com': 'SuperAdmin@hcppl',
-  'hr@himalayaerp.com': 'HR@hcppl',
-  'nahin.v@himalayaerp.com': 'HR@hcppl',
-  'superadmin@himalayaerp.com': 'SuperAdmin@hcppl',
-  'plant.head@himalayaerp.com': 'admin123',
-  'backoffice@himalayaerp.com': 'Himalaya@2026',
-  'abbas.b@himalayaerp.com': 'dataAnalyst#2101',
-  'abbas.baman@himalayaerp.com': 'dataAnalyst#2101',
-  'supersales1@himalayaerp.com': 'supersales123',
-  'supersales2@himalayaerp.com': 'supersales124',
-  'sales1@himalayaerp.com': 'Himalaya@2026',
-  'sales1@himalayaerp.co': 'Himalaya@2026',
-  'sales2@himalayaerp.com': 'Himalaya@2026',
-  'sales3@himalayaerp.com': 'Himalaya@2026',
-  'sales4@himalayaerp.com': 'Himalaya@2026',
-  'sales5@himalayaerp.com': 'Himalaya@2026',
-  'sales6@himalayaerp.com': 'Himalaya@2026',
-  'sales7@himalayaerp.com': 'Himalaya@2026',
-  'sales11@himalayaerp.com': 'Himalayacc@2025',
-  'sales12@himalayaerp.com': 'Jyoti@2258',
-  'sales13@himalayaerp.com': 'Himalaya@2026',
-  'sales14@himalayaerp.com': 'ARHIMALAYA12',
-  'sahad.m@himalayaerp.com': 'Hcppl@5253',
-  'trushna.g@himalayaerp.com': 'Himalaya@3252',
-  'ravikant.t@himalayaerp.com': 'Logistics@hcppl',
-  'sahad.dispatch@himalayaerp.com': 'Sahad@5253',
-  'sana.r@himalayaerp.com': 'Himalaya@1234',
-  'moksha.n@himalayaerp.com': 'Production@hcppl',
-  'hussain.t@himalayaerp.com': 'Rnd@hcppl',
-  'makhdum@himalayaerp.com': 'Store@hcppl',
-};
+export const KNOWN_USER_PASSWORDS: Record<string, string> = {};
 
 @Injectable()
 export class UsersService {
@@ -194,7 +163,6 @@ export class UsersService {
         employeeId: linkedEmp?.id || null,
         name: u.name || linkedEmp?.fullName || `${linkedEmp?.firstName || ''} ${linkedEmp?.lastName || ''}`.trim(),
         email: u.email || linkedEmp?.workEmail || '',
-        password: KNOWN_USER_PASSWORDS[normalizedEmail] || 'Himalaya@2026',
         role: u.role?.name || linkedEmp?.jobTitle || 'Staff',
         roleCode: u.role?.code || 'STAFF',
         roleId: u.roleId,
@@ -223,7 +191,6 @@ export class UsersService {
           employeeId: emp.id,
           name: empName,
           email: emp.workEmail || '',
-          password: 'N/A',
           role: emp.jobTitle || 'Staff Member',
           roleCode: 'STAFF',
           roleId: null,
@@ -305,7 +272,6 @@ export class UsersService {
           saltOrRounds: number,
         ) => Promise<string>;
         updateData.password = await hashAsync(data.password, 12);
-        KNOWN_USER_PASSWORDS[email.toLowerCase()] = data.password;
       }
 
       // Update existing user role and link to employee
@@ -326,10 +292,6 @@ export class UsersService {
         ...updatedUser,
         employeeId: employeeToLink?.id || null,
         employeeCode: employeeToLink?.employeeCode || updatedUser.publicId,
-        password:
-          data.password ||
-          KNOWN_USER_PASSWORDS[email.toLowerCase()] ||
-          'Himalaya@2026',
       };
       return result;
     }
@@ -458,13 +420,10 @@ export class UsersService {
         console.warn('Auto-create employee for user warning:', err?.message);
       }
     }
-
-    KNOWN_USER_PASSWORDS[email.toLowerCase()] = data.password || 'admin123';
     return {
       ...user,
       employeeId: employeeToLink?.id || null,
       employeeCode: employeeToLink?.employeeCode || user.publicId,
-      password: data.password || 'admin123',
     };
   }
 

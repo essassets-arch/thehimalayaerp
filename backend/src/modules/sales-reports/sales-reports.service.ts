@@ -12,6 +12,7 @@ export class SalesReportsService {
     dateTo: string,
     userId?: string,
     role?: string,
+    companyId?: string,
   ) {
     const from = new Date(dateFrom);
     const to = new Date(dateTo);
@@ -21,6 +22,10 @@ export class SalesReportsService {
       isRestrictedRole(role) && userId
         ? Prisma.sql`AND "createdById" = ${userId}`
         : Prisma.empty;
+
+    const companyFilter = companyId
+      ? Prisma.sql`AND "companyId" = ${companyId}`
+      : Prisma.empty;
 
     const result = await this.prisma.$queryRaw`
       SELECT
@@ -33,7 +38,7 @@ export class SalesReportsService {
         COALESCE(SUM(CASE WHEN status NOT IN ('COMPLETED', 'CANCELLED', 'DRAFT') THEN "totalAmount" ELSE 0 END), 0)::numeric as pending_revenue,
         COALESCE(SUM(CASE WHEN status = 'CANCELLED' THEN "totalAmount" ELSE 0 END), 0)::numeric as cancelled_revenue
       FROM "SalesOrder"
-      WHERE "orderDate" >= ${from} AND "orderDate" <= ${to} ${userFilter}
+      WHERE "orderDate" >= ${from} AND "orderDate" <= ${to} ${userFilter} ${companyFilter}
       GROUP BY TO_CHAR("orderDate", 'YYYY-MM')
       ORDER BY month DESC
     `;
@@ -47,6 +52,7 @@ export class SalesReportsService {
     limit: number,
     userId?: string,
     role?: string,
+    companyId?: string,
   ) {
     const from = new Date(dateFrom);
     const to = new Date(dateTo);
@@ -56,6 +62,10 @@ export class SalesReportsService {
       isRestrictedRole(role) && userId
         ? Prisma.sql`AND o."createdById" = ${userId}`
         : Prisma.empty;
+
+    const companyFilter = companyId
+      ? Prisma.sql`AND o."companyId" = ${companyId}`
+      : Prisma.empty;
 
     const result = await this.prisma.$queryRaw`
       SELECT 
@@ -68,7 +78,7 @@ export class SalesReportsService {
       FROM "SalesOrderItem" i
       JOIN "SalesOrder" o ON i."salesOrderId" = o.id
       JOIN "Product" p ON i."productId" = p.id
-      WHERE o."orderDate" >= ${from} AND o."orderDate" <= ${to} ${userFilter}
+      WHERE o."orderDate" >= ${from} AND o."orderDate" <= ${to} ${userFilter} ${companyFilter}
       GROUP BY p.id, p.name, p.sku, p.unit
       ORDER BY total_revenue DESC
       LIMIT ${limit}
@@ -82,6 +92,7 @@ export class SalesReportsService {
     dateTo: string,
     userId?: string,
     role?: string,
+    companyId?: string,
   ) {
     const from = new Date(dateFrom);
     const to = new Date(dateTo);
@@ -91,6 +102,10 @@ export class SalesReportsService {
       isRestrictedRole(role) && userId
         ? Prisma.sql`AND o."createdById" = ${userId}`
         : Prisma.empty;
+
+    const companyFilter = companyId
+      ? Prisma.sql`AND o."companyId" = ${companyId}`
+      : Prisma.empty;
 
     const result = await this.prisma.$queryRaw`
       SELECT 
@@ -106,7 +121,7 @@ export class SalesReportsService {
         MAX(o."orderDate") as last_order_date
       FROM "SalesOrder" o
       JOIN "Customer" c ON o."customerId" = c.id
-      WHERE o."orderDate" >= ${from} AND o."orderDate" <= ${to} ${userFilter}
+      WHERE o."orderDate" >= ${from} AND o."orderDate" <= ${to} ${userFilter} ${companyFilter}
       GROUP BY c.id, c."companyName", c."customerCode", c."billingAddress", c."gstin"
       ORDER BY total_spent DESC
     `;

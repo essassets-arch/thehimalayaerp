@@ -968,7 +968,12 @@ export class PaymentsService {
    */
   async verifyPayment(id: string, userId?: string) {
     const result = await this.prisma.$transaction(async (tx) => {
-      // 1. Lock and safely read payment
+      // 1. Genuine PostgreSQL row-level lock to serialize concurrent verifications
+      await tx.$queryRaw`
+        SELECT id FROM "CustomerPayment"
+        WHERE id = ${id}
+        FOR UPDATE
+      `;
       const payment = await tx.customerPayment.findUnique({
         where: { id },
         include: { workflowState: true, customer: true, salesOrder: true },

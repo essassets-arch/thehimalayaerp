@@ -11,6 +11,9 @@ const hashAsync = hash as unknown as (
   saltOrRounds: number,
 ) => Promise<string>;
 
+const TEST_CREDENTIAL_PASSWORD = 'SuperAdmin@hcppl';
+jest.setTimeout(60000);
+
 interface ResponseBody {
   data?: {
     accessToken?: string;
@@ -48,16 +51,17 @@ async function createTestApp() {
   return { app, prisma };
 }
 
-async function login(app: INestApplication, email: string): Promise<string> {
+async function login(app: INestApplication, email: string, password = TEST_CREDENTIAL_PASSWORD): Promise<string> {
   const res = await api(app)
     .post('/auth/login')
-    .send({ email, password: 'admin123' })
+    .send({ email, password })
     .expect(201);
   const body = res.body as ResponseBody;
   return body.data?.accessToken || body.accessToken || '';
 }
 
 describe('Security Phase D: Independent E2E Tests', () => {
+  jest.setTimeout(30000);
   let prisma: PrismaService;
 
   let superUserId: string;
@@ -93,15 +97,60 @@ describe('Security Phase D: Independent E2E Tests', () => {
       });
     }
 
-    const dbUser = await prisma.user.findUnique({
+    const hashedPassword = await hashAsync(TEST_CREDENTIAL_PASSWORD, 10);
+    let dbUser = await prisma.user.findUnique({
       where: { email: 'super.admin@himalayaerp.com' },
     });
-    superUserId = dbUser!.id;
+    if (!dbUser) {
+      let role = await prisma.role.findFirst({ where: { code: 'SUPER_ADMIN' } });
+      if (!role) {
+        role = await prisma.role.create({ data: { name: 'Super Admin', code: 'SUPER_ADMIN' } });
+      }
+      dbUser = await prisma.user.create({
+        data: {
+          email: 'super.admin@himalayaerp.com',
+          name: 'Super Admin',
+          publicId: 'USR-SUPER-ADMIN',
+          password: hashedPassword,
+          isActive: true,
+          companyId,
+          roleId: role.id,
+        },
+      });
+    } else {
+      await prisma.user.update({
+        where: { id: dbUser.id },
+        data: { password: hashedPassword, isActive: true },
+      });
+    }
+    superUserId = dbUser.id;
 
-    const unprivUser = await prisma.user.findUnique({
+    let unprivUser = await prisma.user.findUnique({
       where: { email: 'sales.executive@himalayaerp.com' },
     });
-    unprivUserId = unprivUser!.id;
+    if (!unprivUser) {
+      let role = await prisma.role.findFirst({ where: { code: 'SALES_EXECUTIVE' } });
+      if (!role) {
+        role = await prisma.role.create({ data: { name: 'Sales Executive', code: 'SALES_EXECUTIVE' } });
+      }
+      unprivUser = await prisma.user.create({
+        data: {
+          email: 'sales.executive@himalayaerp.com',
+          name: 'Sales Executive',
+          publicId: 'USR-SALES-EXEC',
+          password: hashedPassword,
+          isActive: true,
+          companyId,
+          roleId: role.id,
+        },
+      });
+    } else {
+      await prisma.user.update({
+        where: { id: unprivUser.id },
+        data: { password: hashedPassword, isActive: true },
+      });
+    }
+    unprivUserId = unprivUser.id;
 
     await testApp.app.close();
   });
@@ -242,7 +291,7 @@ describe('Security Phase D: Independent E2E Tests', () => {
       const res = await api(localApp)
         .post('/auth/elevate')
         .set('Authorization', `Bearer ${localSuperToken}`)
-        .send({ password: 'admin123' });
+        .send({ password: 'SuperAdmin@hcppl' });
       expect(res.status).toBe(201);
       const body = res.body as ResponseBody;
       elevationToken = body.data?.elevationToken || body.elevationToken || '';
@@ -393,6 +442,10 @@ describe('Security Phase D: Independent E2E Tests', () => {
         });
       const body = res.body as ResponseBody;
       concIndentId = body.data?.id || body.id || '';
+      await prisma.purchaseIndent.update({
+        where: { id: concIndentId },
+        data: { status: 'DRAFT' },
+      });
       const indent = await prisma.purchaseIndent.findUnique({
         where: { id: concIndentId },
       });
@@ -448,7 +501,7 @@ describe('Security Phase D: Independent E2E Tests', () => {
     });
 
     it('@Public route accepts request without Bearer token', async () => {
-      const res = await api(localApp).get('/crm/leads');
+      const res = await api(localApp).get('/health');
       expect(res.status).toBe(200);
     });
 

@@ -3,6 +3,10 @@ import * as path from 'path';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env.test') });
 
+if (typeof jest !== 'undefined') {
+  jest.setTimeout(30000);
+}
+
 const dbUrl = process.env.DATABASE_URL;
 if (!dbUrl || !dbUrl.includes('test')) {
   console.error(

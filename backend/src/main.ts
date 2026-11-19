@@ -176,7 +176,11 @@ async function bootstrap() {
       ) {
         callback(null, true);
       } else {
-        callback(null, true);
+        if (process.env.NODE_ENV === 'production') {
+          callback(new Error(`Origin ${origin} is not allowed by CORS security policy`), false);
+        } else {
+          callback(null, true);
+        }
       }
     },
     credentials: true,

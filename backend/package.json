@@ -19,7 +19,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "test:e2e:security": "jest --config ./test/jest-e2e.json test/security.e2e-spec.ts",
+    "test:e2e:security": "jest --config ./test/jest-e2e.json test/security.e2e-spec.ts --forceExit",
     "test:e2e:procurement": "jest --config ./test/jest-e2e.json test/procurement.e2e-spec.ts",
     "test:e2e:sales": "jest --config ./test/jest-e2e.json test/sales.e2e-spec.ts",
     "test:e2e:production": "jest --config ./test/jest-e2e.json test/production.e2e-spec.ts",

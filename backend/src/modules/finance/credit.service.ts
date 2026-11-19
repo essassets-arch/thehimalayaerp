@@ -19,6 +19,12 @@ export class CreditService {
     });
     if (!customer) throw new BadRequestException('Customer not found');
 
+    if ((customer as any).status === 'CREDIT_HOLD' || (customer as any).isCreditHold) {
+      throw new BadRequestException(
+        `Customer '${customer.companyName}' is placed on strict CREDIT HOLD. Transactions blocked.`,
+      );
+    }
+
     if (!customer.creditLimit) {
       // If no credit limit is set, assume infinite or no restriction
       return { allowed: true, currentBalance: 0, creditLimit: 0, newAmount };
@@ -27,8 +33,7 @@ export class CreditService {
     const ledger = await this.ledgerService.getCustomerLedger(customerId);
     const currentBalance = ledger.balance; // > 0 means they owe us money
 
-    // For Sales Order, they might have pending UNPOSTED invoices, or unfulfilled sales orders.
-    // For simplicity as requested, we just check Outstanding + New Amount
+    // For Sales Order or Dispatch: Outstanding + New Amount
     const projectedBalance = currentBalance + newAmount;
 
     if (projectedBalance > Number(customer.creditLimit)) {

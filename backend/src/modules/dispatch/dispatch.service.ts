@@ -603,6 +603,34 @@ export class DispatchService {
         }
         if (!so) throw new NotFoundException('Sales Order not found');
 
+        // Database-level row lock to serialize concurrent dispatch creation
+        await tx.$queryRaw`
+          SELECT id FROM "SalesOrder"
+          WHERE id = ${so.id}
+          FOR UPDATE
+        `;
+
+        // Lock SalesOrderItems in deterministic sorted order to prevent deadlocks
+        const itemIdsToLock = so.items.map((i) => i.id).sort();
+        for (const itemId of itemIdsToLock) {
+          await tx.$queryRaw`
+            SELECT id FROM "SalesOrderItem"
+            WHERE id = ${itemId}
+            FOR UPDATE
+          `;
+        }
+
+        // Reload fresh items state inside lock to get authoritative dispatch state
+        const freshItems = await tx.salesOrderItem.findMany({
+          where: { salesOrderId: so.id },
+          include: {
+            dispatchItems: {
+              include: { dispatch: true },
+            },
+          },
+        });
+        so.items = freshItems;
+
         console.log('[DISPATCH 02] Generate dispatch sequence number');
         const dispatchNo = await this.sequenceService.generateNextWithTx(
           tx,
@@ -660,10 +688,16 @@ export class DispatchService {
             Number(soItem.orderedQuantity || 0) - alreadyDispatched,
           );
 
-          // If requested quantity exceeds remaining order quantity, cap it to remaining quantity if positive
-          if (remainingOrderQty > 0 && requestedQty > remainingOrderQty) {
-            requestedQty = remainingOrderQty;
-            item.quantity = remainingOrderQty;
+          if (remainingOrderQty <= 0) {
+            throw new BadRequestException(
+              `Order item ${soItem.productNameSnapshot || soItem.id} has already been fully dispatched (Remaining: 0)`,
+            );
+          }
+
+          if (requestedQty > remainingOrderQty) {
+            throw new BadRequestException(
+              `Requested dispatch quantity (${requestedQty}) exceeds remaining order quantity (${remainingOrderQty}) for ${soItem.productNameSnapshot || soItem.id}`,
+            );
           }
 
           // 2. Validate against QC approved quantity

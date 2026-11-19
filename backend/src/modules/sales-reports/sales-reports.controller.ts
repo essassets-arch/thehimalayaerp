@@ -13,13 +13,16 @@ export class SalesReportsController {
   async getSummary(
     @Query('date_from') dateFrom: string,
     @Query('date_to') dateTo: string,
+    @Query('company_id') companyIdQuery: string,
     @Req() req: any,
   ) {
+    const companyId = companyIdQuery || req.user?.companyId;
     return this.salesReportsService.getSalesSummary(
       dateFrom,
       dateTo,
       req.user?.sub,
       req.user?.role,
+      companyId,
     );
   }
 
@@ -29,14 +32,17 @@ export class SalesReportsController {
     @Query('date_from') dateFrom: string,
     @Query('date_to') dateTo: string,
     @Query('limit') limit: string,
+    @Query('company_id') companyIdQuery: string,
     @Req() req: any,
   ) {
+    const companyId = companyIdQuery || req.user?.companyId;
     return this.salesReportsService.getTopProducts(
       dateFrom,
       dateTo,
       parseInt(limit, 10) || 10,
       req.user?.sub,
       req.user?.role,
+      companyId,
     );
   }
 
@@ -45,13 +51,16 @@ export class SalesReportsController {
   async getCustomerPerformance(
     @Query('date_from') dateFrom: string,
     @Query('date_to') dateTo: string,
+    @Query('company_id') companyIdQuery: string,
     @Req() req: any,
   ) {
+    const companyId = companyIdQuery || req.user?.companyId;
     return this.salesReportsService.getCustomerPerformance(
       dateFrom,
       dateTo,
       req.user?.sub,
       req.user?.role,
+      companyId,
     );
   }
 }

@@ -1159,10 +1159,10 @@ export class SalesService {
           'SALES_ORDER',
         );
 
-        if (!creditCheck.allowed && creditCheck.requiresApproval) {
-          // We will allow submission but the state will naturally move to PENDING_APPROVAL and require an authorized user.
-          // For strictness, if we wanted to block it:
-          // throw new BadRequestException(`Credit limit exceeded. Current Balance: ${creditCheck.currentBalance}, Limit: ${creditCheck.creditLimit}`);
+        if (!creditCheck.allowed) {
+          if (!creditCheck.requiresApproval) {
+            throw new BadRequestException(`Credit limit exceeded. Current Balance: ${creditCheck.currentBalance}, Limit: ${creditCheck.creditLimit}`);
+          }
         }
       }
 

@@ -34,6 +34,37 @@ const MIME_TYPES: Record<string, string> = {
   '.zip': 'application/zip',
 };
 
+const ALLOWED_CATEGORIES = new Set([
+  'pod',
+  'attachments',
+  'brand-analysis',
+  'employees',
+  'attendance',
+  'qc',
+  'dispatch',
+  'receipts',
+  'expenses',
+  'payment-proof',
+  'payments',
+  'temp-exports',
+]);
+
+const ALLOWED_EXTENSIONS = new Set([
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+  '.gif',
+  '.svg',
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.csv',
+  '.txt',
+]);
+
 export interface FileResolveResult {
   fullPath: string;
   fileName: string;
@@ -47,25 +78,10 @@ export class FilesService {
   private readonly uploadsRoot = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
 
   constructor(private readonly prisma: PrismaService) {
-    // Ensure base upload directories exist
-    const subDirs = [
-      'pod',
-      'attachments',
-      'brand-analysis',
-      'employees',
-      'attendance',
-      'qc',
-      'dispatch',
-      'receipts',
-      'expenses',
-      'payment-proof',
-      'payments',
-      'temp-exports',
-    ];
     if (!existsSync(this.uploadsRoot)) {
       mkdirSync(this.uploadsRoot, { recursive: true });
     }
-    for (const sub of subDirs) {
+    for (const sub of ALLOWED_CATEGORIES) {
       const p = join(this.uploadsRoot, sub);
       if (!existsSync(p)) mkdirSync(p, { recursive: true });
     }
@@ -94,7 +110,9 @@ export class FilesService {
       /^\/?(api\/(backend|v1)\/)?(uploads|files\/serve)\/?/i,
       '',
     );
-    clean = normalize(clean).replace(/^(\.\.[\/\\])+/, ''); // Strip directory traversal
+    // Strict traversal sanitization: strip directory traversal sequences
+    clean = normalize(clean).replace(/^(\.\.[\/\\])+/, '');
+    clean = clean.replace(/(\.\.[\/\\])/g, '');
 
     const roots = Array.from(new Set([
       this.uploadsRoot,
@@ -116,38 +134,15 @@ export class FilesService {
       altFileNames.push(`${fileNameOnly}.jpg`, `${fileNameOnly}.jpeg`, `${fileNameOnly}.png`, `${fileNameOnly}.webp`, `${fileNameOnly}.pdf`);
     }
 
-    let subDirs = [
-      'attendance',
-      'employees',
-      'pod',
-      'attachments',
-      'brand-analysis',
-      'qc',
-      'dispatch',
-      'receipts',
-      'expenses',
-      'payment-proof',
-      'payments',
-      'temp-exports',
-    ];
+    const safeCategory = category && ALLOWED_CATEGORIES.has(category) ? category : undefined;
 
     for (const root of roots) {
-      try {
-        const items = readdirSync(root, { withFileTypes: true });
-        const dynamicDirs = items
-          .filter((item) => item.isDirectory())
-          .map((item) => item.name);
-        subDirs = Array.from(new Set([...subDirs, ...dynamicDirs]));
-      } catch (e) {
-        // Continue
-      }
-
       // 1. If category provided, check category folder
-      if (category) {
+      if (safeCategory) {
         for (const fName of altFileNames) {
-          possiblePaths.push(join(root, category, fName));
+          possiblePaths.push(join(root, safeCategory, fName));
         }
-        possiblePaths.push(join(root, category, clean));
+        possiblePaths.push(join(root, safeCategory, clean));
       }
 
       // 2. Direct subpath inside uploads
@@ -160,7 +155,7 @@ export class FilesService {
       possiblePaths.push(join(root, 'employees', clean));
 
       // 3. Search all subdirectories
-      for (const sub of subDirs) {
+      for (const sub of ALLOWED_CATEGORIES) {
         for (const fName of altFileNames) {
           possiblePaths.push(join(root, sub, fName));
         }
@@ -179,25 +174,32 @@ export class FilesService {
     );
     if (existsSync(frontendUploads)) {
       possiblePaths.push(join(frontendUploads, clean));
-      for (const sub of subDirs) {
+      for (const sub of ALLOWED_CATEGORIES) {
         for (const fName of altFileNames) {
           possiblePaths.push(join(frontendUploads, sub, fName));
         }
       }
     }
 
-    // Find the first existing file
+    // Find the first existing file within strict boundary
     for (const candidate of possiblePaths) {
-      const resolved = resolve(candidate);
-      if (existsSync(resolved)) {
+      const candidateResolved = resolve(candidate);
+      // Boundary check: candidate must be inside one of the recognized roots
+      const isWithinBounds = roots.some(r => candidateResolved.startsWith(resolve(r))) ||
+        (existsSync(frontendUploads) && candidateResolved.startsWith(resolve(frontendUploads)));
+      if (!isWithinBounds) {
+        continue;
+      }
+
+      if (existsSync(candidateResolved)) {
         try {
-          const stats = statSync(resolved);
+          const stats = statSync(candidateResolved);
           if (stats.isFile()) {
-            const foundExt = extname(resolved).toLowerCase();
+            const foundExt = extname(candidateResolved).toLowerCase();
             const mimeType = MIME_TYPES[foundExt] || 'application/octet-stream';
             return {
-              fullPath: resolved,
-              fileName: basename(resolved),
+              fullPath: candidateResolved,
+              fileName: basename(candidateResolved),
               mimeType,
               size: stats.size,
             };
@@ -211,7 +213,7 @@ export class FilesService {
     // 5. Fallback scan for partial name/UUID match in roots & subdirs
     if (nameWithoutExt && nameWithoutExt.length >= 6) {
       for (const root of roots) {
-        const checkDirs = category ? [category, ...subDirs] : subDirs;
+        const checkDirs = safeCategory ? [safeCategory, ...ALLOWED_CATEGORIES] : Array.from(ALLOWED_CATEGORIES);
         for (const sub of checkDirs) {
           const dirPath = join(root, sub);
           if (existsSync(dirPath)) {
@@ -224,11 +226,13 @@ export class FilesService {
               );
               if (matched) {
                 const fullPath = join(dirPath, matched);
-                const stats = statSync(fullPath);
+                const fullResolved = resolve(fullPath);
+                if (!fullResolved.startsWith(resolve(root))) continue;
+                const stats = statSync(fullResolved);
                 if (stats.isFile()) {
                   const foundExt = extname(matched).toLowerCase();
                   return {
-                    fullPath,
+                    fullPath: fullResolved,
                     fileName: matched,
                     mimeType:
                       MIME_TYPES[foundExt] || 'application/octet-stream',
@@ -263,8 +267,15 @@ export class FilesService {
     }
 
     const ext = extname(file.originalname || '').toLowerCase() || '.jpg';
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+      throw new BadRequestException(
+        `File extension '${ext}' is not permitted for upload security.`,
+      );
+    }
+
+    const safeCategory = ALLOWED_CATEGORIES.has(category) ? category : 'attachments';
     const uniqueName = `${randomUUID()}${ext}`;
-    const targetDir = join(this.uploadsRoot, category);
+    const targetDir = join(this.uploadsRoot, safeCategory);
 
     if (!existsSync(targetDir)) {
       mkdirSync(targetDir, { recursive: true });
@@ -273,10 +284,10 @@ export class FilesService {
     const fullPath = join(targetDir, uniqueName);
     await writeFile(fullPath, file.buffer);
 
-    const relativePath = `/uploads/${category}/${uniqueName}`;
-    const serveUrl = `/api/backend/files/serve/${category}/${uniqueName}`;
+    const relativePath = `/uploads/${safeCategory}/${uniqueName}`;
+    const serveUrl = `/api/backend/files/serve/${safeCategory}/${uniqueName}`;
 
-    // Also mirror to frontend/public/uploads if exists (for local dev parity)
+    // Mirror to frontend/public/uploads if exists (for local dev parity)
     try {
       const frontendDir = join(
         process.cwd(),
@@ -284,7 +295,7 @@ export class FilesService {
         'frontend',
         'public',
         'uploads',
-        category,
+        safeCategory,
       );
       if (existsSync(join(process.cwd(), '..', 'frontend', 'public'))) {
         if (!existsSync(frontendDir))
@@ -299,7 +310,7 @@ export class FilesService {
       fileId: uniqueName,
       fileName: file.originalname,
       storedName: uniqueName,
-      category,
+      category: safeCategory,
       relativePath,
       url: serveUrl,
       size: file.size,
@@ -320,76 +331,76 @@ export class FilesService {
       throw new BadRequestException('No export data provided');
     }
 
-    const exportDir = join(this.uploadsRoot, 'temp-exports');
-    if (!existsSync(exportDir)) {
-      mkdirSync(exportDir, { recursive: true });
+    const exportsDir = join(this.uploadsRoot, 'temp-exports');
+    if (!existsSync(exportsDir)) {
+      mkdirSync(exportsDir, { recursive: true });
     }
 
-    // Clean filename
-    let rawFilename = payload.filename || 'download.bin';
-    rawFilename = rawFilename.replace(/[/\\?%*:|"<>]/g, '_');
-    const ext = extname(rawFilename).toLowerCase() || (payload.mimeType?.includes('png') ? '.png' : payload.mimeType?.includes('pdf') ? '.pdf' : payload.mimeType?.includes('csv') ? '.csv' : '.bin');
-    
-    let mimeType = payload.mimeType || MIME_TYPES[ext] || 'application/octet-stream';
-    let buffer: Buffer;
+    const cleanName = basename(payload.filename || 'export.csv').replace(
+      /[^a-zA-Z0-9._-]/g,
+      '_',
+    );
+    const token = `${randomUUID()}_${cleanName}`;
+    const targetPath = join(exportsDir, token);
 
-    if (payload.data.startsWith('data:')) {
-      const matches = payload.data.match(/^data:([^;]+);base64,(.+)$/);
-      if (matches && matches.length === 3) {
-        mimeType = matches[1] || mimeType;
-        buffer = Buffer.from(matches[2], 'base64');
-      } else {
-        const parts = payload.data.split(',');
-        mimeType = parts[0].match(/:(.*?);/)?.[1] || mimeType;
-        try {
-          buffer = Buffer.from(decodeURIComponent(parts[1]), 'utf-8');
-        } catch {
-          buffer = Buffer.from(parts[1], 'base64');
-        }
-      }
-    } else if (/^[A-Za-z0-9+/=\s]+$/.test(payload.data.substring(0, 100))) {
+    let buffer: Buffer;
+    if (payload.data.includes('base64,')) {
+      const b64 = payload.data.split('base64,')[1];
+      buffer = Buffer.from(b64, 'base64');
+    } else {
       try {
-        buffer = Buffer.from(payload.data.replace(/\s/g, ''), 'base64');
+        const isBase64 =
+          /^[A-Za-z0-9+/=]+$/.test(payload.data) && payload.data.length % 4 === 0;
+        if (isBase64) {
+          buffer = Buffer.from(payload.data, 'base64');
+        } else {
+          buffer = Buffer.from(payload.data, 'utf-8');
+        }
       } catch {
         buffer = Buffer.from(payload.data, 'utf-8');
       }
-    } else {
-      buffer = Buffer.from(payload.data, 'utf-8');
     }
 
-    const token = `${randomUUID()}${ext}`;
-    const filePath = join(exportDir, token);
-    await writeFile(filePath, buffer);
+    await writeFile(targetPath, buffer);
+
+    const ext = extname(cleanName).toLowerCase();
+    const mimeType =
+      payload.mimeType || MIME_TYPES[ext] || 'application/octet-stream';
 
     return {
       success: true,
       token,
-      filename: rawFilename,
+      filename: cleanName,
+      downloadUrl: `/api/v1/files/download/${token}`,
       mimeType,
       size: buffer.length,
-      downloadUrl: `/api/backend/files/download/${token}?filename=${encodeURIComponent(rawFilename)}`,
     };
   }
 
+  /**
+   * Resolves a temporary export file by token
+   */
   public resolveExportFile(token: string): FileResolveResult | null {
     if (!token) return null;
     const cleanToken = basename(token);
-    const exportDir = join(this.uploadsRoot, 'temp-exports');
-    const filePath = join(exportDir, cleanToken);
-    if (!existsSync(filePath)) return null;
+    const exportsDir = join(this.uploadsRoot, 'temp-exports');
+    const fullPath = join(exportsDir, cleanToken);
 
-    try {
-      const stats = statSync(filePath);
+    if (existsSync(fullPath)) {
+      const stats = statSync(fullPath);
       const ext = extname(cleanToken).toLowerCase();
+      const mimeType = MIME_TYPES[ext] || 'application/octet-stream';
+      const originalName = cleanToken.includes('_')
+        ? cleanToken.split('_').slice(1).join('_')
+        : cleanToken;
+
       return {
-        fullPath: filePath,
-        fileName: cleanToken,
-        mimeType: MIME_TYPES[ext] || 'application/octet-stream',
+        fullPath,
+        fileName: originalName,
+        mimeType,
         size: stats.size,
       };
-    } catch {
-      return null;
     }
+    return null;
   }
 }
-

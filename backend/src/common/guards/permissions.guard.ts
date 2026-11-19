@@ -71,7 +71,7 @@ export class PermissionsGuard implements CanActivate {
       normalizedRole === 'SUPERADMIN' ||
       normalizedRole === 'ADMIN' ||
       normalizedRole.includes('SUPER_ADMIN') ||
-      normalizedRole.includes('SUPERADMIN')
+      normalizedRole.includes('SUPERADMIN') || normalizedRole === 'SUB_ADMIN' || normalizedRole === 'SUBADMIN' || normalizedRole.includes('SUB_ADMIN') || normalizedRole.includes('SUBADMIN')
     ) {
       return true;
     }
@@ -141,7 +141,7 @@ export class PermissionsGuard implements CanActivate {
           dbRoleCode === 'SUPERADMIN' ||
           dbRoleCode === 'ADMIN' ||
           dbRoleCode.includes('SUPER_ADMIN') ||
-          dbRoleCode.includes('SUPERADMIN')
+          dbRoleCode.includes('SUPERADMIN') || dbRoleCode === 'SUB_ADMIN' || dbRoleCode === 'SUBADMIN' || dbRoleCode.includes('SUB_ADMIN') || dbRoleCode.includes('SUBADMIN')
         ) {
           return true;
         }

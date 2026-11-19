@@ -57,10 +57,14 @@ export class SequenceService {
   async generateLeadNumber(
     date: Date = new Date(),
     tx?: Prisma.TransactionClient,
+    companyId?: string,
+    prefixOverride?: string,
   ): Promise<string> {
     const fy = this.getFinancialYearCode(date);
-    const key = `lead_number_${fy}`;
-    const prefix = `LEAD/${fy}/`;
+    const companyKey = companyId ? `${companyId}_` : '';
+    const key = `${companyKey}lead_number_${fy}`;
+    const basePrefix = prefixOverride || 'LEAD';
+    const prefix = `${basePrefix}/${fy}/`;
 
     const runner = async (client: Prisma.TransactionClient) => {
       let candidate = await this.generateNextWithTx(client, key, prefix, 4);
@@ -89,10 +93,14 @@ export class SequenceService {
   async generateQuotationNumber(
     date: Date = new Date(),
     tx?: Prisma.TransactionClient,
+    companyId?: string,
+    prefixOverride?: string,
   ): Promise<string> {
     const fy = this.getFinancialYearCode(date);
-    const key = `quotation_number_${fy}`;
-    const prefix = `QU/${fy}/`;
+    const companyKey = companyId ? `${companyId}_` : '';
+    const key = `${companyKey}quotation_number_${fy}`;
+    const basePrefix = prefixOverride || 'QU';
+    const prefix = `${basePrefix}/${fy}/`;
 
     const runner = async (client: Prisma.TransactionClient) => {
       let candidate = await this.generateNextWithTx(client, key, prefix, 4);
@@ -116,15 +124,19 @@ export class SequenceService {
 
   /**
    * Generates next Sales Order number (e.g. HCPPL/2627/0001).
-   * Independent sequence per financial year, collision-safe.
+   * Independent sequence per financial year and tenant, collision-safe.
    */
   async generateSalesOrderNumber(
     date: Date = new Date(),
     tx?: Prisma.TransactionClient,
+    companyId?: string,
+    prefixOverride?: string,
   ): Promise<string> {
     const fy = this.getFinancialYearCode(date);
-    const key = `sales_order_number_${fy}`;
-    const prefix = `HCPPL/${fy}/`;
+    const companyKey = companyId ? `${companyId}_` : '';
+    const key = `${companyKey}sales_order_number_${fy}`;
+    const basePrefix = prefixOverride || 'HCPPL';
+    const prefix = `${basePrefix}/${fy}/`;
 
     const runner = async (client: Prisma.TransactionClient) => {
       let candidate = await this.generateNextWithTx(client, key, prefix, 4);

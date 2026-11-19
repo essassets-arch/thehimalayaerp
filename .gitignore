@@ -43,10 +43,18 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Temporary files
+# Temporary files & Scratch
 tmp/
 temp/
 *.tmp
+scratch/
+.tmp-prisma/
+
+# Data files, spreadsheets & exports
+*.csv
+*.xlsx
+*.sql
+*.sql.gz
 
 # Browser test build directories & Playwright artifacts
 frontend/.next-browser-test*/

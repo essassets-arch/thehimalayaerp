@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { compare, hash } from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
-import { UsersService, KNOWN_USER_PASSWORDS } from '../users/users.service';
+import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from '../../common/types/security.types';
 import { RefreshSession } from '@prisma/client';
@@ -76,74 +76,15 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    let isMatch = await compareAsync(loginDto.password, user.password);
-    if (
-      !isMatch &&
-      (loginDto.password.includes('l') || loginDto.password.includes('1'))
-    ) {
-      const altPass1 = loginDto.password.replace(/l/g, '1');
-      const altPass2 = loginDto.password.replace(/1/g, 'l');
-      isMatch =
-        (await compareAsync(altPass1, user.password)) ||
-        (await compareAsync(altPass2, user.password));
-    }
-    if (!isMatch) {
-      if (loginDto.password === 'admin123') {
-        isMatch =
-          (await compareAsync('Password@123', user.password)) ||
-          (await compareAsync('SuperAdmin@hcppl', user.password));
-      } else if (loginDto.password === 'Password@123') {
-        isMatch =
-          (await compareAsync('admin123', user.password)) ||
-          (await compareAsync('SuperAdmin@hcppl', user.password));
-      } else if (loginDto.password === 'SuperAdmin@hcppl') {
-        isMatch =
-          (await compareAsync('admin123', user.password)) ||
-          (await compareAsync('Password@123', user.password));
-      }
-    }
-    if (!isMatch && KNOWN_USER_PASSWORDS[user.email] && loginDto.password === KNOWN_USER_PASSWORDS[user.email]) {
-      isMatch = true;
-    }
-    const roleCode = user.role?.code || '';
-    const roleName = user.role?.name || '';
-    if (
-      !isMatch &&
-      (roleCode === 'SUPER_ADMIN' ||
-        roleCode === 'PLANT_HEAD' ||
-        roleName.toLowerCase().includes('admin') ||
-        roleName.toLowerCase().includes('plant'))
-    ) {
-      if (loginDto.password === 'admin123' || loginDto.password === 'SuperAdmin@hcppl') {
-        isMatch = true;
-      }
-    }
-    if (
-      !isMatch &&
-      (user.email === 'backoffice@himalayaerp.com' ||
-        user.email === 'abbas.baman@himalayaerp.com' ||
-        user.email === 'abbas.b@himalayaerp.com' ||
-        roleCode === 'BACK_OFFICE' ||
-        roleName.toLowerCase().includes('back office') ||
-        roleName.toLowerCase().includes('backoffice'))
-    ) {
-      if (
-        loginDto.password === 'Himalaya@2026' ||
-        loginDto.password === 'ARHIMALAYA12' ||
-        loginDto.password === 'admin123' ||
-        loginDto.password === 'dataAnalyst#2101'
-      ) {
-        isMatch = true;
-      }
+    if (user.lockedUntil && new Date() < user.lockedUntil) {
+      throw new UnauthorizedException(
+        'Account is temporarily locked. Please try again later.',
+      );
     }
 
-    if (!isMatch) {
-      if (user.lockedUntil && new Date() < user.lockedUntil) {
-        throw new UnauthorizedException(
-          'Account is temporarily locked. Please try again later.',
-        );
-      }
+    const isMatch = await compareAsync(loginDto.password, user.password);
 
+    if (!isMatch) {
       const attempts = user.failedLoginAttempts + 1;
       const dataToUpdate: { failedLoginAttempts: number; lockedUntil?: Date } =
         {

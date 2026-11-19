@@ -11,15 +11,18 @@ import {
   UploadedFile,
   BadRequestException,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { FilesService } from './files.service';
 import { createReadStream, existsSync } from 'fs';
 import { extname, resolve } from 'path';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('files')
+@UseGuards(JwtAuthGuard)
 export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
@@ -32,7 +35,7 @@ export class FilesController {
       if (resolved && resolved.fullPath && existsSync(resolved.fullPath)) {
         res.set({
           'Content-Type': resolved.mimeType,
-          'Cache-Control': 'public, max-age=86400, immutable',
+          'Cache-Control': 'private, no-cache, no-store, must-revalidate',
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
           'Access-Control-Allow-Headers': '*',
@@ -42,7 +45,7 @@ export class FilesController {
         const absolutePath = resolve(resolved.fullPath);
         return res.sendFile(
           absolutePath,
-          { maxAge: 86400000, acceptRanges: true },
+          { maxAge: 0, acceptRanges: true },
           (err) => {
             if (err && !res.headersSent) {
               this.sendFallbackImage(requestedPath, res);
@@ -104,10 +107,9 @@ export class FilesController {
   }
 
   /**
-   * Universal wildcard file-serving endpoint for nested paths:
+   * Wildcard file-serving endpoint:
    * GET /api/v1/files/serve/*
    */
-  @Public()
   @Get('serve/*')
   serveWildcardFile(@Req() req: any, @Res() res: any) {
     const rawUrl = req.url || '';
@@ -121,10 +123,9 @@ export class FilesController {
   }
 
   /**
-   * Universal file-serving endpoint for categorical paths:
+   * Categorical file-serving endpoint:
    * GET /api/v1/files/serve/:category/:filename
    */
-  @Public()
   @Get('serve/:category/:filename')
   serveCategoricalFile(
     @Param('category') category: string,
@@ -140,10 +141,9 @@ export class FilesController {
   }
 
   /**
-   * Universal file-serving endpoint for flat paths:
+   * Flat file-serving endpoint:
    * GET /api/v1/files/serve/:filename
    */
-  @Public()
   @Get('serve/:filename')
   serveFlatFile(@Param('filename') filename: string, @Res() res: any) {
     const resolved = this.filesService.resolveFile(filename);
@@ -153,7 +153,6 @@ export class FilesController {
   /**
    * GET /api/v1/files/:fileId
    */
-  @Public()
   @Get(':fileId')
   serveByFileId(@Param('fileId') fileId: string, @Res() res: any) {
     const resolved = this.filesService.resolveFile(fileId);
@@ -199,17 +198,15 @@ export class FilesController {
    * Universal export endpoint for mobile APK / Web download:
    * POST /api/v1/files/export-download
    */
-  @Public()
   @Post('export-download')
   async createExportDownload(@Body() body: any) {
     return this.filesService.saveExportPayload(body);
   }
 
   /**
-   * Direct file download stream with Content-Disposition attachment:
+   * Direct file download stream:
    * GET /api/v1/files/download/:token
    */
-  @Public()
   @Get('download/:token')
   downloadExportFile(
     @Param('token') token: string,
