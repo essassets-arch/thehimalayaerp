@@ -82,6 +82,7 @@ model Company {
   employeeLocationSessions       EmployeeLocationSession[]
   employeeLocationPoints         EmployeeLocationPoint[]
   employeeRouteStops             EmployeeRouteStop[]
+  employeeDailyLocationSummaries EmployeeDailyLocationSummary[]
   financeExpenses                FinanceExpense[]
   financeExpenseCategories       FinanceExpenseCategory[]
 }
@@ -200,6 +201,7 @@ model User {
   testingRecords                ProductionTestingRecord[]
   employeeLocationSessions      EmployeeLocationSession[]
   employeeLocationPoints        EmployeeLocationPoint[]
+  employeeDailyLocationSummaries EmployeeDailyLocationSummary[]
   createdFinanceExpenses        FinanceExpense[]       @relation("FinanceExpenseCreatedBy")
   updatedFinanceExpenses        FinanceExpense[]       @relation("FinanceExpenseUpdatedBy")
 }
@@ -4220,6 +4222,7 @@ model UserLocationHistory {
 
   @@index([companyId, userId, capturedAt])
   @@index([deviceSessionId, capturedAt])
+  @@index([userId, capturedAt])
 }
 
 // ============================================================================
@@ -4315,6 +4318,8 @@ model EmployeeLocationPoint {
   @@index([sessionId, recordedAt])
   @@index([employeeId, recordedAt])
   @@index([companyId, recordedAt])
+  @@index([companyId, userId, recordedAt])
+  @@index([userId, recordedAt])
 }
 
 model EmployeeRouteStop {
@@ -4341,6 +4346,37 @@ model EmployeeRouteStop {
 
   @@index([sessionId, arrivedAt])
   @@index([employeeId, arrivedAt])
+}
+
+model EmployeeDailyLocationSummary {
+  id                 String    @id @default(uuid())
+  companyId          String
+  userId             String
+  employeeId         String?
+  dateIst            String    // YYYY-MM-DD in Asia/Kolkata
+
+  punchInAt          DateTime?
+  punchOutAt         DateTime?
+  punchInAddress     String?
+  punchOutAddress    String?
+
+  firstPingAt        DateTime?
+  lastPingAt         DateTime?
+  totalDistanceKm    Decimal   @default(0) @db.Decimal(10, 3)
+  totalPointsCount   Int       @default(0)
+  totalStopsCount    Int       @default(0)
+  activeMinutes      Int       @default(0)
+  leadsCapturedCount Int       @default(0)
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  company            Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, userId, dateIst])
+  @@index([userId, dateIst])
+  @@index([companyId, dateIst])
 }
 
 model BackOfficeDailyReport {

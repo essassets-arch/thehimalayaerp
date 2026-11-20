@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Query,
+  Param,
   Body,
   UseGuards,
   BadRequestException,
@@ -127,6 +128,80 @@ export class LocationTrackingController {
       isSuperAdmin ? undefined : user.companyId,
       dateStr,
       employeeId,
+    );
+  }
+
+  /**
+   * Unified 7-day (up to 14-day) location history for a specific user/employee.
+   * Merges Shift points + Device History + Attendance + Stops + CRM Lead visits in IST.
+   */
+  @Get('users/:userId/history-7d')
+  async getUser7DayHistory(
+    @CurrentUser() user: any,
+    @Param('userId') targetUserId: string,
+    @Query('days') daysStr?: string,
+    @Query('from') fromStr?: string,
+    @Query('to') toStr?: string,
+  ) {
+    if (!targetUserId) {
+      throw new BadRequestException('userId is required.');
+    }
+
+    const normalizedRole = String(user.role || '')
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+    const isSuperAdmin =
+      normalizedRole.includes('SUPER_ADMIN') || normalizedRole === 'ADMIN';
+
+    const days = daysStr ? parseInt(daysStr, 10) : 7;
+
+    return this.locationTrackingService.getUser7DayHistory(
+      isSuperAdmin ? undefined : user.companyId,
+      targetUserId,
+      {
+        days: isNaN(days) ? 7 : days,
+        from: fromStr,
+        to: toStr,
+      },
+    );
+  }
+
+  /**
+   * Lightweight 7-day overview stats per user for Super Admin Map badges.
+   */
+  @Get('overview-7d')
+  async getUsers7DayOverview(
+    @CurrentUser() user: any,
+    @Query('days') daysStr?: string,
+  ) {
+    const normalizedRole = String(user.role || '')
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+    const isSuperAdmin =
+      normalizedRole.includes('SUPER_ADMIN') || normalizedRole === 'ADMIN';
+
+    const days = daysStr ? parseInt(daysStr, 10) : 7;
+    return this.locationTrackingService.getUsers7DayOverview(
+      isSuperAdmin ? undefined : user.companyId,
+      isNaN(days) ? 7 : days,
+    );
+  }
+
+  /**
+   * Offline queue batch sync endpoint for Web/PWA clients (works on-shift and off-shift).
+   */
+  @Post('track/web-batch')
+  async recordWebBatch(
+    @CurrentUser() user: any,
+    @Body() body: { sessionId?: string; points: SingleTrackingPointDto[] },
+  ) {
+    if (!user || !user.companyId) {
+      throw new BadRequestException('Authenticated session missing company context.');
+    }
+    return this.locationTrackingService.recordWebBatchPoints(
+      user.sub,
+      user.companyId,
+      body,
     );
   }
 }

@@ -151,12 +151,6 @@ export class SuperAdminController {
       );
     }
 
-    if (!deviceSessionId) {
-      throw new BadRequestException(
-        'deviceSessionId query parameter is required.',
-      );
-    }
-
     const hasDate = !!dateQuery;
     const hasRange = !!fromQuery && !!toQuery;
 

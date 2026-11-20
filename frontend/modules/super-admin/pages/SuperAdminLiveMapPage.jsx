@@ -328,6 +328,33 @@ export const getEndPinSvg = () => {
   return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvg);
 };
 
+export const getLeadPinSvg = () => {
+  const pinSvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
+      <defs>
+        <filter id="leadShadow" x="-20%" y="-10%" width="140%" height="130%">
+          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.3)"/>
+        </filter>
+      </defs>
+      <path d="M16 1 C7.5 1 2 6.8 2 15 C2 24.5 13.5 37 16 39 C18.5 37 30 24.5 30 15 C30 6.8 24.5 1 16 1 Z"
+            fill="#7C3AED" stroke="#FFFFFF" stroke-width="2" filter="url(#leadShadow)"/>
+      <circle cx="16" cy="15" r="9" fill="#FFFFFF"/>
+      <text x="16" y="19" font-size="10.5" font-weight="bold" fill="#5B21B6" text-anchor="middle" font-family="system-ui, sans-serif">L</text>
+    </svg>
+  `;
+  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvg);
+};
+
+const DAY_ROUTE_COLORS = [
+  '#2563EB', // Blue
+  '#059669', // Emerald
+  '#D97706', // Amber
+  '#7C3AED', // Violet
+  '#DC2626', // Red
+  '#0891B2', // Cyan
+  '#DB2777', // Pink
+];
+
 export default function SuperAdminLiveMapPage() {
   const { accessToken } = useAuthStore();
 
@@ -353,11 +380,18 @@ export default function SuperAdminLiveMapPage() {
   const [allUsers, setAllUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [liveRoutes, setLiveRoutes] = useState([]);
+  const [overview7d, setOverview7d] = useState({});
+  const [selectedUserAddress, setSelectedUserAddress] = useState('');
 
-  // Route History Playback State
+  // 7-Day Route History & Playback State
   const [allEmployees, setAllEmployees] = useState([]);
   const [selectedHistoryEmployeeId, setSelectedHistoryEmployeeId] = useState('');
   const [historyDate, setHistoryDate] = useState(() => getLocalDateString(0));
+  const [historyFromDate, setHistoryFromDate] = useState(() => getLocalDateString(6));
+  const [historyToDate, setHistoryToDate] = useState(() => getLocalDateString(0));
+  const [historyRangeMode, setHistoryRangeMode] = useState('7D'); // '7D' | '14D' | 'CUSTOM'
+  const [history7dData, setHistory7dData] = useState(null);
+  const [activeHistoryDayDate, setActiveHistoryDayDate] = useState('ALL'); // 'ALL' | 'YYYY-MM-DD'
   const [historyData, setHistoryData] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
@@ -365,9 +399,9 @@ export default function SuperAdminLiveMapPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
-  // Filters & Search
+  // Filters & Search (Sales Team focused by default, All Staff 1 click away)
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDepartment, setSelectedDepartment] = useState('All');
+  const [selectedDepartment, setSelectedDepartment] = useState('Sales');
   const [statusFilter, setStatusFilter] = useState('ALL'); // ALL | LIVE | STALE | OFFLINE | NO_LOCATION
   const [shiftFilter, setShiftFilter] = useState('ALL'); // ALL | ON_SHIFT | OFF_SHIFT
 
@@ -377,6 +411,8 @@ export default function SuperAdminLiveMapPage() {
   const markersRef = useRef({}); // userId -> Google Maps Marker
   const startMarkersRef = useRef({}); // userId/sessionId -> Punch-In Start Marker (S)
   const stopMarkersRef = useRef([]); // Stop Markers
+  const leadMarkersRef = useRef([]); // CRM Lead Check-in Markers
+  const multiPolylinesRef = useRef([]); // Multi-Day 7d Polylines
   const activePolylineRef = useRef(null); // Active Route Polyline
   const startMarkerRef = useRef(null);
   const endMarkerRef = useRef(null);
@@ -385,6 +421,7 @@ export default function SuperAdminLiveMapPage() {
   const trafficLayerRef = useRef(null);
   const infoWindowRef = useRef(null);
   const socketRef = useRef(null);
+  const addressCacheRef = useRef(new Map());
   const followUserRef = useRef(followUser);
   followUserRef.current = followUser;
   const selectedUserIdRef = useRef(selectedUserId);
@@ -437,11 +474,15 @@ export default function SuperAdminLiveMapPage() {
     }
   }, []);
 
-  // Clear overlays (polylines, stops, playback pins)
+  // Clear overlays (polylines, stops, leads, playback pins)
   const clearAllOverlays = useCallback(() => {
     if (activePolylineRef.current) {
       activePolylineRef.current.setMap(null);
       activePolylineRef.current = null;
+    }
+    if (multiPolylinesRef.current && multiPolylinesRef.current.length > 0) {
+      multiPolylinesRef.current.forEach((p) => p.setMap(null));
+      multiPolylinesRef.current = [];
     }
     if (startMarkerRef.current) {
       startMarkerRef.current.setMap(null);
@@ -458,6 +499,10 @@ export default function SuperAdminLiveMapPage() {
     if (stopMarkersRef.current && stopMarkersRef.current.length > 0) {
       stopMarkersRef.current.forEach((m) => m.setMap(null));
       stopMarkersRef.current = [];
+    }
+    if (leadMarkersRef.current && leadMarkersRef.current.length > 0) {
+      leadMarkersRef.current.forEach((m) => m.setMap(null));
+      leadMarkersRef.current = [];
     }
     clearAccuracyCircle();
     setIsPlaying(false);
@@ -477,13 +522,22 @@ export default function SuperAdminLiveMapPage() {
     try {
       setLoading(true);
       // Pass cacheTtlMs: 0 to bypass Next.js 30s cache and fetch authoritative fresh telemetry
-      const [usersRes, routesRes, empRes] = await Promise.allSettled([
+      const [usersRes, routesRes, empRes, overviewRes] = await Promise.allSettled([
         backendFetch('/super-admin/live-users', { cacheTtlMs: 0 }).catch(() =>
           backendFetch('/location/live-users', { cacheTtlMs: 0 })
         ),
         backendFetch('/location/routes/live', { cacheTtlMs: 0 }),
         backendFetch('/hr/employees', { cacheTtlMs: 60000 }),
+        backendFetch('/location/overview-7d?days=7', { cacheTtlMs: 30000 }),
       ]);
+
+      const rawOverview =
+        overviewRes.status === 'fulfilled'
+          ? overviewRes.value?.byUserId || overviewRes.value?.data?.byUserId || {}
+          : {};
+      if (rawOverview && Object.keys(rawOverview).length > 0) {
+        setOverview7d(rawOverview);
+      }
 
       const rawUsers =
         usersRes.status === 'fulfilled'
@@ -845,28 +899,28 @@ export default function SuperAdminLiveMapPage() {
     [mapsLoaded, clearAllOverlays, showAccuracyCircle]
   );
 
-  // ─── 5. HISTORICAL ROUTE LOADER & PLAYBACK ─────────────────────────────────
+  // ─── 5. 7-DAY & SINGLE-DAY HISTORICAL ROUTE LOADER & PLAYBACK ──────────────
   const drawHistoryRoute = useCallback(
-    (points, stops, session) => {
+    (points, stops, session, leads = [], strokeColor = '#0284C7') => {
       if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps) return;
 
       clearAllOverlays();
 
       const path = [];
-      const punchInLat = session?.punchInCoordinates?.latitude || session?.punchInLatitude;
-      const punchInLng = session?.punchInCoordinates?.longitude || session?.punchInLongitude;
+      const punchInLat = session?.punchInCoordinates?.latitude || session?.punchInLatitude || session?.punchIn?.latitude;
+      const punchInLng = session?.punchInCoordinates?.longitude || session?.punchInLongitude || session?.punchIn?.longitude;
       if (punchInLat && punchInLng) {
-        path.push(new window.google.maps.LatLng(punchInLat, punchInLng));
+        path.push(new window.google.maps.LatLng(Number(punchInLat), Number(punchInLng)));
       }
       (points || []).forEach((p) => {
-        if (p.latitude && p.longitude) {
+        if (p.latitude != null && p.longitude != null) {
           path.push(new window.google.maps.LatLng(Number(p.latitude), Number(p.longitude)));
         }
       });
-      const punchOutLat = session?.punchOutCoordinates?.latitude || session?.punchOutLatitude;
-      const punchOutLng = session?.punchOutCoordinates?.longitude || session?.punchOutLongitude;
+      const punchOutLat = session?.punchOutCoordinates?.latitude || session?.punchOutLatitude || session?.punchOut?.latitude;
+      const punchOutLng = session?.punchOutCoordinates?.longitude || session?.punchOutLongitude || session?.punchOut?.longitude;
       if (punchOutLat && punchOutLng && session?.status === 'COMPLETED') {
-        path.push(new window.google.maps.LatLng(punchOutLat, punchOutLng));
+        path.push(new window.google.maps.LatLng(Number(punchOutLat), Number(punchOutLng)));
       }
 
       if (path.length === 0) return;
@@ -875,8 +929,8 @@ export default function SuperAdminLiveMapPage() {
         const polyline = new window.google.maps.Polyline({
           path,
           geodesic: true,
-          strokeColor: '#0284C7',
-          strokeOpacity: 0.85,
+          strokeColor,
+          strokeOpacity: 0.9,
           strokeWeight: 5,
           map: mapInstanceRef.current,
         });
@@ -885,87 +939,419 @@ export default function SuperAdminLiveMapPage() {
 
       const bounds = new window.google.maps.LatLngBounds();
       path.forEach((p) => bounds.extend(p));
-      mapInstanceRef.current.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
 
-      // Start Pin
+      // Start Pin (S)
       const startLat = punchInLat || (points && points[0] ? Number(points[0].latitude) : null);
       const startLng = punchInLng || (points && points[0] ? Number(points[0].longitude) : null);
-      if (startLat && startLng) {
+      if (startLat != null && startLng != null) {
         const startMarker = new window.google.maps.Marker({
-          position: new window.google.maps.LatLng(startLat, startLng),
+          position: new window.google.maps.LatLng(Number(startLat), Number(startLng)),
           map: mapInstanceRef.current,
-          title: 'Shift Punch In (Start)',
+          title: 'Day Start / Punch In',
           icon: {
             url: getStartPinSvg(),
             scaledSize: new window.google.maps.Size(34, 42),
             anchor: new window.google.maps.Point(17, 42),
           },
         });
+        startMarker.addListener('click', () => {
+          if (!infoWindowRef.current) return;
+          const startTime = session?.punchInAt || points?.[0]?.recordedAt;
+          infoWindowRef.current.setContent(`
+            <div style="font-family: system-ui, sans-serif; padding: 6px; max-width: 240px;">
+              <div style="font-weight: 700; color: #15803D; font-size: 13px;">🟢 Start / Punch In</div>
+              <div style="font-size: 11px; color: #475569; margin-top: 4px;">
+                <strong>Time:</strong> ${startTime ? new Date(startTime).toLocaleString() : 'N/A'}<br/>
+                ${session?.punchInAddress ? `<strong>Address:</strong> ${session.punchInAddress}` : ''}
+              </div>
+            </div>
+          `);
+          infoWindowRef.current.open(mapInstanceRef.current, startMarker);
+        });
         startMarkerRef.current = startMarker;
       }
 
-      // End Pin
+      // End Pin (E)
       const endLat = punchOutLat || (points && points.length > 0 ? Number(points[points.length - 1].latitude) : startLat);
       const endLng = punchOutLng || (points && points.length > 0 ? Number(points[points.length - 1].longitude) : startLng);
-      if (endLat && endLng) {
+      if (endLat != null && endLng != null) {
         const endMarker = new window.google.maps.Marker({
-          position: new window.google.maps.LatLng(endLat, endLng),
+          position: new window.google.maps.LatLng(Number(endLat), Number(endLng)),
           map: mapInstanceRef.current,
           title: session?.status === 'COMPLETED' ? 'Shift Punch Out (End)' : 'Last Recorded Position',
           icon: {
-            url: session?.status === 'COMPLETED' ? getEndPinSvg() : getStartPinSvg(),
+            url: getEndPinSvg(),
             scaledSize: new window.google.maps.Size(34, 42),
             anchor: new window.google.maps.Point(17, 42),
           },
         });
+        endMarker.addListener('click', () => {
+          if (!infoWindowRef.current) return;
+          const endTime = session?.punchOutAt || points?.[points.length - 1]?.recordedAt;
+          infoWindowRef.current.setContent(`
+            <div style="font-family: system-ui, sans-serif; padding: 6px; max-width: 240px;">
+              <div style="font-weight: 700; color: #B91C1C; font-size: 13px;">🔴 ${session?.status === 'COMPLETED' ? 'Punch Out' : 'Last Position'}</div>
+              <div style="font-size: 11px; color: #475569; margin-top: 4px;">
+                <strong>Time:</strong> ${endTime ? new Date(endTime).toLocaleString() : 'N/A'}<br/>
+                ${session?.punchOutAddress ? `<strong>Address:</strong> ${session.punchOutAddress}` : ''}
+              </div>
+            </div>
+          `);
+          infoWindowRef.current.open(mapInstanceRef.current, endMarker);
+        });
         endMarkerRef.current = endMarker;
       }
 
-      // Stop Pins
+      // Numbered Stop Pins with clickable address InfoWindow
       if (stops && stops.length > 0) {
         stops.forEach((st) => {
+          const pos = new window.google.maps.LatLng(Number(st.latitude), Number(st.longitude));
+          bounds.extend(pos);
           const stopMarker = new window.google.maps.Marker({
-            position: new window.google.maps.LatLng(Number(st.latitude), Number(st.longitude)),
+            position: pos,
             map: mapInstanceRef.current,
-            title: `Stop #${st.stopNumber} (${st.durationMinutes} mins)`,
+            title: `Stop #${st.stopNumber} (${st.durationMinutes} min)`,
             icon: {
               url: getStopPinSvg(st.stopNumber),
               scaledSize: new window.google.maps.Size(30, 36),
               anchor: new window.google.maps.Point(15, 36),
             },
           });
+          stopMarker.addListener('click', () => {
+            if (!infoWindowRef.current) return;
+            infoWindowRef.current.setContent(`
+              <div style="font-family: system-ui, sans-serif; padding: 6px; max-width: 250px;">
+                <div style="font-weight: 700; color: #B45309; font-size: 13px;">🛑 Stop #${st.stopNumber} (${st.durationMinutes} mins)</div>
+                <div style="font-size: 11px; color: #475569; margin-top: 4px; line-height: 1.45;">
+                  <strong>Arrived:</strong> ${new Date(st.arrivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}<br/>
+                  <strong>Departed:</strong> ${new Date(st.departedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}<br/>
+                  <strong>Location:</strong> ${st.address || `${Number(st.latitude).toFixed(4)}, ${Number(st.longitude).toFixed(4)}`}
+                </div>
+              </div>
+            `);
+            infoWindowRef.current.open(mapInstanceRef.current, stopMarker);
+          });
           stopMarkersRef.current.push(stopMarker);
         });
+      }
+
+      // CRM Lead / Customer Visit Pins (Purple 'L')
+      if (leads && leads.length > 0) {
+        leads.forEach((lead) => {
+          if (lead.latitude == null || lead.longitude == null) return;
+          const pos = new window.google.maps.LatLng(Number(lead.latitude), Number(lead.longitude));
+          bounds.extend(pos);
+          const leadMarker = new window.google.maps.Marker({
+            position: pos,
+            map: mapInstanceRef.current,
+            title: `Lead: ${lead.companyName}`,
+            icon: {
+              url: getLeadPinSvg(),
+              scaledSize: new window.google.maps.Size(30, 38),
+              anchor: new window.google.maps.Point(15, 38),
+            },
+          });
+          leadMarker.addListener('click', () => {
+            if (!infoWindowRef.current) return;
+            infoWindowRef.current.setContent(`
+              <div style="font-family: system-ui, sans-serif; padding: 6px; max-width: 250px;">
+                <div style="font-weight: 700; color: #5B21B6; font-size: 13px;">🏢 Lead: ${lead.companyName}</div>
+                <div style="font-size: 11px; color: #475569; margin-top: 4px; line-height: 1.45;">
+                  <strong>Ref:</strong> ${lead.leadNumber || '—'}<br/>
+                  <strong>Contact:</strong> ${lead.contactPerson || '—'}<br/>
+                  <strong>Captured:</strong> ${new Date(lead.createdAt).toLocaleString()}<br/>
+                  ${lead.address ? `<strong>Address:</strong> ${lead.address}` : ''}
+                </div>
+              </div>
+            `);
+            infoWindowRef.current.open(mapInstanceRef.current, leadMarker);
+          });
+          leadMarkersRef.current.push(leadMarker);
+        });
+      }
+
+      mapInstanceRef.current.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
+    },
+    [mapsLoaded, clearAllOverlays]
+  );
+
+  // Draw ALL 7 days simultaneously on Google Maps with color-coded polylines per day
+  const drawAll7DaysCombined = useCallback(
+    (payload) => {
+      if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps || !payload?.days) return;
+      clearAllOverlays();
+
+      const bounds = new window.google.maps.LatLngBounds();
+      let pointTotal = 0;
+
+      payload.days.forEach((day, dayIdx) => {
+        if (!day.hasData) return;
+        const color = DAY_ROUTE_COLORS[dayIdx % DAY_ROUTE_COLORS.length];
+        const path = [];
+
+        if (day.punchIn?.latitude != null && day.punchIn?.longitude != null) {
+          path.push(new window.google.maps.LatLng(Number(day.punchIn.latitude), Number(day.punchIn.longitude)));
+        }
+        (day.points || []).forEach((p) => {
+          if (p.latitude != null && p.longitude != null) {
+            path.push(new window.google.maps.LatLng(Number(p.latitude), Number(p.longitude)));
+          }
+        });
+
+        path.forEach((pt) => {
+          bounds.extend(pt);
+          pointTotal++;
+        });
+
+        if (path.length >= 2) {
+          const poly = new window.google.maps.Polyline({
+            path,
+            geodesic: true,
+            strokeColor: color,
+            strokeOpacity: 0.85,
+            strokeWeight: 4,
+            map: mapInstanceRef.current,
+          });
+          multiPolylinesRef.current.push(poly);
+        }
+
+        // Render stops for each day in combined view
+        (day.stops || []).forEach((st) => {
+          const pos = new window.google.maps.LatLng(Number(st.latitude), Number(st.longitude));
+          bounds.extend(pos);
+          pointTotal++;
+          const m = new window.google.maps.Marker({
+            position: pos,
+            map: mapInstanceRef.current,
+            title: `${day.dayLabel} — Stop #${st.stopNumber} (${st.durationMinutes} min)`,
+            icon: {
+              url: getStopPinSvg(st.stopNumber),
+              scaledSize: new window.google.maps.Size(26, 32),
+              anchor: new window.google.maps.Point(13, 32),
+            },
+          });
+          m.addListener('click', () => {
+            if (!infoWindowRef.current) return;
+            infoWindowRef.current.setContent(`
+              <div style="font-family: system-ui, sans-serif; padding: 6px; max-width: 250px;">
+                <div style="font-weight: 700; color: ${color}; font-size: 12px;">${day.dayLabel}</div>
+                <div style="font-weight: 700; color: #B45309; font-size: 13px; margin-top: 2px;">🛑 Stop #${st.stopNumber} (${st.durationMinutes} mins)</div>
+                <div style="font-size: 11px; color: #475569; margin-top: 4px;">
+                  <strong>Time:</strong> ${new Date(st.arrivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – ${new Date(st.departedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}<br/>
+                  <strong>Location:</strong> ${st.address || `${Number(st.latitude).toFixed(4)}, ${Number(st.longitude).toFixed(4)}`}
+                </div>
+              </div>
+            `);
+            infoWindowRef.current.open(mapInstanceRef.current, m);
+          });
+          stopMarkersRef.current.push(m);
+        });
+
+        // Render CRM leads with coordinates
+        (day.leads || []).forEach((lead) => {
+          if (lead.latitude == null || lead.longitude == null) return;
+          const pos = new window.google.maps.LatLng(Number(lead.latitude), Number(lead.longitude));
+          bounds.extend(pos);
+          pointTotal++;
+          const lm = new window.google.maps.Marker({
+            position: pos,
+            map: mapInstanceRef.current,
+            title: `${day.dayLabel} — Lead: ${lead.companyName}`,
+            icon: {
+              url: getLeadPinSvg(),
+              scaledSize: new window.google.maps.Size(26, 34),
+              anchor: new window.google.maps.Point(13, 34),
+            },
+          });
+          lm.addListener('click', () => {
+            if (!infoWindowRef.current) return;
+            infoWindowRef.current.setContent(`
+              <div style="font-family: system-ui, sans-serif; padding: 6px; max-width: 250px;">
+                <div style="font-weight: 700; color: #5B21B6; font-size: 13px;">🏢 ${lead.companyName}</div>
+                <div style="font-size: 11px; color: #475569; margin-top: 4px;">
+                  <strong>Date:</strong> ${day.dayLabel}<br/>
+                  <strong>Contact:</strong> ${lead.contactPerson || '—'}<br/>
+                  ${lead.address ? `<strong>Address:</strong> ${lead.address}` : ''}
+                </div>
+              </div>
+            `);
+            infoWindowRef.current.open(mapInstanceRef.current, lm);
+          });
+          leadMarkersRef.current.push(lm);
+        });
+      });
+
+      if (pointTotal > 0) {
+        mapInstanceRef.current.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
       }
     },
     [mapsLoaded, clearAllOverlays]
   );
 
-  const loadHistoryRoute = async (empId, dateStr) => {
-    if (!empId || !dateStr) return;
-    setHistoryLoading(true);
-    setHistoryError(null);
-    setHistoryData(null);
-    clearAllOverlays();
+  // Focus a specific day inside the loaded 7-day dataset
+  const selectHistoryDay = useCallback(
+    (dayDate, payloadOverride = null) => {
+      const source = payloadOverride || history7dData;
+      if (!source) return;
+      setActiveHistoryDayDate(dayDate);
 
-    try {
-      const raw = await backendFetch(`/location/routes/history?employeeId=${empId}&date=${dateStr}`, { cacheTtlMs: 0 });
-      const data = raw?.data || raw;
+      if (dayDate === 'ALL') {
+        setHistoryData(null);
+        drawAll7DaysCombined(source);
+        return;
+      }
 
-      if (!data || !data.points || data.points.length === 0) {
-        setHistoryError('No GPS route telemetry recorded for this employee on the selected date.');
+      const dayIdx = source.days.findIndex((d) => d.date === dayDate);
+      const dayObj = dayIdx >= 0 ? source.days[dayIdx] : null;
+      if (!dayObj || (!dayObj.hasData && (!dayObj.points || dayObj.points.length === 0))) {
+        clearAllOverlays();
         setHistoryData(null);
         return;
       }
 
-      setHistoryData(data);
-      drawHistoryRoute(data.points, data.stops, data.session);
-    } catch (err) {
-      setHistoryError(err?.message || 'Failed to load historical route.');
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
+      const sessionObj = {
+        sessionId: dayObj.sessionId || `day-${dayObj.date}`,
+        punchInAt: dayObj.punchIn?.at || dayObj.firstPingAt,
+        punchInAddress: dayObj.punchIn?.address || null,
+        punchInCoordinates: dayObj.punchIn ? { latitude: dayObj.punchIn.latitude, longitude: dayObj.punchIn.longitude } : null,
+        punchOutAt: dayObj.punchOut?.at || dayObj.lastPingAt,
+        punchOutAddress: dayObj.punchOut?.address || null,
+        punchOutCoordinates: dayObj.punchOut ? { latitude: dayObj.punchOut.latitude, longitude: dayObj.punchOut.longitude } : null,
+        status: dayObj.status,
+        totalDistanceKm: dayObj.distanceKm,
+        durationFormatted: dayObj.durationFormatted,
+        totalPointsCount: dayObj.pointsCount,
+        totalStopsCount: dayObj.stopsCount,
+      };
+
+      setHistoryData({
+        date: dayObj.date,
+        dayLabel: dayObj.dayLabel,
+        session: sessionObj,
+        points: dayObj.points || [],
+        stops: dayObj.stops || [],
+        leads: dayObj.leads || [],
+      });
+
+      const color = DAY_ROUTE_COLORS[dayIdx % DAY_ROUTE_COLORS.length];
+      drawHistoryRoute(dayObj.points || [], dayObj.stops || [], sessionObj, dayObj.leads || [], color);
+    },
+    [history7dData, drawAll7DaysCombined, drawHistoryRoute, clearAllOverlays]
+  );
+
+  // Load 7-Day (or 14-Day / Custom) unified history from backend
+  const load7DayHistory = useCallback(
+    async (userIdOrEmpId, rangeOpts = {}) => {
+      if (!userIdOrEmpId) return;
+      setHistoryLoading(true);
+      setHistoryError(null);
+      setHistoryData(null);
+      setHistory7dData(null);
+      clearAllOverlays();
+
+      try {
+        const rangeMode = rangeOpts.mode || historyRangeMode;
+        const fromStr = rangeOpts.from || historyFromDate;
+        const toStr = rangeOpts.to || historyToDate;
+
+        let url = `/location/users/${userIdOrEmpId}/history-7d?days=7`;
+        if (rangeMode === '14D') {
+          url = `/location/users/${userIdOrEmpId}/history-7d?days=14`;
+        } else if (rangeMode === 'CUSTOM' && fromStr && toStr) {
+          url = `/location/users/${userIdOrEmpId}/history-7d?from=${fromStr}&to=${toStr}`;
+        }
+
+        const raw = await backendFetch(url, { cacheTtlMs: 0 });
+        const data = raw?.data || raw;
+
+        if (!data || !Array.isArray(data.days)) {
+          setHistoryError('Unable to load 7-day movement history for this user.');
+          return;
+        }
+
+        setHistory7dData(data);
+
+        if (data.totals?.daysTracked === 0) {
+          setHistoryError('No GPS telemetry or punch-in records found in the selected date window for this account.');
+          setActiveHistoryDayDate('ALL');
+          return;
+        }
+
+        // Default to showing All 7 Days Combined if multiple days have data, or auto-focus the single tracked day
+        const trackedDays = data.days.filter((d) => d.hasData && d.points?.length > 0);
+        if (trackedDays.length === 1) {
+          selectHistoryDay(trackedDays[0].date, data);
+        } else {
+          setActiveHistoryDayDate('ALL');
+          drawAll7DaysCombined(data);
+        }
+      } catch (err) {
+        setHistoryError(err?.message || 'Failed to load 7-day history.');
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [historyRangeMode, historyFromDate, historyToDate, clearAllOverlays, drawAll7DaysCombined, selectHistoryDay]
+  );
+
+  // Backward-compatible shortcut to jump straight into a user's Last 7 Days
+  const openUser7DayHistory = useCallback(
+    (targetId) => {
+      if (!targetId) return;
+      setMode('ROUTE_HISTORY');
+      setSelectedHistoryEmployeeId(targetId);
+      setHistoryRangeMode('7D');
+      setShowDrawer(true);
+      void load7DayHistory(targetId, { mode: '7D' });
+    },
+    [load7DayHistory]
+  );
+
+  // Export 7-Day Movement & Stops CSV Report
+  const export7DayCsv = useCallback(() => {
+    if (!history7dData?.days) return;
+    const u = history7dData.user || {};
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [
+      ['Date (IST)', 'Day', 'Status', 'Punch In', 'Punch In Address', 'Punch Out', 'Distance (km)', 'Active Duration', 'GPS Points', 'Stops Count', 'CRM Leads', 'Detected Stops Detail'].map(esc).join(','),
+    ];
+
+    history7dData.days.forEach((d) => {
+      const stopSummary = (d.stops || [])
+        .map(
+          (s) =>
+            `#${s.stopNumber} (${s.durationMinutes}m @ ${new Date(s.arrivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}): ${s.address || `${s.latitude},${s.longitude}`}`
+        )
+        .join(' | ');
+      lines.push(
+        [
+          d.date,
+          d.dayLabel,
+          d.status,
+          d.punchIn?.at ? new Date(d.punchIn.at).toLocaleTimeString() : '—',
+          d.punchIn?.address || '—',
+          d.punchOut?.at ? new Date(d.punchOut.at).toLocaleTimeString() : '—',
+          d.distanceKm,
+          d.durationFormatted,
+          d.pointsCount,
+          d.stopsCount,
+          d.leadsCount,
+          stopSummary || '—',
+        ]
+          .map(esc)
+          .join(',')
+      );
+    });
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const dlUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = dlUrl;
+    const safeName = (u.name || 'sales-user').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    a.download = `himalaya-7day-location-${safeName}-${history7dData.range?.from}-to-${history7dData.range?.to}.csv`;
+    a.click();
+    URL.revokeObjectURL(dlUrl);
+  }, [history7dData]);
 
   const updatePlaybackMarker = useCallback(
     (pt) => {
@@ -1236,6 +1622,9 @@ export default function SuperAdminLiveMapPage() {
 
   const filteredUsers = useMemo(() => {
     return allUsers.filter((u) => {
+      // Enforce Active Shift tab filter cleanly
+      if (mode === 'ACTIVE_SHIFTS' && !u.activeShift) return false;
+
       // Department / Role Filter
       if (selectedDepartment !== 'All') {
         const cat = u.roleCategory || getCategoryForRole(u.role);
@@ -1262,11 +1651,68 @@ export default function SuperAdminLiveMapPage() {
 
       return true;
     });
-  }, [allUsers, selectedDepartment, statusFilter, shiftFilter, searchQuery]);
+  }, [allUsers, mode, selectedDepartment, statusFilter, shiftFilter, searchQuery]);
 
   const selectedUser = useMemo(() => {
     return allUsers.find((u) => u.userId === selectedUserId) || null;
   }, [allUsers, selectedUserId]);
+
+  // Smart grouped user list for the 7-Day History dropdown (Sales with telemetry first!)
+  const groupedHistoryUsers = useMemo(() => {
+    const withStats = allUsers.map((u) => {
+      const ov = overview7d[u.userId] || { daysTracked: 0, pointsCount: 0, punchInsCount: 0 };
+      const isSales = (u.roleCategory || getCategoryForRole(u.role)) === 'Sales';
+      return { ...u, ov, isSales };
+    });
+
+    const sortByActivity = (a, b) =>
+      b.ov.pointsCount - a.ov.pointsCount ||
+      b.ov.daysTracked - a.ov.daysTracked ||
+      (a.name || '').localeCompare(b.name || '');
+
+    return {
+      salesActive: withStats.filter((u) => u.isSales && (u.ov.pointsCount > 0 || u.ov.daysTracked > 0)).sort(sortByActivity),
+      otherActive: withStats.filter((u) => !u.isSales && (u.ov.pointsCount > 0 || u.ov.daysTracked > 0)).sort(sortByActivity),
+      noData: withStats.filter((u) => u.ov.pointsCount === 0 && u.ov.daysTracked === 0).sort(sortByActivity),
+    };
+  }, [allUsers, overview7d]);
+
+  // Resolve human-readable address for the currently selected live user (cached)
+  useEffect(() => {
+    const lat = selectedUser?.latestLocation?.latitude;
+    const lng = selectedUser?.latestLocation?.longitude;
+    if (lat == null || lng == null) {
+      setSelectedUserAddress('');
+      return;
+    }
+
+    const key = `${Number(lat).toFixed(4)},${Number(lng).toFixed(4)}`;
+    if (addressCacheRef.current.has(key)) {
+      setSelectedUserAddress(addressCacheRef.current.get(key));
+      return;
+    }
+
+    let cancelled = false;
+    setSelectedUserAddress('Resolving address...');
+    backendFetch(`/location/reverse-geocode?lat=${lat}&lng=${lng}`, { cacheTtlMs: 300000 })
+      .then((res) => {
+        if (cancelled) return;
+        const addr = res?.formattedAddress || res?.data?.formattedAddress || '';
+        if (addr) {
+          addressCacheRef.current.set(key, addr);
+          setSelectedUserAddress(addr);
+        } else {
+          setSelectedUserAddress('');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedUserAddress('');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedUser?.latestLocation?.latitude, selectedUser?.latestLocation?.longitude]);
 
   return (
     <div
@@ -1427,9 +1873,9 @@ export default function SuperAdminLiveMapPage() {
         }}
       >
         {[
-          { id: 'ALL_USERS', label: 'ALL USERS MAP', icon: '🗺️', badge: summaryMetrics.total, desc: 'Real-time tracking for every authorized user' },
+          { id: 'ALL_USERS', label: 'LIVE MAP', icon: '🗺️', badge: summaryMetrics.total, desc: 'Real-time tracking for every authorized user' },
           { id: 'ACTIVE_SHIFTS', label: 'ACTIVE SHIFTS', icon: '🟢', badge: summaryMetrics.onShift, desc: 'Punched-in staff shift paths & distance' },
-          { id: 'ROUTE_HISTORY', label: 'ROUTE HISTORY', icon: '📜', badge: null, desc: 'Historical playback & detected field stops' },
+          { id: 'ROUTE_HISTORY', label: 'LAST 7 DAYS HISTORY', icon: '📅', badge: '7D', desc: '7-day sales movement timeline, stops & playback' },
           { id: 'DEVICE_SESSIONS', label: 'DEVICE SESSIONS', icon: '💻', badge: allUsers.reduce((acc, u) => acc + (u.sessions?.length || 0), 0), desc: 'Hardware presence & browser sessions' },
         ].map((tab) => {
           const isActive = mode === tab.id;
@@ -1817,34 +2263,61 @@ export default function SuperAdminLiveMapPage() {
                           </div>
                         </div>
 
-                        {/* Telemetry & Truth Details */}
+                        {/* Telemetry & Truth Details + 1-Click 7-Day History Button */}
                         <div
                           style={{
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
+                            gap: '6px',
                             fontSize: '11px',
                             color: '#475569',
                             background: isSelected ? '#E0F2FE' : '#F8FAFC',
-                            padding: '4px 8px',
+                            padding: '5px 8px',
                             borderRadius: '6px',
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
                             <Lucide.Clock size={12} color="#64748B" />
-                            <span>GPS: {formatGpsAge(gpsAgeSec)}</span>
-                          </div>
-                          <div>
-                            {u.activeShift ? (
-                              <span style={{ color: '#0284C7', fontWeight: 600 }}>
-                                🟢 Shift: {u.activeShift.totalDistanceKm || 0} km ({u.activeShift.totalStopsCount || 0} stops)
-                              </span>
-                            ) : (
-                              <span style={{ color: '#64748B' }}>
-                                {u.trackingStatus === 'ACTIVE_DEVICE' ? '💻 Web Active' : 'Off-Shift'}
+                            <span>{formatGpsAge(gpsAgeSec)}</span>
+                            {overview7d[u.userId]?.daysTracked > 0 && (
+                              <span
+                                style={{
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  color: '#1D4ED8',
+                                  background: '#DBEAFE',
+                                  padding: '1px 5px',
+                                  borderRadius: '6px',
+                                }}
+                              >
+                                7d: {overview7d[u.userId].daysTracked}d • {overview7d[u.userId].pointsCount} pts
                               </span>
                             )}
                           </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openUser7DayHistory(u.userId);
+                            }}
+                            title="Inspect Last 7 Days Route & Stops"
+                            style={{
+                              background: '#EFF6FF',
+                              border: '1px solid #93C5FD',
+                              borderRadius: '6px',
+                              padding: '2px 7px',
+                              color: '#1D4ED8',
+                              fontSize: '10.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                            }}
+                          >
+                            <Lucide.Calendar size={11} /> 7-Day
+                          </button>
                         </div>
                       </div>
                     );
@@ -1855,28 +2328,55 @@ export default function SuperAdminLiveMapPage() {
           )}
 
           {/* ═══════════════════════════════════════════════════════════════════
-              MODE: ROUTE_HISTORY
+              MODE: ROUTE_HISTORY (LAST 7 DAYS / 14 DAYS / CUSTOM RANGE)
           ═══════════════════════════════════════════════════════════════════ */}
           {mode === 'ROUTE_HISTORY' && (
             <>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>Shift Route Playback</h3>
-                <span style={{ fontSize: '11px', color: '#64748B' }}>
-                  Select an employee and date to inspect movement timeline and detected stops
-                </span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>
+                    Last 7 Days Sales Movement &amp; Stops
+                  </h3>
+                  <span style={{ fontSize: '11px', color: '#64748B' }}>
+                    Unified IST timeline across GPS pings, shifts, stops &amp; CRM leads
+                  </span>
+                </div>
+                {history7dData && history7dData.totals?.daysTracked > 0 && (
+                  <button
+                    onClick={export7DayCsv}
+                    title="Export 7-Day Report as CSV"
+                    style={{
+                      background: '#ECFDF5',
+                      border: '1px solid #6EE7B7',
+                      borderRadius: '6px',
+                      padding: '5px 8px',
+                      color: '#047857',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Lucide.Download size={12} /> CSV
+                  </button>
+                )}
               </div>
 
-              {/* Employee Selector */}
+              {/* Smart Grouped Staff Selector (Sales with active telemetry at top!) */}
               <div>
-                <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '4px' }}>
-                  Select Staff Member:
+                <label style={{ fontSize: '11px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>
+                  Select Sales / Staff Member:
                 </label>
                 <select
                   value={selectedHistoryEmployeeId}
                   onChange={(e) => {
-                    setSelectedHistoryEmployeeId(e.target.value);
-                    if (e.target.value && historyDate) {
-                      loadHistoryRoute(e.target.value, historyDate);
+                    const val = e.target.value;
+                    setSelectedHistoryEmployeeId(val);
+                    if (val) {
+                      void load7DayHistory(val);
                     }
                   }}
                   style={{
@@ -1884,257 +2384,451 @@ export default function SuperAdminLiveMapPage() {
                     padding: '7px 10px',
                     borderRadius: '8px',
                     border: '1px solid #CBD5E1',
-                    fontSize: '12.5px',
+                    fontSize: '12px',
                     color: '#0F172A',
                     background: '#FFFFFF',
+                    fontWeight: 600,
                   }}
                 >
-                  <option value="">-- Choose Employee --</option>
-                  {allEmployees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.fullName || emp.name} ({emp.employeeCode || emp.jobTitle || 'Staff'})
-                    </option>
-                  ))}
+                  <option value="">-- Choose Sales / Staff Member --</option>
+                  {groupedHistoryUsers.salesActive.length > 0 && (
+                    <optgroup label="🛵 Sales Team (Active 7-Day Telemetry)">
+                      {groupedHistoryUsers.salesActive.map((u) => (
+                        <option key={u.userId} value={u.userId}>
+                          {u.name} {u.employeeCode ? `(${u.employeeCode})` : ''} — {u.ov.daysTracked}d • {u.ov.pointsCount} pts
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {groupedHistoryUsers.otherActive.length > 0 && (
+                    <optgroup label="👥 Other Staff (Active 7-Day Telemetry)">
+                      {groupedHistoryUsers.otherActive.map((u) => (
+                        <option key={u.userId} value={u.userId}>
+                          {u.name} ({u.role}) — {u.ov.daysTracked}d • {u.ov.pointsCount} pts
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {groupedHistoryUsers.noData.length > 0 && (
+                    <optgroup label="⚪ Accounts Without 7-Day GPS Data">
+                      {groupedHistoryUsers.noData.map((u) => (
+                        <option key={u.userId} value={u.userId}>
+                          {u.name} {u.employeeCode ? `(${u.employeeCode})` : ''} — 0 pts
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
 
-              {/* Date Selector */}
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <input
-                  type="date"
-                  value={historyDate}
-                  onChange={(e) => {
-                    setHistoryDate(e.target.value);
-                    if (selectedHistoryEmployeeId && e.target.value) {
-                      loadHistoryRoute(selectedHistoryEmployeeId, e.target.value);
-                    }
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: '6px 10px',
-                    borderRadius: '8px',
-                    border: '1px solid #CBD5E1',
-                    fontSize: '12px',
-                  }}
-                />
-                <button
-                  onClick={() => {
-                    const todayStr = getLocalDateString(0);
-                    setHistoryDate(todayStr);
-                    if (selectedHistoryEmployeeId) loadHistoryRoute(selectedHistoryEmployeeId, todayStr);
-                  }}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '8px',
-                    border: '1px solid #CBD5E1',
-                    background: '#F8FAFC',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Today
-                </button>
-                <button
-                  onClick={() => {
-                    const yestStr = getLocalDateString(1);
-                    setHistoryDate(yestStr);
-                    if (selectedHistoryEmployeeId) loadHistoryRoute(selectedHistoryEmployeeId, yestStr);
-                  }}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '8px',
-                    border: '1px solid #CBD5E1',
-                    background: '#F8FAFC',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Yesterday
-                </button>
+              {/* Range Mode Pills: Last 7 Days | Last 14 Days | Custom */}
+              <div style={{ display: 'flex', gap: '5px' }}>
+                {[
+                  { id: '7D', label: 'Last 7 Days' },
+                  { id: '14D', label: 'Last 14 Days' },
+                  { id: 'CUSTOM', label: 'Custom Range' },
+                ].map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => {
+                      setHistoryRangeMode(r.id);
+                      if (selectedHistoryEmployeeId && r.id !== 'CUSTOM') {
+                        void load7DayHistory(selectedHistoryEmployeeId, { mode: r.id });
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '5px 8px',
+                      borderRadius: '7px',
+                      border: `1px solid ${historyRangeMode === r.id ? '#1D4ED8' : '#CBD5E1'}`,
+                      background: historyRangeMode === r.id ? '#EFF6FF' : '#F8FAFC',
+                      color: historyRangeMode === r.id ? '#1D4ED8' : '#475569',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {r.label}
+                  </button>
+                ))}
               </div>
 
-              {/* History Content */}
+              {historyRangeMode === 'CUSTOM' && (
+                <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                  <input
+                    type="date"
+                    value={historyFromDate}
+                    onChange={(e) => setHistoryFromDate(e.target.value)}
+                    style={{ flex: 1, padding: '5px 6px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '11px' }}
+                  />
+                  <span style={{ fontSize: '11px', color: '#64748B' }}>to</span>
+                  <input
+                    type="date"
+                    value={historyToDate}
+                    onChange={(e) => setHistoryToDate(e.target.value)}
+                    style={{ flex: 1, padding: '5px 6px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '11px' }}
+                  />
+                  <button
+                    onClick={() => {
+                      if (selectedHistoryEmployeeId) {
+                        void load7DayHistory(selectedHistoryEmployeeId, {
+                          mode: 'CUSTOM',
+                          from: historyFromDate,
+                          to: historyToDate,
+                        });
+                      }
+                    }}
+                    style={{
+                      background: '#2563EB',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '5px 10px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Go
+                  </button>
+                </div>
+              )}
+
+              {/* 7-Day Content Body */}
               {historyLoading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '30px', color: '#94A3B8' }}>
-                  <Lucide.Loader2 className="animate-spin" size={24} />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px', color: '#64748B', gap: '8px', fontSize: '12px' }}>
+                  <Lucide.Loader2 className="animate-spin" size={24} color="#2563EB" />
+                  <span>Loading 7-day telemetry, stops &amp; addresses...</span>
                 </div>
               ) : historyError ? (
                 <div style={{ padding: '14px', borderRadius: '8px', background: '#FEF2F2', border: '1px solid #FECDD3', color: '#991B1B', fontSize: '12px' }}>
                   <Lucide.AlertCircle size={15} style={{ display: 'inline', marginRight: '6px' }} />
                   {historyError}
                 </div>
-              ) : historyData && historyData.points?.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', flex: 1 }}>
-                  {/* Shift Stats Card */}
+              ) : history7dData ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', flex: 1, paddingRight: '2px' }}>
+                  {/* 7-Day Summary KPI Strip */}
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '1fr 1fr 1fr',
-                      gap: '6px',
-                      background: '#F0F9FF',
+                      gridTemplateColumns: 'repeat(4, 1fr)',
+                      gap: '5px',
+                      background: 'linear-gradient(135deg, #EFF6FF, #F0F9FF)',
                       border: '1px solid #BAE6FD',
                       borderRadius: '8px',
                       padding: '8px',
-                      fontSize: '11px',
+                      textAlign: 'center',
                     }}
                   >
                     <div>
-                      <span style={{ color: '#0369A1', display: 'block', fontSize: '10px', fontWeight: 600 }}>DISTANCE</span>
-                      <strong style={{ color: '#0F172A', fontSize: '13px' }}>{historyData.session?.totalDistanceKm || 0} km</strong>
+                      <span style={{ color: '#0369A1', display: 'block', fontSize: '9.5px', fontWeight: 700 }}>TOTAL KM</span>
+                      <strong style={{ color: '#0F172A', fontSize: '13px' }}>{history7dData.totals?.totalDistanceKm || 0}</strong>
                     </div>
                     <div>
-                      <span style={{ color: '#0369A1', display: 'block', fontSize: '10px', fontWeight: 600 }}>DURATION</span>
-                      <strong style={{ color: '#0F172A', fontSize: '13px' }}>{historyData.session?.durationFormatted || '—'}</strong>
+                      <span style={{ color: '#0369A1', display: 'block', fontSize: '9.5px', fontWeight: 700 }}>TRACKED</span>
+                      <strong style={{ color: '#15803D', fontSize: '13px' }}>
+                        {history7dData.totals?.daysTracked || 0}/{history7dData.range?.daysCount || 7}d
+                      </strong>
                     </div>
                     <div>
-                      <span style={{ color: '#0369A1', display: 'block', fontSize: '10px', fontWeight: 600 }}>STOPS</span>
-                      <strong style={{ color: '#D97706', fontSize: '13px' }}>{historyData.stops?.length || 0} stops</strong>
+                      <span style={{ color: '#0369A1', display: 'block', fontSize: '9.5px', fontWeight: 700 }}>STOPS</span>
+                      <strong style={{ color: '#D97706', fontSize: '13px' }}>{history7dData.totals?.totalStops || 0}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#0369A1', display: 'block', fontSize: '9.5px', fontWeight: 700 }}>LEADS</span>
+                      <strong style={{ color: '#6D28D9', fontSize: '13px' }}>{history7dData.totals?.totalLeadsCaptured || 0}</strong>
                     </div>
                   </div>
 
-                  {/* Playback Controls */}
-                  <div
+                  {/* All Days Combined Toggle */}
+                  <button
+                    onClick={() => selectHistoryDay('ALL')}
                     style={{
-                      background: '#FFFFFF',
-                      border: '1px solid #E2E8F0',
-                      borderRadius: '8px',
-                      padding: '10px',
+                      width: '100%',
+                      padding: '6px 10px',
+                      borderRadius: '7px',
+                      border: `1.5px solid ${activeHistoryDayDate === 'ALL' ? '#1E3A8A' : '#CBD5E1'}`,
+                      background: activeHistoryDayDate === 'ALL' ? '#1E3A8A' : '#FFFFFF',
+                      color: activeHistoryDayDate === 'ALL' ? '#FFFFFF' : '#0F172A',
+                      fontSize: '11.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
                       display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#0F172A' }}>Playback Controls</span>
-                      <div style={{ display: 'flex', gap: '4px' }}>
-                        {[1, 2, 5, 10].map((spd) => (
-                          <button
-                            key={spd}
-                            onClick={() => setPlaybackSpeed(spd)}
-                            style={{
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              border: `1px solid ${playbackSpeed === spd ? '#2563EB' : '#E2E8F0'}`,
-                              background: playbackSpeed === spd ? '#EFF6FF' : '#F8FAFC',
-                              color: playbackSpeed === spd ? '#1D4ED8' : '#64748B',
-                              fontSize: '10px',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            {spd}x
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    <Lucide.Layers size={13} />
+                    Show All {history7dData.range?.daysCount || 7} Days Combined (Color-Coded)
+                  </button>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <button
-                        onClick={() => {
-                          if (playbackIndex >= (historyData.points?.length || 1) - 1) {
-                            setPlaybackIndex(0);
-                          }
-                          setIsPlaying(!isPlaying);
-                        }}
-                        style={{
-                          background: isPlaying ? '#EF4444' : '#2563EB',
-                          color: '#FFFFFF',
-                          border: 'none',
-                          borderRadius: '6px',
-                          padding: '6px 12px',
-                          fontSize: '11.5px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        {isPlaying ? <Lucide.Pause size={14} /> : <Lucide.Play size={14} />}
-                        {isPlaying ? 'Pause' : 'Play'}
-                      </button>
-
-                      <input
-                        type="range"
-                        min={0}
-                        max={historyData.points.length - 1}
-                        value={playbackIndex}
-                        onChange={(e) => {
-                          const idx = Number(e.target.value);
-                          setPlaybackIndex(idx);
-                          updatePlaybackMarker(historyData.points[idx]);
-                        }}
-                        style={{ flex: 1 }}
-                      />
-                    </div>
-
-                    {historyData.points[playbackIndex] && (
-                      <div style={{ fontSize: '11px', color: '#64748B', display: 'flex', justifyContent: 'space-between' }}>
-                        <span>
-                          Time: <strong style={{ color: '#0F172A' }}>{new Date(historyData.points[playbackIndex].recordedAt).toLocaleTimeString()}</strong>
-                        </span>
-                        <span>
-                          Speed: <strong style={{ color: '#0284C7' }}>{Math.round(historyData.points[playbackIndex].speed || 0)} km/h</strong>
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Detected Stops List */}
-                  {historyData.stops && historyData.stops.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#0F172A' }}>Field Stationary Stops</div>
-                      {historyData.stops.map((st) => (
+                  {/* Interactive 7-Day Calendar Cards (newest day first for quick access) */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    {[...history7dData.days].reverse().map((day) => {
+                      const origIdx = history7dData.days.findIndex((d) => d.date === day.date);
+                      const dayColor = DAY_ROUTE_COLORS[origIdx % DAY_ROUTE_COLORS.length];
+                      const isDaySelected = activeHistoryDayDate === day.date;
+                      return (
                         <div
-                          key={st.stopNumber}
+                          key={day.date}
+                          onClick={() => {
+                            if (day.hasData) selectHistoryDay(day.date);
+                          }}
                           style={{
-                            background: '#FFFBEB',
-                            border: '1px solid #FCD34D',
-                            borderRadius: '6px',
-                            padding: '6px 10px',
-                            fontSize: '11px',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
+                            border: `1.5px solid ${isDaySelected ? dayColor : '#E2E8F0'}`,
+                            borderLeft: `4px solid ${day.hasData ? dayColor : '#CBD5E1'}`,
+                            background: isDaySelected ? '#F0F9FF' : day.hasData ? '#FFFFFF' : '#F8FAFC',
+                            borderRadius: '8px',
+                            padding: '7px 10px',
+                            cursor: day.hasData ? 'pointer' : 'default',
+                            opacity: day.hasData ? 1 : 0.65,
                           }}
                         >
-                          <div>
-                            <strong style={{ color: '#B45309' }}>Stop #{st.stopNumber}</strong> ({st.durationMinutes} min)
-                            <div style={{ color: '#64748B', fontSize: '10px' }}>
-                              {new Date(st.arrivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} –{' '}
-                              {new Date(st.departedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>{day.dayLabel}</span>
+                              {day.punchIn && (
+                                <span style={{ fontSize: '9.5px', fontWeight: 700, background: '#DCFCE7', color: '#166534', padding: '1px 5px', borderRadius: '6px' }}>
+                                  In {new Date(day.punchIn.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
                             </div>
+                            <span style={{ fontSize: '11.5px', fontWeight: 800, color: day.hasData ? '#0F172A' : '#94A3B8' }}>
+                              {day.hasData ? `${day.distanceKm} km` : 'No Activity'}
+                            </span>
                           </div>
-                          <button
-                            onClick={() => {
-                              if (mapInstanceRef.current) {
-                                mapInstanceRef.current.panTo({ lat: Number(st.latitude), lng: Number(st.longitude) });
-                                mapInstanceRef.current.setZoom(16);
-                              }
-                            }}
-                            style={{
-                              background: '#F59E0B',
-                              color: '#FFFFFF',
-                              border: 'none',
-                              borderRadius: '4px',
-                              padding: '3px 7px',
-                              fontSize: '10px',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Zoom
-                          </button>
+                          {day.hasData && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px', color: '#64748B', marginTop: '3px' }}>
+                              <span>⏱ {day.durationFormatted} • 📍 {day.pointsCount} pts</span>
+                              <span>
+                                {day.stopsCount > 0 && <strong style={{ color: '#B45309', marginRight: '6px' }}>🛑 {day.stopsCount} stops</strong>}
+                                {day.leadsCount > 0 && <strong style={{ color: '#6D28D9' }}>🏢 {day.leadsCount} leads</strong>}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      ))}
+                      );
+                    })}
+                  </div>
+
+                  {/* Single-Day Playback Controls, Stops & CRM Leads */}
+                  {historyData && historyData.points?.length > 0 && (
+                    <div
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1.5px solid #93C5FD',
+                        borderRadius: '8px',
+                        padding: '10px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#1E3A8A' }}>
+                          ▶ Playback — {historyData.dayLabel}
+                        </span>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          {[1, 2, 5, 10].map((spd) => (
+                            <button
+                              key={spd}
+                              onClick={() => setPlaybackSpeed(spd)}
+                              style={{
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                border: `1px solid ${playbackSpeed === spd ? '#2563EB' : '#E2E8F0'}`,
+                                background: playbackSpeed === spd ? '#EFF6FF' : '#F8FAFC',
+                                color: playbackSpeed === spd ? '#1D4ED8' : '#64748B',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {spd}x
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          onClick={() => {
+                            if (playbackIndex >= (historyData.points?.length || 1) - 1) {
+                              setPlaybackIndex(0);
+                            }
+                            setIsPlaying(!isPlaying);
+                          }}
+                          style={{
+                            background: isPlaying ? '#EF4444' : '#2563EB',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '6px 12px',
+                            fontSize: '11.5px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                          }}
+                        >
+                          {isPlaying ? <Lucide.Pause size={13} /> : <Lucide.Play size={13} />}
+                          {isPlaying ? 'Pause' : 'Play'}
+                        </button>
+
+                        <input
+                          type="range"
+                          min={0}
+                          max={Math.max(0, historyData.points.length - 1)}
+                          value={Math.min(playbackIndex, Math.max(0, historyData.points.length - 1))}
+                          onChange={(e) => {
+                            const idx = Number(e.target.value);
+                            setPlaybackIndex(idx);
+                            updatePlaybackMarker(historyData.points[idx]);
+                          }}
+                          style={{ flex: 1 }}
+                        />
+                      </div>
+
+                      {historyData.points[playbackIndex] && (
+                        <div style={{ fontSize: '10.5px', color: '#64748B', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
+                          <span>
+                            🕒 <strong style={{ color: '#0F172A' }}>{new Date(historyData.points[playbackIndex].recordedAt).toLocaleTimeString()}</strong>
+                          </span>
+                          <span>
+                            🚀 <strong style={{ color: '#0284C7' }}>{Math.round(historyData.points[playbackIndex].speed || 0)} km/h</strong>
+                          </span>
+                          <span>
+                            🎯 <strong style={{ color: '#475569' }}>±{Math.round(historyData.points[playbackIndex].accuracy || 15)}m</strong>
+                          </span>
+                          {historyData.points[playbackIndex].batteryLevel != null && (
+                            <span>
+                              🔋 <strong style={{ color: '#15803D' }}>{Math.round(historyData.points[playbackIndex].batteryLevel)}%</strong>
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Detected Stops for Focused Day */}
+                      {historyData.stops && historyData.stops.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '4px' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#92400E' }}>
+                            🛑 Field Stops ({historyData.stops.length})
+                          </div>
+                          {historyData.stops.map((st) => (
+                            <div
+                              key={st.stopNumber}
+                              style={{
+                                background: '#FFFBEB',
+                                border: '1px solid #FCD34D',
+                                borderRadius: '6px',
+                                padding: '6px 8px',
+                                fontSize: '10.5px',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                gap: '6px',
+                              }}
+                            >
+                              <div style={{ minWidth: 0 }}>
+                                <strong style={{ color: '#B45309' }}>Stop #{st.stopNumber}</strong> ({st.durationMinutes} min)
+                                <div style={{ color: '#475569', fontSize: '10px', marginTop: '1px' }}>
+                                  {new Date(st.arrivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} –{' '}
+                                  {new Date(st.departedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                                {st.address && (
+                                  <div style={{ color: '#64748B', fontSize: '9.8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '250px' }} title={st.address}>
+                                    📍 {st.address}
+                                  </div>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => {
+                                  if (mapInstanceRef.current) {
+                                    mapInstanceRef.current.panTo({ lat: Number(st.latitude), lng: Number(st.longitude) });
+                                    mapInstanceRef.current.setZoom(16);
+                                  }
+                                }}
+                                style={{
+                                  background: '#F59E0B',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  padding: '3px 7px',
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                Zoom
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* CRM Leads Captured on Focused Day */}
+                      {historyData.leads && historyData.leads.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '4px' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#5B21B6' }}>
+                            🏢 CRM Leads Captured ({historyData.leads.length})
+                          </div>
+                          {historyData.leads.map((l) => (
+                            <div
+                              key={l.id}
+                              style={{
+                                background: '#F5F3FF',
+                                border: '1px solid #C4B5FD',
+                                borderRadius: '6px',
+                                padding: '5px 8px',
+                                fontSize: '10.5px',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <div>
+                                <strong style={{ color: '#5B21B6' }}>{l.companyName}</strong>
+                                <div style={{ color: '#64748B', fontSize: '10px' }}>
+                                  {new Date(l.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {l.contactPerson || 'Lead'}
+                                </div>
+                              </div>
+                              {l.latitude != null && l.longitude != null && (
+                                <button
+                                  onClick={() => {
+                                    if (mapInstanceRef.current) {
+                                      mapInstanceRef.current.panTo({ lat: Number(l.latitude), lng: Number(l.longitude) });
+                                      mapInstanceRef.current.setZoom(16);
+                                    }
+                                  }}
+                                  style={{
+                                    background: '#7C3AED',
+                                    color: '#FFFFFF',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    padding: '3px 7px',
+                                    fontSize: '10px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  Pin
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               ) : (
-                <div style={{ textAlign: 'center', padding: '30px 10px', color: '#64748B', fontSize: '12px' }}>
-                  Please select an employee and date to inspect recorded GPS shift telemetry.
+                <div style={{ textAlign: 'center', padding: '28px 12px', color: '#64748B', fontSize: '12px', background: '#F8FAFC', borderRadius: '8px', border: '1px dashed #CBD5E1' }}>
+                  <Lucide.Calendar size={28} color="#2563EB" style={{ margin: '0 auto 8px auto', opacity: 0.85 }} />
+                  <div style={{ fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>Select a Sales Executive</div>
+                  Pick any employee above (or click <strong>7-Day</strong> on any card) to inspect their last 7 days of routes, distances, field stops &amp; CRM leads.
                 </div>
               )}
             </>
@@ -2471,6 +3165,27 @@ export default function SuperAdminLiveMapPage() {
                 </div>
               )}
 
+              {/* Resolved Human-Readable Address Banner */}
+              {selectedUserAddress && (
+                <div
+                  style={{
+                    background: '#F0F9FF',
+                    border: '1px solid #BAE6FD',
+                    borderRadius: '7px',
+                    padding: '6px 9px',
+                    fontSize: '11px',
+                    color: '#0C4A6E',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '6px',
+                    lineHeight: 1.35,
+                  }}
+                >
+                  <Lucide.MapPin size={13} color="#0284C7" style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <span>{selectedUserAddress}</span>
+                </div>
+              )}
+
               {/* Actions Footer */}
               <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
                 {selectedUser.activeShift && (
@@ -2492,35 +3207,29 @@ export default function SuperAdminLiveMapPage() {
                       gap: '4px',
                     }}
                   >
-                    <Lucide.Route size={13} /> View Shift Route
+                    <Lucide.Route size={13} /> Today&apos;s Shift
                   </button>
                 )}
-                {selectedUser.employeeId && (
-                  <button
-                    onClick={() => {
-                      setMode('ROUTE_HISTORY');
-                      setSelectedHistoryEmployeeId(selectedUser.employeeId);
-                      loadHistoryRoute(selectedUser.employeeId, historyDate);
-                    }}
-                    style={{
-                      flex: 1,
-                      background: '#F8FAFC',
-                      border: '1px solid #CBD5E1',
-                      borderRadius: '6px',
-                      padding: '6px',
-                      color: '#0F172A',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '4px',
-                    }}
-                  >
-                    <Lucide.History size={13} /> History Playback
-                  </button>
-                )}
+                <button
+                  onClick={() => openUser7DayHistory(selectedUser.userId)}
+                  style={{
+                    flex: 1,
+                    background: '#1E3A8A',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    color: '#FFFFFF',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <Lucide.Calendar size={13} /> View Last 7 Days
+                </button>
               </div>
             </div>
           )}

@@ -71,6 +71,62 @@ export const useLocationTracking = () => {
 const LOCATION_SEND_INTERVAL_MS = 15000;
 const LOCATION_MIN_DISTANCE_METERS = 10;
 const HEARTBEAT_INTERVAL_MS = 25000;
+const OFFLINE_QUEUE_KEY = 'himalaya_gps_offline_queue_v1';
+const OFFLINE_QUEUE_MAX_POINTS = 200;
+
+interface QueuedGpsPoint {
+  clientPointId: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number | null;
+  altitude?: number | null;
+  speed?: number | null;
+  heading?: number | null;
+  batteryLevel?: number | null;
+  recordedAt: string;
+  source: string;
+}
+
+function readOfflineQueue(): QueuedGpsPoint[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(OFFLINE_QUEUE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeOfflineQueue(points: QueuedGpsPoint[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    const trimmed = points.slice(-OFFLINE_QUEUE_MAX_POINTS);
+    if (trimmed.length === 0) {
+      window.localStorage.removeItem(OFFLINE_QUEUE_KEY);
+    } else {
+      window.localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(trimmed));
+    }
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
+function enqueueOfflinePoint(pt: QueuedGpsPoint) {
+  const queue = readOfflineQueue();
+  queue.push(pt);
+  writeOfflineQueue(queue);
+}
+
+function isFlutterApkBridge(): boolean {
+  if (typeof window === 'undefined') return false;
+  const w = window as any;
+  return Boolean(
+    w?.flutter_inappwebview &&
+      typeof w.flutter_inappwebview.callHandler === 'function',
+  );
+}
 
 export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const pathname = usePathname();
@@ -113,6 +169,173 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
   const socketRef = useRef<Socket | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const lastLocationRef = useRef<{ latitude: number; longitude: number; time: number } | null>(null);
+  const batteryLevelRef = useRef<number | null>(null);
+  const flushingQueueRef = useRef<boolean>(false);
+
+  // Sample device battery percentage when supported by browser
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const nav = window.navigator as any;
+    if (typeof nav?.getBattery !== 'function') return;
+    let batteryObj: any = null;
+    const updateBattery = () => {
+      if (batteryObj && typeof batteryObj.level === 'number') {
+        batteryLevelRef.current = Math.round(batteryObj.level * 100);
+      }
+    };
+    nav
+      .getBattery()
+      .then((bat: any) => {
+        batteryObj = bat;
+        updateBattery();
+        bat.addEventListener?.('levelchange', updateBattery);
+      })
+      .catch(() => {});
+    return () => {
+      batteryObj?.removeEventListener?.('levelchange', updateBattery);
+    };
+  }, []);
+
+  // Flush queued offline GPS points when connectivity returns
+  const flushOfflineQueue = useCallback(async () => {
+    if (flushingQueueRef.current || !sessionIdRef.current) return;
+    const queued = readOfflineQueue();
+    if (queued.length === 0) return;
+
+    flushingQueueRef.current = true;
+    try {
+      const res = await backendFetch<{ success?: boolean }>('/location/track/web-batch', {
+        method: 'POST',
+        body: {
+          sessionId: sessionIdRef.current,
+          points: queued,
+        },
+      });
+      if (res?.success !== false) {
+        // Remove only the points we flushed (preserve any newly queued points during flight)
+        const remaining = readOfflineQueue().slice(queued.length);
+        writeOfflineQueue(remaining);
+      }
+    } catch {
+      // Keep in queue for next retry when online
+    } finally {
+      flushingQueueRef.current = false;
+    }
+  }, []);
+
+  // Reusable point transmission helper (normalizes m/s -> km/h + offline queue fallback)
+  const sendCoordinatePoint = useCallback(
+    (coords: {
+      latitude: number;
+      longitude: number;
+      accuracy?: number | null;
+      altitude?: number | null;
+      speedMps?: number | null;
+      heading?: number | null;
+      timestamp?: number;
+      force?: boolean;
+    }) => {
+      const { latitude, longitude, accuracy, altitude, speedMps, heading, force } = coords;
+      const now = Date.now();
+      const capturedMs = coords.timestamp || now;
+
+      if (!force && lastLocationRef.current) {
+        const distance = getDistanceMeters(
+          latitude,
+          longitude,
+          lastLocationRef.current.latitude,
+          lastLocationRef.current.longitude,
+        );
+        const timeElapsed = now - lastLocationRef.current.time;
+        if (distance < LOCATION_MIN_DISTANCE_METERS && timeElapsed < LOCATION_SEND_INTERVAL_MS) {
+          return;
+        }
+      }
+
+      lastLocationRef.current = { latitude, longitude, time: now };
+
+      // Convert browser speed (m/s) -> km/h cleanly
+      const speedKmh =
+        speedMps != null && !isNaN(speedMps) && speedMps >= 0
+          ? Math.round(speedMps * 3.6 * 10) / 10
+          : null;
+
+      try {
+        const latDir = latitude >= 0 ? 'N' : 'S';
+        const lngDir = longitude >= 0 ? 'E' : 'W';
+        const coordsStr = `${Math.abs(latitude).toFixed(4)}° ${latDir}, ${Math.abs(longitude).toFixed(4)}° ${lngDir}`;
+        const locObj = {
+          latitude,
+          longitude,
+          accuracy,
+          coordsStr,
+          timestamp: capturedMs,
+          acquiredAt: now,
+        };
+        localStorage.setItem('himalaya_last_real_location', JSON.stringify(locObj));
+        sessionStorage.setItem('himalaya_last_real_location', JSON.stringify(locObj));
+        sessionStorage.setItem('himalaya_last_lat', String(latitude));
+        sessionStorage.setItem('himalaya_last_lng', String(longitude));
+        sessionStorage.setItem('himalaya_last_loc_accuracy', String(accuracy ?? ''));
+        sessionStorage.setItem('himalaya_last_loc_time', String(now));
+      } catch {
+        // ignore storage restrictions
+      }
+
+      const capturedIso = new Date(capturedMs).toISOString();
+      const payload = {
+        sessionId: sessionIdRef.current,
+        latitude,
+        longitude,
+        accuracy,
+        altitude,
+        speed: speedKmh,
+        heading,
+        batteryLevel: batteryLevelRef.current,
+        capturedAt: capturedIso,
+      };
+
+      const offlineRecord: QueuedGpsPoint = {
+        clientPointId:
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `web-${now}-${Math.random().toString(36).slice(2, 8)}`,
+        latitude,
+        longitude,
+        accuracy: accuracy ?? null,
+        altitude: altitude ?? null,
+        speed: speedKmh,
+        heading: heading ?? null,
+        batteryLevel: batteryLevelRef.current,
+        recordedAt: capturedIso,
+        source: isFlutterApkBridge() ? 'MOBILE_APP' : 'WEB_REALTIME',
+      };
+
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        enqueueOfflinePoint(offlineRecord);
+        return;
+      }
+
+      if (sessionIdRef.current) {
+        void submitLocation(socketRef.current, payload, (location: typeof payload) => {
+          if (sessionIdRef.current !== location.sessionId) return Promise.resolve();
+          return backendFetch('/location/location-update', {
+            method: 'POST',
+            body: location,
+          });
+        })
+          .then(() => {
+            void flushOfflineQueue();
+          })
+          .catch((error: unknown) => {
+            if (lastLocationRef.current?.time === now) lastLocationRef.current = null;
+            enqueueOfflinePoint(offlineRecord);
+            console.warn('[LocationTracking] GPS update queued offline:', error);
+          });
+      }
+    },
+    [flushOfflineQueue],
+  );
 
   // Generate or fetch a persistent unique Device ID
   const getDeviceId = () => {
@@ -153,6 +376,65 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
     }
   }, []);
 
+  // Immediate one-shot GPS fix (used on tab wake / resume / online recovery + Flutter bridge)
+  const captureImmediateFix = useCallback(
+    async (force = false) => {
+      if (typeof window === 'undefined' || !sessionIdRef.current) return;
+
+      // 1. Flutter Android APK Native Bridge if present
+      if (isFlutterApkBridge()) {
+        try {
+          const w = window as any;
+          const res = await Promise.race([
+            w.flutter_inappwebview.callHandler('requestLocation'),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 12000)),
+          ]);
+          const lat = res?.latitude ?? res?.coords?.latitude;
+          const lng = res?.longitude ?? res?.coords?.longitude;
+          if (lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
+            setPermissionState('GRANTED');
+            sendCoordinatePoint({
+              latitude: Number(lat),
+              longitude: Number(lng),
+              accuracy: res?.accuracy ?? res?.coords?.accuracy ?? 15,
+              altitude: res?.altitude ?? res?.coords?.altitude ?? null,
+              speedMps: res?.speed ?? res?.coords?.speed ?? null,
+              heading: res?.heading ?? res?.coords?.heading ?? null,
+              timestamp: Date.now(),
+              force,
+            });
+            return;
+          }
+        } catch {
+          // Fall through to standard geolocation API
+        }
+      }
+
+      // 2. Standard browser Geolocation API
+      if (!window.navigator?.geolocation) return;
+      window.navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setPermissionState('GRANTED');
+          sendCoordinatePoint({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            altitude: pos.coords.altitude,
+            speedMps: pos.coords.speed,
+            heading: pos.coords.heading,
+            timestamp: pos.timestamp || Date.now(),
+            force,
+          });
+        },
+        () => {
+          // Non-fatal on wake; watchPosition will handle persistent errors
+        },
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 12000 },
+      );
+    },
+    [sendCoordinatePoint, setPermissionState],
+  );
+
   const startTracking = useCallback(() => {
     if (typeof window === 'undefined' || !window.navigator.geolocation) {
       setPermissionState('UNSUPPORTED');
@@ -167,72 +449,22 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
       window.navigator.geolocation.clearWatch(watchIdRef.current);
     }
 
+    // Immediate fix on start + flush any queued offline points
+    void captureImmediateFix(true);
+    void flushOfflineQueue();
+
     watchIdRef.current = window.navigator.geolocation.watchPosition(
       (pos) => {
         setPermissionState('GRANTED');
-        const { latitude, longitude, accuracy, altitude, speed, heading } = pos.coords;
-        const now = Date.now();
-
-        // Throttle check
-        const last = lastLocationRef.current;
-        if (last) {
-          const distance = getDistanceMeters(latitude, longitude, last.latitude, last.longitude);
-          const timeElapsed = now - last.time;
-
-          if (distance < LOCATION_MIN_DISTANCE_METERS && timeElapsed < LOCATION_SEND_INTERVAL_MS) {
-            // Drop coordinate update to conserve bandwidth
-            return;
-          }
-        }
-
-        lastLocationRef.current = { latitude, longitude, time: now };
-
-        try {
-          const latDir = latitude >= 0 ? 'N' : 'S';
-          const lngDir = longitude >= 0 ? 'E' : 'W';
-          const coordsStr = `${Math.abs(latitude).toFixed(4)}° ${latDir}, ${Math.abs(longitude).toFixed(4)}° ${lngDir}`;
-          const locObj = {
-            latitude,
-            longitude,
-            accuracy,
-            coordsStr,
-            timestamp: pos.timestamp || now,
-            acquiredAt: now
-          };
-          localStorage.setItem('himalaya_last_real_location', JSON.stringify(locObj));
-          sessionStorage.setItem('himalaya_last_real_location', JSON.stringify(locObj));
-          sessionStorage.setItem('himalaya_last_lat', String(latitude));
-          sessionStorage.setItem('himalaya_last_lng', String(longitude));
-          sessionStorage.setItem('himalaya_last_loc_accuracy', String(accuracy));
-          sessionStorage.setItem('himalaya_last_loc_time', String(now));
-        } catch {
-          // ignore
-        }
-
-        const payload = {
-          sessionId: sessionIdRef.current,
-          latitude,
-          longitude,
-          accuracy,
-          altitude,
-          speed,
-          heading,
-          capturedAt: new Date(pos.timestamp).toISOString(),
-        };
-
-        if (sessionIdRef.current) {
-          void submitLocation(socketRef.current, payload, (location: typeof payload) => {
-            // Do not submit a delayed fallback under a different login/session.
-            if (sessionIdRef.current !== location.sessionId) return Promise.resolve();
-            return backendFetch('/location/location-update', {
-              method: 'POST',
-              body: location,
-            });
-          }).catch((error: unknown) => {
-            if (lastLocationRef.current?.time === now) lastLocationRef.current = null;
-            console.warn('[LocationTracking] GPS update was not saved:', error);
-          });
-        }
+        sendCoordinatePoint({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          altitude: pos.coords.altitude,
+          speedMps: pos.coords.speed,
+          heading: pos.coords.heading,
+          timestamp: pos.timestamp || Date.now(),
+        });
       },
       (err) => {
         console.warn('Geolocation watch error:', err.message);
@@ -246,7 +478,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
       },
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
     );
-  }, [syncPermission, setPermissionState]);
+  }, [syncPermission, setPermissionState, sendCoordinatePoint, captureImmediateFix, flushOfflineQueue]);
 
   useEffect(() => {
     if (!isAuthenticated || !accessToken) {
@@ -266,6 +498,8 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
     const { browser, os, deviceType } = parseUserAgent();
     const cleanToken = accessToken.replace(/^Bearer\s+/i, '').trim();
 
+    const clientType = isFlutterApkBridge() ? 'MOBILE_APP' : 'WEB';
+
     // 1. Authoritative Immediate REST Session Registration
     const registerDeviceViaRest = async () => {
       try {
@@ -276,7 +510,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
             deviceType,
             browser,
             operatingSystem: os,
-            clientType: 'WEB',
+            clientType,
             locationPermission: permissionStateRef.current,
           },
         });
@@ -364,8 +598,37 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
 
     const heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
 
+    // 4. Instant wake / focus / online recovery so unlocking phone immediately pushes fresh GPS + flushes offline queue
+    const handleVisibilityResume = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        sendHeartbeat();
+        void captureImmediateFix(true);
+        void flushOfflineQueue();
+      }
+    };
+    const handleOnlineRecovery = () => {
+      sendHeartbeat();
+      void flushOfflineQueue();
+      void captureImmediateFix(true);
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityResume);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleVisibilityResume);
+      window.addEventListener('online', handleOnlineRecovery);
+    }
+
     return () => {
       clearInterval(heartbeatTimer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityResume);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleVisibilityResume);
+        window.removeEventListener('online', handleOnlineRecovery);
+      }
       socket.disconnect();
       socketRef.current = null;
       if (watchIdRef.current !== null && typeof window !== 'undefined') {
@@ -373,7 +636,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
         watchIdRef.current = null;
       }
     };
-  }, [isAuthenticated, accessToken, startTracking]);
+  }, [isAuthenticated, accessToken, startTracking, captureImmediateFix, flushOfflineQueue]);
 
   return (
     <LocationTrackingContext.Provider value={{ sessionId, permissionState, showNotice, acknowledgeNotice }}>

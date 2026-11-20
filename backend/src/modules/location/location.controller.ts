@@ -46,14 +46,19 @@ export class LocationController {
   }
 
   /**
-   * REST fallback to update location coordinates
+   * REST fallback to update location coordinates (also broadcasts to live WebSocket room)
    */
   @Post('location-update')
   async updateLocation(
     @CurrentUser() user: any,
     @Body() dto: UpdateLocationDto,
   ) {
-    return this.locationService.updateLocation(user.sub, user.companyId, dto);
+    return this.locationService.updateLocation(
+      user.sub,
+      user.companyId,
+      dto,
+      true,
+    );
   }
 
   /**

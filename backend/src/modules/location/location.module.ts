@@ -4,6 +4,7 @@ import { LocationController } from './location.controller';
 import { LocationGateway } from './location.gateway';
 import { LocationTrackingService } from './location-tracking.service';
 import { LocationTrackingController } from './location-tracking.controller';
+import { LocationSchedulerService } from './location-scheduler.service';
 import { PrismaModule } from '../../database/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -29,7 +30,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     }),
   ],
   controllers: [LocationController, LocationTrackingController],
-  providers: [LocationService, LocationGateway, LocationTrackingService],
+  providers: [
+    LocationService,
+    LocationGateway,
+    LocationTrackingService,
+    LocationSchedulerService,
+  ],
   exports: [LocationService, LocationTrackingService],
 })
 export class LocationModule {}
