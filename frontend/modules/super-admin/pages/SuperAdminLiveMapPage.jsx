@@ -398,6 +398,8 @@ export default function SuperAdminLiveMapPage() {
   const [playbackIndex, setPlaybackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [routeRenderMode, setRouteRenderMode] = useState('GPS'); // 'GPS' | 'ROADS'
+  const [roadRouteInfo, setRoadRouteInfo] = useState(null); // { km, duration, loading, error }
 
   // Filters & Search (Sales Team focused by default, All Staff 1 click away)
   const [searchQuery, setSearchQuery] = useState('');
@@ -414,6 +416,7 @@ export default function SuperAdminLiveMapPage() {
   const leadMarkersRef = useRef([]); // CRM Lead Check-in Markers
   const multiPolylinesRef = useRef([]); // Multi-Day 7d Polylines
   const activePolylineRef = useRef(null); // Active Route Polyline
+  const directionsRendererRef = useRef(null); // Optional Google Roads DirectionsRenderer
   const startMarkerRef = useRef(null);
   const endMarkerRef = useRef(null);
   const playbackMarkerRef = useRef(null);
@@ -480,6 +483,11 @@ export default function SuperAdminLiveMapPage() {
       activePolylineRef.current.setMap(null);
       activePolylineRef.current = null;
     }
+    if (directionsRendererRef.current) {
+      directionsRendererRef.current.setMap(null);
+      directionsRendererRef.current = null;
+    }
+    setRoadRouteInfo(null);
     if (multiPolylinesRef.current && multiPolylinesRef.current.length > 0) {
       multiPolylinesRef.current.forEach((p) => p.setMap(null));
       multiPolylinesRef.current = [];
@@ -901,7 +909,7 @@ export default function SuperAdminLiveMapPage() {
 
   // ─── 5. 7-DAY & SINGLE-DAY HISTORICAL ROUTE LOADER & PLAYBACK ──────────────
   const drawHistoryRoute = useCallback(
-    (points, stops, session, leads = [], strokeColor = '#0284C7') => {
+    (points, stops, session, leads = [], strokeColor = '#0284C7', renderMode = 'GPS') => {
       if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps) return;
 
       clearAllOverlays();
@@ -909,7 +917,7 @@ export default function SuperAdminLiveMapPage() {
       const path = [];
       const punchInLat = session?.punchInCoordinates?.latitude || session?.punchInLatitude || session?.punchIn?.latitude;
       const punchInLng = session?.punchInCoordinates?.longitude || session?.punchInLongitude || session?.punchIn?.longitude;
-      if (punchInLat && punchInLng) {
+      if (punchInLat != null && punchInLng != null) {
         path.push(new window.google.maps.LatLng(Number(punchInLat), Number(punchInLng)));
       }
       (points || []).forEach((p) => {
@@ -919,22 +927,154 @@ export default function SuperAdminLiveMapPage() {
       });
       const punchOutLat = session?.punchOutCoordinates?.latitude || session?.punchOutLatitude || session?.punchOut?.latitude;
       const punchOutLng = session?.punchOutCoordinates?.longitude || session?.punchOutLongitude || session?.punchOut?.longitude;
-      if (punchOutLat && punchOutLng && session?.status === 'COMPLETED') {
+      if (punchOutLat != null && punchOutLng != null && session?.status === 'COMPLETED') {
         path.push(new window.google.maps.LatLng(Number(punchOutLat), Number(punchOutLng)));
       }
 
       if (path.length === 0) return;
+
+      // Always draw directional GPS polyline (arrows show exact day circle travel direction)
+      const arrowSymbol = {
+        path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+        scale: 3,
+        strokeColor: '#FFFFFF',
+        strokeWeight: 1.2,
+        fillColor: strokeColor,
+        fillOpacity: 1,
+      };
 
       if (path.length >= 2) {
         const polyline = new window.google.maps.Polyline({
           path,
           geodesic: true,
           strokeColor,
-          strokeOpacity: 0.9,
-          strokeWeight: 5,
+          strokeOpacity: renderMode === 'ROADS' ? 0.35 : 0.92,
+          strokeWeight: renderMode === 'ROADS' ? 3 : 5,
+          icons:
+            renderMode === 'ROADS'
+              ? []
+              : [
+                  {
+                    icon: arrowSymbol,
+                    offset: '24px',
+                    repeat: '85px',
+                  },
+                ],
           map: mapInstanceRef.current,
         });
         activePolylineRef.current = polyline;
+      }
+
+      // Optional Google Maps Road-Following Mode (Punch-In -> Chronological Checkpoints -> Punch-Out)
+      if (renderMode === 'ROADS' && path.length >= 2 && window.google.maps.DirectionsService) {
+        setRoadRouteInfo({ loading: true, km: null, duration: null, error: null });
+        const origin = path[0];
+        const destination = path[path.length - 1];
+
+        // Build up to 20 ordered waypoints prioritizing stops + evenly sampled GPS points
+        const midCandidates = [];
+        if (stops && stops.length > 0) {
+          stops.forEach((st) => {
+            midCandidates.push({
+              lat: Number(st.latitude),
+              lng: Number(st.longitude),
+              t: new Date(st.arrivedAt).getTime(),
+            });
+          });
+        }
+        // Sample GPS breadcrumbs separated by >= 600m to capture the actual loop even without stops
+        const approxMeters = (a, b) => {
+          const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+          const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+          const x = Math.sin(dLat / 2) ** 2 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+          return 6371000 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+        };
+        let lastKept = { lat: origin.lat(), lng: origin.lng() };
+        (points || []).forEach((p) => {
+          const cand = { lat: Number(p.latitude), lng: Number(p.longitude), t: new Date(p.recordedAt).getTime() };
+          if (approxMeters(lastKept, cand) >= 800) {
+            midCandidates.push(cand);
+            lastKept = cand;
+          }
+        });
+        midCandidates.sort((a, b) => a.t - b.t);
+        const dedupWaypoints = [];
+        for (const c of midCandidates) {
+          const prevW = dedupWaypoints[dedupWaypoints.length - 1];
+          if (!prevW || approxMeters(prevW, c) >= 400) {
+            dedupWaypoints.push(c);
+          }
+        }
+        const maxWp = 20;
+        let finalWp = dedupWaypoints;
+        if (dedupWaypoints.length > maxWp) {
+          const step = dedupWaypoints.length / maxWp;
+          finalWp = Array.from({ length: maxWp }, (_, i) => dedupWaypoints[Math.floor(i * step)]);
+        }
+
+        const dirService = new window.google.maps.DirectionsService();
+        dirService.route(
+          {
+            origin,
+            destination,
+            waypoints: finalWp.map((w) => ({
+              location: new window.google.maps.LatLng(w.lat, w.lng),
+              stopover: false,
+            })),
+            travelMode: window.google.maps.TravelMode.DRIVING,
+            optimizeWaypoints: false,
+          },
+          (result, status) => {
+            if (status === 'OK' && result && mapInstanceRef.current) {
+              const renderer = new window.google.maps.DirectionsRenderer({
+                map: mapInstanceRef.current,
+                suppressMarkers: true,
+                preserveViewport: true,
+                polylineOptions: {
+                  strokeColor,
+                  strokeOpacity: 0.92,
+                  strokeWeight: 5,
+                  icons: [
+                    {
+                      icon: arrowSymbol,
+                      offset: '30px',
+                      repeat: '95px',
+                    },
+                  ],
+                },
+              });
+              renderer.setDirections(result);
+              directionsRendererRef.current = renderer;
+
+              const legs = result.routes?.[0]?.legs || [];
+              const totalMeters = legs.reduce((acc, l) => acc + (l.distance?.value || 0), 0);
+              const totalSec = legs.reduce((acc, l) => acc + (l.duration?.value || 0), 0);
+              const hrs = Math.floor(totalSec / 3600);
+              const mins = Math.round((totalSec % 3600) / 60);
+              setRoadRouteInfo({
+                loading: false,
+                km: Math.round((totalMeters / 1000) * 100) / 100,
+                duration: hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`,
+                error: null,
+              });
+            } else {
+              // Gracefully restore crisp GPS arrows if Directions API is restricted or returns no route
+              if (activePolylineRef.current) {
+                activePolylineRef.current.setOptions({
+                  strokeOpacity: 0.92,
+                  strokeWeight: 5,
+                  icons: [{ icon: arrowSymbol, offset: '24px', repeat: '85px' }],
+                });
+              }
+              setRoadRouteInfo({
+                loading: false,
+                km: null,
+                duration: null,
+                error: 'Road snapping unavailable for this API key/route — showing exact GPS path.',
+              });
+            }
+          }
+        );
       }
 
       const bounds = new window.google.maps.LatLngBounds();
@@ -1190,7 +1330,7 @@ export default function SuperAdminLiveMapPage() {
 
   // Focus a specific day inside the loaded 7-day dataset
   const selectHistoryDay = useCallback(
-    (dayDate, payloadOverride = null) => {
+    (dayDate, payloadOverride = null, renderModeOverride = null) => {
       const source = payloadOverride || history7dData;
       if (!source) return;
       setActiveHistoryDayDate(dayDate);
@@ -1224,19 +1364,25 @@ export default function SuperAdminLiveMapPage() {
         totalStopsCount: dayObj.stopsCount,
       };
 
+      const color = DAY_ROUTE_COLORS[dayIdx % DAY_ROUTE_COLORS.length];
+      const activeMode = renderModeOverride || routeRenderMode;
+
       setHistoryData({
         date: dayObj.date,
         dayLabel: dayObj.dayLabel,
+        color,
         session: sessionObj,
         points: dayObj.points || [],
         stops: dayObj.stops || [],
         leads: dayObj.leads || [],
+        roadmapSteps: dayObj.roadmapSteps || [],
+        dayCircle: dayObj.dayCircle || null,
+        accuracyMetrics: dayObj.accuracyMetrics || null,
       });
 
-      const color = DAY_ROUTE_COLORS[dayIdx % DAY_ROUTE_COLORS.length];
-      drawHistoryRoute(dayObj.points || [], dayObj.stops || [], sessionObj, dayObj.leads || [], color);
+      drawHistoryRoute(dayObj.points || [], dayObj.stops || [], sessionObj, dayObj.leads || [], color, activeMode);
     },
-    [history7dData, drawAll7DaysCombined, drawHistoryRoute, clearAllOverlays]
+    [history7dData, drawAll7DaysCombined, drawHistoryRoute, clearAllOverlays, routeRenderMode]
   );
 
   // Load 7-Day (or 14-Day / Custom) unified history from backend
@@ -1277,10 +1423,11 @@ export default function SuperAdminLiveMapPage() {
           return;
         }
 
-        // Default to showing All 7 Days Combined if multiple days have data, or auto-focus the single tracked day
-        const trackedDays = data.days.filter((d) => d.hasData && d.points?.length > 0);
-        if (trackedDays.length === 1) {
-          selectHistoryDay(trackedDays[0].date, data);
+        // Default directly onto the most recent tracked day's complete Day Circle Roadmap (Punch-In -> Punch-Out)
+        const trackedDays = data.days.filter((d) => d.hasData && (d.points?.length > 0 || d.punchIn));
+        if (trackedDays.length > 0) {
+          const latestTracked = trackedDays[trackedDays.length - 1];
+          selectHistoryDay(latestTracked.date, data);
         } else {
           setActiveHistoryDayDate('ALL');
           drawAll7DaysCombined(data);
@@ -2593,6 +2740,11 @@ export default function SuperAdminLiveMapPage() {
                                   In {new Date(day.punchIn.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                               )}
+                              {day.punchOut && (
+                                <span style={{ fontSize: '9.5px', fontWeight: 700, background: '#FEE2E2', color: '#991B1B', padding: '1px 5px', borderRadius: '6px' }}>
+                                  Out {new Date(day.punchOut.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
                             </div>
                             <span style={{ fontSize: '11.5px', fontWeight: 800, color: day.hasData ? '#0F172A' : '#94A3B8' }}>
                               {day.hasData ? `${day.distanceKm} km` : 'No Activity'}
@@ -2612,213 +2764,354 @@ export default function SuperAdminLiveMapPage() {
                     })}
                   </div>
 
-                  {/* Single-Day Playback Controls, Stops & CRM Leads */}
-                  {historyData && historyData.points?.length > 0 && (
+                  {/* Single-Day Complete Roadmap Circle (Punch-In -> Stops & Leads -> Punch-Out) + Playback */}
+                  {historyData && (historyData.points?.length > 0 || historyData.roadmapSteps?.length > 0) && (
                     <div
                       style={{
                         background: '#FFFFFF',
                         border: '1.5px solid #93C5FD',
-                        borderRadius: '8px',
+                        borderRadius: '10px',
                         padding: '10px',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '8px',
+                        gap: '9px',
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#1E3A8A' }}>
-                          ▶ Playback — {historyData.dayLabel}
-                        </span>
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          {[1, 2, 5, 10].map((spd) => (
-                            <button
-                              key={spd}
-                              onClick={() => setPlaybackSpeed(spd)}
-                              style={{
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                border: `1px solid ${playbackSpeed === spd ? '#2563EB' : '#E2E8F0'}`,
-                                background: playbackSpeed === spd ? '#EFF6FF' : '#F8FAFC',
-                                color: playbackSpeed === spd ? '#1D4ED8' : '#64748B',
-                                fontSize: '10px',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              {spd}x
-                            </button>
-                          ))}
+                      {/* Day Roadmap Header + Accuracy Quality Badge */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                        <div>
+                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#0F172A' }}>
+                            🔄 Day Roadmap — {historyData.dayLabel}
+                          </div>
+                          <div style={{ fontSize: '10px', color: '#64748B', marginTop: '1px' }}>
+                            {historyData.session?.totalDistanceKm || 0} km GPS
+                            {roadRouteInfo?.km != null ? ` • 🛣️ ${roadRouteInfo.km} km Road (${roadRouteInfo.duration})` : ''}
+                            {' • '}
+                            {historyData.session?.durationFormatted || '00h 00m'}
+                          </div>
                         </div>
+
+                        {historyData.accuracyMetrics && (
+                          <span
+                            title={`Median GPS accuracy: ±${historyData.accuracyMetrics.medianAccuracyMeters ?? '?'}m • High-accuracy fixes: ${historyData.accuracyMetrics.highAccuracyPercent}%${historyData.accuracyMetrics.filteredCoarsePoints > 0 ? ` • Filtered ${historyData.accuracyMetrics.filteredCoarsePoints} coarse IP pings` : ''}`}
+                            style={{
+                              fontSize: '9.5px',
+                              fontWeight: 700,
+                              padding: '2px 7px',
+                              borderRadius: '10px',
+                              background:
+                                historyData.accuracyMetrics.qualityLabel === 'HIGH_GPS'
+                                  ? '#DCFCE7'
+                                  : historyData.accuracyMetrics.qualityLabel === 'MODERATE'
+                                    ? '#FEF3C7'
+                                    : '#F1F5F9',
+                              color:
+                                historyData.accuracyMetrics.qualityLabel === 'HIGH_GPS'
+                                  ? '#166534'
+                                  : historyData.accuracyMetrics.qualityLabel === 'MODERATE'
+                                    ? '#92400E'
+                                    : '#475569',
+                            }}
+                          >
+                            {historyData.accuracyMetrics.qualityLabel === 'HIGH_GPS'
+                              ? `🎯 GPS ±${historyData.accuracyMetrics.medianAccuracyMeters}m`
+                              : historyData.accuracyMetrics.qualityLabel === 'MODERATE'
+                                ? `📡 ±${historyData.accuracyMetrics.medianAccuracyMeters}m`
+                                : '📍 Checkpoints'}
+                          </span>
+                        )}
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <button
-                          onClick={() => {
-                            if (playbackIndex >= (historyData.points?.length || 1) - 1) {
-                              setPlaybackIndex(0);
-                            }
-                            setIsPlaying(!isPlaying);
-                          }}
+                      {/* Circle Closure / Shift Summary Pill */}
+                      {historyData.dayCircle && (
+                        <div
                           style={{
-                            background: isPlaying ? '#EF4444' : '#2563EB',
-                            color: '#FFFFFF',
-                            border: 'none',
-                            borderRadius: '6px',
-                            padding: '6px 12px',
-                            fontSize: '11.5px',
-                            fontWeight: 700,
-                            cursor: 'pointer',
+                            fontSize: '10.5px',
+                            padding: '5px 8px',
+                            borderRadius: '7px',
+                            background: historyData.dayCircle.circleClosed ? '#ECFDF5' : '#F8FAFC',
+                            border: `1px solid ${historyData.dayCircle.circleClosed ? '#A7F3D0' : '#E2E8F0'}`,
+                            color: historyData.dayCircle.circleClosed ? '#065F46' : '#334155',
                             display: 'flex',
+                            justifyContent: 'space-between',
                             alignItems: 'center',
-                            gap: '5px',
+                            gap: '6px',
                           }}
                         >
-                          {isPlaying ? <Lucide.Pause size={13} /> : <Lucide.Play size={13} />}
-                          {isPlaying ? 'Pause' : 'Play'}
-                        </button>
-
-                        <input
-                          type="range"
-                          min={0}
-                          max={Math.max(0, historyData.points.length - 1)}
-                          value={Math.min(playbackIndex, Math.max(0, historyData.points.length - 1))}
-                          onChange={(e) => {
-                            const idx = Number(e.target.value);
-                            setPlaybackIndex(idx);
-                            updatePlaybackMarker(historyData.points[idx]);
-                          }}
-                          style={{ flex: 1 }}
-                        />
-                      </div>
-
-                      {historyData.points[playbackIndex] && (
-                        <div style={{ fontSize: '10.5px', color: '#64748B', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
                           <span>
-                            🕒 <strong style={{ color: '#0F172A' }}>{new Date(historyData.points[playbackIndex].recordedAt).toLocaleTimeString()}</strong>
+                            {historyData.dayCircle.circleClosed
+                              ? `✅ Full Day Circle Closed (returned within ${historyData.dayCircle.returnDistanceFromStartKm} km of Punch-In)`
+                              : historyData.session?.status === 'ACTIVE'
+                                ? '🟢 Shift In Progress (Punch-Out pending)'
+                                : historyData.dayCircle.returnDistanceFromStartKm != null
+                                  ? `📍 Ended ${historyData.dayCircle.returnDistanceFromStartKm} km from Punch-In`
+                                  : '📍 Single-location / Punch-In only'}
                           </span>
-                          <span>
-                            🚀 <strong style={{ color: '#0284C7' }}>{Math.round(historyData.points[playbackIndex].speed || 0)} km/h</strong>
-                          </span>
-                          <span>
-                            🎯 <strong style={{ color: '#475569' }}>±{Math.round(historyData.points[playbackIndex].accuracy || 15)}m</strong>
-                          </span>
-                          {historyData.points[playbackIndex].batteryLevel != null && (
-                            <span>
-                              🔋 <strong style={{ color: '#15803D' }}>{Math.round(historyData.points[playbackIndex].batteryLevel)}%</strong>
-                            </span>
-                          )}
                         </div>
                       )}
 
-                      {/* Detected Stops for Focused Day */}
-                      {historyData.stops && historyData.stops.length > 0 && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '4px' }}>
-                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#92400E' }}>
-                            🛑 Field Stops ({historyData.stops.length})
-                          </div>
-                          {historyData.stops.map((st) => (
-                            <div
-                              key={st.stopNumber}
-                              style={{
-                                background: '#FFFBEB',
-                                border: '1px solid #FCD34D',
-                                borderRadius: '6px',
-                                padding: '6px 8px',
-                                fontSize: '10.5px',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                gap: '6px',
-                              }}
-                            >
-                              <div style={{ minWidth: 0 }}>
-                                <strong style={{ color: '#B45309' }}>Stop #{st.stopNumber}</strong> ({st.durationMinutes} min)
-                                <div style={{ color: '#475569', fontSize: '10px', marginTop: '1px' }}>
-                                  {new Date(st.arrivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} –{' '}
-                                  {new Date(st.departedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </div>
-                                {st.address && (
-                                  <div style={{ color: '#64748B', fontSize: '9.8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '250px' }} title={st.address}>
-                                    📍 {st.address}
-                                  </div>
-                                )}
-                              </div>
-                              <button
-                                onClick={() => {
-                                  if (mapInstanceRef.current) {
-                                    mapInstanceRef.current.panTo({ lat: Number(st.latitude), lng: Number(st.longitude) });
-                                    mapInstanceRef.current.setZoom(16);
-                                  }
-                                }}
-                                style={{
-                                  background: '#F59E0B',
-                                  color: '#FFFFFF',
-                                  border: 'none',
-                                  borderRadius: '4px',
-                                  padding: '3px 7px',
-                                  fontSize: '10px',
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  flexShrink: 0,
-                                }}
-                              >
-                                Zoom
-                              </button>
-                            </div>
-                          ))}
+                      {/* Path Mode Toggle: Exact GPS Arrows vs Google Follow Roads */}
+                      {historyData.points?.length >= 2 && (
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                          <button
+                            onClick={() => {
+                              setRouteRenderMode('GPS');
+                              selectHistoryDay(historyData.date, null, 'GPS');
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '5px 6px',
+                              borderRadius: '6px',
+                              border: `1px solid ${routeRenderMode === 'GPS' ? '#2563EB' : '#CBD5E1'}`,
+                              background: routeRenderMode === 'GPS' ? '#2563EB' : '#F8FAFC',
+                              color: routeRenderMode === 'GPS' ? '#FFFFFF' : '#334155',
+                              fontSize: '10.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            📍 Exact GPS Arrows
+                          </button>
+                          <button
+                            onClick={() => {
+                              setRouteRenderMode('ROADS');
+                              selectHistoryDay(historyData.date, null, 'ROADS');
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '5px 6px',
+                              borderRadius: '6px',
+                              border: `1px solid ${routeRenderMode === 'ROADS' ? '#0F766E' : '#CBD5E1'}`,
+                              background: routeRenderMode === 'ROADS' ? '#0F766E' : '#F8FAFC',
+                              color: routeRenderMode === 'ROADS' ? '#FFFFFF' : '#334155',
+                              fontSize: '10.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            🛣️ Follow Roads {roadRouteInfo?.loading ? '...' : ''}
+                          </button>
                         </div>
                       )}
 
-                      {/* CRM Leads Captured on Focused Day */}
-                      {historyData.leads && historyData.leads.length > 0 && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '4px' }}>
-                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#5B21B6' }}>
-                            🏢 CRM Leads Captured ({historyData.leads.length})
-                          </div>
-                          {historyData.leads.map((l) => (
-                            <div
-                              key={l.id}
-                              style={{
-                                background: '#F5F3FF',
-                                border: '1px solid #C4B5FD',
-                                borderRadius: '6px',
-                                padding: '5px 8px',
-                                fontSize: '10.5px',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                              }}
-                            >
-                              <div>
-                                <strong style={{ color: '#5B21B6' }}>{l.companyName}</strong>
-                                <div style={{ color: '#64748B', fontSize: '10px' }}>
-                                  {new Date(l.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {l.contactPerson || 'Lead'}
-                                </div>
-                              </div>
-                              {l.latitude != null && l.longitude != null && (
+                      {roadRouteInfo?.error && (
+                        <div style={{ fontSize: '10px', color: '#92400E', background: '#FFFBEB', padding: '4px 7px', borderRadius: '5px' }}>
+                          {roadRouteInfo.error}
+                        </div>
+                      )}
+
+                      {/* Playback Bar */}
+                      {historyData.points?.length > 1 && (
+                        <div style={{ background: '#F8FAFC', borderRadius: '7px', padding: '7px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#1E3A8A' }}>▶ Route Replay</span>
+                            <div style={{ display: 'flex', gap: '3px' }}>
+                              {[1, 2, 5, 10].map((spd) => (
                                 <button
-                                  onClick={() => {
-                                    if (mapInstanceRef.current) {
-                                      mapInstanceRef.current.panTo({ lat: Number(l.latitude), lng: Number(l.longitude) });
-                                      mapInstanceRef.current.setZoom(16);
-                                    }
-                                  }}
+                                  key={spd}
+                                  onClick={() => setPlaybackSpeed(spd)}
                                   style={{
-                                    background: '#7C3AED',
-                                    color: '#FFFFFF',
-                                    border: 'none',
+                                    padding: '1px 5px',
                                     borderRadius: '4px',
-                                    padding: '3px 7px',
-                                    fontSize: '10px',
+                                    border: `1px solid ${playbackSpeed === spd ? '#2563EB' : '#CBD5E1'}`,
+                                    background: playbackSpeed === spd ? '#EFF6FF' : '#FFFFFF',
+                                    color: playbackSpeed === spd ? '#1D4ED8' : '#64748B',
+                                    fontSize: '9.5px',
                                     fontWeight: 700,
                                     cursor: 'pointer',
                                   }}
                                 >
-                                  Pin
+                                  {spd}x
                                 </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <button
+                              onClick={() => {
+                                if (playbackIndex >= (historyData.points?.length || 1) - 1) {
+                                  setPlaybackIndex(0);
+                                }
+                                setIsPlaying(!isPlaying);
+                              }}
+                              style={{
+                                background: isPlaying ? '#EF4444' : '#2563EB',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                borderRadius: '6px',
+                                padding: '5px 10px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              {isPlaying ? <Lucide.Pause size={12} /> : <Lucide.Play size={12} />}
+                              {isPlaying ? 'Pause' : 'Play'}
+                            </button>
+
+                            <input
+                              type="range"
+                              min={0}
+                              max={Math.max(0, historyData.points.length - 1)}
+                              value={Math.min(playbackIndex, Math.max(0, historyData.points.length - 1))}
+                              onChange={(e) => {
+                                const idx = Number(e.target.value);
+                                setPlaybackIndex(idx);
+                                updatePlaybackMarker(historyData.points[idx]);
+                              }}
+                              style={{ flex: 1 }}
+                            />
+                          </div>
+
+                          {historyData.points[playbackIndex] && (
+                            <div style={{ fontSize: '10px', color: '#64748B', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
+                              <span>
+                                🕒 <strong style={{ color: '#0F172A' }}>{new Date(historyData.points[playbackIndex].recordedAt).toLocaleTimeString()}</strong>
+                              </span>
+                              <span>
+                                🚀 <strong style={{ color: '#0284C7' }}>{Math.round(historyData.points[playbackIndex].speed || 0)} km/h</strong>
+                              </span>
+                              <span>
+                                🎯 <strong style={{ color: '#475569' }}>±{Math.round(historyData.points[playbackIndex].accuracy || 15)}m</strong>
+                              </span>
+                              {historyData.points[playbackIndex].batteryLevel != null && (
+                                <span>
+                                  🔋 <strong style={{ color: '#15803D' }}>{Math.round(historyData.points[playbackIndex].batteryLevel)}%</strong>
+                                </span>
                               )}
                             </div>
-                          ))}
+                          )}
+                        </div>
+                      )}
+
+                      {/* Chronological Vertical Day-Circle Stepper: Punch-In -> Stops & Leads -> Punch-Out */}
+                      {historyData.roadmapSteps && historyData.roadmapSteps.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', marginTop: '2px' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 800, color: '#0F172A', marginBottom: '6px' }}>
+                            🧭 Day Circle Timeline ({historyData.roadmapSteps.length} Checkpoints)
+                          </div>
+                          {historyData.roadmapSteps.map((step, idx) => {
+                            const isLast = idx === historyData.roadmapSteps.length - 1;
+                            const badgeStyle =
+                              step.type === 'PUNCH_IN'
+                                ? { bg: '#16A34A', light: '#F0FDF4', border: '#86EFAC', label: 'IN', text: '#166534' }
+                                : step.type === 'PUNCH_OUT'
+                                  ? { bg: '#DC2626', light: '#FEF2F2', border: '#FCA5A5', label: 'OUT', text: '#991B1B' }
+                                  : step.type === 'LAST_POSITION'
+                                    ? { bg: '#2563EB', light: '#EFF6FF', border: '#93C5FD', label: 'NOW', text: '#1E40AF' }
+                                    : step.type === 'LEAD'
+                                      ? { bg: '#7C3AED', light: '#F5F3FF', border: '#C4B5FD', label: 'L', text: '#5B21B6' }
+                                      : { bg: '#D97706', light: '#FFFBEB', border: '#FCD34D', label: String(step.stopNumber || idx), text: '#92400E' };
+
+                            const hasCoord = step.latitude != null && step.longitude != null;
+
+                            return (
+                              <div key={`${step.type}-${step.stepNumber}`} style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+                                {/* Vertical Spine & Circle Node */}
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '26px', flexShrink: 0 }}>
+                                  <div
+                                    style={{
+                                      width: '24px',
+                                      height: '24px',
+                                      borderRadius: '50%',
+                                      background: badgeStyle.bg,
+                                      color: '#FFFFFF',
+                                      fontSize: '9px',
+                                      fontWeight: 800,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {badgeStyle.label}
+                                  </div>
+                                  {!isLast && (
+                                    <div
+                                      style={{
+                                        width: '2px',
+                                        flex: 1,
+                                        minHeight: '14px',
+                                        background: '#CBD5E1',
+                                        margin: '2px 0',
+                                      }}
+                                    />
+                                  )}
+                                </div>
+
+                                {/* Step Detail Card */}
+                                <div
+                                  onClick={() => {
+                                    if (hasCoord && mapInstanceRef.current) {
+                                      const pos = { lat: Number(step.latitude), lng: Number(step.longitude) };
+                                      mapInstanceRef.current.panTo(pos);
+                                      mapInstanceRef.current.setZoom(16);
+                                      if (infoWindowRef.current) {
+                                        infoWindowRef.current.setPosition(pos);
+                                        infoWindowRef.current.setContent(`
+                                          <div style="font-family: system-ui, sans-serif; padding: 6px; max-width: 240px;">
+                                            <div style="font-weight: 700; color: ${badgeStyle.text}; font-size: 13px;">${step.title}</div>
+                                            <div style="font-size: 11px; color: #475569; margin-top: 3px; line-height: 1.4;">
+                                              <strong>Time:</strong> ${new Date(step.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${step.endTime ? ` – ${new Date(step.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}<br/>
+                                              ${step.address ? `<strong>Location:</strong> ${step.address}` : `<strong>GPS:</strong> ${Number(step.latitude).toFixed(4)}, ${Number(step.longitude).toFixed(4)}`}
+                                            </div>
+                                          </div>
+                                        `);
+                                        infoWindowRef.current.open(mapInstanceRef.current);
+                                      }
+                                    }
+                                  }}
+                                  style={{
+                                    flex: 1,
+                                    minWidth: 0,
+                                    background: badgeStyle.light,
+                                    border: `1px solid ${badgeStyle.border}`,
+                                    borderRadius: '7px',
+                                    padding: '6px 8px',
+                                    marginBottom: isLast ? '0px' : '6px',
+                                    cursor: hasCoord ? 'pointer' : 'default',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+                                    <span style={{ fontSize: '11px', fontWeight: 700, color: badgeStyle.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {step.title}
+                                    </span>
+                                    <span style={{ fontSize: '10px', fontWeight: 700, color: '#0F172A', flexShrink: 0 }}>
+                                      {new Date(step.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      {step.endTime ? `–${new Date(step.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                                    </span>
+                                  </div>
+                                  {step.address && (
+                                    <div
+                                      style={{
+                                        fontSize: '9.8px',
+                                        color: '#475569',
+                                        marginTop: '2px',
+                                        lineHeight: 1.35,
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                      }}
+                                      title={step.address}
+                                    >
+                                      📍 {step.address}
+                                    </div>
+                                  )}
+                                  {step.legDistanceKm != null && step.legDistanceKm > 0 && (
+                                    <div style={{ fontSize: '9.5px', color: '#64748B', marginTop: '2px', fontWeight: 600 }}>
+                                      ↳ Moved ~{step.legDistanceKm} km from previous checkpoint
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

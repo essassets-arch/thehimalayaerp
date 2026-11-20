@@ -14,6 +14,7 @@ import { LocationGateway } from './location.gateway';
 import { LocationService } from './location.service';
 import { Prisma } from '@prisma/client';
 import {
+  buildDayRoadmap,
   cleanAndCalculateTrack,
   detectStopsFromPoints,
   formatDurationHm,
@@ -1362,9 +1363,9 @@ export class LocationTrackingService {
       });
     }
 
-    // 5. Build clean per-day analytics + reverse geocode up to 12 stop addresses (cached!)
-    let geocodeBudget = 12;
-    const daysResult: any[] = [];
+    // 5. Build clean per-day analytics (geocode newest days first so recent days always have street addresses)
+    let geocodeBudget = 40;
+    const daysByDate = new Map<string, any>();
     let totalDistanceKm = 0;
     let totalStops = 0;
     let totalPoints = 0;
@@ -1372,11 +1373,25 @@ export class LocationTrackingService {
     let daysPunchedIn = 0;
     let totalLeadsCaptured = 0;
 
-    for (const dStr of dateList) {
-      const { points: cleanedPts, distanceKm } = cleanAndCalculateTrack(
-        rawPointsByDay.get(dStr) || [],
-      );
+    for (const dStr of [...dateList].reverse()) {
       const att = attendanceByDay.get(dStr) || null;
+      const anchorPoint =
+        att?.punchInAt &&
+        att?.punchInLatitude != null &&
+        att?.punchInLongitude != null
+          ? {
+              latitude: Number(att.punchInLatitude),
+              longitude: Number(att.punchInLongitude),
+              recordedAt: new Date(att.punchInAt).toISOString(),
+            }
+          : null;
+
+      const {
+        points: cleanedPts,
+        distanceKm,
+        accuracyMetrics,
+      } = cleanAndCalculateTrack(rawPointsByDay.get(dStr) || [], anchorPoint);
+
       const dayLeads = leadsByDay.get(dStr) || [];
       const dayPersistedStops = stopsByDay.get(dStr) || [];
 
@@ -1418,6 +1433,82 @@ export class LocationTrackingService {
         );
       }
 
+      let punchInObj = att?.punchInAt
+        ? {
+            at: att.punchInAt.toISOString(),
+            latitude:
+              att.punchInLatitude != null
+                ? Number(att.punchInLatitude)
+                : cleanedPts[0]?.latitude ?? null,
+            longitude:
+              att.punchInLongitude != null
+                ? Number(att.punchInLongitude)
+                : cleanedPts[0]?.longitude ?? null,
+            address: att.punchInAddress || null,
+          }
+        : null;
+
+      let punchOutObj = att?.punchOutAt
+        ? {
+            at: att.punchOutAt.toISOString(),
+            latitude:
+              att.punchOutLatitude != null
+                ? Number(att.punchOutLatitude)
+                : cleanedPts[cleanedPts.length - 1]?.latitude ?? null,
+            longitude:
+              att.punchOutLongitude != null
+                ? Number(att.punchOutLongitude)
+                : cleanedPts[cleanedPts.length - 1]?.longitude ?? null,
+            address: att.punchOutAddress || null,
+          }
+        : null;
+
+      // Resolve missing punch-in / punch-out street addresses if coordinates exist
+      if (this.locationService) {
+        if (
+          punchInObj &&
+          !punchInObj.address &&
+          punchInObj.latitude != null &&
+          punchInObj.longitude != null &&
+          geocodeBudget > 0
+        ) {
+          geocodeBudget--;
+          try {
+            const geo = await this.locationService.reverseGeocode(
+              punchInObj.latitude,
+              punchInObj.longitude,
+            );
+            punchInObj = {
+              ...punchInObj,
+              address: geo?.formattedAddress || null,
+            };
+          } catch {
+            // non-fatal
+          }
+        }
+        if (
+          punchOutObj &&
+          !punchOutObj.address &&
+          punchOutObj.latitude != null &&
+          punchOutObj.longitude != null &&
+          geocodeBudget > 0
+        ) {
+          geocodeBudget--;
+          try {
+            const geo = await this.locationService.reverseGeocode(
+              punchOutObj.latitude,
+              punchOutObj.longitude,
+            );
+            punchOutObj = {
+              ...punchOutObj,
+              address: geo?.formattedAddress || null,
+            };
+          } catch {
+            // non-fatal
+          }
+        }
+      }
+
       // Downsample only if an extreme day exceeds 1,500 points (preserving start/end)
       let displayPoints = cleanedPts;
       let truncated = false;
@@ -1453,6 +1544,23 @@ export class LocationTrackingService {
         startTimeMs && endTimeMs > startTimeMs ? endTimeMs - startTimeMs : 0;
 
       const hasData = cleanedPts.length > 0 || Boolean(att);
+      const dayStatus = att?.punchOutAt
+        ? 'COMPLETED'
+        : dStr === getIstDateString() && att
+          ? 'ACTIVE'
+          : hasData
+            ? 'RECORDED'
+            : 'NO_DATA';
+
+      const roadmap = buildDayRoadmap({
+        punchIn: punchInObj,
+        punchOut: punchOutObj,
+        points: cleanedPts,
+        stops: dayStops,
+        leads: dayLeads,
+        status: dayStatus,
+      });
+
       if (hasData) daysTracked++;
       if (att) daysPunchedIn++;
       totalDistanceKm += distanceKm;
@@ -1460,46 +1568,14 @@ export class LocationTrackingService {
       totalPoints += cleanedPts.length;
       totalLeadsCaptured += dayLeads.length;
 
-      daysResult.push({
+      daysByDate.set(dStr, {
         date: dStr,
         dayLabel: formatIstDayLabel(dStr),
         hasData,
         sessionId: sessionIdByDay.get(dStr) || null,
-        status: att?.punchOutAt
-          ? 'COMPLETED'
-          : dStr === getIstDateString() && att
-            ? 'ACTIVE'
-            : hasData
-              ? 'RECORDED'
-              : 'NO_DATA',
-        punchIn: att?.punchInAt
-          ? {
-              at: att.punchInAt.toISOString(),
-              latitude:
-                att.punchInLatitude != null
-                  ? Number(att.punchInLatitude)
-                  : cleanedPts[0]?.latitude ?? null,
-              longitude:
-                att.punchInLongitude != null
-                  ? Number(att.punchInLongitude)
-                  : cleanedPts[0]?.longitude ?? null,
-              address: att.punchInAddress || null,
-            }
-          : null,
-        punchOut: att?.punchOutAt
-          ? {
-              at: att.punchOutAt.toISOString(),
-              latitude:
-                att.punchOutLatitude != null
-                  ? Number(att.punchOutLatitude)
-                  : null,
-              longitude:
-                att.punchOutLongitude != null
-                  ? Number(att.punchOutLongitude)
-                  : null,
-              address: att.punchOutAddress || null,
-            }
-          : null,
+        status: dayStatus,
+        punchIn: punchInObj,
+        punchOut: punchOutObj,
         firstPingAt,
         lastPingAt,
         distanceKm: Math.round(distanceKm * 100) / 100,
@@ -1509,11 +1585,20 @@ export class LocationTrackingService {
         truncated,
         stopsCount: dayStops.length,
         leadsCount: dayLeads.length,
+        accuracyMetrics,
+        dayCircle: {
+          returnDistanceFromStartKm: roadmap.returnDistanceFromStartKm,
+          circleClosed: roadmap.circleClosed,
+          stepsCount: roadmap.steps.length,
+        },
+        roadmapSteps: roadmap.steps,
         points: displayPoints,
         stops: dayStops,
         leads: dayLeads,
       });
     }
+
+    const daysResult = dateList.map((d) => daysByDate.get(d));
 
     return {
       user: {

@@ -8,6 +8,7 @@ import { LocationController } from './location.controller';
 import { LocationTrackingController } from './location-tracking.controller';
 import { PrismaService } from '../../database/prisma.service';
 import {
+  buildDayRoadmap,
   cleanAndCalculateTrack,
   detectStopsFromPoints,
   getIstDateString,
@@ -169,6 +170,117 @@ describe('Location 7-Day Tracking & IST Time Utilities', () => {
       expect(stops[0].durationMinutes).toBe(12);
       expect(stops[0].latitude).toBeCloseTo(23.03005, 3);
       expect(stops[0].longitude).toBeCloseTo(72.58001, 3);
+    });
+
+    it('rejects synthetic New Delhi (28.6139, 77.209) fallback and coarse 20km IP pings', () => {
+      const base = new Date('2026-11-16T04:25:00.000Z').getTime();
+      const raw = [
+        // Legacy fake New Delhi fallback coordinate (must be dropped!)
+        {
+          latitude: 28.6139,
+          longitude: 77.209,
+          accuracy: 50,
+          speed: 0,
+          heading: 0,
+          batteryLevel: null,
+          source: 'WEB_REALTIME',
+          recordedAt: new Date(base).toISOString(),
+        },
+        // Real Ahmedabad punch-in
+        {
+          latitude: 22.9336,
+          longitude: 72.68,
+          accuracy: 10,
+          speed: 0,
+          heading: 0,
+          batteryLevel: null,
+          source: 'PUNCH_IN_SNAPSHOT',
+          recordedAt: new Date(base + 4 * 60000).toISOString(),
+        },
+        // Coarse 20km ISP IP fallback (must be dropped!)
+        {
+          latitude: 23.04,
+          longitude: 72.6666,
+          accuracy: 20000,
+          speed: null,
+          heading: null,
+          batteryLevel: null,
+          source: 'WEB_REALTIME',
+          recordedAt: new Date(base + 120 * 60000).toISOString(),
+        },
+        // Real Ahmedabad punch-out (~8.6 km away)
+        {
+          latitude: 22.9872,
+          longitude: 72.6189,
+          accuracy: 13.8,
+          speed: 0,
+          heading: 0,
+          batteryLevel: null,
+          source: 'PUNCH_OUT_SNAPSHOT',
+          recordedAt: new Date(base + 350 * 60000).toISOString(),
+        },
+      ];
+
+      const { points, distanceKm, accuracyMetrics } = cleanAndCalculateTrack(raw);
+      expect(points).toHaveLength(2);
+      expect(accuracyMetrics.filteredSyntheticPoints).toBe(1);
+      expect(accuracyMetrics.filteredCoarsePoints).toBe(1);
+      expect(accuracyMetrics.qualityLabel).toBe('HIGH_GPS');
+      expect(distanceKm).toBeGreaterThan(7);
+      expect(distanceKm).toBeLessThan(10); // No 776 km Delhi teleport!
+    });
+
+    it('builds chronological Day Circle Roadmap from Punch In -> Stops & Leads -> Punch Out', () => {
+      const roadmap = buildDayRoadmap({
+        punchIn: {
+          at: '2026-11-18T04:15:00.000Z',
+          latitude: 23.065,
+          longitude: 72.568,
+          address: 'Ranip, Ahmedabad',
+        },
+        punchOut: {
+          at: '2026-11-18T12:30:00.000Z',
+          latitude: 23.0652,
+          longitude: 72.5681,
+          address: 'Ranip, Ahmedabad',
+        },
+        points: [],
+        stops: [
+          {
+            stopNumber: 1,
+            latitude: 23.08,
+            longitude: 72.58,
+            arrivedAt: '2026-11-18T05:30:00.000Z',
+            departedAt: '2026-11-18T06:00:00.000Z',
+            durationMinutes: 30,
+            address: 'Ghatlodiya, Ahmedabad',
+            locationName: 'Stop #1',
+          },
+        ],
+        leads: [
+          {
+            id: 'lead-1',
+            leadNumber: 'LD-101',
+            companyName: 'Shree Infra',
+            contactPerson: 'Rajesh Patel',
+            createdAt: '2026-11-18T07:00:00.000Z',
+            latitude: 23.09,
+            longitude: 72.59,
+            address: 'Chandkheda, Ahmedabad',
+          },
+        ],
+        status: 'COMPLETED',
+      });
+
+      expect(roadmap.steps.map((s) => s.type)).toEqual([
+        'PUNCH_IN',
+        'STOP',
+        'LEAD',
+        'PUNCH_OUT',
+      ]);
+      expect(roadmap.circleClosed).toBe(true);
+      expect(roadmap.returnDistanceFromStartKm).toBeLessThan(0.1);
+      expect(roadmap.steps[1].legDistanceKm).toBeGreaterThan(1.5);
     });
   });
 

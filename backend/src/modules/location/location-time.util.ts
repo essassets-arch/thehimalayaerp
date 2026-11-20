@@ -9,6 +9,20 @@ export const STOP_RADIUS_METERS = 65; // Spatial clustering radius for stationar
 export const STOP_SPEED_KMH_MAX = 2.5; // Max speed (km/h) considered stationary
 export const STOP_MIN_DURATION_SECONDS = 300; // 5 minutes minimum stay
 export const MAX_REALISTIC_SPEED_KMH = 180; // Impossible teleport threshold
+export const MAX_ROUTE_ACCURACY_METERS = 500; // Exclude coarse ISP/IP-geolocation pings (e.g. 20km/50km)
+
+/**
+ * Reject known synthetic/hardcoded placeholder coordinates (Null Island or legacy New Delhi modal fallback).
+ */
+export function isSyntheticPlaceholderCoord(lat: number, lng: number): boolean {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return true;
+  if (Math.abs(lat) < 0.0005 && Math.abs(lng) < 0.0005) return true;
+  // Legacy MandatoryPermissionsModal fallback (28.6139, 77.2090)
+  if (Math.abs(lat - 28.6139) < 0.0005 && Math.abs(lng - 77.209) < 0.0005) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * Convert any Date (or now) into a YYYY-MM-DD calendar date string in Asia/Kolkata (IST).
@@ -152,37 +166,123 @@ export interface DetectedStop {
   locationName: string;
 }
 
+export interface TrackAccuracyMetrics {
+  medianAccuracyMeters: number | null;
+  highAccuracyPercent: number;
+  filteredCoarsePoints: number;
+  filteredSyntheticPoints: number;
+  filteredJumps: number;
+  qualityLabel: 'HIGH_GPS' | 'MODERATE' | 'LOW_SIGNAL' | 'NO_GPS';
+}
+
+export interface DayRoadmapStep {
+  stepNumber: number;
+  type: 'PUNCH_IN' | 'STOP' | 'LEAD' | 'PUNCH_OUT' | 'LAST_POSITION';
+  title: string;
+  subtitle: string | null;
+  time: string;
+  endTime?: string | null;
+  durationMinutes?: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  address: string | null;
+  legDistanceKm: number | null;
+  stopNumber?: number;
+  leadId?: string;
+}
+
 /**
  * Deduplicate raw GPS points from multiple sources (EmployeeLocationPoint + UserLocationHistory),
- * filter impossible teleport jumps (>180 km/h over >500m), and compute realistic travel distance.
+ * reject synthetic placeholder coordinates & coarse ISP/IP fallback readings (> 500m),
+ * filter impossible teleport jumps (>180 km/h across ANY gap, plus anchor outlier spikes),
+ * and compute realistic travel distance + accuracy quality metrics.
  */
-export function cleanAndCalculateTrack(rawPoints: NormalizedTrackPoint[]): {
+export function cleanAndCalculateTrack(
+  rawPoints: NormalizedTrackPoint[],
+  anchorPoint?: { latitude: number; longitude: number; recordedAt: string } | null,
+): {
   points: NormalizedTrackPoint[];
   distanceKm: number;
+  accuracyMetrics: TrackAccuracyMetrics;
 } {
   if (!rawPoints || rawPoints.length === 0) {
-    return { points: [], distanceKm: 0 };
+    return {
+      points: [],
+      distanceKm: 0,
+      accuracyMetrics: {
+        medianAccuracyMeters: null,
+        highAccuracyPercent: 0,
+        filteredCoarsePoints: 0,
+        filteredSyntheticPoints: 0,
+        filteredJumps: 0,
+        qualityLabel: 'NO_GPS',
+      },
+    };
   }
 
-  const sorted = [...rawPoints]
-    .filter(
-      (p) =>
-        Number.isFinite(p.latitude) &&
-        Number.isFinite(p.longitude) &&
-        p.latitude >= -90 &&
-        p.latitude <= 90 &&
-        p.longitude >= -180 &&
-        p.longitude <= 180,
-    )
-    .sort(
-      (a, b) =>
-        new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime(),
-    );
+  let filteredSyntheticPoints = 0;
+  let filteredCoarsePoints = 0;
+  let filteredJumps = 0;
+
+  const validBounds = rawPoints.filter((p) => {
+    if (
+      !Number.isFinite(p.latitude) ||
+      !Number.isFinite(p.longitude) ||
+      p.latitude < -90 ||
+      p.latitude > 90 ||
+      p.longitude < -180 ||
+      p.longitude > 180
+    ) {
+      return false;
+    }
+    if (isSyntheticPlaceholderCoord(p.latitude, p.longitude)) {
+      filteredSyntheticPoints++;
+      return false;
+    }
+    // Reject coarse desktop/ISP IP-geolocation readings (> 500m radius, e.g. 20,000m / 50,000m)
+    if (p.accuracy != null && p.accuracy > MAX_ROUTE_ACCURACY_METERS) {
+      filteredCoarsePoints++;
+      return false;
+    }
+    return true;
+  });
+
+  const sorted = [...validBounds].sort(
+    (a, b) =>
+      new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime(),
+  );
+
+  // If we have an authoritative Punch-In anchor, discard isolated pre-punch-in spikes > 25 km away within 45 min
+  const anchorFiltered = sorted.filter((p) => {
+    if (!anchorPoint || isSyntheticPlaceholderCoord(anchorPoint.latitude, anchorPoint.longitude)) {
+      return true;
+    }
+    const dtMin =
+      Math.abs(
+        new Date(p.recordedAt).getTime() -
+          new Date(anchorPoint.recordedAt).getTime(),
+      ) / 60000;
+    if (dtMin <= 45) {
+      const distFromAnchorKm =
+        haversineDistanceMeters(
+          anchorPoint.latitude,
+          anchorPoint.longitude,
+          p.latitude,
+          p.longitude,
+        ) / 1000;
+      // Impossible to be > 60 km from Punch-In within 45 min, or > 25 km within 10 min
+      if (distFromAnchorKm > 60 || (dtMin <= 10 && distFromAnchorKm > 25)) {
+        filteredJumps++;
+        return false;
+      }
+    }
+    return true;
+  });
 
   const cleaned: NormalizedTrackPoint[] = [];
   let totalDistanceMeters = 0;
 
-  for (const pt of sorted) {
+  for (const pt of anchorFiltered) {
     if (cleaned.length === 0) {
       cleaned.push(pt);
       continue;
@@ -202,7 +302,6 @@ export function cleanAndCalculateTrack(rawPoints: NormalizedTrackPoint[]): {
 
     // Deduplicate identical / cross-synced pings within 8s and 12m
     if (dtSeconds <= 8 && distM <= 12) {
-      // Keep higher-accuracy reading if available
       if (
         pt.accuracy != null &&
         (prev.accuracy == null || pt.accuracy < prev.accuracy)
@@ -212,14 +311,15 @@ export function cleanAndCalculateTrack(rawPoints: NormalizedTrackPoint[]): {
       continue;
     }
 
-    // Filter impossible teleport jumps (> 180 km/h over > 500m)
+    // Filter impossible teleport jumps (> 180 km/h over > 500m across ANY interval)
     const speedKmh =
-      dtSeconds > 0 ? (distM / 1000) / (dtSeconds / 3600) : 0;
-    if (distM > 500 && dtSeconds < 600 && speedKmh > MAX_REALISTIC_SPEED_KMH) {
+      dtSeconds > 0 ? (distM / 1000) / (dtSeconds / 3600) : Infinity;
+    if (distM > 500 && speedKmh > MAX_REALISTIC_SPEED_KMH) {
+      filteredJumps++;
       continue;
     }
 
-    // Only add distance for reasonably accurate points (ignore rough 50km IP pings)
+    // Only add distance for accurate readings (<= 300m) with meaningful movement (>= 8m)
     const prevAccOk = prev.accuracy == null || prev.accuracy <= 300;
     const currAccOk = pt.accuracy == null || pt.accuracy <= 300;
     if (prevAccOk && currAccOk && distM >= 8) {
@@ -229,10 +329,198 @@ export function cleanAndCalculateTrack(rawPoints: NormalizedTrackPoint[]): {
     cleaned.push(pt);
   }
 
+  // Compute GPS quality metrics for transparent Super Admin reporting
+  const accValues = cleaned
+    .map((p) => p.accuracy)
+    .filter((a): a is number => a != null && Number.isFinite(a))
+    .sort((a, b) => a - b);
+
+  const medianAccuracyMeters =
+    accValues.length > 0
+      ? Math.round(accValues[Math.floor(accValues.length / 2)] * 10) / 10
+      : null;
+
+  const highAccCount = accValues.filter((a) => a <= 30).length;
+  const highAccuracyPercent =
+    accValues.length > 0 ? Math.round((highAccCount / accValues.length) * 100) : 0;
+
+  let qualityLabel: TrackAccuracyMetrics['qualityLabel'] = 'NO_GPS';
+  if (cleaned.length > 0) {
+    if (medianAccuracyMeters != null && medianAccuracyMeters <= 25) {
+      qualityLabel = 'HIGH_GPS';
+    } else if (medianAccuracyMeters != null && medianAccuracyMeters <= 120) {
+      qualityLabel = 'MODERATE';
+    } else {
+      qualityLabel = 'LOW_SIGNAL';
+    }
+  }
+
   return {
     points: cleaned,
     distanceKm: Math.round((totalDistanceMeters / 1000) * 1000) / 1000,
+    accuracyMetrics: {
+      medianAccuracyMeters,
+      highAccuracyPercent,
+      filteredCoarsePoints,
+      filteredSyntheticPoints,
+      filteredJumps,
+      qualityLabel,
+    },
   };
+}
+
+/**
+ * Assemble a chronological Day Circle Roadmap from Day Start (Punch In) ->
+ * Stops & CRM Lead Visits (with inter-checkpoint leg distances) -> Day End (Punch Out / Last Position).
+ */
+export function buildDayRoadmap(params: {
+  punchIn: {
+    at: string;
+    latitude: number | null;
+    longitude: number | null;
+    address: string | null;
+  } | null;
+  punchOut: {
+    at: string;
+    latitude: number | null;
+    longitude: number | null;
+    address: string | null;
+  } | null;
+  points: NormalizedTrackPoint[];
+  stops: DetectedStop[];
+  leads: Array<{
+    id: string;
+    leadNumber?: string | null;
+    companyName: string;
+    contactPerson?: string | null;
+    createdAt: string;
+    latitude: number | null;
+    longitude: number | null;
+    address: string | null;
+  }>;
+  status: string;
+}): {
+  steps: DayRoadmapStep[];
+  returnDistanceFromStartKm: number | null;
+  circleClosed: boolean;
+} {
+  const { punchIn, punchOut, points, stops, leads, status } = params;
+  const rawSteps: Array<Omit<DayRoadmapStep, 'stepNumber' | 'legDistanceKm'>> = [];
+
+  const firstPt = points.length > 0 ? points[0] : null;
+  const lastPt = points.length > 0 ? points[points.length - 1] : null;
+
+  const startLat = punchIn?.latitude ?? firstPt?.latitude ?? null;
+  const startLng = punchIn?.longitude ?? firstPt?.longitude ?? null;
+  const startTime = punchIn?.at ?? firstPt?.recordedAt ?? null;
+
+  if (startTime) {
+    rawSteps.push({
+      type: 'PUNCH_IN',
+      title: punchIn ? 'Day Start — Punch In' : 'First GPS Activity',
+      subtitle: punchIn ? 'Shift Started' : 'Auto-Tracked Start',
+      time: startTime,
+      latitude: startLat,
+      longitude: startLng,
+      address: punchIn?.address || null,
+    });
+  }
+
+  // Chronologically interleave Field Stops and CRM Lead captures
+  const midEvents: Array<Omit<DayRoadmapStep, 'stepNumber' | 'legDistanceKm'>> = [];
+
+  for (const st of stops) {
+    midEvents.push({
+      type: 'STOP',
+      title: `Stop #${st.stopNumber} (${st.durationMinutes} min)`,
+      subtitle: st.locationName || 'Client / Field Halt',
+      time: st.arrivedAt,
+      endTime: st.departedAt,
+      durationMinutes: st.durationMinutes,
+      latitude: st.latitude,
+      longitude: st.longitude,
+      address: st.address || null,
+      stopNumber: st.stopNumber,
+    });
+  }
+
+  for (const l of leads) {
+    midEvents.push({
+      type: 'LEAD',
+      title: `Lead: ${l.companyName}`,
+      subtitle: [l.contactPerson, l.leadNumber].filter(Boolean).join(' • ') || 'CRM Visit',
+      time: l.createdAt,
+      latitude: l.latitude,
+      longitude: l.longitude,
+      address: l.address || null,
+      leadId: l.id,
+    });
+  }
+
+  midEvents.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  rawSteps.push(...midEvents);
+
+  const endLat = punchOut?.latitude ?? lastPt?.latitude ?? null;
+  const endLng = punchOut?.longitude ?? lastPt?.longitude ?? null;
+  const endTime = punchOut?.at ?? lastPt?.recordedAt ?? null;
+
+  if (endTime && (punchOut || (lastPt && endTime !== startTime))) {
+    rawSteps.push({
+      type: punchOut ? 'PUNCH_OUT' : 'LAST_POSITION',
+      title: punchOut
+        ? 'Day End — Punch Out'
+        : status === 'ACTIVE'
+          ? 'Live Position (On Shift)'
+          : 'Last Recorded Position',
+      subtitle: punchOut ? 'Shift Completed' : status === 'ACTIVE' ? 'Currently Active' : 'End of Telemetry',
+      time: endTime,
+      latitude: endLat,
+      longitude: endLng,
+      address: punchOut?.address || null,
+    });
+  }
+
+  // Compute step numbers & leg distances between consecutive geocoded checkpoints
+  let prevCoord: { lat: number; lng: number } | null = null;
+  const steps: DayRoadmapStep[] = rawSteps.map((s, idx) => {
+    let legDistanceKm: number | null = null;
+    if (s.latitude != null && s.longitude != null) {
+      if (prevCoord) {
+        const dMeters = haversineDistanceMeters(
+          prevCoord.lat,
+          prevCoord.lng,
+          s.latitude,
+          s.longitude,
+        );
+        legDistanceKm = Math.round((dMeters / 1000) * 100) / 100;
+      }
+      prevCoord = { lat: s.latitude, lng: s.longitude };
+    }
+    return {
+      ...s,
+      stepNumber: idx + 1,
+      legDistanceKm,
+    };
+  });
+
+  let returnDistanceFromStartKm: number | null = null;
+  if (
+    startLat != null &&
+    startLng != null &&
+    endLat != null &&
+    endLng != null &&
+    steps.length >= 2
+  ) {
+    const retM = haversineDistanceMeters(startLat, startLng, endLat, endLng);
+    returnDistanceFromStartKm = Math.round((retM / 1000) * 100) / 100;
+  }
+
+  const circleClosed =
+    Boolean(punchIn && punchOut) &&
+    returnDistanceFromStartKm != null &&
+    returnDistanceFromStartKm <= 1.5;
+
+  return { steps, returnDistanceFromStartKm, circleClosed };
 }
 
 /**

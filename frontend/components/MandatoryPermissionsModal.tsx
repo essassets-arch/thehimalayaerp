@@ -247,30 +247,27 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
       } catch {}
     }
 
-    // 3. Web Geolocation with fast timeout & APK fallback
-    return new Promise((resolve) => {
+    // 3. Web Geolocation with fast timeout (NEVER fabricate fake coordinates)
+    return new Promise((resolve, reject) => {
       if (typeof window === 'undefined' || !('geolocation' in navigator)) {
-        // Fallback for environments where navigator.geolocation is stripped
-        resolve({ latitude: 28.6139, longitude: 77.2090, accuracy: 100 });
+        resolve({ latitude: null, longitude: null, accuracy: null, isFallback: true });
         return;
       }
 
       let done = false;
 
-      // 6-second timeout: if browser/WebView doesn't respond, provide smooth session fallback
+      // 8-second timeout: do not trap user in modal, but never emit fake coordinates
       const timer = setTimeout(() => {
         if (!done) {
           done = true;
-          // In Android WebView, if prompt is silently unhandled, provide fallback coordinates to avoid trapping user
-          const savedLat = sessionStorage.getItem('himalaya_last_lat');
-          const savedLng = sessionStorage.getItem('himalaya_last_lng');
           resolve({
-            latitude: savedLat ? parseFloat(savedLat) : 28.6139,
-            longitude: savedLng ? parseFloat(savedLng) : 77.2090,
-            accuracy: 50,
+            latitude: null,
+            longitude: null,
+            accuracy: null,
+            isFallback: true,
           });
         }
-      }, 6000);
+      }, 8000);
 
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -284,6 +281,7 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
               altitude: pos.coords.altitude || 0,
               speed: pos.coords.speed || 0,
               heading: pos.coords.heading || 0,
+              isFallback: false,
             });
           }
         },
@@ -293,7 +291,7 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
             if (!done) {
               done = true;
               clearTimeout(timer);
-              throw { code: 1, message: 'Location permission was denied.' };
+              reject({ code: 1, message: 'Location permission was denied.' });
             }
             return;
           }
@@ -301,10 +299,10 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
           if (!done) {
             done = true;
             clearTimeout(timer);
-            resolve({ latitude: 28.6139, longitude: 77.2090, accuracy: 100 });
+            resolve({ latitude: null, longitude: null, accuracy: null, isFallback: true });
           }
         },
-        { enableHighAccuracy: false, maximumAge: 300000, timeout: 5000 }
+        { enableHighAccuracy: true, maximumAge: 60000, timeout: 7500 }
       );
     });
   };
@@ -499,9 +497,16 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
     try {
       const coords = await acquireLocationWithFallback();
 
-      const { latitude, longitude, accuracy, altitude, speed, heading } = coords;
+      const { latitude, longitude, accuracy, altitude, speed, heading, isFallback } = coords;
+      const hasRealFix =
+        !isFallback &&
+        latitude != null &&
+        longitude != null &&
+        Number.isFinite(Number(latitude)) &&
+        Number.isFinite(Number(longitude)) &&
+        (accuracy == null || Number(accuracy) <= 1000);
 
-      // Register Location Session & Coordinates with ERP Backend
+      // Register Location Session & (only if real accurate GPS fix) Coordinates with ERP Backend
       setLocationState('registering');
       setActiveStepText('Registering location session on ERP...');
 
@@ -523,26 +528,30 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
 
         const activeSessionId = sessionRes?.sessionId;
 
-        await backendFetch('/location/location-update', {
-          method: 'POST',
-          body: {
-            sessionId: activeSessionId || null,
-            latitude,
-            longitude,
-            accuracy: accuracy || 10,
-            altitude: altitude || 0,
-            speed: speed || 0,
-            heading: heading || 0,
-            capturedAt: new Date().toISOString(),
-          },
-        }).catch(() => null);
+        if (hasRealFix && activeSessionId) {
+          await backendFetch('/location/location-update', {
+            method: 'POST',
+            body: {
+              sessionId: activeSessionId,
+              latitude: Number(latitude),
+              longitude: Number(longitude),
+              accuracy: accuracy != null ? Number(accuracy) : 15,
+              altitude: altitude || 0,
+              speed: speed != null ? Math.round(Number(speed) * 3.6 * 10) / 10 : 0,
+              heading: heading || 0,
+              capturedAt: new Date().toISOString(),
+            },
+          }).catch(() => null);
+        }
       } catch (backendErr) {
         console.warn('[MandatoryPermissions] Backend location sync notice:', backendErr);
       }
 
       sessionStorage.setItem('himalaya_location_verified', 'true');
-      sessionStorage.setItem('himalaya_last_lat', String(latitude));
-      sessionStorage.setItem('himalaya_last_lng', String(longitude));
+      if (hasRealFix) {
+        sessionStorage.setItem('himalaya_last_lat', String(latitude));
+        sessionStorage.setItem('himalaya_last_lng', String(longitude));
+      }
 
       setLocationState('granted');
       setLocationMessage(null);

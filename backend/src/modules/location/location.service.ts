@@ -13,6 +13,7 @@ import {
   detectStopsFromPoints,
   getIstDateString,
   getIstDayBoundsUtc,
+  isSyntheticPlaceholderCoord,
   NormalizedTrackPoint,
 } from './location-time.util';
 
@@ -88,7 +89,7 @@ export class LocationService {
   private readonly logger = new Logger(LocationService.name);
   private readonly lastStopEvalMap = new Map<string, number>();
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   /**
    * Upsert an authenticated device session for a user.
@@ -190,9 +191,9 @@ export class LocationService {
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }
@@ -245,6 +246,33 @@ export class LocationService {
       where: { deviceSessionId: session.id },
     });
 
+    // Reject synthetic placeholder coordinates (e.g. Null Island or legacy New Delhi modal fallback)
+    if (isSyntheticPlaceholderCoord(dto.latitude, dto.longitude)) {
+      this.logger.warn(
+        `[Synthetic Coordinate Filtered] Rejected placeholder (${dto.latitude}, ${dto.longitude}) for user ${userId}.`,
+      );
+      await this.prisma.deviceSession.update({
+        where: { id: session.id },
+        data: { lastSeenAt: now },
+      });
+      return existingLocation
+        ? { ...existingLocation, isSuspiciousJump: true, filteredSynthetic: true }
+        : { isSuspiciousJump: true, filteredSynthetic: true };
+    }
+
+    // Reject ultra-coarse desktop/ISP IP-fallback readings (> 1000m) when a real GPS fix already exists
+    if (
+      dto.accuracy != null &&
+      dto.accuracy > 1000 &&
+      existingLocation
+    ) {
+      await this.prisma.deviceSession.update({
+        where: { id: session.id },
+        data: { lastSeenAt: now },
+      });
+      return { ...existingLocation, filteredCoarseAccuracy: true };
+    }
+
     if (existingLocation && captured <= existingLocation.capturedAt) {
       // Stale coordinate update: keep presence active without writing older coordinates
       await this.prisma.deviceSession.update({
@@ -273,7 +301,7 @@ export class LocationService {
       const elapsedSeconds = Math.max(
         1,
         (captured.getTime() - new Date(existingLocation.capturedAt).getTime()) /
-          1000,
+        1000,
       );
       const calculatedSpeed = distance / elapsedSeconds;
 
@@ -704,7 +732,7 @@ export class LocationService {
             Math.round(
               (now.getTime() -
                 new Date(ds.latestLocation.capturedAt).getTime()) /
-                1000,
+              1000,
             ),
           );
           gpsStatus = gpsAgeSeconds <= 120 ? 'ACTIVE' : 'STALE';
@@ -818,11 +846,11 @@ export class LocationService {
 
       const heartbeatAgeSeconds = primarySession
         ? Math.max(
-            0,
-            Math.round(
-              (now.getTime() - new Date(primarySession.lastSeenAt).getTime()) / 1000,
-            ),
-          )
+          0,
+          Math.round(
+            (now.getTime() - new Date(primarySession.lastSeenAt).getTime()) / 1000,
+          ),
+        )
         : null;
 
       const isDeviceOnline =
@@ -837,15 +865,15 @@ export class LocationService {
       const trackingStatus: 'ACTIVE_SHIFT' | 'ACTIVE_DEVICE' | 'STOPPED' = activeShift
         ? 'ACTIVE_SHIFT'
         : isDeviceOnline
-        ? 'ACTIVE_DEVICE'
-        : 'STOPPED';
+          ? 'ACTIVE_DEVICE'
+          : 'STOPPED';
 
       // 2. Separate GPS freshness status
       const gpsFreshness: 'LIVE' | 'STALE' | 'NO_LOCATION' = isGpsFresh
         ? 'LIVE'
         : latestCoord
-        ? 'STALE'
-        : 'NO_LOCATION';
+          ? 'STALE'
+          : 'NO_LOCATION';
 
       // 3. Truthful Overall Status
       let overallStatus:
@@ -1091,8 +1119,8 @@ export class LocationService {
 
     let session = deviceSessionId
       ? await this.prisma.deviceSession.findUnique({
-          where: { sessionId: deviceSessionId },
-        })
+        where: { sessionId: deviceSessionId },
+      })
       : null;
 
     if (!session && deviceSessionId) {
@@ -1129,8 +1157,8 @@ export class LocationService {
     const sessionCompanyId = session.companyId || companyId;
     const company = sessionCompanyId
       ? await this.prisma.company.findUnique({
-          where: { id: sessionCompanyId },
-        })
+        where: { id: sessionCompanyId },
+      })
       : null;
     const tz = (company as any)?.timezone || 'Asia/Kolkata';
 
@@ -1442,10 +1470,10 @@ export class LocationService {
             accuracy: accuracy != null ? Math.round(accuracy) : null,
             addressComponents: Array.isArray(bdcData.localityInfo?.administrative)
               ? bdcData.localityInfo.administrative.map((item: any) => ({
-                  long_name: item.name,
-                  short_name: item.isoCode || item.name,
-                  types: [item.description],
-                }))
+                long_name: item.name,
+                short_name: item.isoCode || item.name,
+                types: [item.description],
+              }))
               : [],
           };
 
