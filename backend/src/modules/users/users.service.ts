@@ -3,8 +3,6 @@ import { PrismaService } from '../../database/prisma.service';
 import { hash } from 'bcrypt';
 import { randomUUID } from 'crypto';
 
-export const KNOWN_USER_PASSWORDS: Record<string, string> = {};
-
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
@@ -43,11 +41,7 @@ export class UsersService {
       'abbas.b': ['abbas.b@himalayaerp.com'],
       'abbas.baman': ['abbas.b@himalayaerp.com'],
       'abbas.baman@himalayaerp.com': ['abbas.b@himalayaerp.com'],
-      'abbasbaman681@gmail.com': ['abbas.b@himalayaerp.com', 'abbasbaman681@gmail.com'],
       'sales1@himalayaerp.co': ['sales1@himalayaerp.com'],
-      'sales2hcppl@gmail.com': ['sales2@himalayaerp.com', 'sales2hcppl@gmail.com'],
-      'sales3hccpl@gmail.com': ['sales3@himalayaerp.com', 'sales3hccpl@gmail.com'],
-      'htinwala99@gmail.com': ['hussain.t@himalayaerp.com', 'htinwala99@gmail.com'],
       'logistics': ['ravikant.t@himalayaerp.com'],
       'dispatch': ['ravikant.t@himalayaerp.com', 'sahad.dispatch@himalayaerp.com'],
       'production': ['moksha.n@himalayaerp.com', 'hcpplacc786@gmail.com'],
