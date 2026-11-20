@@ -16,36 +16,45 @@ export class UsersService {
     // 1. Candidate lookup list
     const candidates: string[] = [clean];
 
-    if (clean === 'sales1@himalayaerp.co') {
-      candidates.push('sales1@himalayaerp.com');
-    }
-    if (
-      clean === 'admin' ||
-      clean === 'superadmin' ||
-      clean === 'admin@thehimalaya.cloud' ||
-      clean === 'superadmin@thehimalaya.cloud' ||
-      clean === 'admin@thehimalayaerp.com'
-    ) {
-      candidates.push('superadmin@himalayaerp.com', 'super.admin@himalayaerp.com', 'admin@himalayaerp.test');
-    }
-    if (
-      clean === 'plant.head' ||
-      clean === 'planthead' ||
-      clean === 'plant.head@thehimalaya.cloud' ||
-      clean === 'planthead@thehimalaya.cloud'
-    ) {
-      candidates.push('plant.head@himalayaerp.com', 'plant.head@himalayaerp.test');
-    }
-    if (
-      clean === 'abbas.baman@himalayaerp.com' ||
-      clean === 'abbas.b@himalayaerp.com' ||
-      clean === 'abbas.baman' ||
-      clean === 'abbas.b' ||
-      clean === 'abbas' ||
-      clean === 'abbas.baman@thehimalaya.cloud' ||
-      clean === 'abbas.b@thehimalaya.cloud'
-    ) {
-      candidates.push('abbas.baman@himalayaerp.com', 'abbas.b@himalayaerp.com');
+    // Canonical alias mappings for common shortcuts & historical aliases
+    const ALIAS_MAP: Record<string, string[]> = {
+      'admin': ['super.admin@himalayaerp.com'],
+      'superadmin': ['super.admin@himalayaerp.com'],
+      'superadmin@himalayaerp.com': ['super.admin@himalayaerp.com'],
+      'super.admin': ['super.admin@himalayaerp.com'],
+      'admin@thehimalaya.cloud': ['super.admin@himalayaerp.com'],
+      'superadmin@thehimalaya.cloud': ['super.admin@himalayaerp.com'],
+      'super.admin@thehimalaya.cloud': ['super.admin@himalayaerp.com'],
+      'admin@thehimalayaerp.com': ['super.admin@himalayaerp.com'],
+      'plant.head': ['sana.r@himalayaerp.com', 'plant.head@himalayaerp.com'],
+      'planthead': ['sana.r@himalayaerp.com', 'plant.head@himalayaerp.com'],
+      'plant.head@himalayaerp.com': ['sana.r@himalayaerp.com'],
+      'planthead@himalayaerp.com': ['sana.r@himalayaerp.com'],
+      'plant.head@thehimalaya.cloud': ['sana.r@himalayaerp.com'],
+      'planthead@thehimalaya.cloud': ['sana.r@himalayaerp.com'],
+      'hr': ['hr@himalayaerp.com'],
+      'hr@thehimalaya.cloud': ['hr@himalayaerp.com'],
+      'nahin.v@himalayaerp.com': ['hr@himalayaerp.com'],
+      'store': ['makhdum@himalayaerp.com'],
+      'store@himalayaerp.com': ['makhdum@himalayaerp.com'],
+      'backoffice': ['backoffice@himalayaerp.com'],
+      'backoffice@thehimalaya.cloud': ['backoffice@himalayaerp.com'],
+      'abbas': ['abbas.b@himalayaerp.com'],
+      'abbas.b': ['abbas.b@himalayaerp.com'],
+      'abbas.baman': ['abbas.b@himalayaerp.com'],
+      'abbas.baman@himalayaerp.com': ['abbas.b@himalayaerp.com'],
+      'abbasbaman681@gmail.com': ['abbas.b@himalayaerp.com', 'abbasbaman681@gmail.com'],
+      'sales1@himalayaerp.co': ['sales1@himalayaerp.com'],
+      'sales2hcppl@gmail.com': ['sales2@himalayaerp.com', 'sales2hcppl@gmail.com'],
+      'sales3hccpl@gmail.com': ['sales3@himalayaerp.com', 'sales3hccpl@gmail.com'],
+      'htinwala99@gmail.com': ['hussain.t@himalayaerp.com', 'htinwala99@gmail.com'],
+      'logistics': ['ravikant.t@himalayaerp.com'],
+      'dispatch': ['ravikant.t@himalayaerp.com', 'sahad.dispatch@himalayaerp.com'],
+      'production': ['moksha.n@himalayaerp.com', 'hcpplacc786@gmail.com'],
+    };
+
+    if (ALIAS_MAP[clean]) {
+      candidates.push(...ALIAS_MAP[clean]);
     }
     if (clean.endsWith('@thehimalaya.cloud')) {
       candidates.push(clean.replace('@thehimalaya.cloud', '@himalayaerp.com'));
@@ -82,6 +91,22 @@ export class UsersService {
         },
       });
       if (user) return user;
+    }
+
+    // 2. Fallback: Search linked Employee by employeeCode, workEmail, or personalEmail
+    const linkedEmployee = await this.prisma.employee.findFirst({
+      where: {
+        OR: [
+          { employeeCode: { equals: clean, mode: 'insensitive' } },
+          { workEmail: { equals: clean, mode: 'insensitive' } },
+          { personalEmail: { equals: clean, mode: 'insensitive' } },
+        ],
+      },
+      select: { userId: true },
+    });
+
+    if (linkedEmployee?.userId) {
+      return this.findById(linkedEmployee.userId);
     }
 
     return null;

@@ -26,7 +26,7 @@ import {
 
 const loginLimit = process.env.THROTTLE_LOGIN_LIMIT
   ? parseInt(process.env.THROTTLE_LOGIN_LIMIT, 10)
-  : 5;
+  : 120;
 
 @Controller('auth')
 export class AuthController {
