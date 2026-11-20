@@ -4,17 +4,17 @@ import {
   Logger,
   BadRequestException,
   ForbiddenException,
-  Inject,
-  forwardRef,
-  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateDeviceSessionDto } from './dto/device-session.dto';
 import { UpdateLocationDto } from './dto/location-update.dto';
 import { LocationPermissionState, ClientType, Prisma } from '@prisma/client';
-import { LocationGateway } from './location.gateway';
-import { LocationTrackingService } from './location-tracking.service';
-import { getIstDateString, getIstDayBoundsUtc } from './location-time.util';
+import {
+  detectStopsFromPoints,
+  getIstDateString,
+  getIstDayBoundsUtc,
+  NormalizedTrackPoint,
+} from './location-time.util';
 
 export const ONLINE_THRESHOLD_SECONDS = 90; // 90 seconds window for active heartbeat
 export const RECENT_THRESHOLD_SECONDS = 300; // 5 minutes window for recently active
@@ -88,15 +88,7 @@ export class LocationService {
   private readonly logger = new Logger(LocationService.name);
   private readonly lastStopEvalMap = new Map<string, number>();
 
-  constructor(
-    private prisma: PrismaService,
-    @Optional()
-    @Inject(forwardRef(() => LocationGateway))
-    private readonly locationGateway?: LocationGateway,
-    @Optional()
-    @Inject(forwardRef(() => LocationTrackingService))
-    private readonly locationTrackingService?: LocationTrackingService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   /**
    * Upsert an authenticated device session for a user.
@@ -212,7 +204,6 @@ export class LocationService {
     userId: string,
     companyId: string,
     dto: UpdateLocationDto,
-    broadcastViaSocket = false,
   ): Promise<any> {
     // 1. Strict Coordinate Bounds & Accuracy Validation
     if (dto.latitude < -90 || dto.latitude > 90) {
@@ -425,9 +416,15 @@ export class LocationService {
         getIstDateString(new Date(activeShift.punchInAt)) !== todayIst
       ) {
         // Stale prior-day session: force-close it cleanly instead of dumping today's GPS into an old shift
-        if (this.locationTrackingService) {
-          await this.locationTrackingService.forceCloseSessionById(activeShift.id);
-        }
+        const staleDateIst = getIstDateString(new Date(activeShift.punchInAt));
+        const { end: staleDayEnd } = getIstDayBoundsUtc(staleDateIst);
+        await this.prisma.employeeLocationSession.update({
+          where: { id: activeShift.id },
+          data: {
+            status: 'FORCE_CLOSED',
+            punchOutAt: staleDayEnd,
+          },
+        });
       } else if (activeShift) {
         const clientPointId = `rt-${session.id}-${captured.getTime()}`;
         const lastShiftPoint = await this.prisma.employeeLocationPoint.findFirst({
@@ -482,19 +479,80 @@ export class LocationService {
           },
         });
 
-        // Throttled stationary stop detection (every 5 min per active shift)
+        // Throttled stationary stop detection (every 5 min per active shift) using pure spatial+temporal clustering
         let stopsCount = activeShift.totalStopsCount || 0;
         const lastEval = this.lastStopEvalMap.get(activeShift.id) || 0;
         if (
-          this.locationTrackingService &&
-          now.getTime() - lastEval >= 5 * 60 * 1000
+          now.getTime() - lastEval >= 5 * 60 * 1000 &&
+          typeof this.prisma.employeeLocationPoint?.findMany === 'function' &&
+          typeof this.prisma.employeeRouteStop?.findFirst === 'function'
         ) {
           this.lastStopEvalMap.set(activeShift.id, now.getTime());
-          await this.locationTrackingService.evaluateStops(
-            activeShift.id,
-            activeShift.employeeId,
-            activeShift.companyId,
-          );
+          const sessionPts = await this.prisma.employeeLocationPoint.findMany({
+            where: { sessionId: activeShift.id, isFilteredJump: false },
+            orderBy: { recordedAt: 'asc' },
+            select: {
+              latitude: true,
+              longitude: true,
+              accuracy: true,
+              speed: true,
+              heading: true,
+              batteryLevel: true,
+              recordedAt: true,
+              source: true,
+            },
+          });
+          const normPts: NormalizedTrackPoint[] = sessionPts.map((p) => ({
+            latitude: Number(p.latitude),
+            longitude: Number(p.longitude),
+            accuracy: p.accuracy,
+            speed: p.speed,
+            heading: p.heading,
+            batteryLevel: p.batteryLevel,
+            recordedAt: new Date(p.recordedAt).toISOString(),
+            source: p.source,
+          }));
+          const detectedStops = detectStopsFromPoints(normPts);
+          for (const st of detectedStops) {
+            const arrivedAt = new Date(st.arrivedAt);
+            const departedAt = new Date(st.departedAt);
+            const existingStop = await this.prisma.employeeRouteStop.findFirst({
+              where: {
+                sessionId: activeShift.id,
+                arrivedAt: {
+                  gte: new Date(arrivedAt.getTime() - 120000),
+                  lte: new Date(arrivedAt.getTime() + 120000),
+                },
+              },
+            });
+            if (existingStop) {
+              await this.prisma.employeeRouteStop.update({
+                where: { id: existingStop.id },
+                data: { departedAt, durationMinutes: st.durationMinutes },
+              });
+            } else {
+              let resolvedAddress: string | null = null;
+              try {
+                const geo = await this.reverseGeocode(st.latitude, st.longitude, 30);
+                resolvedAddress = geo?.formattedAddress || geo?.line1 || null;
+              } catch {
+                resolvedAddress = null;
+              }
+              await this.prisma.employeeRouteStop.create({
+                data: {
+                  sessionId: activeShift.id,
+                  companyId: activeShift.companyId,
+                  employeeId: activeShift.employeeId,
+                  latitude: new Prisma.Decimal(st.latitude),
+                  longitude: new Prisma.Decimal(st.longitude),
+                  address: resolvedAddress,
+                  arrivedAt,
+                  departedAt,
+                  durationMinutes: st.durationMinutes,
+                },
+              });
+            }
+          }
           stopsCount = await this.prisma.employeeRouteStop.count({
             where: { sessionId: activeShift.id },
           });
@@ -516,38 +574,6 @@ export class LocationService {
       this.logger.warn(
         `Failed to sync real-time GPS point to active shift session: ${shiftErr?.message}`,
       );
-    }
-
-    // 6. Broadcast live coordinate over WebSocket when submitted via REST fallback
-    if (broadcastViaSocket && this.locationGateway?.server) {
-      try {
-        const wsPayload = {
-          userId,
-          sessionId: dto.sessionId,
-          latitude: Number(location.latitude),
-          longitude: Number(location.longitude),
-          accuracy: dto.accuracy ?? null,
-          speed: dto.speed ?? null,
-          heading: dto.heading ?? null,
-          batteryLevel: dto.batteryLevel ?? null,
-          capturedAt: captured.toISOString(),
-          serverReceivedAt: now.toISOString(),
-          source: 'REST_REALTIME',
-          status: 'ONLINE',
-        };
-        if (companyId) {
-          this.locationGateway.server
-            .to(`company:${companyId}:live-users`)
-            .emit('user:location:update', wsPayload);
-        }
-        this.locationGateway.server
-          .to('global:live-users')
-          .emit('user:location:update', wsPayload);
-      } catch (wsErr: any) {
-        this.logger.warn(
-          `Failed to broadcast REST location update over WebSocket: ${wsErr?.message}`,
-        );
-      }
     }
 
     return location;

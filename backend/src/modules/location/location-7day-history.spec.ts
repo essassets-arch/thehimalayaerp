@@ -1,3 +1,12 @@
+import { Test } from '@nestjs/testing';
+import { ConfigModule } from '@nestjs/config';
+import { LocationModule } from './location.module';
+import { LocationService } from './location.service';
+import { LocationGateway } from './location.gateway';
+import { LocationSchedulerService } from './location-scheduler.service';
+import { LocationController } from './location.controller';
+import { LocationTrackingController } from './location-tracking.controller';
+import { PrismaService } from '../../database/prisma.service';
 import {
   cleanAndCalculateTrack,
   detectStopsFromPoints,
@@ -225,6 +234,29 @@ describe('Location 7-Day Tracking & IST Time Utilities', () => {
           data: expect.objectContaining({ status: 'FORCE_CLOSED' }),
         }),
       );
+    });
+  });
+
+  describe('NestJS LocationModule Dependency Injection Graph', () => {
+    it('instantiates LocationModule and all controllers/providers with zero circular DI errors', async () => {
+      const moduleRef = await Test.createTestingModule({
+        imports: [
+          ConfigModule.forRoot({ isGlobal: true }),
+          LocationModule,
+        ],
+      })
+        .overrideProvider(PrismaService)
+        .useValue({})
+        .compile();
+
+      expect(moduleRef.get(LocationService)).toBeDefined();
+      expect(moduleRef.get(LocationGateway)).toBeDefined();
+      expect(moduleRef.get(LocationTrackingService)).toBeDefined();
+      expect(moduleRef.get(LocationSchedulerService)).toBeDefined();
+      expect(moduleRef.get(LocationController)).toBeDefined();
+      expect(moduleRef.get(LocationTrackingController)).toBeDefined();
+
+      await moduleRef.close();
     });
   });
 });

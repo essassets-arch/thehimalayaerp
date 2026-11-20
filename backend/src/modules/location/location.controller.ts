@@ -6,8 +6,10 @@ import {
   Body,
   UseGuards,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { LocationService, LiveUserResponse } from './location.service';
+import { LocationGateway } from './location.gateway';
 import { CreateDeviceSessionDto } from './dto/device-session.dto';
 import { UpdateLocationDto } from './dto/location-update.dto';
 import { UpdateLocationPermissionDto } from './dto/location-permission.dto';
@@ -17,7 +19,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @Controller('location')
 @UseGuards(JwtAuthGuard)
 export class LocationController {
-  constructor(private readonly locationService: LocationService) {}
+  constructor(
+    private readonly locationService: LocationService,
+    @Optional() private readonly locationGateway?: LocationGateway,
+  ) {}
 
   /**
    * Register/Refresh client device session
@@ -53,12 +58,44 @@ export class LocationController {
     @CurrentUser() user: any,
     @Body() dto: UpdateLocationDto,
   ) {
-    return this.locationService.updateLocation(
+    const location: any = await this.locationService.updateLocation(
       user.sub,
       user.companyId,
       dto,
-      true,
     );
+
+    if (
+      location &&
+      !location.isSuspiciousJump &&
+      this.locationGateway?.server
+    ) {
+      const wsPayload = {
+        userId: user.sub,
+        sessionId: dto.sessionId,
+        latitude: Number(location.latitude),
+        longitude: Number(location.longitude),
+        accuracy: dto.accuracy ?? null,
+        speed: dto.speed ?? null,
+        heading: dto.heading ?? null,
+        batteryLevel: dto.batteryLevel ?? null,
+        capturedAt: location.capturedAt
+          ? new Date(location.capturedAt).toISOString()
+          : new Date().toISOString(),
+        serverReceivedAt: new Date().toISOString(),
+        source: 'REST_REALTIME',
+        status: 'ONLINE',
+      };
+      if (user.companyId) {
+        this.locationGateway.server
+          .to(`company:${user.companyId}:live-users`)
+          .emit('user:location:update', wsPayload);
+      }
+      this.locationGateway.server
+        .to('global:live-users')
+        .emit('user:location:update', wsPayload);
+    }
+
+    return location;
   }
 
   /**
