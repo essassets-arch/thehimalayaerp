@@ -40,6 +40,22 @@ export interface AuthLoginResponse {
   };
 }
 
+const MAX_FAILED_LOGIN_ATTEMPTS = 10;
+const ACCOUNT_LOCKOUT_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+function formatWaitDuration(totalSeconds: number): string {
+  const secs = Math.max(1, Math.ceil(totalSeconds));
+  const mins = Math.floor(secs / 60);
+  const remSecs = secs % 60;
+  if (mins > 0 && remSecs > 0) {
+    return `${mins} min ${remSecs} sec`;
+  }
+  if (mins > 0) {
+    return `${mins} ${mins === 1 ? 'minute' : 'minutes'}`;
+  }
+  return `${secs} ${secs === 1 ? 'second' : 'seconds'}`;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -73,13 +89,27 @@ export class AuthService {
     const user = await this.usersService.findByEmail(loginDto.email);
 
     if (!user || !user.isActive) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message: 'Invalid email or password.',
+      });
     }
 
-    if (user.lockedUntil && new Date() < user.lockedUntil) {
-      throw new UnauthorizedException(
-        'Account is temporarily locked. Please try again later.',
+    const now = new Date();
+
+    if (user.lockedUntil && now < user.lockedUntil) {
+      const retryAfterSeconds = Math.max(
+        1,
+        Math.ceil((user.lockedUntil.getTime() - now.getTime()) / 1000),
       );
+      throw new UnauthorizedException({
+        code: 'ACCOUNT_LOCKED',
+        message: `Account is temporarily locked due to too many failed attempts. Please try again in ${formatWaitDuration(retryAfterSeconds)}.`,
+        retryAfterSeconds,
+        lockedUntil: user.lockedUntil.toISOString(),
+        attemptsRemaining: 0,
+        maxAttempts: MAX_FAILED_LOGIN_ATTEMPTS,
+      });
     }
 
     // Strict bcrypt verification solely against the stored database hash
@@ -88,14 +118,38 @@ export class AuthService {
       : false;
 
     if (!isMatch) {
-      const attempts = (user.failedLoginAttempts || 0) + 1;
-      const dataToUpdate: { failedLoginAttempts: number; lockedUntil?: Date } =
-        {
-          failedLoginAttempts: attempts,
-        };
+      // If a previous lockout window has already expired, start a fresh counter
+      const priorExpired = Boolean(user.lockedUntil && now >= user.lockedUntil);
+      const baseAttempts = priorExpired ? 0 : user.failedLoginAttempts || 0;
+      const attempts = baseAttempts + 1;
+      const attemptsRemaining = Math.max(0, MAX_FAILED_LOGIN_ATTEMPTS - attempts);
 
-      if (attempts >= 10) {
-        dataToUpdate.lockedUntil = new Date(Date.now() + 5 * 60 * 1000); // 5 mins
+      const dataToUpdate: {
+        failedLoginAttempts: number;
+        lockedUntil?: Date | null;
+      } = {
+        failedLoginAttempts: attempts,
+        ...(priorExpired ? { lockedUntil: null } : {}),
+      };
+
+      if (attempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
+        const lockedUntil = new Date(now.getTime() + ACCOUNT_LOCKOUT_DURATION_MS);
+        const retryAfterSeconds = Math.ceil(ACCOUNT_LOCKOUT_DURATION_MS / 1000);
+        dataToUpdate.lockedUntil = lockedUntil;
+
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: dataToUpdate,
+        });
+
+        throw new UnauthorizedException({
+          code: 'ACCOUNT_LOCKED',
+          message: `Too many failed login attempts (${MAX_FAILED_LOGIN_ATTEMPTS}/${MAX_FAILED_LOGIN_ATTEMPTS}). Your account is locked for ${formatWaitDuration(retryAfterSeconds)}.`,
+          retryAfterSeconds,
+          lockedUntil: lockedUntil.toISOString(),
+          attemptsRemaining: 0,
+          maxAttempts: MAX_FAILED_LOGIN_ATTEMPTS,
+        });
       }
 
       await this.prisma.user.update({
@@ -103,7 +157,22 @@ export class AuthService {
         data: dataToUpdate,
       });
 
-      throw new UnauthorizedException('Invalid credentials');
+      let message: string;
+      if (attemptsRemaining === 1) {
+        message =
+          'Invalid email or password. FINAL WARNING: 1 attempt left — one more wrong password will lock your account for 5 minutes.';
+      } else if (attemptsRemaining <= 3) {
+        message = `Invalid email or password. Warning: Only ${attemptsRemaining} attempts left before your account is locked for 5 minutes.`;
+      } else {
+        message = `Invalid email or password. (${attemptsRemaining} of ${MAX_FAILED_LOGIN_ATTEMPTS} attempts remaining before a 5-minute lock.)`;
+      }
+
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message,
+        attemptsRemaining,
+        maxAttempts: MAX_FAILED_LOGIN_ATTEMPTS,
+      });
     }
 
     if ((user.failedLoginAttempts || 0) > 0 || user.lockedUntil) {

@@ -12,6 +12,11 @@ interface HttpExceptionResponseBody {
   code?: string;
   message?: string | string[];
   field?: string;
+  details?: unknown[];
+  retryAfterSeconds?: number;
+  lockedUntil?: string;
+  attemptsRemaining?: number;
+  maxAttempts?: number;
   [key: string]: unknown;
 }
 
@@ -39,6 +44,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let message = 'Internal server error';
     let details: unknown[] = [];
     let field: string | undefined = undefined;
+    let extraErrorFields: Record<string, unknown> = {};
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -58,6 +64,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
                 : 'BAD_REQUEST');
 
         field = body.field;
+
+        if (Array.isArray(body.details)) {
+          details = body.details;
+        }
+        if (typeof body.retryAfterSeconds === 'number') {
+          extraErrorFields.retryAfterSeconds = body.retryAfterSeconds;
+        }
+        if (typeof body.lockedUntil === 'string') {
+          extraErrorFields.lockedUntil = body.lockedUntil;
+        }
+        if (typeof body.attemptsRemaining === 'number') {
+          extraErrorFields.attemptsRemaining = body.attemptsRemaining;
+        }
+        if (typeof body.maxAttempts === 'number') {
+          extraErrorFields.maxAttempts = body.maxAttempts;
+        }
 
         if (Array.isArray(body.message)) {
           message = 'Validation failed';
@@ -120,6 +142,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message,
         details,
         field,
+        ...extraErrorFields,
       },
       meta: {
         requestId,

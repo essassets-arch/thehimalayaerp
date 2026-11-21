@@ -4,7 +4,17 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
-import { KeyRound, Mail, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import { KeyRound, Mail, ShieldCheck, Eye, EyeOff, Clock, AlertTriangle, Lock } from 'lucide-react';
+
+function formatLockCountdown(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const mins = Math.floor(s / 60);
+  const rem = s % 60;
+  if (mins > 0) {
+    return `${mins}m ${String(rem).padStart(2, '0')}s`;
+  }
+  return `${rem}s`;
+}
 
 function getDefaultPath(role: string): string {
   const map: Record<string, string> = {
@@ -97,6 +107,26 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [lockoutSecondsLeft, setLockoutSecondsLeft] = useState<number>(0);
+  const [lockoutExpiredNotice, setLockoutExpiredNotice] = useState(false);
+  const [attemptsInfo, setAttemptsInfo] = useState<{ remaining: number; max: number } | null>(null);
+
+  // Live 1-second countdown while account is temporarily locked
+  useEffect(() => {
+    if (lockoutSecondsLeft <= 0) return;
+    const timer = window.setInterval(() => {
+      setLockoutSecondsLeft((prev) => {
+        if (prev <= 1) {
+          window.clearInterval(timer);
+          setLockoutExpiredNotice(true);
+          setError('');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [lockoutSecondsLeft]);
 
   // If already logged in, automatically navigate to the user's dashboard
   useEffect(() => {
@@ -118,8 +148,10 @@ export default function LoginPage() {
   }, [isAuthenticated, accessToken, user, role, router]);
 
   const executeLogin = async (loginEmail: string, loginPass: string) => {
+    if (lockoutSecondsLeft > 0) return;
     setLoading(true);
     setError('');
+    setLockoutExpiredNotice(false);
 
     try {
       const res = await fetch('/api/backend/auth/login', {
@@ -134,8 +166,35 @@ export default function LoginPage() {
         if (res.status === 504 || res.status === 503) {
           throw new Error('Backend service is unavailable. Please try again shortly.');
         }
-        throw new Error(json?.message || 'Login failed. Please try again.');
+
+        const errObj = json?.error && typeof json.error === 'object' ? json.error : json || {};
+        const errCode = errObj.code || json?.code;
+        const retryAfterSeconds = Number(errObj.retryAfterSeconds ?? json?.retryAfterSeconds ?? 0);
+        const attemptsRemaining = errObj.attemptsRemaining ?? json?.attemptsRemaining;
+        const maxAttempts = Number(errObj.maxAttempts ?? json?.maxAttempts ?? 10);
+
+        if (errCode === 'ACCOUNT_LOCKED' || retryAfterSeconds > 0) {
+          let secs = retryAfterSeconds;
+          if (!secs && errObj.lockedUntil) {
+            secs = Math.max(1, Math.ceil((new Date(errObj.lockedUntil).getTime() - Date.now()) / 1000));
+          }
+          setLockoutSecondsLeft(secs > 0 ? secs : 300);
+          setAttemptsInfo({ remaining: 0, max: maxAttempts });
+        } else if (typeof attemptsRemaining === 'number') {
+          setAttemptsInfo({ remaining: attemptsRemaining, max: maxAttempts });
+        } else {
+          setAttemptsInfo(null);
+        }
+
+        const serverMessage =
+          (typeof errObj.message === 'string' && errObj.message) ||
+          (typeof json?.message === 'string' && json.message) ||
+          'Login failed. Please try again.';
+        throw new Error(serverMessage);
       }
+
+      setAttemptsInfo(null);
+      setLockoutSecondsLeft(0);
 
       const data = json?.data || json || {};
       const receivedToken = data.accessToken;
@@ -538,8 +597,99 @@ export default function LoginPage() {
 
             <div className="login-divider" />
 
-            {/* Error Banner */}
-            {error && <div className="login-error">{error}</div>}
+            {/* Live Lockout Countdown Banner */}
+            {lockoutSecondsLeft > 0 ? (
+              <div
+                data-testid="login-lockout-banner"
+                style={{
+                  background: '#FEF2F2',
+                  border: '1.5px solid #FCA5A5',
+                  borderRadius: '12px',
+                  padding: '12px 14px',
+                  color: '#991B1B',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '13px' }}>
+                    <Lock size={15} /> Account Temporarily Locked
+                  </span>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: '#DC2626',
+                      color: '#FFFFFF',
+                      fontWeight: 800,
+                      fontSize: '12px',
+                      padding: '3px 9px',
+                      borderRadius: '999px',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    <Clock size={12} /> {formatLockCountdown(lockoutSecondsLeft)}
+                  </span>
+                </div>
+                <div style={{ fontSize: '12px', lineHeight: 1.45, color: '#7F1D1D' }}>
+                  Too many failed login attempts. Please wait <strong>{formatLockCountdown(lockoutSecondsLeft)}</strong> before trying again — repeated retries during lockout will not sign you in.
+                </div>
+              </div>
+            ) : lockoutExpiredNotice ? (
+              <div
+                style={{
+                  background: '#ECFDF5',
+                  border: '1px solid #6EE7B7',
+                  borderRadius: '10px',
+                  padding: '10px 12px',
+                  color: '#065F46',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  textAlign: 'center',
+                }}
+              >
+                Lockout period ended — you can try signing in again now.
+              </div>
+            ) : (
+              <>
+                {/* Error Banner */}
+                {error && <div className="login-error">{error}</div>}
+
+                {/* Escalating Remaining-Attempts Warning Reminder */}
+                {attemptsInfo && attemptsInfo.remaining > 0 && (
+                  <div
+                    data-testid="login-attempts-warning"
+                    style={{
+                      background: attemptsInfo.remaining <= 1 ? '#FEF2F2' : attemptsInfo.remaining <= 3 ? '#FFF7ED' : '#FFFBEB',
+                      border: `1px solid ${attemptsInfo.remaining <= 1 ? '#F87171' : attemptsInfo.remaining <= 3 ? '#FDBA74' : '#FDE68A'}`,
+                      borderRadius: '10px',
+                      padding: '9px 12px',
+                      color: attemptsInfo.remaining <= 1 ? '#991B1B' : attemptsInfo.remaining <= 3 ? '#9A3412' : '#92400E',
+                      fontSize: '12px',
+                      lineHeight: 1.4,
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '8px',
+                    }}
+                  >
+                    <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+                    <div>
+                      {attemptsInfo.remaining === 1 ? (
+                        <>
+                          <strong>FINAL ATTEMPT WARNING:</strong> Only <strong>1 try left</strong>! Entering the wrong password again will temporarily block this account for <strong>5 minutes</strong>.
+                        </>
+                      ) : (
+                        <>
+                          <strong>Security Reminder:</strong> You have <strong>{attemptsInfo.remaining} of {attemptsInfo.max}</strong> attempts left. Reaching {attemptsInfo.max} failed tries will temporarily lock this account for <strong>5 minutes</strong>.
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
 
             {/* Form */}
             <form onSubmit={handleLoginSubmit} className="login-form">
@@ -558,7 +708,12 @@ export default function LoginPage() {
                     className="login-input"
                     placeholder="plant.head@himalayaerp.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (lockoutSecondsLeft > 0) setLockoutSecondsLeft(0);
+                      if (attemptsInfo) setAttemptsInfo(null);
+                      if (lockoutExpiredNotice) setLockoutExpiredNotice(false);
+                    }}
                     disabled={loading}
                     autoComplete="username"
                     required
@@ -611,11 +766,21 @@ export default function LoginPage() {
                 type="submit"
                 id="login-submit"
                 data-testid="login-submit"
-                disabled={loading}
+                disabled={loading || lockoutSecondsLeft > 0}
                 className="login-btn"
+                style={lockoutSecondsLeft > 0 ? { opacity: 0.65, cursor: 'not-allowed' } : undefined}
               >
-                <ShieldCheck size={18} />
-                {loading ? 'Authenticating…' : 'Sign In'}
+                {lockoutSecondsLeft > 0 ? (
+                  <>
+                    <Clock size={18} />
+                    Try again in {formatLockCountdown(lockoutSecondsLeft)}
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={18} />
+                    {loading ? 'Authenticating…' : 'Sign In'}
+                  </>
+                )}
               </button>
             </form>
 
