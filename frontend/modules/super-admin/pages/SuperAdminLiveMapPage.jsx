@@ -355,7 +355,8 @@ const DAY_ROUTE_COLORS = [
   '#DB2777', // Pink
 ];
 
-export default function SuperAdminLiveMapPage() {
+export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {}) {
+  const isHrPortal = portalMode === 'HR';
   const { accessToken } = useAuthStore();
 
   // ─── 4 MAIN OPERATIONAL MODES ─────────────────────────────────────────────
@@ -531,9 +532,11 @@ export default function SuperAdminLiveMapPage() {
       setLoading(true);
       // Pass cacheTtlMs: 0 to bypass Next.js 30s cache and fetch authoritative fresh telemetry
       const [usersRes, routesRes, empRes, overviewRes] = await Promise.allSettled([
-        backendFetch('/super-admin/live-users', { cacheTtlMs: 0 }).catch(() =>
-          backendFetch('/location/live-users', { cacheTtlMs: 0 })
-        ),
+        isHrPortal
+          ? backendFetch('/location/live-users', { cacheTtlMs: 0 })
+          : backendFetch('/super-admin/live-users', { cacheTtlMs: 0 }).catch(() =>
+              backendFetch('/location/live-users', { cacheTtlMs: 0 })
+            ),
         backendFetch('/location/routes/live', { cacheTtlMs: 0 }),
         backendFetch('/hr/employees', { cacheTtlMs: 60000 }),
         backendFetch('/location/overview-7d?days=7', { cacheTtlMs: 30000 }),
@@ -608,7 +611,7 @@ export default function SuperAdminLiveMapPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isHrPortal]);
 
   // Periodic resynchronization (every 10s)
   useEffect(() => {
@@ -1918,7 +1921,7 @@ export default function SuperAdminLiveMapPage() {
                 gap: '8px',
               }}
             >
-              Super Admin Map — Real-Time Tracking
+              {isHrPortal ? 'HR Live Map — Real-Time Tracking' : 'Super Admin Map — Real-Time Tracking'}
               <span
                 style={{
                   fontSize: '10.5px',

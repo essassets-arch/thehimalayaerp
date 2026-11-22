@@ -29,6 +29,7 @@ import ExitClearanceFormModal from '../components/ExitClearanceFormModal';
 import HRDashboardView from '../components/HRDashboardView';
 import HRComplaintCenterView from '../components/HRComplaintCenterView';
 import HRSOPsView from '../components/HRSOPsView';
+import SuperAdminLiveMapPage from '../../super-admin/pages/SuperAdminLiveMapPage';
 import { exportToCSV, exportToExcel } from '../../../services/export.service';
 
 export default function HRPortal() {
@@ -1160,6 +1161,9 @@ export default function HRPortal() {
         return renderRegisterStaff();
       case 'attendance':
         return renderAttendance();
+      case 'map':
+      case 'live-map':
+        return <SuperAdminLiveMapPage portalMode="HR" />;
       case 'leaves':
         return <LeaveApprovalView roleMode="HR" />;
       case 'exit-clearance':

@@ -857,6 +857,11 @@ export class UsersService {
           { code: 'user.read', name: 'View Users' },
         ],
         HR: [
+          { code: 'LIVE_USER_MAP_VIEW', name: 'Live User Map View' },
+          {
+            code: 'USER_LOCATION_HISTORY_VIEW',
+            name: 'User Location History View',
+          },
           { code: 'hr.employees.read', name: 'View HR Roster' },
           { code: 'hr.employees.manage', name: 'Manage Employees' },
           { code: 'hr.payroll.read', name: 'View Payroll' },

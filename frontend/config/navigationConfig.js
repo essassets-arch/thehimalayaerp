@@ -343,6 +343,7 @@ export const navigationConfig = {
     { id: 'users', label: 'User Management', icon: Users, path: '/hr/users' },
     { id: 'recruitment', label: 'Recruitment Requisitions', icon: UserPlus, path: '/hr/recruitment' },
     { id: 'attendance', label: 'Attendance & Clock', icon: Clock, path: '/hr/attendance' },
+    { id: 'map', label: 'Live User Map', icon: MapPin, path: '/hr/map' },
     { id: 'leaves', label: 'Leave Workflows', icon: FileText, path: '/hr/leaves' },
     { id: 'exit-clearance', label: 'Exit Clearance', icon: PackageCheck, path: '/hr/exit-clearance' },
     { id: 'sops', label: "SOP's & HR Forms", icon: BookOpen, path: '/hr/sops' },
