@@ -14,10 +14,19 @@ export async function POST(request: Request) {
       'Content-Type': 'application/json',
     };
 
-    // Forward the incoming Cookie header (which contains refreshToken) to NestJS
+    // Forward client IP, User-Agent, and Cookie header to NestJS
     const incomingCookie = request.headers.get('Cookie');
     if (incomingCookie) {
       headers['Cookie'] = incomingCookie;
+    }
+    const forwardedFor = request.headers.get('x-forwarded-for');
+    const realIp = request.headers.get('x-real-ip');
+    const clientUa = request.headers.get('user-agent');
+    if (forwardedFor) headers['x-forwarded-for'] = forwardedFor;
+    if (realIp) headers['x-real-ip'] = realIp;
+    if (clientUa) {
+      headers['user-agent'] = clientUa;
+      headers['x-client-user-agent'] = clientUa;
     }
 
     const res = await fetch(`${BACKEND_API_URL}/auth/refresh`, {

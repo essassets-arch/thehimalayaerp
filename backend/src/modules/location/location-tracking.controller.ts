@@ -7,13 +7,48 @@ import {
   Body,
   UseGuards,
   BadRequestException,
+  ForbiddenException,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { LocationTrackingService } from './location-tracking.service';
 import { BatchTrackingPointsDto, SingleTrackingPointDto } from './dto/tracking-point.dto';
+
+const LOCATION_VIEWER_ROLES = [
+  'Super Admin',
+  'Admin',
+  'SUPER_ADMIN',
+  'ADMIN',
+  'HR',
+  'HR_MANAGER',
+  'HR_EXECUTIVE',
+  'Plant Head',
+  'PLANT_HEAD',
+  'PLANTHEAD',
+  'Director',
+  'DIRECTOR',
+];
+
+function isAuthorizedLocationViewer(role?: string): boolean {
+  const norm = String(role || '')
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_');
+  return (
+    norm === 'SUPER_ADMIN' ||
+    norm === 'ADMIN' ||
+    norm.includes('SUPER_ADMIN') ||
+    norm === 'HR' ||
+    norm === 'HR_MANAGER' ||
+    norm === 'HR_EXECUTIVE' ||
+    norm.includes('PLANT_HEAD') ||
+    norm === 'PLANTHEAD' ||
+    norm.includes('DIRECTOR')
+  );
+}
 
 @Controller('location')
 @UseGuards(JwtAuthGuard)
@@ -69,6 +104,8 @@ export class LocationTrackingController {
    * Scoped by company unless Super Admin.
    */
   @Get('routes/live')
+  @UseGuards(RolesGuard)
+  @Roles(...LOCATION_VIEWER_ROLES)
   async getLiveRoutes(@CurrentUser() user: any) {
     const normalizedRole = String(user.role || '')
       .toUpperCase()
@@ -87,6 +124,8 @@ export class LocationTrackingController {
    * Scoped strictly by company/tenant unless Super Admin.
    */
   @Get('routes/history')
+  @UseGuards(RolesGuard)
+  @Roles(...LOCATION_VIEWER_ROLES)
   async getHistoricalRoute(
     @CurrentUser() user: any,
     @Query('employeeId') employeeId: string,
@@ -113,6 +152,8 @@ export class LocationTrackingController {
    * List tracking sessions for a specific date (defaults to today) or employee.
    */
   @Get('routes/sessions')
+  @UseGuards(RolesGuard)
+  @Roles(...LOCATION_VIEWER_ROLES)
   async getSessions(
     @CurrentUser() user: any,
     @Query('date') dateStr?: string,
@@ -147,6 +188,13 @@ export class LocationTrackingController {
       throw new BadRequestException('userId is required.');
     }
 
+    const isSelf = Boolean(user?.sub && targetUserId === user.sub);
+    if (!isSelf && !isAuthorizedLocationViewer(user?.role)) {
+      throw new ForbiddenException(
+        'Access Denied: You can only view your own location history.',
+      );
+    }
+
     const normalizedRole = String(user.role || '')
       .toUpperCase()
       .replace(/[\s-]+/g, '_');
@@ -167,9 +215,11 @@ export class LocationTrackingController {
   }
 
   /**
-   * Lightweight 7-day overview stats per user for Super Admin Map badges.
+   * Lightweight 7-day overview stats per user for Super Admin / HR Map badges.
    */
   @Get('overview-7d')
+  @UseGuards(RolesGuard)
+  @Roles(...LOCATION_VIEWER_ROLES)
   async getUsers7DayOverview(
     @CurrentUser() user: any,
     @Query('days') daysStr?: string,

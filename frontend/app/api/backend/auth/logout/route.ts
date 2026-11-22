@@ -18,6 +18,19 @@ export async function POST(request: Request) {
     if (incomingCookie) {
       headers['Cookie'] = incomingCookie;
     }
+    const authHeader = request.headers.get('authorization');
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
+    const forwardedFor = request.headers.get('x-forwarded-for');
+    const realIp = request.headers.get('x-real-ip');
+    const clientUa = request.headers.get('user-agent');
+    if (forwardedFor) headers['x-forwarded-for'] = forwardedFor;
+    if (realIp) headers['x-real-ip'] = realIp;
+    if (clientUa) {
+      headers['user-agent'] = clientUa;
+      headers['x-client-user-agent'] = clientUa;
+    }
 
     const res = await fetch(`${BACKEND_API_URL}/auth/logout`, {
       method: 'POST',

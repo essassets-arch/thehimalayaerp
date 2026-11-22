@@ -33,8 +33,8 @@ export class AuditController {
     @Query('page') page = '1',
     @Query('limit') limit = '50',
   ) {
-    const take = Math.min(200, Math.max(1, Number(limit)));
-    const skip = (Math.max(1, Number(page)) - 1) * take;
+    const take = Math.min(100, Math.max(1, Number(limit) || 25));
+    const skip = (Math.max(1, Number(page) || 1) - 1) * take;
 
     const where: any = {};
     if (entityType) where.entityType = entityType;

@@ -1,6 +1,16 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../../lib/apiClient';
 
+function unwrapList(res) {
+  const body = res?.data ?? res;
+  if (Array.isArray(body)) return body;
+  if (Array.isArray(body?.items)) return body.items;
+  if (Array.isArray(body?.data?.items)) return body.data.items;
+  if (Array.isArray(body?.data?.data)) return body.data.data;
+  if (Array.isArray(body?.data)) return body.data;
+  return [];
+}
+
 export function useSuperAdminData() {
   const [data, setData] = useState({
     users: [],
@@ -15,34 +25,29 @@ export function useSuperAdminData() {
 
   const fetchAll = async () => {
     setLoading(true);
+    setError(null);
     try {
       const [
         usersRes,
         employeesRes,
-        modulesRes,
         auditLogsRes,
         companiesRes,
         rolesRes
       ] = await Promise.all([
         apiClient.get('/admin/users').catch(() => ({ data: [] })),
-        apiClient.get('/admin/employees').catch(() => ({ data: [] })),
-        apiClient.get('/admin/modules').catch(() => ({ data: [] })),
-        apiClient.get('/admin/audit-logs').catch(() => ({ data: [] })),
+        apiClient.get('/admin/employees?page=1&limit=100').catch(() => ({ data: [] })),
+        apiClient.get('/admin/audit-logs?page=1&limit=50').catch(() => ({ data: [] })),
         apiClient.get('/admin/companies').catch(() => ({ data: [] })),
         apiClient.get('/admin/roles').catch(() => ({ data: [] }))
       ]);
 
-      const rawUsers = usersRes.data?.data || usersRes.data || [];
-      const rawEmployees = employeesRes.data?.data?.items || employeesRes.data?.items || employeesRes.data?.data || employeesRes.data || [];
-      const rawRoles = rolesRes.data?.data || rolesRes.data || [];
-
       setData({
-        users: Array.isArray(rawUsers) ? rawUsers : [],
-        employees: Array.isArray(rawEmployees) ? rawEmployees : [],
-        modules: Array.isArray(modulesRes.data) ? modulesRes.data : [],
-        auditLogs: Array.isArray(auditLogsRes.data) ? auditLogsRes.data : [],
-        companies: Array.isArray(companiesRes.data) ? companiesRes.data : [],
-        roles: Array.isArray(rawRoles) ? rawRoles : []
+        users: unwrapList(usersRes),
+        employees: unwrapList(employeesRes),
+        modules: [],
+        auditLogs: unwrapList(auditLogsRes),
+        companies: unwrapList(companiesRes),
+        roles: unwrapList(rolesRes)
       });
     } catch (err) {
       console.error('Failed to load Super Admin data from backend:', err);

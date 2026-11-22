@@ -4,6 +4,7 @@ import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
 import { PrismaModule } from './database/prisma.module';
+import { SessionSecurityModule } from './common/security/session-security.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuditModule } from './modules/audit/audit.module';
@@ -83,6 +84,7 @@ import { ComplaintsModule } from './modules/complaints/complaints.module';
       ],
     }),
     PrismaModule,
+    SessionSecurityModule,
     AuthModule,
     UsersModule,
     AuditModule,
@@ -138,11 +140,11 @@ import { ComplaintsModule } from './modules/complaints/complaints.module';
     AppService,
     {
       provide: APP_GUARD,
-      useClass: CustomThrottlerGuard, // Rate limiting first
+      useClass: JwtAuthGuard, // Authenticate first so throttler keys by userId on authed routes
     },
     {
       provide: APP_GUARD,
-      useClass: JwtAuthGuard, // Secured by default
+      useClass: CustomThrottlerGuard, // Per-user on authed routes, per-IP on @Public() routes
     },
     {
       provide: APP_GUARD,

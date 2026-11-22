@@ -13,6 +13,10 @@ import {
   getSalesScope,
   canAssignSalesOwner,
 } from '../../common/utils/rbac.util';
+import {
+  parsePaginationParams,
+  formatPaginatedResult,
+} from '../../common/utils/pagination.util';
 
 
 const SALES_EXECUTIVE_SELECT = {
@@ -73,32 +77,74 @@ export class QuotationsService {
     userId?: string,
     role?: string,
     includeDeleted: boolean = false,
+    paginationQuery?: { page?: string | number; limit?: string | number; pageSize?: string | number },
   ) {
     const scope = getQuotationSalesScope(userId, role);
-    const quotations = await this.prisma.quotation.findMany({
-      where: {
-        ...scope,
-        ...(includeDeleted ? {} : { deletedAt: null }),
-        ...(companyId ? { companyId } : {}),
-        ...(search
-          ? { quotationNumber: { contains: search, mode: 'insensitive' } }
-          : {}),
-      },
-      include: {
-        workflowState: true,
-        salesExecutive: SALES_EXECUTIVE_SELECT,
-        lead: {
-          include: {
-            salesExecutive: SALES_EXECUTIVE_SELECT,
+    const pagination = parsePaginationParams(paginationQuery, 50, 100);
+    const where: any = {
+      ...scope,
+      ...(includeDeleted ? {} : { deletedAt: null }),
+      ...(companyId ? { companyId } : {}),
+      ...(search
+        ? {
+            OR: [
+              { quotationNumber: { contains: search, mode: 'insensitive' } },
+              { lead: { companyName: { contains: search, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [quotations, total] = await Promise.all([
+      this.prisma.quotation.findMany({
+        where,
+        skip: pagination.skip,
+        take: pagination.take,
+        include: {
+          workflowState: { select: { id: true, code: true, name: true } },
+          salesExecutive: SALES_EXECUTIVE_SELECT,
+          lead: {
+            select: {
+              id: true,
+              leadNumber: true,
+              companyName: true,
+              projectName: true,
+              groupName: true,
+              gstName: true,
+              gstNumber: true,
+              contactPerson: true,
+              phone: true,
+              address: true,
+              salesExecutive: SALES_EXECUTIVE_SELECT,
+            },
           },
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                  unit: true,
+                  category: true,
+                  hsnCode: true,
+                  gstRate: true,
+                  dispatchCategory: true,
+                  productType: true,
+                },
+              },
+            },
+          },
+          selectedTerms: { orderBy: { sortOrder: 'asc' }, take: 15 },
+          salesOrder: { select: { id: true, orderNumber: true, status: true } },
+          sourceSalesOrders: { select: { id: true, orderNumber: true, status: true } },
         },
-        items: { include: { product: true } },
-        selectedTerms: { orderBy: { sortOrder: 'asc' } },
-        salesOrder: { select: { id: true, orderNumber: true, status: true } },
-        sourceSalesOrders: { select: { id: true, orderNumber: true, status: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      }),
+      pagination.hasExplicitPagination
+        ? this.prisma.quotation.count({ where })
+        : Promise.resolve(0),
+    ]);
 
     const customerIds = quotations
       .map((q) => q.customerId)
@@ -142,7 +188,7 @@ export class QuotationsService {
       creatorMap = new Map(creators.map((u) => [u.id, u]));
     }
 
-    return quotations.map((q) => {
+    const quotationsMapped = quotations.map((q) => {
       const cust = q.customerId ? customerMap.get(q.customerId) || null : null;
       const leadName = q.lead?.companyName || q.lead?.projectName || '';
       const directCustName = cust?.companyName || '';
@@ -218,6 +264,12 @@ export class QuotationsService {
           : null,
       };
     });
+
+    return formatPaginatedResult(
+      quotationsMapped,
+      total || quotationsMapped.length,
+      pagination,
+    );
   }
 
   async getQuotation(

@@ -39,6 +39,15 @@ import { rootReducer } from '../../engine/reducers';
 let syncInFlight = false;
 let lastSyncStartedAt = 0;
 
+function extractArray(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.data?.items)) return payload.data.items;
+  if (Array.isArray(payload?.data?.data)) return payload.data.data;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
 export const useERP = () => {
   const store = useERPStore();
   const addNotification = useNotificationStore(state => state.addNotification);
@@ -163,88 +172,79 @@ export const useERP = () => {
           const isBackOffice = role.toLowerCase().includes('back') && role.toLowerCase().includes('office');
           const isProcurementRole = ['Super Admin', 'Admin', 'Procurement', 'Procurement Executive', 'Plant Head', 'Finance', 'Store'].some(r => role.toLowerCase().includes(r.toLowerCase()));
 
-          if (isProcurementRole || hasPermission(authUser, 'procurement.indents.read')) {
-            const indentsRes = await purchaseIndentService.list({ limit: 100 }).catch(() => []);
-            materialIndents = Array.isArray(indentsRes) ? indentsRes : (indentsRes?.data || []);
-          }
-          
-          if (isProcurementRole || hasPermission(authUser, 'procurement.purchase_orders.read')) {
-            const posRes = await purchaseOrderService.list({ limit: 100 }).catch(() => []);
-            purchaseOrders = Array.isArray(posRes) ? posRes : (posRes?.data || []);
-          }
-          
-          if (isProcurementRole || hasPermission(authUser, 'procurement.grns.read')) {
-            const grnsRes = await grnService.list({ limit: 100 }).catch(() => []);
-            goodsReceiptNotes = Array.isArray(grnsRes) ? grnsRes : (grnsRes?.data || []);
-          }
-
-          if (['Super Admin', 'Admin', 'Finance', 'Procurement'].some(r => role.toLowerCase().includes(r.toLowerCase())) || hasPermission(authUser, 'procurement.invoices.read')) {
-            const invoicesRes = await vendorInvoiceService.list({ limit: 100 }).catch(() => []);
-            vendorInvoices = Array.isArray(invoicesRes) ? invoicesRes : (invoicesRes?.data || []);
-          }
-
-          if (['Super Admin', 'Admin', 'Finance', 'Procurement'].some(r => role.toLowerCase().includes(r.toLowerCase())) || hasPermission(authUser, 'procurement.payments.read')) {
-            const paymentsRes = await vendorPaymentService.list({ limit: 100 }).catch(() => []);
-            vendorPayments = Array.isArray(paymentsRes) ? paymentsRes : (paymentsRes?.data || []);
-          }
-          
+          const canReadProcurement = isProcurementRole || hasPermission(authUser, 'procurement.indents.read');
+          const canReadPOs = isProcurementRole || hasPermission(authUser, 'procurement.purchase_orders.read');
+          const canReadGRNs = isProcurementRole || hasPermission(authUser, 'procurement.grns.read');
+          const canReadVendorInvoices =
+            ['Super Admin', 'Admin', 'Finance', 'Procurement'].some(r => role.toLowerCase().includes(r.toLowerCase())) ||
+            hasPermission(authUser, 'procurement.invoices.read');
+          const canReadVendorPayments =
+            ['Super Admin', 'Admin', 'Finance', 'Procurement'].some(r => role.toLowerCase().includes(r.toLowerCase())) ||
+            hasPermission(authUser, 'procurement.payments.read');
           const canReadOperationsCatalog = [
             'Super Admin', 'Admin', 'Store', 'Production', 'Plant Head', 'Sales', 'SuperSales', 'Finance', 'Procurement'
           ].some(r => role.toLowerCase().includes(r.toLowerCase())) && !isBackOffice;
-
-          if (canReadOperationsCatalog) {
-            // Use backendFetch — auto-injects Authorization header from authStore
-            const productsRaw = await backendFetch('/api/backend/products').catch(() => []);
-            products = Array.isArray(productsRaw) ? productsRaw : (productsRaw?.data || []);
-            
-            const warehousesRaw = await backendFetch('/api/backend/warehouses').catch(() => []);
-            warehouses = Array.isArray(warehousesRaw) ? warehousesRaw : (warehousesRaw?.data || []);
-
-            const suppliersRaw = await backendFetch('/api/backend/suppliers').catch(() => []);
-            suppliers = Array.isArray(suppliersRaw) ? suppliersRaw : (suppliersRaw?.data || []);
-
-            const stockRaw = await backendFetch('/api/backend/inventory/stock-levels').catch(() => []);
-            const stockLevels = Array.isArray(stockRaw) ? stockRaw : (stockRaw?.data || []);
-          }
-
-          // Fetch all audit logs for history timeline (Admins only)
-          if (authUser?.role === 'Super Admin' || authUser?.role === 'Admin') {
-            const auditRaw = await backendFetch('/api/backend/admin/audit-logs').catch(() => []);
-            auditLogs = Array.isArray(auditRaw) ? auditRaw : (auditRaw?.data || []);
-          }
-          
-          if (
+          const canReadAudit = authUser?.role === 'Super Admin' || authUser?.role === 'Admin';
+          const canReadReminders =
             authUser?.role === 'Sales Executive' ||
             authUser?.role === 'SuperSales' ||
             (authUser?.role && String(authUser.role).startsWith('SuperSales')) ||
             authUser?.role === 'Sales Manager' ||
             authUser?.role === 'Super Admin' ||
-            authUser?.role === 'Admin'
-          ) {
-            const remindersRaw = await backendFetch('/api/backend/sales/reminders').catch(() => []);
-            fetchedReminders = Array.isArray(remindersRaw) ? remindersRaw : (remindersRaw?.data || []);
-          }
-          // Note: we'll merge this with the existing state logic below.
+            authUser?.role === 'Admin';
 
-          let itemsList = [];
-          if (canReadOperationsCatalog) {
-            const inventoryItemsRaw = await backendFetch('/api/backend/inventory/items').catch(() => []);
-            itemsList = Array.isArray(inventoryItemsRaw) && inventoryItemsRaw.length > 0
-              ? inventoryItemsRaw
-              : SEEDED_INVENTORY_ITEMS;
-          }
+          // Execute all independent panel sync fetches in parallel instead of a 12-step serial waterfall
+          const [
+            indentsRes,
+            posRes,
+            grnsRes,
+            invoicesRes,
+            paymentsRes,
+            productsRaw,
+            warehousesRaw,
+            suppliersRaw,
+            stockRaw,
+            auditRaw,
+            remindersRaw,
+          ] = await Promise.all([
+            canReadProcurement ? purchaseIndentService.list({ limit: 100 }).catch(() => []) : Promise.resolve([]),
+            canReadPOs ? purchaseOrderService.list({ limit: 100 }).catch(() => []) : Promise.resolve([]),
+            canReadGRNs ? grnService.list({ limit: 100 }).catch(() => []) : Promise.resolve([]),
+            canReadVendorInvoices ? vendorInvoiceService.list({ limit: 100 }).catch(() => []) : Promise.resolve([]),
+            canReadVendorPayments ? vendorPaymentService.list({ limit: 100 }).catch(() => []) : Promise.resolve([]),
+            canReadOperationsCatalog ? backendFetch('/api/backend/products?page=1&limit=100').catch(() => []) : Promise.resolve([]),
+            canReadOperationsCatalog ? backendFetch('/api/backend/warehouses').catch(() => []) : Promise.resolve([]),
+            canReadOperationsCatalog ? backendFetch('/api/backend/suppliers').catch(() => []) : Promise.resolve([]),
+            canReadOperationsCatalog ? backendFetch('/api/backend/inventory/stock-levels').catch(() => []) : Promise.resolve([]),
+            canReadAudit ? backendFetch('/api/backend/admin/audit-logs?page=1&limit=50').catch(() => []) : Promise.resolve([]),
+            canReadReminders ? backendFetch('/api/backend/sales/reminders').catch(() => []) : Promise.resolve([]),
+          ]);
+
+          materialIndents = extractArray(indentsRes);
+          purchaseOrders = extractArray(posRes);
+          goodsReceiptNotes = extractArray(grnsRes);
+          vendorInvoices = extractArray(invoicesRes);
+          vendorPayments = extractArray(paymentsRes);
+          products = extractArray(productsRaw);
+          warehouses = extractArray(warehousesRaw);
+          suppliers = extractArray(suppliersRaw);
+          auditLogs = extractArray(auditRaw);
+          fetchedReminders = extractArray(remindersRaw);
+
+          const stockLevels = extractArray(stockRaw);
+          const itemsList = stockLevels.length > 0 ? stockLevels : (canReadOperationsCatalog ? SEEDED_INVENTORY_ITEMS : []);
 
           rawInventory = itemsList.map((item, idx) => ({
-            id: String(item.id || item.code || `RM-ID-${idx + 1}`),
+            id: String(item.id || item.productId || item.code || `RM-ID-${idx + 1}`),
             srNo: item.srNo || idx + 1,
-            code: item.code || `HCPPL${String(idx + 1).padStart(3, '0')}`,
-            material: item.itemName || item.material,
-            category: item.category || 'Hardware',
-            unit: item.unit || 'PCS',
-            stock: item.balance ?? item.stock ?? 0,
-            minStock: item.minStock ?? item.reorderLevel ?? 20,
-            reorderLevel: item.minStock ?? item.reorderLevel ?? 20,
-            rate: 0,
+            code: item.code || item.sku || item.product?.sku || `HCPPL${String(idx + 1).padStart(3, '0')}`,
+            material: item.itemName || item.material || item.name || item.product?.name || 'Material',
+            category: item.category || item.product?.category || 'Hardware',
+            unit: item.unit || item.product?.unit || 'PCS',
+            stock: Number(item.balance ?? item.availableQuantity ?? item.quantity ?? item.stock ?? 0),
+            minStock: Number(item.minStock ?? item.minimumStock ?? item.reorderLevel ?? 20),
+            reorderLevel: Number(item.minStock ?? item.minimumStock ?? item.reorderLevel ?? 20),
+            rate: Number(item.rate ?? item.unitPrice ?? 0),
           }));
         } catch (e) {
           console.error('[ERPContext] Failed to load data from backend:', e);

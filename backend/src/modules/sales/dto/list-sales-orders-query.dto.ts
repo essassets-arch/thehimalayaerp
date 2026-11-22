@@ -12,14 +12,14 @@ export class ListSalesOrdersQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(10000)
+  @Max(100)
   pageSize?: number = 25;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(10000)
+  @Max(100)
   limit?: number;
 
   @IsOptional()

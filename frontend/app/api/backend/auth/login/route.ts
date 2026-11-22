@@ -34,11 +34,22 @@ export async function POST(request: NextRequest) {
       email,
     });
 
+    const forwardHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    const forwardedFor = request.headers.get('x-forwarded-for');
+    const realIp = request.headers.get('x-real-ip');
+    const clientUa = request.headers.get('user-agent');
+    if (forwardedFor) forwardHeaders['x-forwarded-for'] = forwardedFor;
+    if (realIp) forwardHeaders['x-real-ip'] = realIp;
+    if (clientUa) {
+      forwardHeaders['user-agent'] = clientUa;
+      forwardHeaders['x-client-user-agent'] = clientUa;
+    }
+
     const response = await fetch(backendUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: forwardHeaders,
       body: JSON.stringify(backendPayload),
       cache: 'no-store',
       signal: AbortSignal.timeout(10_000),

@@ -26,6 +26,14 @@ export class QuotationsController {
     if (Array.isArray(data)) {
       return data.map((item) => this.mapQuotationStatus(item));
     }
+    if (data.pagination && Array.isArray(data.items)) {
+      const mapped = data.items.map((item: any) => this.mapQuotationStatus(item));
+      return {
+        ...data,
+        items: mapped,
+        data: mapped,
+      };
+    }
     return {
       ...data,
       status: data.workflowState?.code || data.status,
@@ -38,6 +46,9 @@ export class QuotationsController {
     @Req() req: any,
     @Query('search') search?: string,
     @Query('includeDeleted') includeDeleted?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
     const result = await this.quotationsService.listQuotations(
       req.user?.companyId,
@@ -45,6 +56,7 @@ export class QuotationsController {
       req.user?.sub,
       req.user?.role,
       includeDeleted === 'true' || includeDeleted === '1',
+      { page, limit, pageSize },
     );
     return this.mapQuotationStatus(result);
   }

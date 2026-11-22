@@ -24,7 +24,6 @@ export class UsersController {
   @RequirePermissions(
     'user.read',
     'finance.read',
-    'sales.orders.read',
     'admin.read',
     'hr.read',
     'store.read',
@@ -32,7 +31,28 @@ export class UsersController {
     'plant.read',
   )
   async findAll(@Req() req: any) {
-    // Standardize to use req.user for audit logging if needed, or row-level ownership checks
+    const rawRole =
+      typeof req?.user?.role === 'object' && req?.user?.role !== null
+        ? req.user.role.code || req.user.role.name || ''
+        : req?.user?.role || '';
+    const normalizedRole = String(rawRole)
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+
+    // Field/Sales roles must never enumerate the company-wide admin user directory
+    if (
+      normalizedRole === 'SALES' ||
+      normalizedRole.startsWith('SALES_EXEC') ||
+      normalizedRole === 'EMPLOYEE' ||
+      normalizedRole === 'QC_INSPECTOR' ||
+      normalizedRole === 'PRODUCTION_OPERATOR'
+    ) {
+      throw new ForbiddenException(
+        'Access Denied: Insufficient privileges to list user directory.',
+      );
+    }
+
     return this.usersService.findAll();
   }
 
@@ -43,9 +63,25 @@ export class UsersController {
     'hr.read',
     'super-admin.read',
     'finance.read',
-    'sales.orders.read',
   )
-  async getRoles() {
+  async getRoles(@Req() req: any) {
+    const rawRole =
+      typeof req?.user?.role === 'object' && req?.user?.role !== null
+        ? req.user.role.code || req.user.role.name || ''
+        : req?.user?.role || '';
+    const normalizedRole = String(rawRole)
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+    if (
+      normalizedRole === 'SALES' ||
+      normalizedRole.startsWith('SALES_EXEC') ||
+      normalizedRole === 'EMPLOYEE'
+    ) {
+      throw new ForbiddenException(
+        'Access Denied: Insufficient privileges to view system roles.',
+      );
+    }
     return this.usersService.getRoles();
   }
 

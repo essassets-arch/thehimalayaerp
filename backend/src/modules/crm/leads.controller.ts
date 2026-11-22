@@ -22,11 +22,13 @@ export class LeadsController {
 
   @RequirePermissions('sales.leads.read')
   @Get()
-  // @RequirePermissions('sales.leads.read')
   async listLeads(
     @Req() req: any,
     @Query('search') search?: string,
     @Query('includeDeleted') includeDeleted?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
     const resolvedCompanyId =
       req.user?.companyId || req.headers['x-company-id'];
@@ -36,6 +38,7 @@ export class LeadsController {
       req.user?.sub || req.user?.id,
       req.user?.role,
       includeDeleted === 'true' || includeDeleted === '1',
+      { page, limit, pageSize },
     );
   }
 

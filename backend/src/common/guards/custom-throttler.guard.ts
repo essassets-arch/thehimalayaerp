@@ -26,14 +26,19 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
     if (req.user?.sub) {
       return Promise.resolve(`user_${req.user.sub}`);
     }
-    const forwarded = req.headers?.['x-forwarded-for'];
-    if (forwarded) {
-      const ip = Array.isArray(forwarded)
-        ? forwarded[0].trim()
-        : String(forwarded).split(',')[0].trim();
-      return Promise.resolve(`ip_${ip}`);
+    // Prefer Nginx-enforced X-Real-IP (cannot be spoofed from public clients) over client-supplied X-Forwarded-For
+    const realIp = req.headers?.['x-real-ip'];
+    if (realIp) {
+      const cleanRealIp = (Array.isArray(realIp) ? realIp[0] : String(realIp))
+        .trim()
+        .replace(/^::ffff:/i, '');
+      if (cleanRealIp) {
+        return Promise.resolve(`ip_${cleanRealIp}`);
+      }
     }
-    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    const ip = String(req.ip || req.socket?.remoteAddress || 'unknown')
+      .trim()
+      .replace(/^::ffff:/i, '');
     return Promise.resolve(`ip_${ip}`);
   }
 }

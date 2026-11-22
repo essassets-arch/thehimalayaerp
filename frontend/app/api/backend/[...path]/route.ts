@@ -75,9 +75,9 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     request.cookies.get('accessToken')?.value ||
     request.cookies.get('token')?.value ||
     request.cookies.get('himalaya_token')?.value;
+  // Never accept JWTs in URL query strings (?token=)
   const token =
     authorization?.replace(/^Bearer\s+/i, '') ||
-    request.nextUrl.searchParams.get('token') ||
     cookieToken;
 
   console.log(`[NEXT_API_PROXY] ${method} ${requestedPath} -> NestJS: ${backendPath}`);
@@ -93,7 +93,10 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
       requestId: request.headers.get('x-request-id') || undefined,
       headers: {
         ...(request.headers.get('cookie') ? { cookie: request.headers.get('cookie')! } : {}),
-        ...(request.headers.get('x-company-id') ? { 'x-company-id': request.headers.get('x-company-id')! } : {})
+        ...(request.headers.get('x-company-id') ? { 'x-company-id': request.headers.get('x-company-id')! } : {}),
+        ...(request.headers.get('x-forwarded-for') ? { 'x-forwarded-for': request.headers.get('x-forwarded-for')! } : {}),
+        ...(request.headers.get('x-real-ip') ? { 'x-real-ip': request.headers.get('x-real-ip')! } : {}),
+        ...(request.headers.get('user-agent') ? { 'user-agent': request.headers.get('user-agent')!, 'x-client-user-agent': request.headers.get('user-agent')! } : {}),
       }
     });
     console.log(`[NEXT_API_PROXY_SUCCESS] ${method} ${requestedPath} -> NestJS: ${backendPath} - Status: ${res.status}`);

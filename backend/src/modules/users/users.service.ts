@@ -1,15 +1,20 @@
 import {
   Injectable,
+  Optional,
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { SessionSecurityService } from '../../common/security/session-security.service';
 import { hash } from 'bcrypt';
 import { randomUUID } from 'crypto';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly sessionSecurity?: SessionSecurityService,
+  ) {}
 
   async findByEmail(email: string) {
     if (!email) return null;
@@ -590,12 +595,28 @@ export class UsersService {
       },
     });
 
-    // Revoke all active refresh sessions so old tokens cannot persist after reset
+    // Revoke all active refresh sessions & live JWTs so old tokens cannot persist after reset
     try {
+      const activeSessions =
+        typeof this.prisma.refreshSession?.findMany === 'function'
+          ? await this.prisma.refreshSession
+              .findMany({
+                where: { userId: id, revokedAt: null },
+                select: { id: true },
+              })
+              .catch(() => [])
+          : [];
       await this.prisma.refreshSession.updateMany({
         where: { userId: id, revokedAt: null },
         data: { revokedAt: new Date() },
       });
+      for (const s of activeSessions) {
+        this.sessionSecurity?.markSessionRevoked(s.id);
+      }
+      this.sessionSecurity?.markUserSessionsRevoked(
+        id,
+        'Your password was reset by Super Admin. Please sign in with your new password.',
+      );
     } catch {
       // non-fatal
     }
@@ -634,6 +655,19 @@ export class UsersService {
       where: { id },
       data: { isActive },
     });
+    this.sessionSecurity?.invalidateUserCache(id);
+    if (!isActive) {
+      await this.prisma.refreshSession
+        .updateMany({
+          where: { userId: id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        })
+        .catch(() => {});
+      this.sessionSecurity?.markUserSessionsRevoked(
+        id,
+        'Your account has been deactivated by an administrator.',
+      );
+    }
     return { success: true };
   }
 
@@ -642,6 +676,16 @@ export class UsersService {
       where: { id },
       data: { deletedAt: new Date(), isActive: false },
     });
+    await this.prisma.refreshSession
+      .updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      })
+      .catch(() => {});
+    this.sessionSecurity?.markUserSessionsRevoked(
+      id,
+      'Your account has been removed by an administrator.',
+    );
     return { success: true };
   }
 

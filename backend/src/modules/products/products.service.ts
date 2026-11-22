@@ -11,6 +11,10 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { isCatalogProduct, getCatalogProductsPrismaWhere } from './catalog-product.filter';
 import * as crypto from 'crypto';
 import { isTradingProduct, normalizeDispatchCategory, resolveProductRouting } from '../../common/utils/trading-product.util';
+import {
+  parsePaginationParams,
+  formatPaginatedResult,
+} from '../../common/utils/pagination.util';
 
 @Injectable()
 export class ProductsService {
@@ -232,6 +236,40 @@ export class ProductsService {
     });
   }
 
+  async getCategorySummary(companyId: string, scope?: string) {
+    const where: any =
+      scope === 'catalog'
+        ? getCatalogProductsPrismaWhere(companyId)
+        : { companyId, isActive: true };
+
+    const grouped = await this.prisma.product.groupBy({
+      by: ['category'],
+      where,
+      _count: { _all: true },
+    });
+
+    const excluded = new Set([
+      'raw material',
+      'hardware',
+      'electric',
+      'consumable',
+      'consumables',
+    ]);
+
+    return grouped
+      .filter((g) => {
+        const cat = String(g.category || '').trim();
+        if (!cat) return false;
+        if (scope === 'catalog' && excluded.has(cat.toLowerCase())) return false;
+        return true;
+      })
+      .map((g) => ({
+        category: g.category || 'Uncategorized',
+        count: g._count._all,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }
+
   async findAll(
     companyId: string,
     search?: string,
@@ -239,9 +277,28 @@ export class ProductsService {
     type?: string,
     userId?: string,
     role?: string,
+    options?: {
+      page?: string | number;
+      limit?: string | number;
+      pageSize?: string | number;
+      category?: string;
+      dispatchCategory?: string;
+    },
   ) {
+    const pagination = parsePaginationParams(options, 50, 100);
+
     if (scope === 'catalog') {
-      const activeProductsWhere = getCatalogProductsPrismaWhere(companyId);
+      const activeProductsWhere: any = getCatalogProductsPrismaWhere(companyId);
+
+      if (options?.category && options.category !== 'All') {
+        activeProductsWhere.category = {
+          equals: options.category,
+          mode: 'insensitive',
+        };
+      }
+      if (options?.dispatchCategory && options.dispatchCategory !== 'All') {
+        activeProductsWhere.dispatchCategory = options.dispatchCategory;
+      }
 
       if (search) {
         const rawSearch = search.trim();
@@ -276,46 +333,82 @@ export class ProductsService {
         activeProductsWhere.OR = searchConditions;
       }
 
-      let products = await this.prisma.product.findMany({
-        where: activeProductsWhere,
-        orderBy: { name: 'asc' },
-      });
-
-      if (products.length === 0 && companyId) {
-        const fallbackWhere: any = getCatalogProductsPrismaWhere();
-        if (activeProductsWhere.OR) {
-          fallbackWhere.OR = activeProductsWhere.OR;
-        }
-        products = await this.prisma.product.findMany({
-          where: fallbackWhere,
+      const [rawProducts, total] = await Promise.all([
+        this.prisma.product.findMany({
+          where: activeProductsWhere,
           orderBy: { name: 'asc' },
-        });
+          skip: pagination.skip,
+          take: pagination.take,
+        }),
+        pagination.hasExplicitPagination
+          ? this.prisma.product.count({ where: activeProductsWhere })
+          : Promise.resolve(0),
+      ]);
+
+      let products = rawProducts;
+      let resolvedTotal = total;
+
+      if (products.length === 0 && pagination.page === 1 && companyId) {
+        const fallbackWhere: any = getCatalogProductsPrismaWhere();
+        if (activeProductsWhere.OR) fallbackWhere.OR = activeProductsWhere.OR;
+        if (activeProductsWhere.category) fallbackWhere.category = activeProductsWhere.category;
+        if (activeProductsWhere.dispatchCategory) {
+          fallbackWhere.dispatchCategory = activeProductsWhere.dispatchCategory;
+        }
+        const [fbRows, fbTotal] = await Promise.all([
+          this.prisma.product.findMany({
+            where: fallbackWhere,
+            orderBy: { name: 'asc' },
+            skip: pagination.skip,
+            take: pagination.take,
+          }),
+          pagination.hasExplicitPagination
+            ? this.prisma.product.count({ where: fallbackWhere })
+            : Promise.resolve(0),
+        ]);
+        products = fbRows;
+        resolvedTotal = fbTotal;
       }
 
-      return products.filter(isCatalogProduct);
+      const filtered = products.filter(isCatalogProduct);
+      return formatPaginatedResult(
+        filtered,
+        resolvedTotal || filtered.length,
+        pagination,
+      );
     }
 
     if (scope === 'store' || scope === 'inventory') {
-      const products = await this.prisma.product.findMany({
-        where: {
-          OR: [{ companyId }, { companyId: { not: '' } }],
-          isActive: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      let rawMaterials = await this.prisma.rawMaterial.findMany({
-        where: { companyId },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      if (rawMaterials.length === 0) {
-        rawMaterials = await this.prisma.rawMaterial.findMany({
+      const storeWhere = {
+        OR: [{ companyId }, { companyId: { not: '' } }],
+        isActive: true,
+      };
+      const [products, rawMaterials, prodTotal] = await Promise.all([
+        this.prisma.product.findMany({
+          where: storeWhere,
           orderBy: { createdAt: 'desc' },
-        });
-      }
+          skip: pagination.skip,
+          take: pagination.take,
+        }),
+        this.prisma.rawMaterial.findMany({
+          where: { companyId },
+          orderBy: { createdAt: 'desc' },
+          take: pagination.take,
+        }),
+        pagination.hasExplicitPagination
+          ? this.prisma.product.count({ where: storeWhere })
+          : Promise.resolve(0),
+      ]);
 
-      const normalizedRaw = rawMaterials.map((rm) => ({
+      const resolvedRaw =
+        rawMaterials.length > 0
+          ? rawMaterials
+          : await this.prisma.rawMaterial.findMany({
+              orderBy: { createdAt: 'desc' },
+              take: pagination.take,
+            });
+
+      const normalizedRaw = resolvedRaw.map((rm) => ({
         id: rm.id,
         publicId: rm.publicId,
         companyId: rm.companyId,
@@ -330,13 +423,29 @@ export class ProductsService {
         storageLocation: rm.storageLocation || '',
       }));
 
-      return [...products, ...normalizedRaw];
+      const combined = [...products, ...normalizedRaw].slice(0, pagination.take);
+      return formatPaginatedResult(
+        combined,
+        (prodTotal || products.length) + normalizedRaw.length,
+        pagination,
+      );
     }
 
     if (type === 'RAW_MATERIAL') {
       const catalog = await loadRawMaterialCatalog(this.prisma, companyId);
       const term = search?.trim().toLowerCase();
-      return term ? catalog.filter(m => [m.name, m.sku, m.category].some(value => value.toLowerCase().includes(term))) : catalog;
+      const matched = term
+        ? catalog.filter((m) =>
+            [m.name, m.sku, m.category].some((value) =>
+              value.toLowerCase().includes(term),
+            ),
+          )
+        : catalog;
+      const sliced = matched.slice(
+        pagination.skip,
+        pagination.skip + pagination.take,
+      );
+      return formatPaginatedResult(sliced, matched.length, pagination);
     }
 
     const where: any = { companyId, isActive: true };
@@ -465,9 +574,18 @@ export class ProductsService {
       scope === 'production' ||
       scope === 'dispatch';
 
+    if (options?.category && options.category !== 'All') {
+      where.category = { equals: options.category, mode: 'insensitive' };
+    }
+    if (options?.dispatchCategory && options.dispatchCategory !== 'All') {
+      where.dispatchCategory = options.dispatchCategory;
+    }
+
     const findArgs: any = {
       where,
       orderBy: isDailyReportScope ? { name: 'asc' } : { createdAt: 'desc' },
+      skip: pagination.skip,
+      take: pagination.take,
     };
 
     if (scope === 'sales') {
@@ -487,17 +605,25 @@ export class ProductsService {
         productType: true,
       };
       if (search && search.trim()) {
-        findArgs.take = 80;
+        findArgs.take = Math.min(pagination.take, 80);
       }
     }
 
-    const products = await this.prisma.product.findMany(findArgs);
+    const [products, total] = await Promise.all([
+      this.prisma.product.findMany(findArgs),
+      pagination.hasExplicitPagination
+        ? this.prisma.product.count({ where })
+        : Promise.resolve(0),
+    ]);
 
-    if (scope === 'catalog') {
-      return products.filter(isCatalogProduct);
-    }
+    const finalList =
+      scope === 'catalog' ? products.filter(isCatalogProduct) : products;
 
-    return products;
+    return formatPaginatedResult(
+      finalList,
+      total || finalList.length,
+      pagination,
+    );
   }
 
   async findOne(companyId: string, id: string) {

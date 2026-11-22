@@ -69,6 +69,7 @@ import { SuperAdminFilterProvider } from '../context/SuperAdminFilterContext';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
 import BrandAnalysisPage from './BrandAnalysisPage';
 import SuperAdminLiveMapPage from './SuperAdminLiveMapPage';
+import ActiveSessionsPage from './ActiveSessionsPage';
 import BackOfficeReportsAdminView from './BackOfficeReportsAdminView';
 import SalesTargetManagementView from '../components/targets/SalesTargetManagementView';
 import ProductionTargetManagementView from '../components/targets/ProductionTargetManagementView';
@@ -292,9 +293,9 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
 
   const fetchRealCatalogCategories = useCallback(async () => {
     try {
-      const { data } = await axios.get('/api/backend/products?limit=1000');
-      if (data.success || Array.isArray(data.data)) {
-        const raw = data.data || [];
+      const res = await backendFetch('/api/backend/products?page=1&limit=100');
+      const raw = Array.isArray(res) ? res : (res?.items || res?.data || []);
+      if (Array.isArray(raw)) {
         const normalized = raw.map(p => ({
           ...p,
           product_name: p.product_name || p.name || '',
@@ -6916,6 +6917,8 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
         return renderAdmins();
       case 'users':
         return renderUsers();
+      case 'sessions':
+        return <ActiveSessionsPage />;
       case 'reports':
         return <BusinessReportsPage />;
       case 'sales-target':

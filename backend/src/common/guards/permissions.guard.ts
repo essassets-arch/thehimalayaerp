@@ -2514,7 +2514,6 @@ export class PermissionsGuard implements CanActivate {
         'planthead.read',
         'plant-head.read',
         'employees.read',
-        'user.read',
         'admin.read',
         'super-admin.read',
       ],

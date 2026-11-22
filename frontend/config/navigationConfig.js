@@ -433,6 +433,7 @@ export const navigationConfig = {
 
     { type: 'badge', label: 'BUSINESS MANAGEMENT' },
     { id: 'users', label: 'Users & Roles', icon: Users, path: '/super-admin/users' },
+    { id: 'sessions', label: 'Active Sessions', icon: Monitor, path: '/super-admin/sessions' },
     { id: 'employees', label: 'Employees', icon: UserCheck, path: '/super-admin/employees' },
     { id: 'sales-target', label: 'Sales Targets', icon: Target, path: '/super-admin/sales-target' },
     { id: 'production-target', label: 'Production Targets', icon: Target, path: '/super-admin/production-target' },

@@ -17,6 +17,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ExpenseService } from './expense.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import {
   CreateExpenseDto,
@@ -102,6 +104,25 @@ export class ExpenseController {
   }
 
   @Get('pending')
+  @UseGuards(RolesGuard)
+  @Roles(
+    'Super Admin',
+    'Admin',
+    'SUPER_ADMIN',
+    'ADMIN',
+    'HR',
+    'HR_MANAGER',
+    'HR_EXECUTIVE',
+    'Finance',
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'FINANCE_EXECUTIVE',
+    'FINANCE_HEAD',
+    'ACCOUNTS',
+    'ACCOUNTANT',
+    'Plant Head',
+    'PLANT_HEAD',
+  )
   getPendingExpenses(@Query('stage') stage: string, @Req() req: any) {
     const userId = req.user?.sub || req.user?.id;
     const companyId =
@@ -110,6 +131,25 @@ export class ExpenseController {
   }
 
   @Get('all')
+  @UseGuards(RolesGuard)
+  @Roles(
+    'Super Admin',
+    'Admin',
+    'SUPER_ADMIN',
+    'ADMIN',
+    'HR',
+    'HR_MANAGER',
+    'HR_EXECUTIVE',
+    'Finance',
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'FINANCE_EXECUTIVE',
+    'FINANCE_HEAD',
+    'ACCOUNTS',
+    'ACCOUNTANT',
+    'Plant Head',
+    'PLANT_HEAD',
+  )
   getAllExpenses(@Query() query: ExpenseQueryDto, @Req() req: any) {
     const userId = req.user?.sub || req.user?.id;
     const companyId =
@@ -163,6 +203,25 @@ export class ExpenseController {
   }
 
   @Patch(':id/approve')
+  @UseGuards(RolesGuard)
+  @Roles(
+    'Super Admin',
+    'Admin',
+    'SUPER_ADMIN',
+    'ADMIN',
+    'HR',
+    'HR_MANAGER',
+    'HR_EXECUTIVE',
+    'Finance',
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'FINANCE_EXECUTIVE',
+    'FINANCE_HEAD',
+    'ACCOUNTS',
+    'ACCOUNTANT',
+    'Plant Head',
+    'PLANT_HEAD',
+  )
   approveExpense(
     @Param('id') id: string,
     @Body() dto: ApproveExpenseDto,
@@ -175,6 +234,25 @@ export class ExpenseController {
   }
 
   @Patch(':id/reject')
+  @UseGuards(RolesGuard)
+  @Roles(
+    'Super Admin',
+    'Admin',
+    'SUPER_ADMIN',
+    'ADMIN',
+    'HR',
+    'HR_MANAGER',
+    'HR_EXECUTIVE',
+    'Finance',
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'FINANCE_EXECUTIVE',
+    'FINANCE_HEAD',
+    'ACCOUNTS',
+    'ACCOUNTANT',
+    'Plant Head',
+    'PLANT_HEAD',
+  )
   rejectExpense(
     @Param('id') id: string,
     @Body() dto: RejectExpenseDto,

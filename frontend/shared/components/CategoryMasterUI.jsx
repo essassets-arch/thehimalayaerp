@@ -33,12 +33,16 @@ export default function CategoryMasterUI({ role = 'Plant Head', scope }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Fetch products and extract categories
+  // Fetch product categories via lightweight summary endpoint + paginated sample
   const fetchRealCatalogCategories = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await backendFetch('/api/backend/products?limit=1000');
-      const raw = Array.isArray(data) ? data : (data?.data || []);
+      const [catSummaryRes, prodRes] = await Promise.all([
+        backendFetch('/api/backend/products/categories?scope=catalog').catch(() => []),
+        backendFetch('/api/backend/products?scope=catalog&page=1&limit=100').catch(() => []),
+      ]);
+      const catSummary = Array.isArray(catSummaryRes) ? catSummaryRes : (catSummaryRes?.data || []);
+      const raw = Array.isArray(prodRes) ? prodRes : (prodRes?.items || prodRes?.data || []);
 
       // Filter out raw materials/hardware from categories list
       const productsOnly = raw.filter(p => {
@@ -74,7 +78,8 @@ export default function CategoryMasterUI({ role = 'Plant Head', scope }) {
       }));
       setRealBackendProducts(normalized);
 
-      const dbCategories = Array.from(new Set(normalized.map(p => p.category).filter(Boolean)));
+      const summaryNames = catSummary.map((c) => c.category).filter(Boolean);
+      const dbCategories = Array.from(new Set([...summaryNames, ...normalized.map(p => p.category).filter(Boolean)]));
       
       // Load custom categories saved in storage for cross-module sync
       let savedCustom = [];

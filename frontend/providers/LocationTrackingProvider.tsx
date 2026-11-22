@@ -572,6 +572,19 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
       );
     });
 
+    socket.on('session:force-logout', (data: { reason?: string; sessionId?: string | null }) => {
+      try {
+        socket.disconnect();
+      } catch {
+        // ignore
+      }
+      useAuthStore.getState().logout();
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        const reasonParam = encodeURIComponent(data?.reason || 'Your session was ended by Super Admin.');
+        window.location.href = `/login?reason=session_revoked&msg=${reasonParam}`;
+      }
+    });
+
     socket.on('connect_error', (err) => {
       if (process.env.NODE_ENV === 'development') {
         console.warn('[LocationTracking] Socket connection notice (polling active):', err?.message || err);

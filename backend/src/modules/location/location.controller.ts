@@ -14,6 +14,8 @@ import { CreateDeviceSessionDto } from './dto/device-session.dto';
 import { UpdateLocationDto } from './dto/location-update.dto';
 import { UpdateLocationPermissionDto } from './dto/location-permission.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('location')
@@ -115,8 +117,24 @@ export class LocationController {
 
   /**
    * Endpoint to retrieve live user dashboard list
+   * Strictly restricted to Super Admin, Admin, HR, Plant Head, and Directors.
    */
   @Get('live-users')
+  @UseGuards(RolesGuard)
+  @Roles(
+    'Super Admin',
+    'Admin',
+    'SUPER_ADMIN',
+    'ADMIN',
+    'HR',
+    'HR_MANAGER',
+    'HR_EXECUTIVE',
+    'Plant Head',
+    'PLANT_HEAD',
+    'PLANTHEAD',
+    'Director',
+    'DIRECTOR',
+  )
   async getLiveUsers(@CurrentUser() user: any): Promise<LiveUserResponse[]> {
     const normalizedRole = String(user.role || '')
       .toUpperCase()

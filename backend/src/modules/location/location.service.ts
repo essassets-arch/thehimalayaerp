@@ -986,11 +986,12 @@ export class LocationService {
     if (
       normalizedRole === 'SUPER_ADMIN' ||
       normalizedRole === 'ADMIN' ||
-      normalizedRole.includes('ADMIN') ||
+      normalizedRole.includes('SUPER_ADMIN') ||
       normalizedRole.includes('PLANT_HEAD') ||
-      normalizedRole.includes('HR') ||
-      normalizedRole.includes('SALES') ||
-      normalizedRole.includes('MANAGER') ||
+      normalizedRole === 'PLANTHEAD' ||
+      normalizedRole === 'HR' ||
+      normalizedRole === 'HR_MANAGER' ||
+      normalizedRole === 'HR_EXECUTIVE' ||
       normalizedRole.includes('DIRECTOR')
     )
       return true;
@@ -1028,11 +1029,12 @@ export class LocationService {
     if (
       normalizedRole === 'SUPER_ADMIN' ||
       normalizedRole === 'ADMIN' ||
-      normalizedRole.includes('ADMIN') ||
+      normalizedRole.includes('SUPER_ADMIN') ||
       normalizedRole.includes('PLANT_HEAD') ||
-      normalizedRole.includes('HR') ||
-      normalizedRole.includes('SALES') ||
-      normalizedRole.includes('MANAGER') ||
+      normalizedRole === 'PLANTHEAD' ||
+      normalizedRole === 'HR' ||
+      normalizedRole === 'HR_MANAGER' ||
+      normalizedRole === 'HR_EXECUTIVE' ||
       normalizedRole.includes('DIRECTOR')
     )
       return true;

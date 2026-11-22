@@ -116,8 +116,6 @@ function isTradingOrder(order) {
 
 // ── GET handlers ─────────────────────────────────────────────
 async function handleGet(path, options = {}) {
-  await delay(200);
-
   const orders = mockDB.get('orders');
   const leads = mockDB.get('leads');
   const quotations = mockDB.get('quotations');
@@ -988,7 +986,6 @@ async function handlePatch(path, body = {}) {
 
 // ── PUT handlers ──────────────────────────────────────────────
 async function handlePut(path, body = {}) {
-  await delay(200);
   if (path.startsWith('/purchase/')) {
     const segments = path.split('/').filter(Boolean);
     const id = segments.pop();
@@ -1027,7 +1024,6 @@ async function handlePut(path, body = {}) {
 
 // ── DELETE handlers ───────────────────────────────────────────
 async function handleDelete(path) {
-  await delay(200);
   if (path.startsWith('/purchase/')) {
     const segments = path.split('/').filter(Boolean);
     const id = segments.pop();

@@ -2,20 +2,20 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../../database/prisma.service';
+import { SessionSecurityService } from '../../../common/security/session-security.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private configService: ConfigService,
-    private prisma: PrismaService,
+    private sessionSecurity: SessionSecurityService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         ExtractJwt.fromAuthHeaderAsBearerToken(),
         (request: any) => {
+          // Never extract JWTs from URL query strings (?token=) to prevent log/referrer leakage
           return (
-            request?.query?.token ||
             request?.cookies?.token ||
             request?.cookies?.accessToken ||
             request?.cookies?.himalaya_token ||
@@ -35,21 +35,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
 
-    if (payload.sub) {
-      const user = await this.prisma.user.findUnique({
-        where: { id: payload.sub },
-        select: { id: true, isActive: true, roleId: true, companyId: true },
-      });
+    await this.sessionSecurity.validateAccessSession(payload);
 
-      if (!user) {
-        throw new UnauthorizedException('User record does not exist');
-      }
-
-      if (!user.isActive) {
-        throw new UnauthorizedException('User account has been deactivated');
-      }
-    }
-
-    return payload; // Attached to request.user
+    return payload; // Attached to request.user (including sid)
   }
 }

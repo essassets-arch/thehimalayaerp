@@ -110,6 +110,22 @@ export default function LoginPage() {
   const [lockoutSecondsLeft, setLockoutSecondsLeft] = useState<number>(0);
   const [lockoutExpiredNotice, setLockoutExpiredNotice] = useState(false);
   const [attemptsInfo, setAttemptsInfo] = useState<{ remaining: number; max: number } | null>(null);
+  const [sessionRevokedNotice, setSessionRevokedNotice] = useState<string>('');
+
+  // Show notice when redirected from an admin-terminated session
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const reason = params.get('reason');
+    const customMsg = params.get('msg');
+    if (reason === 'session_revoked') {
+      setSessionRevokedNotice(
+        customMsg || 'Your session was terminated by an administrator. Please sign in again.',
+      );
+    } else if (reason === 'session_expired') {
+      setSessionRevokedNotice('Your session has expired. Please sign in again to continue.');
+    }
+  }, []);
 
   // Live 1-second countdown while account is temporarily locked
   useEffect(() => {
@@ -689,6 +705,29 @@ export default function LoginPage() {
                   </div>
                 )}
               </>
+            )}
+
+            {/* Session Revoked / Expired Banner */}
+            {sessionRevokedNotice && !error && (
+              <div
+                style={{
+                  background: '#fffbeb',
+                  border: '1px solid #fcd34d',
+                  color: '#92400e',
+                  borderRadius: '10px',
+                  padding: '10px 12px',
+                  marginBottom: '12px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  lineHeight: 1.45,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '8px',
+                }}
+              >
+                <Lock size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+                <span>{sessionRevokedNotice}</span>
+              </div>
             )}
 
             {/* Form */}

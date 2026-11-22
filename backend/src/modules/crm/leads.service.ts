@@ -7,6 +7,10 @@ import {
 } from '../../common/utils/rbac.util';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
+import {
+  parsePaginationParams,
+  formatPaginatedResult,
+} from '../../common/utils/pagination.util';
 
 @Injectable()
 export class LeadsService {
@@ -22,39 +26,69 @@ export class LeadsService {
     userId?: string,
     role?: string,
     includeDeleted?: boolean,
+    paginationQuery?: { page?: string | number; limit?: string | number; pageSize?: string | number },
   ) {
     const scope = getSalesScope(userId, role, 'Lead');
-    return this.prisma.lead.findMany({
-      where: {
-        ...scope,
-        ...(includeDeleted ? {} : { deletedAt: null }),
-        ...(companyId ? { companyId } : {}),
-        ...(search
-          ? {
-              OR: [
-                { leadNumber: { contains: search, mode: 'insensitive' } },
-                { companyName: { contains: search, mode: 'insensitive' } },
-                { contactPerson: { contains: search, mode: 'insensitive' } },
-                { projectName: { contains: search, mode: 'insensitive' } },
-                { groupName: { contains: search, mode: 'insensitive' } },
-                { phone: { contains: search, mode: 'insensitive' } },
-                { email: { contains: search, mode: 'insensitive' } },
-                { gstNumber: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
-      include: {
-        workflowState: true,
-        salesExecutive: { select: { id: true, name: true, email: true } },
-        activities: { orderBy: { createdAt: 'desc' } },
-        quotations: {
-          include: { workflowState: true },
-          orderBy: { createdAt: 'desc' },
+    const pagination = parsePaginationParams(paginationQuery, 50, 100);
+    const where: any = {
+      ...scope,
+      ...(includeDeleted ? {} : { deletedAt: null }),
+      ...(companyId ? { companyId } : {}),
+      ...(search
+        ? {
+            OR: [
+              { leadNumber: { contains: search, mode: 'insensitive' } },
+              { companyName: { contains: search, mode: 'insensitive' } },
+              { contactPerson: { contains: search, mode: 'insensitive' } },
+              { projectName: { contains: search, mode: 'insensitive' } },
+              { groupName: { contains: search, mode: 'insensitive' } },
+              { phone: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+              { gstNumber: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.lead.findMany({
+        where,
+        skip: pagination.skip,
+        take: pagination.take,
+        include: {
+          workflowState: { select: { id: true, code: true, name: true } },
+          salesExecutive: { select: { id: true, name: true, email: true } },
+          activities: {
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            select: {
+              id: true,
+              activityType: true,
+              notes: true,
+              scheduledAt: true,
+              createdAt: true,
+            },
+          },
+          quotations: {
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            select: {
+              id: true,
+              quotationNumber: true,
+              total: true,
+              createdAt: true,
+              workflowState: { select: { id: true, code: true, name: true } },
+            },
+          },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      }),
+      pagination.hasExplicitPagination
+        ? this.prisma.lead.count({ where })
+        : Promise.resolve(0),
+    ]);
+
+    return formatPaginatedResult(items, total || items.length, pagination);
   }
 
   async getLead(

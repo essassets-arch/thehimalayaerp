@@ -141,9 +141,9 @@ export class EmployeesService {
   }
 
   async list(query: EmployeeQueryDto, user: any) {
-    const rawPageSize = query.pageSize || query.limit || query.take || 1000;
-    const pageSize = Math.min(rawPageSize, 1000);
-    const page = query.page || 1;
+    const rawPageSize = Number(query.pageSize || query.limit || query.take || 50);
+    const pageSize = Math.min(Math.max(1, isNaN(rawPageSize) ? 50 : rawPageSize), 100);
+    const page = Math.max(1, Number(query.page) || 1);
     const where: Prisma.EmployeeWhereInput = {
       companyId: this.companyId(user),
       ...(query.departmentId && { departmentId: query.departmentId }),

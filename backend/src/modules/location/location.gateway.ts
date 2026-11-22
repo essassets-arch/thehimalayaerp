@@ -18,7 +18,8 @@ import {
 import { UpdateLocationDto } from './dto/location-update.dto';
 import { CreateDeviceSessionDto } from './dto/device-session.dto';
 import { UpdateLocationPermissionDto } from './dto/location-permission.dto';
-import { UsePipes, ValidationPipe, Logger } from '@nestjs/common';
+import { UsePipes, ValidationPipe, Logger, Optional } from '@nestjs/common';
+import { SessionSecurityService } from '../../common/security/session-security.service';
 
 @WebSocketGateway({
   cors: {
@@ -40,7 +41,41 @@ export class LocationGateway
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly locationService: LocationService,
-  ) {}
+    @Optional() private readonly sessionSecurity?: SessionSecurityService,
+  ) {
+    this.sessionSecurity?.onForceLogout((evt) => {
+      this.broadcastForceLogout(evt);
+    });
+  }
+
+  broadcastForceLogout(evt: {
+    userId?: string;
+    sessionId?: string;
+    reason: string;
+  }) {
+    if (!this.server) return;
+    const payload = {
+      code: 'SESSION_REVOKED',
+      reason: evt.reason || 'Your session was terminated by an administrator.',
+      sessionId: evt.sessionId || null,
+      userId: evt.userId || null,
+      timestamp: new Date().toISOString(),
+    };
+
+    if (evt.sessionId) {
+      const room = `session:${evt.sessionId}`;
+      this.server.to(room).emit('session:force-logout', payload);
+      setTimeout(() => {
+        this.server.in(room).disconnectSockets(true);
+      }, 250);
+    } else if (evt.userId) {
+      const room = `user:${evt.userId}`;
+      this.server.to(room).emit('session:force-logout', payload);
+      setTimeout(() => {
+        this.server.in(room).disconnectSockets(true);
+      }, 250);
+    }
+  }
 
   /**
    * Handshake and Authenticate Socket Connection
@@ -71,14 +106,28 @@ export class LocationGateway
         'secret';
       const payload = await this.jwtService.verifyAsync(token, { secret });
 
+      // Enforce instant session revocation on WebSocket handshakes too
+      if (this.sessionSecurity) {
+        await this.sessionSecurity.validateAccessSession(payload);
+      }
+
       // Attach user identity to socket
       socket.data.user = {
         userId: payload.sub,
+        sid: payload.sid || null,
         email: payload.email,
         role: payload.role,
         companyId: payload.companyId,
         permissions: payload.permissions || [],
       };
+
+      // Join user & auth-session rooms for instant force-logout delivery
+      if (payload.sub) {
+        await socket.join(`user:${payload.sub}`);
+      }
+      if (payload.sid) {
+        await socket.join(`session:${payload.sid}`);
+      }
 
       const { role, companyId, permissions } = socket.data.user;
 

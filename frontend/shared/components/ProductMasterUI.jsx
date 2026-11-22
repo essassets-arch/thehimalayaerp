@@ -64,11 +64,30 @@ export default function ProductMasterUI({ role, scope }) {
     else if (effectiveScope === 'TRADING') setActiveSubMenu('TRADING');
   }, [effectiveScope]);
 
-  // Pagination & Filtering State
+  // Pagination & Filtering State (Server-side paginated)
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(1);
+  const [serverCategories, setServerCategories] = useState([]);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterFamily, setFilterFamily] = useState('All');
   const [filterDispatch, setFilterDispatch] = useState('All');
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 250);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // Fetch category summary once for filter dropdown
+  useEffect(() => {
+    backendFetch('/api/backend/products/categories?scope=catalog')
+      .then((res) => {
+        const arr = Array.isArray(res) ? res : (res?.data || []);
+        setServerCategories(arr.map((c) => c.category).filter(Boolean));
+      })
+      .catch(() => {});
+  }, []);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -101,13 +120,30 @@ export default function ProductMasterUI({ role, scope }) {
   const canDelete = isSuperAdmin;
   const canEdit = isSuperAdmin || isPlantHead || isDispatch2;
 
-  // Fetch Full Catalog Data
+  // Fetch Server-Side Paginated Catalog Data
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch full set to enable responsive client-side filtering, KPI calculations, and instant search
-      const data = await backendFetch('/api/backend/products?scope=catalog&limit=5000');
-      const list = Array.isArray(data) ? data : (data?.data || []);
+      const qs = new URLSearchParams({
+        scope: 'catalog',
+        page: String(page),
+        limit: String(Math.min(100, pageSize || 25)),
+      });
+      if (debouncedSearch) qs.set('search', debouncedSearch);
+      if (filterFamily && filterFamily !== 'All') qs.set('category', filterFamily);
+      if (filterDispatch === 'D1' || filterDispatch === 'D2') {
+        qs.set('dispatchCategory', filterDispatch);
+      }
+      const res = await backendFetch(`/api/backend/products?${qs.toString()}`, { cacheTtlMs: 10000 });
+      const list = Array.isArray(res) ? res : (res?.items || res?.data || []);
+      const meta = res?.pagination;
+      if (meta) {
+        setServerTotal(Number(meta.total || list.length));
+        setServerTotalPages(Math.max(1, Number(meta.totalPages || 1)));
+      } else {
+        setServerTotal(list.length);
+        setServerTotalPages(1);
+      }
       
       // Normalize fields for backend compatibility
       const normalizedList = list.map(p => {
@@ -181,7 +217,7 @@ export default function ProductMasterUI({ role, scope }) {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, page, pageSize, debouncedSearch, filterFamily, filterDispatch, effectiveScope]);
 
   useEffect(() => {
     fetchProducts();
@@ -189,7 +225,10 @@ export default function ProductMasterUI({ role, scope }) {
 
   // Dynamic Categories / Families list
   const availableFamilies = useMemo(() => {
-    const families = new Set(rawProducts.map(p => p.product_family || p.category).filter(Boolean));
+    const families = new Set([
+      ...serverCategories,
+      ...rawProducts.map(p => p.product_family || p.category).filter(Boolean),
+    ]);
     let savedCustom = [];
     if (typeof window !== 'undefined') {
       try {
@@ -203,12 +242,15 @@ export default function ProductMasterUI({ role, scope }) {
     return ['All', ...combined]
       .filter(f => !['raw material', 'hardware', 'electric', 'consumable', 'consumables'].includes(f.toLowerCase()))
       .sort((a, b) => a.localeCompare(b));
-  }, [rawProducts]);
+  }, [rawProducts, serverCategories]);
 
   const [availableCategories, setAvailableCategories] = useState([]);
 
   useEffect(() => {
-    const dbCategories = Array.from(new Set(rawProducts.map(p => p.product_family || p.category).filter(Boolean)));
+    const dbCategories = Array.from(new Set([
+      ...serverCategories,
+      ...rawProducts.map(p => p.product_family || p.category).filter(Boolean),
+    ]));
     let savedCustom = [];
     try {
       const stored = localStorage.getItem('himalaya_custom_categories');
@@ -220,50 +262,30 @@ export default function ProductMasterUI({ role, scope }) {
       .filter(c => !['raw material', 'hardware', 'electric', 'consumable', 'consumables'].includes(c.toLowerCase()))
       .sort((a, b) => a.localeCompare(b));
     setAvailableCategories(combined);
-  }, [isModalOpen, rawProducts]);
+  }, [isModalOpen, rawProducts, serverCategories]);
 
-  // Instant Client-Side Search & Filter
+  // Client-side submenu refinement on the current server page
   const filteredProducts = useMemo(() => {
     return rawProducts.filter(p => {
-      const q = searchQuery.toLowerCase().trim();
-      const tokens = q.split(/\s+/).filter(Boolean);
-      const matchesSearch = tokens.length === 0 || tokens.every(token => 
-        p.product_code.toLowerCase().includes(token) || 
-        p.product_name.toLowerCase().includes(token) ||
-        p.brand.toLowerCase().includes(token) ||
-        (p.variant_details && p.variant_details.toLowerCase().includes(token)) ||
-        p.product_family.toLowerCase().includes(token)
-      );
-
-      const matchesFamily = filterFamily === 'All' || p.product_family === filterFamily;
-      
-      const matchesDispatch = filterDispatch === 'All' || filterDispatch === 'All Dispatches' ||
-        (filterDispatch === 'D1' && p.dispatch_category === 'D1') ||
-        (filterDispatch === 'D2' && p.dispatch_category === 'D2') ||
-        (filterDispatch === 'Unassigned' && (p.dispatch_category === 'Unassigned' || !p.dispatch_category));
-      
       const pType = normalizeProductType(p.product_type || p.productType);
       const matchesSubMenu = activeSubMenu === 'ALL' || 
         (activeSubMenu === 'MANUFACTURING' && pType === 'MANUFACTURING') ||
         (activeSubMenu === 'TRADING' && pType === 'TRADING');
-
-      return matchesSearch && matchesFamily && matchesDispatch && matchesSubMenu;
+      const matchesUnassigned = filterDispatch !== 'Unassigned' || (p.dispatch_category === 'Unassigned' || !p.dispatch_category);
+      return matchesSubMenu && matchesUnassigned;
     });
-  }, [rawProducts, searchQuery, filterFamily, filterDispatch, activeSubMenu]);
+  }, [rawProducts, filterDispatch, activeSubMenu]);
 
-  // Pagination Slice
-  const totalItems = filteredProducts.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  
+  // Server-driven pagination metadata
+  const totalItems = serverTotal > filteredProducts.length ? serverTotal : filteredProducts.length;
+  const totalPages = Math.max(serverTotalPages, 1);
+
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, filterFamily, filterDispatch, pageSize, activeSubMenu]);
+  }, [debouncedSearch, filterFamily, filterDispatch, pageSize, activeSubMenu]);
 
-  const currentPageData = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filteredProducts.slice(start, start + pageSize);
-  }, [filteredProducts, page, pageSize]);
+  const currentPageData = filteredProducts;
 
   // KPI Computations
   const activeCount = useMemo(() => rawProducts.filter(p => p.isActive !== false).length, [rawProducts]);

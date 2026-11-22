@@ -7,6 +7,7 @@ import {
   Post,
   Body,
   Param,
+  Query,
   Req,
 } from '@nestjs/common';
 import { InvoicesService } from './invoices.service';
@@ -19,8 +20,17 @@ export class InvoicesController {
 
   @Get()
   @RequirePermissions('finance.invoice.read')
-  async listInvoices(@Req() req: any) {
-    return this.invoicesService.listInvoices(req.user?.sub, req.user?.role);
+  async listInvoices(
+    @Req() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.invoicesService.listInvoices(req.user?.sub, req.user?.role, {
+      page,
+      limit,
+      pageSize,
+    });
   }
 
   @Get(':id')

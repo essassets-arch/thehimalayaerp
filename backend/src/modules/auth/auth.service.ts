@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { compare, hash } from 'bcrypt';
@@ -8,6 +8,7 @@ import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from '../../common/types/security.types';
 import { RefreshSession } from '@prisma/client';
+import { SessionSecurityService } from '../../common/security/session-security.service';
 
 const compareAsync = compare as unknown as (
   data: string,
@@ -63,6 +64,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private usersService: UsersService,
+    @Optional() private sessionSecurity?: SessionSecurityService,
   ) {}
 
   async validateUser(
@@ -188,18 +190,22 @@ export class AuthService {
       user.role.code,
     );
 
+    const sessionId = randomUUID();
     const tokens = await this.getTokens(
       user.id,
       user.email,
       user.role.code,
       user.companyId,
+      sessionId,
     );
     await this.updateRefreshToken(
       user.id,
       tokens.refreshToken,
       ipAddress,
       userAgent,
+      sessionId,
     );
+    this.sessionSecurity?.recordSessionActive(sessionId);
 
     return {
       accessToken: tokens.accessToken,
@@ -217,19 +223,50 @@ export class AuthService {
 
   async logout(
     userId: string,
-    refreshToken: string,
+    refreshToken?: string,
+    accessToken?: string,
   ): Promise<{ success: boolean }> {
-    const hashedTokens = await this.prisma.refreshSession.findMany({
-      where: { userId, revokedAt: null },
-    });
+    let resolvedUserId = userId;
+    let resolvedSid: string | undefined;
 
-    for (const session of hashedTokens) {
-      const isMatch = await compareAsync(refreshToken, session.tokenHash);
-      if (isMatch) {
-        await this.prisma.refreshSession.update({
-          where: { id: session.id },
+    if (accessToken) {
+      const decodedAccess = this.jwtService.decode<any>(accessToken);
+      if (decodedAccess?.sid) resolvedSid = decodedAccess.sid;
+      if (!resolvedUserId && decodedAccess?.sub) resolvedUserId = decodedAccess.sub;
+    }
+
+    if (refreshToken) {
+      const decodedRefresh = this.jwtService.decode<any>(refreshToken);
+      if (!resolvedSid && decodedRefresh?.sid) resolvedSid = decodedRefresh.sid;
+      if (!resolvedUserId && decodedRefresh?.sub) resolvedUserId = decodedRefresh.sub;
+    }
+
+    if (resolvedSid) {
+      await this.prisma.refreshSession
+        .updateMany({
+          where: { id: resolvedSid, revokedAt: null },
           data: { revokedAt: new Date() },
-        });
+        })
+        .catch(() => {});
+      this.sessionSecurity?.markSessionRevoked(resolvedSid);
+    }
+
+    if (resolvedUserId && refreshToken) {
+      const hashedTokens = await this.prisma.refreshSession.findMany({
+        where: { userId: resolvedUserId, revokedAt: null },
+      });
+
+      for (const session of hashedTokens) {
+        const isMatch = await compareAsync(refreshToken, session.tokenHash).catch(
+          () => false,
+        );
+        if (isMatch) {
+          await this.prisma.refreshSession.update({
+            where: { id: session.id },
+            data: { revokedAt: new Date() },
+          });
+          this.sessionSecurity?.markSessionRevoked(session.id);
+        }
       }
     }
     return { success: true };
@@ -245,18 +282,30 @@ export class AuthService {
       throw new UnauthorizedException('Access Denied');
     }
 
-    const user = await this.usersService.findById(userId);
+    let resolvedUserId = userId;
+    if (!resolvedUserId) {
+      const decoded = this.jwtService.decode<any>(refreshToken);
+      resolvedUserId = decoded?.sub;
+    }
+    if (!resolvedUserId) {
+      throw new UnauthorizedException('Access Denied');
+    }
+
+    const user = await this.usersService.findById(resolvedUserId);
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Access Denied');
     }
 
+    const now = new Date();
     const hashedTokens = await this.prisma.refreshSession.findMany({
-      where: { userId, revokedAt: null },
+      where: { userId: resolvedUserId, revokedAt: null, expiresAt: { gt: now } },
     });
 
     let matchedSession: RefreshSession | null = null;
     for (const session of hashedTokens) {
-      const isMatch = await compareAsync(refreshToken, session.tokenHash);
+      const isMatch = await compareAsync(refreshToken, session.tokenHash).catch(
+        () => false,
+      );
       if (isMatch) {
         matchedSession = session;
         break;
@@ -264,26 +313,34 @@ export class AuthService {
     }
 
     if (!matchedSession) {
-      throw new UnauthorizedException('Access Denied');
+      throw new UnauthorizedException({
+        code: 'SESSION_REVOKED',
+        message: 'Your session is no longer active. Please sign in again.',
+      });
     }
 
     await this.prisma.refreshSession.update({
       where: { id: matchedSession.id },
-      data: { revokedAt: new Date() },
+      data: { revokedAt: now },
     });
+    this.sessionSecurity?.markSessionRevoked(matchedSession.id);
 
+    const nextSessionId = randomUUID();
     const tokens = await this.getTokens(
       user.id,
       user.email,
       user.role.code,
       user.companyId,
+      nextSessionId,
     );
     await this.updateRefreshToken(
       user.id,
       tokens.refreshToken,
       ipAddress,
       userAgent,
+      nextSessionId,
     );
+    this.sessionSecurity?.recordSessionActive(nextSessionId);
 
     return tokens;
   }
@@ -293,6 +350,7 @@ export class AuthService {
     email: string,
     role: string,
     companyId: string,
+    sessionId?: string,
   ): Promise<{ accessToken: string; refreshToken: string }> {
     const accessSecret =
       this.configService.get<string>('jwt.accessSecret') || 'secret';
@@ -304,10 +362,11 @@ export class AuthService {
     const refreshExpiresIn = (this.configService.get<string>(
       'jwt.refreshExpiresIn',
     ) || '7d') as unknown as number;
+    const sid = sessionId || randomUUID();
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(
-        { sub: userId, email, role, companyId },
+        { sub: userId, email, role, companyId, sid },
         {
           secret: accessSecret,
           expiresIn: accessExpiresIn,
@@ -319,6 +378,7 @@ export class AuthService {
           email,
           role,
           companyId,
+          sid,
           jti: randomUUID(),
         },
         {
@@ -339,6 +399,7 @@ export class AuthService {
     refreshToken: string,
     ipAddress?: string,
     userAgent?: string,
+    sessionId?: string,
   ): Promise<void> {
     const rounds = this.configService.get<number>('bcryptRounds') || 12;
     const tokenHash = await hashAsync(refreshToken, rounds);
@@ -351,6 +412,7 @@ export class AuthService {
 
     await this.prisma.refreshSession.create({
       data: {
+        ...(sessionId ? { id: sessionId } : {}),
         userId,
         tokenHash,
         expiresAt,

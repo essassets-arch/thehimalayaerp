@@ -9,7 +9,7 @@ const boundedDatabaseUrl = (databaseUrl?: string): string => {
     // One NestJS process must not consume the whole PostgreSQL connection budget.
     url.searchParams.set(
       'connection_limit',
-      process.env.DATABASE_CONNECTION_LIMIT || '5',
+      process.env.DATABASE_CONNECTION_LIMIT || '20',
     );
     url.searchParams.set(
       'pool_timeout',
@@ -410,9 +410,9 @@ export class PrismaService
             });
           }
 
-          const passwordHash = await hash(t.pass, 12);
           let user = await this.user.findUnique({ where: { email: t.email } });
           if (!user) {
+            const passwordHash = await hash(t.pass, 12);
             user = await this.user.create({
               data: {
                 publicId: randomUUID(),
@@ -425,13 +425,12 @@ export class PrismaService
               },
             });
           } else {
+            // Preserve user's rotated password on restart; only ensure tenant/role link
             user = await this.user.update({
               where: { id: user.id },
               data: {
                 companyId,
                 roleId: dbRole.id,
-                password: passwordHash,
-                isActive: true,
               },
             });
           }

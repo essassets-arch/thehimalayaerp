@@ -19,6 +19,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { LocationService } from '../location/location.service';
+import { SessionSecurityService } from '../../common/security/session-security.service';
 
 @Controller(['admin', 'super-admin', 'backend/admin', 'backend/super-admin'])
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -27,6 +28,7 @@ export class SuperAdminController {
   constructor(
     private readonly superAdminService: SuperAdminService,
     private readonly locationService: LocationService,
+    private readonly sessionSecurityService: SessionSecurityService,
   ) {}
 
   @Get('live-users')
@@ -35,41 +37,14 @@ export class SuperAdminController {
     'Admin',
     'SUPER_ADMIN',
     'ADMIN',
-    'Sales Executive',
-    'SALES_EXECUTIVE',
-    'Sales Manager',
-    'SALES_MANAGER',
-    'Sales',
-    'Super Sales',
-    'SUPER_SALES',
-    'SUPERSALES',
     'HR',
     'HR_MANAGER',
     'HR_EXECUTIVE',
     'Plant Head',
     'PLANT_HEAD',
     'PLANTHEAD',
-    'Store Manager',
-    'STORE_MANAGER',
-    'STORE',
-    'Finance Manager',
-    'FINANCE_MANAGER',
-    'FINANCE',
-    'FINANCE_EXECUTIVE',
-    'Purchase Manager',
-    'PURCHASE_MANAGER',
-    'Production Manager',
-    'PRODUCTION_MANAGER',
-    'Production Planner',
-    'PRODUCTION_PLANNER',
-    'Production Operator',
-    'PRODUCTION_OPERATOR',
-    'Dispatch Executive',
-    'DISPATCH_EXECUTIVE',
-    'DISPATCH_2',
-    'DISPATCH',
-    'QC Inspector',
-    'QC_INSPECTOR',
+    'Director',
+    'DIRECTOR',
   )
   async getLiveUsers(@CurrentUser() user: any) {
     const hasAccess = await this.locationService.hasMapPermission(user.sub);
@@ -100,41 +75,14 @@ export class SuperAdminController {
     'Admin',
     'SUPER_ADMIN',
     'ADMIN',
-    'Sales Executive',
-    'SALES_EXECUTIVE',
-    'Sales Manager',
-    'SALES_MANAGER',
-    'Sales',
-    'Super Sales',
-    'SUPER_SALES',
-    'SUPERSALES',
     'HR',
     'HR_MANAGER',
     'HR_EXECUTIVE',
     'Plant Head',
     'PLANT_HEAD',
     'PLANTHEAD',
-    'Store Manager',
-    'STORE_MANAGER',
-    'STORE',
-    'Finance Manager',
-    'FINANCE_MANAGER',
-    'FINANCE',
-    'FINANCE_EXECUTIVE',
-    'Purchase Manager',
-    'PURCHASE_MANAGER',
-    'Production Manager',
-    'PRODUCTION_MANAGER',
-    'Production Planner',
-    'PRODUCTION_PLANNER',
-    'Production Operator',
-    'PRODUCTION_OPERATOR',
-    'Dispatch Executive',
-    'DISPATCH_EXECUTIVE',
-    'DISPATCH_2',
-    'DISPATCH',
-    'QC Inspector',
-    'QC_INSPECTOR',
+    'Director',
+    'DIRECTOR',
   )
   async getLocationHistory(
     @Param('userId') targetUserId: string,
@@ -321,5 +269,85 @@ export class SuperAdminController {
   @Post('reconcile-merged-customers')
   async reconcileMergedCustomers() {
     return this.superAdminService.reconcileMismatchedCustomers();
+  }
+
+  // ── Live Active Sessions & Instant Kill-Switch (Super Admin Only) ──────────
+
+  private assertSuperAdminOnly(user: any) {
+    const rawRole =
+      typeof user?.role === 'object' && user?.role !== null
+        ? user.role.code || user.role.name || ''
+        : user?.role || '';
+    const norm = String(rawRole)
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+    if (norm !== 'SUPER_ADMIN') {
+      throw new ForbiddenException(
+        'Only Super Admin can view or terminate active user sessions.',
+      );
+    }
+  }
+
+  @Get('sessions/active')
+  @Roles('Super Admin', 'SUPER_ADMIN')
+  async getActiveSessions(
+    @CurrentUser() user: any,
+    @Query('search') search?: string,
+    @Query('role') role?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.assertSuperAdminOnly(user);
+    return this.sessionSecurityService.listActiveSessions(user?.sid, {
+      search,
+      role,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 25,
+    });
+  }
+
+  @Delete('sessions/:sessionId')
+  @Roles('Super Admin', 'SUPER_ADMIN')
+  async revokeSession(
+    @Param('sessionId') sessionId: string,
+    @CurrentUser() user: any,
+    @Body() body?: { reason?: string },
+  ) {
+    this.assertSuperAdminOnly(user);
+    return this.sessionSecurityService.revokeSessionById(
+      sessionId,
+      user?.sub,
+      body?.reason,
+    );
+  }
+
+  @Post('sessions/user/:userId/revoke-all')
+  @Roles('Super Admin', 'SUPER_ADMIN')
+  async revokeAllUserSessions(
+    @Param('userId') targetUserId: string,
+    @CurrentUser() user: any,
+    @Body() body?: { reason?: string },
+  ) {
+    this.assertSuperAdminOnly(user);
+    return this.sessionSecurityService.revokeAllUserSessions(
+      targetUserId,
+      user?.sub,
+      body?.reason,
+    );
+  }
+
+  @Post('sessions/revoke-all-others')
+  @Roles('Super Admin', 'SUPER_ADMIN')
+  async revokeAllOtherSessions(
+    @CurrentUser() user: any,
+    @Body() body?: { reason?: string },
+  ) {
+    this.assertSuperAdminOnly(user);
+    return this.sessionSecurityService.revokeAllOtherSessions(
+      user?.sid,
+      user?.sub,
+      body?.reason,
+    );
   }
 }

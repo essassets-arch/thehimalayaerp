@@ -37,20 +37,7 @@ function SecureReceiptImage({ claim, onPreview }) {
     if (claim.receiptUrl.startsWith('data:') || claim.receiptUrl.startsWith('blob:')) {
       return claim.receiptUrl;
     }
-    const base = `/api/backend/expenses/${claim.id || claim.claimNumber}/receipt`;
-    if (typeof window !== 'undefined') {
-      let token = window.sessionStorage.getItem('token') || window.localStorage.getItem('token');
-      if (!token) {
-        try {
-          const authStorageStr = window.localStorage.getItem('auth-storage');
-          if (authStorageStr) {
-            token = JSON.parse(authStorageStr)?.state?.accessToken;
-          }
-        } catch (_) {}
-      }
-      if (token) return `${base}?token=${encodeURIComponent(token)}`;
-    }
-    return base;
+    return `/api/backend/expenses/${claim.id || claim.claimNumber}/receipt`;
   };
 
   const receiptEndpoint = getReceiptUrl();

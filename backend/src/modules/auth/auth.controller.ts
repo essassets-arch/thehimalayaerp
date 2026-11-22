@@ -26,7 +26,28 @@ import {
 
 const loginLimit = process.env.THROTTLE_LOGIN_LIMIT
   ? parseInt(process.env.THROTTLE_LOGIN_LIMIT, 10)
-  : 120;
+  : 15;
+
+function extractClientIp(req: Request): string {
+  const realIp = req.headers['x-real-ip'];
+  if (realIp) {
+    const clean = (Array.isArray(realIp) ? realIp[0] : String(realIp))
+      .trim()
+      .replace(/^::ffff:/i, '');
+    if (clean) return clean;
+  }
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    const first = (Array.isArray(forwarded) ? forwarded[0] : String(forwarded))
+      .split(',')[0]
+      .trim()
+      .replace(/^::ffff:/i, '');
+    if (first) return first;
+  }
+  return String(req.ip || req.socket?.remoteAddress || 'unknown')
+    .trim()
+    .replace(/^::ffff:/i, '');
+}
 
 @Controller('auth')
 export class AuthController {
@@ -40,10 +61,14 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Req() req: Request,
   ) {
-    const userAgent = req.headers['user-agent'];
-    const ip = (req.headers['x-forwarded-for'] as string) || req.ip;
+    const userAgent =
+      (req.headers['x-client-user-agent'] as string) ||
+      (req.headers['user-agent'] as string) ||
+      undefined;
+    const ip = extractClientIp(req);
 
-    const result = await this.authService.login(loginDto, userAgent, ip);
+    // Correct arg order: (loginDto, ipAddress, userAgent)
+    const result = await this.authService.login(loginDto, ip, userAgent);
 
     res.cookie('refreshToken', result.refreshToken, {
       httpOnly: true,
@@ -61,27 +86,34 @@ export class AuthController {
 
   @Public()
   @UseGuards(JwtRefreshGuard)
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
   @Post('refresh')
   async refreshTokens(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const cookies = (req as Request & { cookies?: Record<string, string> })
-      .cookies;
-    const refreshToken = cookies?.refreshToken;
+    const reqWithMeta = req as Request & {
+      cookies?: Record<string, string>;
+      user?: AuthenticatedUser;
+    };
+    const refreshToken = reqWithMeta.cookies?.refreshToken;
 
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token missing from cookie');
     }
 
-    const userAgent = req.headers['user-agent'];
-    const ip = (req.headers['x-forwarded-for'] as string) || req.ip;
+    const userAgent =
+      (req.headers['x-client-user-agent'] as string) ||
+      (req.headers['user-agent'] as string) ||
+      undefined;
+    const ip = extractClientIp(req);
+    const userId = reqWithMeta.user?.sub || '';
 
     const result = await this.authService.refreshTokens(
+      userId,
       refreshToken,
-      userAgent,
       ip,
+      userAgent,
     );
 
     res.cookie('refreshToken', result.refreshToken, {
@@ -103,8 +135,21 @@ export class AuthController {
       user?: AuthenticatedUser;
     };
     const refreshToken = reqWithMeta.cookies?.refreshToken;
-    if (refreshToken) {
-      await this.authService.logout(reqWithMeta.user?.sub || '', refreshToken);
+    const authHeader = req.headers.authorization;
+    const accessToken =
+      (typeof authHeader === 'string'
+        ? authHeader.replace(/^Bearer\s+/i, '').trim()
+        : '') ||
+      reqWithMeta.cookies?.accessToken ||
+      reqWithMeta.cookies?.token ||
+      reqWithMeta.cookies?.himalaya_token;
+
+    if (refreshToken || accessToken) {
+      await this.authService.logout(
+        reqWithMeta.user?.sub || '',
+        refreshToken,
+        accessToken,
+      );
     }
 
     res.clearCookie('refreshToken', {

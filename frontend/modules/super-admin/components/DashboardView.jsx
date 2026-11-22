@@ -97,7 +97,9 @@ export default function DashboardView({
   const [mounted, setMounted] = useState(false);
   const [fetchedExpenses, setFetchedExpenses] = useState([]);
   const [backendStats, setBackendStats] = useState(null);
-  const [loadingStats, setLoadingStats] = useState(false);
+  const [loadingStats, setLoadingStats] = useState(true);
+  const [statsError, setStatsError] = useState(null);
+  const [retryCounter, setRetryCounter] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -127,6 +129,7 @@ export default function DashboardView({
 
     async function fetchDashboardStats() {
       setLoadingStats(true);
+      setStatsError(null);
       try {
         const queryParams = new URLSearchParams();
         if (period) queryParams.append('period', period);
@@ -135,7 +138,7 @@ export default function DashboardView({
         if (endDate) queryParams.append('endDate', endDate);
 
         const url = `/api/backend/super-admin/dashboard-stats?${queryParams.toString()}`;
-        const res = await backendFetch(url);
+        const res = await backendFetch(url, { cacheTtlMs: 15000 });
         if (!isCancelled && res) {
           const data = res.data || res;
           if (data && (data.kpis || data.monthlyPerformance)) {
@@ -144,6 +147,9 @@ export default function DashboardView({
         }
       } catch (err) {
         console.warn('[DashboardView] Backend stats fetch warning:', err);
+        if (!isCancelled) {
+          setStatsError(err?.message || 'Unable to load live dashboard metrics.');
+        }
       } finally {
         if (!isCancelled) setLoadingStats(false);
       }
@@ -151,7 +157,7 @@ export default function DashboardView({
 
     fetchDashboardStats();
     return () => { isCancelled = true; };
-  }, [period, startDate, endDate, filters?.branch]);
+  }, [period, startDate, endDate, filters?.branch, retryCounter]);
 
   const safeState = state || {};
   const mergedState = {
@@ -205,8 +211,12 @@ export default function DashboardView({
       dailyDispatchPending: bk.dailyDispatchPending ?? clientFin.dailyDispatchPending,
       dailySalesVal: bk.dailySalesVal ?? clientFin.dailySalesVal,
       dailySalesOrders: bk.dailySalesOrders ?? clientFin.dailySalesOrders,
+      dailySalesGrowth: bk.dailySalesGrowth ?? backendStats?.operational?.dailySalesGrowth ?? clientFin.dailySalesGrowth,
+      salesGrowthPercent: bk.salesGrowthPercent ?? backendStats?.financial?.salesGrowthPercent ?? clientFin.salesGrowthPercent,
       pendingOrdersCount: bk.pendingOrdersCount ?? clientFin.pendingOrdersCount,
       urgentOrdersCount: bk.urgentOrdersCount ?? clientFin.urgentOrdersCount,
+      lowStockCount: bk.lowStockCount ?? ((backendStats?.operational?.lowStockItems || 0) + (backendStats?.operational?.outOfStockItems || 0)),
+      criticalStockCount: bk.criticalStockCount ?? backendStats?.operational?.outOfStockItems ?? 0,
       lowStockAlertList: backendStats?.lowStockAlertList || [],
       monthlyPerformance: backendStats?.monthlyPerformance?.length > 0 ? backendStats.monthlyPerformance : clientFin.monthlyPerformance,
       expenseBreakdown: backendStats?.expenseBreakdown?.length > 0 ? backendStats.expenseBreakdown : clientFin.expenseBreakdown,
@@ -374,13 +384,52 @@ export default function DashboardView({
         }}
       />
 
+      {statsError && !backendStats && (
+        <div
+          style={{
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            color: '#b91c1c',
+            borderRadius: '12px',
+            padding: '12px 16px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            fontSize: '13px',
+            fontWeight: 600,
+          }}
+        >
+          <span>⚠️ Live dashboard metrics temporarily unavailable: {statsError}</span>
+          <button
+            type="button"
+            onClick={() => setRetryCounter((c) => c + 1)}
+            style={{
+              background: '#dc2626',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '6px 14px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            Retry Sync
+          </button>
+        </div>
+      )}
+
       {/* 2. Financial Command Center (Financial Command Summary) */}
       <div className="sa-section-header">
         <div className="sa-section-title-group">
           <Lucide.Landmark size={20} color="#2563eb" />
           <h2 className="sa-section-title">Financial Command Center</h2>
         </div>
-        <span className="dashboard-badge badge-info">{activeDates.label}</span>
+        <span className="dashboard-badge badge-info">
+          {loadingStats && !backendStats ? 'Syncing live data…' : activeDates.label}
+        </span>
       </div>
 
       {/* Row 1 of Financial Cards (4 Cards) */}
@@ -393,9 +442,9 @@ export default function DashboardView({
             </div>
           </div>
           <div className="sa-card-val-row">
-            <span className="sa-card-val">{formatCurrency(fin.totalSalesVal)}</span>
+            <span className="sa-card-val">{loadingStats && !backendStats ? 'Loading…' : formatCurrency(fin.totalSalesVal)}</span>
           </div>
-          <div className="sa-card-subtext">{fin.totalOrdersCount} Confirmed Invoiced Orders</div>
+          <div className="sa-card-subtext">{loadingStats && !backendStats ? 'Fetching confirmed orders…' : `${fin.totalOrdersCount} Confirmed Invoiced Orders`}</div>
           <div className="sa-card-footer">
             <span className={fin.salesGrowthPercent !== null && fin.salesGrowthPercent !== undefined && fin.salesGrowthPercent < 0 ? "kpi-danger" : "kpi-success"}>
               {fin.salesGrowthPercent !== null && fin.salesGrowthPercent !== undefined
@@ -413,7 +462,7 @@ export default function DashboardView({
             </div>
           </div>
           <div className="sa-card-val-row">
-            <span className="sa-card-val">{formatCurrency(fin.revenueCollected)}</span>
+            <span className="sa-card-val">{loadingStats && !backendStats ? 'Loading…' : formatCurrency(fin.revenueCollected)}</span>
           </div>
           <div className="sa-card-subtext">Finance-Verified Receipts Only</div>
           <div className="sa-card-footer">
@@ -429,11 +478,11 @@ export default function DashboardView({
             </div>
           </div>
           <div className="sa-card-val-row">
-            <span className="sa-card-val">{formatCurrency(fin.outstandingReceivables)}</span>
+            <span className="sa-card-val">{loadingStats && !backendStats ? 'Loading…' : formatCurrency(fin.outstandingReceivables)}</span>
           </div>
-          <div className="sa-card-subtext">{fin.pendingInvoicesCount} Pending Invoices ({fin.activeCustomersCount} Clients)</div>
+          <div className="sa-card-subtext">{loadingStats && !backendStats ? 'Syncing invoices…' : `${fin.pendingInvoicesCount} Pending Invoices (${fin.activeCustomersCount} Clients)`}</div>
           <div className="sa-card-footer">
-            <span className="kpi-danger">⚠️ {formatCurrency(fin.overdueAmount)} Overdue</span>
+            <span className="kpi-danger">{loadingStats && !backendStats ? 'Calculating…' : `⚠️ ${formatCurrency(fin.overdueAmount)} Overdue`}</span>
           </div>
         </div>
 
@@ -445,9 +494,9 @@ export default function DashboardView({
             </div>
           </div>
           <div className="sa-card-val-row">
-            <span className="sa-card-val">{formatCurrency(fin.totalBusinessExpense)}</span>
+            <span className="sa-card-val">{loadingStats && !backendStats ? 'Loading…' : formatCurrency(fin.totalBusinessExpense)}</span>
           </div>
-          <div className="sa-card-subtext">Material + Prod + Transport + Payroll</div>
+          <div className="sa-card-subtext">Finance Expenses + Claims + Tracked Costs</div>
           <div className="sa-card-footer">
             <span className="kpi-warning">Combined ERP Tracked Costs</span>
           </div>

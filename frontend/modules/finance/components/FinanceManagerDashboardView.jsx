@@ -118,16 +118,16 @@ export default function FinanceManagerDashboardView({
         salesPmtsRes,
         pendingPmtsRes
       ] = await Promise.allSettled([
-        backendFetch('/api/backend/sales/orders?limit=1000').catch(() => null),
-        backendFetch('/api/backend/back-office/appl-ar?limit=1000').catch(() => null),
-        backendFetch('/api/backend/back-office/hcppl-ar/entries?limit=1000').catch(() => null),
-        backendFetch('/api/backend/back-office/hcppl-ar/register?limit=1000').catch(() => null),
-        backendFetch('/api/backend/reports/finance/ar-invoices?limit=1000').catch(() => null),
-        backendFetch('/api/backend/procurement/purchase-orders?limit=1000').catch(() => null),
-        backendFetch('/api/backend/expenses?limit=1000').catch(() => null),
-        backendFetch('/api/backend/brand-analysis-requests?limit=1000').catch(() => null),
-        backendFetch('/api/backend/users?limit=500').catch(() => null),
-        backendFetch('/api/backend/finance/payments?limit=1000').catch(() => null),
+        backendFetch('/api/backend/sales/orders?page=1&limit=100').catch(() => null),
+        backendFetch('/api/backend/back-office/appl-ar?page=1&limit=100').catch(() => null),
+        backendFetch('/api/backend/back-office/hcppl-ar/entries?page=1&limit=100').catch(() => null),
+        backendFetch('/api/backend/back-office/hcppl-ar/register?page=1&limit=100').catch(() => null),
+        backendFetch('/api/backend/reports/finance/ar-invoices?page=1&limit=100').catch(() => null),
+        backendFetch('/api/backend/procurement/purchase-orders?page=1&limit=100').catch(() => null),
+        backendFetch('/api/backend/expenses/all?page=1&limit=100').catch(() => null),
+        backendFetch('/api/backend/brand-analysis-requests?page=1&limit=100').catch(() => null),
+        backendFetch('/api/backend/users?page=1&limit=100').catch(() => null),
+        backendFetch('/api/backend/finance/payments?page=1&limit=100').catch(() => null),
         backendFetch('/api/backend/finance/payments/sales-recorded').catch(() => null),
         backendFetch('/api/backend/finance/payments/pending').catch(() => null)
       ]);

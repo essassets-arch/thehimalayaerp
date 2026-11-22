@@ -55,12 +55,36 @@ export class ProductsController {
     'production.productionworkflow.read',
     'production.floor.read',
   )
+  @Get('categories')
+  getCategories(@CurrentUser() user: any, @Query('scope') scope?: string) {
+    return this.productsService.getCategorySummary(user.companyId, scope);
+  }
+
+  @RequirePermissions(
+    'production.testing.read',
+    'production.testing.create',
+    'production.productiontesting.read',
+    'production.productiontesting.create',
+    'admin.products.read',
+    'products.read',
+    'store.read',
+    'store.materials.read',
+    'store.rawinventory.read',
+    'inventory.stock.read',
+    'production.productionworkflow.read',
+    'production.floor.read',
+  )
   @Get()
   findAll(
     @CurrentUser() user: any,
     @Query('search') search?: string,
     @Query('scope') scope?: string,
     @Query('type') type?: string,
+    @Query('category') category?: string,
+    @Query('dispatchCategory') dispatchCategory?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
     return this.productsService.findAll(
       user.companyId,
@@ -69,6 +93,7 @@ export class ProductsController {
       type,
       user.sub || user.id,
       user.role,
+      { page, limit, pageSize, category, dispatchCategory },
     );
   }
 

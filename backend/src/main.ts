@@ -11,6 +11,9 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.set('trust proxy', 1);
+  expressApp.disable('x-powered-by');
   app.useWebSocketAdapter(new IoAdapter(app));
   const configService = app.get(ConfigService);
 
@@ -61,12 +64,13 @@ async function bootstrap() {
     next();
   });
 
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+  app.use(express.json({ limit: '2mb' }));
+  app.use(express.urlencoded({ limit: '2mb', extended: true }));
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
       contentSecurityPolicy: false,
+      hsts: { maxAge: 31536000, includeSubDomains: true },
     }),
   );
   app.use(compression());

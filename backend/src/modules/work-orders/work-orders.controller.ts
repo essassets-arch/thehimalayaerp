@@ -24,12 +24,20 @@ export class WorkOrdersController {
     'logistics.dispatches.read',
     'logistics.dispatches.create',
   )
-  async listWorkOrders(@Query('status') status?: string, @Req() req?: any) {
+  async listWorkOrders(
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('salesOrderId') salesOrderId?: string,
+    @Req() req?: any,
+  ) {
     const statuses = status ? status.split(',') : [];
     return this.workOrdersService.listWorkOrders(
       statuses,
       req?.user?.sub,
       req?.user?.role,
+      { page, limit, pageSize, salesOrderId },
     );
   }
 

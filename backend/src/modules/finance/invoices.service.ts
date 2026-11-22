@@ -6,6 +6,10 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { getAdvancedScope } from '../../common/utils/rbac.util';
+import {
+  parsePaginationParams,
+  formatPaginatedResult,
+} from '../../common/utils/pagination.util';
 
 @Injectable()
 export class InvoicesService {
@@ -14,19 +18,43 @@ export class InvoicesService {
     private readonly workflowService: WorkflowService,
   ) {}
 
-  async listInvoices(userId?: string, role?: string) {
+  async listInvoices(
+    userId?: string,
+    role?: string,
+    paginationQuery?: { page?: string | number; limit?: string | number; pageSize?: string | number },
+  ) {
     const scope = getAdvancedScope(userId, role, {
       FINANCE: { createdById: userId },
       SALES: { salesOrder: { createdById: userId } },
     });
-    return this.prisma.salesInvoice.findMany({
-      where: scope,
-      include: {
-        salesOrder: { include: { customer: true } },
-        workflowState: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const pagination = parsePaginationParams(paginationQuery, 50, 100);
+    const [items, total] = await Promise.all([
+      this.prisma.salesInvoice.findMany({
+        where: scope,
+        skip: pagination.skip,
+        take: pagination.take,
+        include: {
+          salesOrder: {
+            select: {
+              id: true,
+              orderNumber: true,
+              status: true,
+              totalAmount: true,
+              customerId: true,
+              customer: {
+                select: { id: true, companyName: true, gstin: true, phone: true },
+              },
+            },
+          },
+          workflowState: { select: { id: true, code: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      pagination.hasExplicitPagination
+        ? this.prisma.salesInvoice.count({ where: scope })
+        : Promise.resolve(0),
+    ]);
+    return formatPaginatedResult(items, total || items.length, pagination);
   }
 
   async getInvoice(id: string, userId?: string, role?: string) {

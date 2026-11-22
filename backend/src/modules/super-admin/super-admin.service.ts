@@ -4,10 +4,56 @@ import { hrPeriod, hrDay, hrTime, hrCelebrations, attendanceCounts, employedStat
 import { BadRequestException, Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { dispatchAnalyticsPeriod, dispatchDay, recordedDispatchLocation } from '../plant-head/dispatch-analytics-period';
+import { getIstDateString, getIstDayBoundsUtc } from '../location/location-time.util';
+
+const ANALYTICS_CACHE_TTL_MS = 15_000;
+const ANALYTICS_CACHE_MAX_ENTRIES = 120;
 
 @Injectable()
 export class SuperAdminService implements OnApplicationBootstrap {
+  private readonly analyticsCache = new Map<
+    string,
+    { data: any; expiresAt: number }
+  >();
+  private readonly inFlightQueries = new Map<string, Promise<any>>();
+
   constructor(private prisma: PrismaService) {}
+
+  private async cachedQuery<T>(
+    key: string,
+    loader: () => Promise<T>,
+    ttlMs = ANALYTICS_CACHE_TTL_MS,
+  ): Promise<T> {
+    const now = Date.now();
+    const cached = this.analyticsCache.get(key);
+    if (cached && cached.expiresAt > now) {
+      return cached.data as T;
+    }
+
+    const existing = this.inFlightQueries.get(key);
+    if (existing) {
+      return existing as Promise<T>;
+    }
+
+    const promise = loader()
+      .then((result) => {
+        if (this.analyticsCache.size >= ANALYTICS_CACHE_MAX_ENTRIES) {
+          const oldestKey = this.analyticsCache.keys().next().value;
+          if (oldestKey) this.analyticsCache.delete(oldestKey);
+        }
+        this.analyticsCache.set(key, {
+          data: result,
+          expiresAt: Date.now() + ttlMs,
+        });
+        return result;
+      })
+      .finally(() => {
+        this.inFlightQueries.delete(key);
+      });
+
+    this.inFlightQueries.set(key, promise);
+    return promise;
+  }
 
   async onApplicationBootstrap() {
     try {
@@ -18,167 +64,143 @@ export class SuperAdminService implements OnApplicationBootstrap {
   }
 
   async getDashboardStats(query: any = {}) {
+    const cacheKey = `dashboard-stats:${JSON.stringify({
+      period: query?.period || 'This Month',
+      branch: query?.branchId || query?.branch || 'All',
+      from: query?.from || query?.startDate || '',
+      to: query?.to || query?.endDate || '',
+    })}`;
+    return this.cachedQuery(cacheKey, () => this.computeDashboardStats(query));
+  }
+
+  private async computeDashboardStats(query: any = {}) {
     const toNumber = (val: any) =>
       val === null || val === undefined ? 0 : Number(val) || 0;
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth(); // 0-indexed
+    // Use IST (Asia/Kolkata, UTC+05:30) day boundaries so Indian morning hours never report 0 for Today
+    const istTodayStr = getIstDateString(now);
+    const { start: todayStart, end: todayEnd } = getIstDayBoundsUtc(istTodayStr);
+    const yesterdayDate = new Date(todayStart.getTime() - 12 * 60 * 60 * 1000);
+    const { start: yesterdayStart, end: yesterdayEnd } = getIstDayBoundsUtc(
+      getIstDateString(yesterdayDate),
+    );
+    const [istYear, istMonthNum, istDayNum] = istTodayStr.split('-').map(Number);
+    const year = istYear;
+    const month = istMonthNum - 1; // 0-indexed
     const period = query?.period || 'This Month';
     const branchId =
       query?.branchId || (query?.branch !== 'All' ? query?.branch : undefined);
 
-    let fromDate = new Date(year, month, 1, 0, 0, 0, 0);
-    let toDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
-    let prevFromDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
-    let prevToDate = new Date(year, month, 0, 23, 59, 59, 999);
+    const istStartOfDay = (y: number, m0: number, d: number) =>
+      new Date(Date.UTC(y, m0, d, 0, 0, 0, 0) - 330 * 60 * 1000);
+    const istEndOfDay = (y: number, m0: number, d: number) =>
+      new Date(Date.UTC(y, m0, d, 23, 59, 59, 999) - 330 * 60 * 1000);
+
+    let fromDate = istStartOfDay(year, month, 1);
+    let toDate = istEndOfDay(year, month + 1, 0);
+    let prevFromDate = istStartOfDay(year, month - 1, 1);
+    let prevToDate = istEndOfDay(year, month, 0);
 
     if (query.from && query.to) {
-      fromDate = new Date(`${query.from}T00:00:00.000Z`);
-      toDate = new Date(`${query.to}T23:59:59.999Z`);
+      fromDate = new Date(`${query.from}T00:00:00.000+05:30`);
+      toDate = new Date(`${query.to}T23:59:59.999+05:30`);
       const duration = toDate.getTime() - fromDate.getTime();
       prevToDate = new Date(fromDate.getTime() - 1);
       prevFromDate = new Date(prevToDate.getTime() - duration);
     } else if (query.startDate && query.endDate) {
-      fromDate = new Date(`${query.startDate}T00:00:00.000Z`);
-      toDate = new Date(`${query.endDate}T23:59:59.999Z`);
+      fromDate = new Date(`${query.startDate}T00:00:00.000+05:30`);
+      toDate = new Date(`${query.endDate}T23:59:59.999+05:30`);
       const duration = toDate.getTime() - fromDate.getTime();
       prevToDate = new Date(fromDate.getTime() - 1);
       prevFromDate = new Date(prevToDate.getTime() - duration);
     } else {
       switch (period) {
         case 'Today': {
-          fromDate = new Date(year, month, now.getDate(), 0, 0, 0, 0);
-          toDate = new Date(year, month, now.getDate(), 23, 59, 59, 999);
-          prevFromDate = new Date(year, month, now.getDate() - 1, 0, 0, 0, 0);
-          prevToDate = new Date(
-            year,
-            month,
-            now.getDate() - 1,
-            23,
-            59,
-            59,
-            999,
-          );
+          fromDate = todayStart;
+          toDate = todayEnd;
+          prevFromDate = yesterdayStart;
+          prevToDate = yesterdayEnd;
           break;
         }
         case 'Yesterday': {
-          fromDate = new Date(year, month, now.getDate() - 1, 0, 0, 0, 0);
-          toDate = new Date(year, month, now.getDate() - 1, 23, 59, 59, 999);
-          prevFromDate = new Date(year, month, now.getDate() - 2, 0, 0, 0, 0);
-          prevToDate = new Date(
-            year,
-            month,
-            now.getDate() - 2,
-            23,
-            59,
-            59,
-            999,
-          );
+          fromDate = yesterdayStart;
+          toDate = yesterdayEnd;
+          const twoDaysAgo = new Date(yesterdayStart.getTime() - 12 * 60 * 60 * 1000);
+          const bounds = getIstDayBoundsUtc(getIstDateString(twoDaysAgo));
+          prevFromDate = bounds.start;
+          prevToDate = bounds.end;
           break;
         }
         case 'This Week': {
-          const day = now.getDay();
-          const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-          fromDate = new Date(year, month, diff, 0, 0, 0, 0);
-          toDate = new Date(year, month, diff + 6, 23, 59, 59, 999);
-          prevFromDate = new Date(year, month, diff - 7, 0, 0, 0, 0);
-          prevToDate = new Date(year, month, diff - 1, 23, 59, 59, 999);
+          const istDateObj = new Date(Date.UTC(year, month, istDayNum));
+          const day = istDateObj.getUTCDay();
+          const diff = istDayNum - day + (day === 0 ? -6 : 1);
+          fromDate = istStartOfDay(year, month, diff);
+          toDate = istEndOfDay(year, month, diff + 6);
+          prevFromDate = istStartOfDay(year, month, diff - 7);
+          prevToDate = istEndOfDay(year, month, diff - 1);
           break;
         }
         case 'Last Week': {
-          const day = now.getDay();
-          const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-          fromDate = new Date(year, month, diff - 7, 0, 0, 0, 0);
-          toDate = new Date(year, month, diff - 1, 23, 59, 59, 999);
-          prevFromDate = new Date(year, month, diff - 14, 0, 0, 0, 0);
-          prevToDate = new Date(year, month, diff - 8, 23, 59, 59, 999);
+          const istDateObj = new Date(Date.UTC(year, month, istDayNum));
+          const day = istDateObj.getUTCDay();
+          const diff = istDayNum - day + (day === 0 ? -6 : 1);
+          fromDate = istStartOfDay(year, month, diff - 7);
+          toDate = istEndOfDay(year, month, diff - 1);
+          prevFromDate = istStartOfDay(year, month, diff - 14);
+          prevToDate = istEndOfDay(year, month, diff - 8);
           break;
         }
         case 'This Month': {
-          fromDate = new Date(year, month, 1, 0, 0, 0, 0);
-          toDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
-          prevFromDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
-          prevToDate = new Date(year, month, 0, 23, 59, 59, 999);
+          fromDate = istStartOfDay(year, month, 1);
+          toDate = istEndOfDay(year, month + 1, 0);
+          prevFromDate = istStartOfDay(year, month - 1, 1);
+          prevToDate = istEndOfDay(year, month, 0);
           break;
         }
         case 'Last Month': {
-          fromDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
-          toDate = new Date(year, month, 0, 23, 59, 59, 999);
-          prevFromDate = new Date(year, month - 2, 1, 0, 0, 0, 0);
-          prevToDate = new Date(year, month - 1, 0, 23, 59, 59, 999);
+          fromDate = istStartOfDay(year, month - 1, 1);
+          toDate = istEndOfDay(year, month, 0);
+          prevFromDate = istStartOfDay(year, month - 2, 1);
+          prevToDate = istEndOfDay(year, month - 1, 0);
           break;
         }
         case 'This Quarter': {
           const qStartMonth = Math.floor(month / 3) * 3;
-          fromDate = new Date(year, qStartMonth, 1, 0, 0, 0, 0);
-          toDate = new Date(year, qStartMonth + 3, 0, 23, 59, 59, 999);
-          prevFromDate = new Date(year, qStartMonth - 3, 1, 0, 0, 0, 0);
-          prevToDate = new Date(year, qStartMonth, 0, 23, 59, 59, 999);
+          fromDate = istStartOfDay(year, qStartMonth, 1);
+          toDate = istEndOfDay(year, qStartMonth + 3, 0);
+          prevFromDate = istStartOfDay(year, qStartMonth - 3, 1);
+          prevToDate = istEndOfDay(year, qStartMonth, 0);
           break;
         }
         case 'Last Quarter': {
           const qStartMonth = Math.floor(month / 3) * 3;
-          fromDate = new Date(year, qStartMonth - 3, 1, 0, 0, 0, 0);
-          toDate = new Date(year, qStartMonth, 0, 23, 59, 59, 999);
-          prevFromDate = new Date(year, qStartMonth - 6, 1, 0, 0, 0, 0);
-          prevToDate = new Date(year, qStartMonth - 3, 0, 23, 59, 59, 999);
+          fromDate = istStartOfDay(year, qStartMonth - 3, 1);
+          toDate = istEndOfDay(year, qStartMonth, 0);
+          prevFromDate = istStartOfDay(year, qStartMonth - 6, 1);
+          prevToDate = istEndOfDay(year, qStartMonth - 3, 0);
           break;
         }
         case 'This Financial Year': {
           const fyStartYear = month >= 3 ? year : year - 1;
-          fromDate = new Date(fyStartYear, 3, 1, 0, 0, 0, 0);
-          toDate = new Date(fyStartYear + 1, 2, 31, 23, 59, 59, 999);
-          prevFromDate = new Date(fyStartYear - 1, 3, 1, 0, 0, 0, 0);
-          prevToDate = new Date(fyStartYear, 2, 31, 23, 59, 59, 999);
+          fromDate = istStartOfDay(fyStartYear, 3, 1);
+          toDate = istEndOfDay(fyStartYear + 1, 2, 31);
+          prevFromDate = istStartOfDay(fyStartYear - 1, 3, 1);
+          prevToDate = istEndOfDay(fyStartYear, 2, 31);
           break;
         }
         case 'Last Financial Year': {
           const fyStartYear = month >= 3 ? year - 1 : year - 2;
-          fromDate = new Date(fyStartYear, 3, 1, 0, 0, 0, 0);
-          toDate = new Date(fyStartYear + 1, 2, 31, 23, 59, 59, 999);
-          prevFromDate = new Date(fyStartYear - 1, 3, 1, 0, 0, 0, 0);
-          prevToDate = new Date(fyStartYear, 2, 31, 23, 59, 59, 999);
+          fromDate = istStartOfDay(fyStartYear, 3, 1);
+          toDate = istEndOfDay(fyStartYear + 1, 2, 31);
+          prevFromDate = istStartOfDay(fyStartYear - 1, 3, 1);
+          prevToDate = istEndOfDay(fyStartYear, 2, 31);
           break;
         }
       }
     }
 
-    const todayStart = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      0,
-      0,
-      0,
-      0,
-    );
-    const todayEnd = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      23,
-      59,
-      59,
-      999,
-    );
-    const yesterdayStart = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() - 1,
-      0,
-      0,
-      0,
-      0,
-    );
-    const yesterdayEnd = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() - 1,
-      23,
-      59,
-      59,
-      999,
-    );
+    const fourMonthStart = istStartOfDay(year, month - 3, 1);
 
     const [
       salesOrders,
@@ -186,18 +208,22 @@ export class SuperAdminService implements OnApplicationBootstrap {
       todayOrders,
       yesterdayOrders,
       customerPayments,
-      expenses,
+      legacyExpenses,
+      financeExpenses,
+      expenseClaims,
       dispatches,
       todayDispatches,
       todayProductionReports,
       productionTargets,
-      products,
+      productsWithMinStock,
       employees,
       departments,
       salesReturns,
       replacementOrders,
       branches,
       rawMaterials,
+      fourMonthOrders,
+      fourMonthPayments,
     ] = (await (Promise.all([
       this.prisma.salesOrder
         .findMany({
@@ -207,11 +233,30 @@ export class SuperAdminService implements OnApplicationBootstrap {
             ...(branchId ? { customer: { branchId } } : {}),
           },
           orderBy: { createdAt: 'desc' },
-          include: {
-            customer: true,
-            items: { include: { product: true } },
-            dispatches: true,
-            customerPayments: true,
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            totalAmount: true,
+            subtotal: true,
+            freightAmount: true,
+            customerId: true,
+            orderDate: true,
+            createdAt: true,
+            paymentTermsDays: true,
+            remarks: true,
+            deliveryTerms: true,
+            customer: { select: { companyName: true } },
+            items: {
+              select: {
+                productNameSnapshot: true,
+                orderedQuantity: true,
+                unitPrice: true,
+                lineTotal: true,
+                product: { select: { name: true } },
+              },
+            },
+            dispatches: { select: { id: true } },
           },
         })
         .catch(() => []),
@@ -222,6 +267,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
             createdAt: { gte: prevFromDate, lte: prevToDate },
             ...(branchId ? { customer: { branchId } } : {}),
           },
+          select: { status: true, totalAmount: true, subtotal: true },
         })
         .catch(() => []),
       this.prisma.salesOrder
@@ -231,6 +277,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
             createdAt: { gte: todayStart, lte: todayEnd },
             ...(branchId ? { customer: { branchId } } : {}),
           },
+          select: { totalAmount: true, subtotal: true },
         })
         .catch(() => []),
       this.prisma.salesOrder
@@ -240,6 +287,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
             createdAt: { gte: yesterdayStart, lte: yesterdayEnd },
             ...(branchId ? { customer: { branchId } } : {}),
           },
+          select: { totalAmount: true, subtotal: true },
         })
         .catch(() => []),
       this.prisma.customerPayment
@@ -249,7 +297,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
             receivedAt: { gte: fromDate, lte: toDate },
             ...(branchId ? { customer: { branchId } } : {}),
           },
-          include: { customer: true, salesOrder: true },
+          select: { amount: true, receivedAt: true },
         })
         .catch(() => []),
       this.prisma.expense
@@ -258,6 +306,29 @@ export class SuperAdminService implements OnApplicationBootstrap {
             status: { in: ['APPROVED', 'PENDING_HR', 'PENDING_SUPER_ADMIN'] },
             expenseDate: { gte: fromDate, lte: toDate },
           },
+          select: { amount: true, expenseName: true, expenseDate: true, employeeId: true },
+        })
+        .catch(() => []),
+      this.prisma.financeExpense
+        .findMany({
+          where: {
+            expenseDate: { gte: fromDate, lte: toDate },
+          },
+          select: {
+            amount: true,
+            description: true,
+            expenseDate: true,
+            category: { select: { name: true } },
+          },
+        })
+        .catch(() => []),
+      this.prisma.expenseClaim
+        .findMany({
+          where: {
+            status: { in: ['APPROVED', 'PAID', 'PENDING_FINANCE', 'PENDING_SUPERADMIN', 'PENDING_HR'] as any },
+            expenseDate: { gte: fromDate, lte: toDate },
+          },
+          select: { amount: true, expenseName: true, expenseDate: true, employeeId: true },
         })
         .catch(() => []),
       this.prisma.dispatch
@@ -266,7 +337,12 @@ export class SuperAdminService implements OnApplicationBootstrap {
             createdAt: { gte: fromDate, lte: toDate },
             ...(branchId ? { salesOrder: { customer: { branchId } } } : {}),
           },
-          include: { items: true, salesOrder: { include: { customer: true } } },
+          select: {
+            createdAt: true,
+            freightAmount: true,
+            deliveredQuantity: true,
+            items: { select: { quantity: true } },
+          },
         })
         .catch(() => []),
       this.prisma.dispatch
@@ -275,13 +351,16 @@ export class SuperAdminService implements OnApplicationBootstrap {
             createdAt: { gte: todayStart, lte: todayEnd },
             ...(branchId ? { salesOrder: { customer: { branchId } } } : {}),
           },
-          include: { items: true },
+          select: {
+            deliveredQuantity: true,
+            items: { select: { quantity: true } },
+          },
         })
         .catch(() => []),
       this.prisma.productionDailyReport
         .findMany({
           where: { reportDate: { gte: todayStart, lte: todayEnd } },
-          include: { items: true },
+          select: { reportDate: true, totalSets: true, totalCovers: true },
         })
         .catch(() => []),
       this.prisma.productionTarget
@@ -291,22 +370,37 @@ export class SuperAdminService implements OnApplicationBootstrap {
             startDate: { lte: toDate },
             endDate: { gte: fromDate },
           },
+          select: { quantityTarget: true },
         })
         .catch(() => []),
+      // Only fetch products that actually define a minimumStock threshold (avoids scanning 8,862 rows!)
       this.prisma.product
         .findMany({
-          where: { isActive: true },
-          include: { FinishedGoods: true },
+          where: { isActive: true, minimumStock: { gt: 0 } },
+          select: {
+            id: true,
+            name: true,
+            unit: true,
+            minimumStock: true,
+            FinishedGoods: { select: { availableQuantity: true } },
+          },
         })
         .catch(() => []),
       this.prisma.employee
         .findMany({
           where: { status: { not: 'TERMINATED' } },
-          include: { department: true },
+          select: {
+            id: true,
+            baseSalary: true,
+            department: { select: { name: true } },
+          },
         })
         .catch(() => []),
       this.prisma.department
-        .findMany({ where: { isActive: true } })
+        .findMany({
+          where: { isActive: true },
+          select: { name: true },
+        })
         .catch(() => []),
       this.prisma.salesReturn
         .findMany({
@@ -314,7 +408,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
             createdAt: { gte: fromDate, lte: toDate },
             ...(branchId ? { salesOrder: { customer: { branchId } } } : {}),
           },
-          include: { items: true, creditNotes: true },
+          select: { creditNotes: true },
         })
         .catch(() => []),
       this.prisma.replacementOrder
@@ -325,6 +419,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
               ? { originalSalesOrder: { customer: { branchId } } }
               : {}),
           },
+          select: { commercialValue: true },
         })
         .catch(() => []),
       this.prisma.branch
@@ -335,27 +430,47 @@ export class SuperAdminService implements OnApplicationBootstrap {
         .catch(() => []),
       this.prisma.rawMaterial
         .findMany({
-          where: { isActive: true },
+          where: { isActive: true, minimumStock: { gt: 0 } },
+          select: { name: true, unit: true, minimumStock: true },
         })
         .catch(() => []),
-    ]) as any)) as [
-      any[],
-      any[],
-      any[],
-      any[],
-      any[],
-      any[],
-      any[],
-      any[],
-      any[],
-      any[],
-      any[],
-      any[],
-      any[],
-      any[],
-      any[],
-      any[],
-      any[],
+      fromDate > fourMonthStart
+        ? this.prisma.salesOrder
+            .findMany({
+              where: {
+                deletedAt: null,
+                createdAt: { gte: fourMonthStart, lte: now },
+                ...(branchId ? { customer: { branchId } } : {}),
+              },
+              select: { status: true, totalAmount: true, subtotal: true, createdAt: true },
+            })
+            .catch(() => [])
+        : Promise.resolve(null),
+      fromDate > fourMonthStart
+        ? this.prisma.customerPayment
+            .findMany({
+              where: {
+                status: { in: ['VERIFIED'] },
+                receivedAt: { gte: fourMonthStart, lte: now },
+                ...(branchId ? { customer: { branchId } } : {}),
+              },
+              select: { amount: true, receivedAt: true },
+            })
+            .catch(() => [])
+        : Promise.resolve(null),
+    ]) as any)) as any[];
+
+    const products = productsWithMinStock;
+    // Combine Legacy Expense + Employee ExpenseClaim + FinanceExpense so Total Business Expense is accurate
+    const expenses = [
+      ...(legacyExpenses || []),
+      ...(expenseClaims || []),
+      ...(financeExpenses || []).map((fe: any) => ({
+        amount: fe.amount,
+        expenseName: fe.category?.name || fe.description || 'Finance Expense',
+        expenseDate: fe.expenseDate,
+        employeeId: null,
+      })),
     ];
 
     // 1. Financial Command Center (Sales + Finance)
@@ -813,8 +928,20 @@ export class SuperAdminService implements OnApplicationBootstrap {
       };
     });
 
+    const chartSalesPool = Array.isArray(fourMonthOrders)
+      ? fourMonthOrders.filter(
+          (o: any) =>
+            confirmedStatuses.has(o.status) ||
+            o.status === 'CONFIRMED' ||
+            toNumber(o.totalAmount) > 0,
+        )
+      : validSalesOrders;
+    const chartPaymentsPool = Array.isArray(fourMonthPayments)
+      ? fourMonthPayments
+      : customerPayments;
+
     const monthlyPerformance = past4Months.map((m) => {
-      const mSales = validSalesOrders
+      const mSales = chartSalesPool
         .filter(
           (o: any) =>
             new Date(o.createdAt) >= m.startDate &&
@@ -824,7 +951,7 @@ export class SuperAdminService implements OnApplicationBootstrap {
           (sum: number, o: any) => sum + toNumber(o.totalAmount || o.subtotal),
           0,
         );
-      const mPayments = customerPayments
+      const mPayments = chartPaymentsPool
         .filter(
           (p: any) =>
             new Date(p.receivedAt) >= m.startDate &&
@@ -1320,6 +1447,13 @@ export class SuperAdminService implements OnApplicationBootstrap {
    * numbers so presentation/formatting is exclusively a frontend concern.
    */
   async getExecutiveCommandCenter(query: any, companyId: string) {
+    const cacheKey = `ecc:${companyId || 'all'}:${JSON.stringify(query || {})}`;
+    return this.cachedQuery(cacheKey, () =>
+      this.computeExecutiveCommandCenter(query, companyId),
+    );
+  }
+
+  private async computeExecutiveCommandCenter(query: any, companyId: string) {
     const isCompanyScoped =
       companyId && companyId !== 'null' && companyId !== 'undefined';
     const toNumber = (value: any) => Number(value ?? 0);
@@ -4234,6 +4368,13 @@ export class SuperAdminService implements OnApplicationBootstrap {
   }
 
   async getDispatchAnalytics(query: any, companyId: string) {
+    const cacheKey = `dispatch-analytics:${companyId || 'all'}:${JSON.stringify(query || {})}`;
+    return this.cachedQuery(cacheKey, () =>
+      this.computeDispatchAnalytics(query, companyId),
+    );
+  }
+
+  private async computeDispatchAnalytics(query: any, companyId: string) {
     const isCompanyScoped =
       companyId && companyId !== 'null' && companyId !== 'undefined';
     if (!isCompanyScoped) throw new BadRequestException('Company context is required');
@@ -5866,6 +6007,13 @@ export class SuperAdminService implements OnApplicationBootstrap {
   }
 
   async getSalesAnalytics(query: any, companyId: string) {
+    const cacheKey = `sales-analytics:${companyId || 'all'}:${JSON.stringify(query || {})}`;
+    return this.cachedQuery(cacheKey, () =>
+      this.computeSalesAnalytics(query, companyId),
+    );
+  }
+
+  private async computeSalesAnalytics(query: any, companyId: string) {
     const isCompanyScoped =
       companyId && companyId !== 'null' && companyId !== 'undefined';
     const toNumber = (val: any) =>
@@ -7281,6 +7429,13 @@ export class SuperAdminService implements OnApplicationBootstrap {
   }
 
   async getFinanceAnalytics(query: any, companyId: string) {
+    const cacheKey = `finance-analytics:${companyId || 'all'}:${JSON.stringify(query || {})}`;
+    return this.cachedQuery(cacheKey, () =>
+      this.computeFinanceAnalytics(query, companyId),
+    );
+  }
+
+  private async computeFinanceAnalytics(query: any, companyId: string) {
     const isCompanyScoped =
       companyId && companyId !== 'null' && companyId !== 'undefined';
     const toNumber = (val: any) =>

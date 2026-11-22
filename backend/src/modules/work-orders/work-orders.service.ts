@@ -11,6 +11,10 @@ import {
   isTradingProduct,
   isPureTradingOrder,
 } from '../../common/utils/trading-product.util';
+import {
+  parsePaginationParams,
+  formatPaginatedResult,
+} from '../../common/utils/pagination.util';
 
 @Injectable()
 export class WorkOrdersService {
@@ -20,9 +24,23 @@ export class WorkOrdersService {
     private readonly notificationsService?: NotificationsService,
   ) {}
 
-  async listWorkOrders(statuses?: string[], userId?: string, role?: string) {
+  async listWorkOrders(
+    statuses?: string[],
+    userId?: string,
+    role?: string,
+    paginationQuery?: {
+      page?: string | number;
+      limit?: string | number;
+      pageSize?: string | number;
+      salesOrderId?: string;
+    },
+  ) {
     const scope = getSalesScope(userId, role, 'WorkOrder');
+    const pagination = parsePaginationParams(paginationQuery, 50, 100);
     const where: any = { ...scope };
+    if (paginationQuery?.salesOrderId) {
+      where.productionPlan = { salesOrderId: paginationQuery.salesOrderId };
+    }
     if (statuses && statuses.length > 0) {
       const validStatuses = statuses.filter((s) =>
         [
@@ -95,38 +113,165 @@ export class WorkOrdersService {
       }
     }
 
-    const workOrders = await this.prisma.workOrder.findMany({
-      where,
-      include: {
-        productionPlan: {
-          include: {
-            salesOrder: {
-              include: {
-                customer: true,
-                items: { include: { product: true } },
-                sourceQuotation: { include: { lead: true } },
-                quotation: { include: { lead: true } },
+    const [workOrders, total] = await Promise.all([
+      this.prisma.workOrder.findMany({
+        where,
+        skip: pagination.skip,
+        take: pagination.take,
+        include: {
+          productionPlan: {
+            select: {
+              id: true,
+              planNumber: true,
+              status: true,
+              salesOrderId: true,
+              salesOrder: {
+                select: {
+                  id: true,
+                  orderNumber: true,
+                  status: true,
+                  customerId: true,
+                  remarks: true,
+                  deliveryTerms: true,
+                  requestedDeliveryDate: true,
+                  createdAt: true,
+                  customer: {
+                    select: {
+                      id: true,
+                      companyName: true,
+                      contactPerson: true,
+                      phone: true,
+                    },
+                  },
+                  items: {
+                    select: {
+                      id: true,
+                      productId: true,
+                      productNameSnapshot: true,
+                      productCodeSnapshot: true,
+                      orderedQuantity: true,
+                      unit: true,
+                      unitPrice: true,
+                      lineTotal: true,
+                      product: {
+                        select: {
+                          id: true,
+                          name: true,
+                          sku: true,
+                          category: true,
+                          productType: true,
+                          dispatchCategory: true,
+                          isTrading: true,
+                          unit: true,
+                        },
+                      },
+                    },
+                  },
+                  sourceQuotation: {
+                    select: {
+                      id: true,
+                      quotationNumber: true,
+                      lead: {
+                        select: {
+                          id: true,
+                          companyName: true,
+                          groupName: true,
+                          projectName: true,
+                          contactPerson: true,
+                          productInterest: true,
+                        },
+                      },
+                    },
+                  },
+                  quotation: {
+                    select: {
+                      id: true,
+                      quotationNumber: true,
+                      lead: {
+                        select: {
+                          id: true,
+                          companyName: true,
+                          groupName: true,
+                          projectName: true,
+                          contactPerson: true,
+                          productInterest: true,
+                        },
+                      },
+                    },
+                  },
+                },
               },
             },
           },
+          salesOrderItem: {
+            select: {
+              id: true,
+              productId: true,
+              productNameSnapshot: true,
+              productCodeSnapshot: true,
+              orderedQuantity: true,
+              unit: true,
+              dispatchItems: {
+                select: { id: true, quantity: true, dispatchId: true },
+              },
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                  category: true,
+                  productType: true,
+                  dispatchCategory: true,
+                  isTrading: true,
+                  unit: true,
+                },
+              },
+            },
+          },
+          FinishedGoods: {
+            select: {
+              id: true,
+              productId: true,
+              quantity: true,
+              availableQuantity: true,
+              reservedQuantity: true,
+              status: true,
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                  category: true,
+                  productType: true,
+                  dispatchCategory: true,
+                  isTrading: true,
+                  unit: true,
+                },
+              },
+            },
+          },
+          qcInspections: {
+            where: { status: 'APPROVED' },
+            orderBy: [{ approvedAt: 'desc' }, { createdAt: 'desc' }],
+            take: 3,
+            select: {
+              id: true,
+              status: true,
+              approvedAt: true,
+              createdAt: true,
+            },
+          },
+          workflowState: { select: { id: true, code: true, name: true } },
         },
-        salesOrderItem: {
-          include: { dispatchItems: true, product: true },
-        },
-        FinishedGoods: {
-          include: { product: true },
-        },
-        qcInspections: {
-          where: { status: 'APPROVED' },
-          orderBy: [{ approvedAt: 'desc' }, { createdAt: 'desc' }],
-        },
-        workflowState: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      }),
+      pagination.hasExplicitPagination
+        ? this.prisma.workOrder.count({ where })
+        : Promise.resolve(0),
+    ]);
 
-    return workOrders
-      .filter((wo) => {
+    const mapped = (workOrders as any[])
+      .filter((wo: any) => {
         const prod = wo.salesOrderItem?.product || (wo as any).FinishedGoods?.product;
         if (isTradingProduct(prod, wo.salesOrderItem)) return false;
         if (wo.productionPlan?.salesOrder && isPureTradingOrder(wo.productionPlan.salesOrder)) return false;
@@ -173,6 +318,8 @@ export class WorkOrdersService {
           resolvedSoNumber: so?.orderNumber || (wo.workOrderNumber ? `SO-2026-${wo.workOrderNumber.replace(/\D/g, '').slice(-5).padStart(5, '0')}` : 'SO-2026-00001'),
         };
       });
+
+    return formatPaginatedResult(mapped, total || mapped.length, pagination);
   }
 
   async getWorkOrder(id: string, userId?: string, role?: string) {

@@ -74,16 +74,37 @@ async function performBackendFetch<T = unknown>(
     }
   }
 
-  // If 401 — attempt silent token refresh once, then retry
+  // If 401 — check whether the session was explicitly revoked before attempting silent refresh
   if (res.status === 401) {
-    const refreshed = await tryRefreshToken();
-    if (refreshed) {
-      const retryHeaders = getAuthHeaders(opts);
-      const retryOpts: RequestInit = { method, headers: retryHeaders };
-      if (opts.body !== undefined && method !== 'GET') {
-        retryOpts.body = opts.body instanceof FormData ? opts.body : JSON.stringify(opts.body);
+    let forceRevoked = false;
+    try {
+      const cloned = res.clone();
+      const bodyJson = await cloned.json();
+      const errCode = bodyJson?.error?.code || bodyJson?.code || '';
+      if (errCode === 'SESSION_REVOKED' || errCode === 'ACCOUNT_DISABLED') {
+        forceRevoked = true;
       }
-      res = await fetch(targetUrl, retryOpts);
+    } catch {
+      // ignore non-JSON body
+    }
+
+    if (forceRevoked) {
+      readCache.clear();
+      pendingReads.clear();
+      useAuthStore.getState().logout?.();
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login?reason=session_revoked';
+      }
+    } else {
+      const refreshed = await tryRefreshToken();
+      if (refreshed) {
+        const retryHeaders = getAuthHeaders(opts);
+        const retryOpts: RequestInit = { method, headers: retryHeaders };
+        if (opts.body !== undefined && method !== 'GET') {
+          retryOpts.body = opts.body instanceof FormData ? opts.body : JSON.stringify(opts.body);
+        }
+        res = await fetch(targetUrl, retryOpts);
+      }
     }
   }
 
@@ -93,7 +114,7 @@ async function performBackendFetch<T = unknown>(
     pendingReads.clear();
     useAuthStore.getState().logout?.();
     if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-      window.location.href = '/login';
+      window.location.href = '/login?reason=session_expired';
     }
   }
 
