@@ -26,14 +26,14 @@ export function getNavigationForPath(pathname, role) {
     else if (typeof role === 'object') roleName = role.name || role.code || '';
   }
 
-  // Only Super Admin can navigate anywhere and morph navigation to that module
+  // Keep Super Admin anchored inside Super Admin navigation instead of hijacking them into HR/Finance panels
   const isSuperOrAdmin = roleName === 'Super Admin' || roleName === 'SUPER_ADMIN' || roleName === 'super-admin';
 
   const moduleKey = getModuleKeyFromPath(pathname);
   
   let nav = [];
-  if (isSuperOrAdmin && moduleKey && navigationConfig[moduleKey]) {
-    nav = navigationConfig[moduleKey];
+  if (isSuperOrAdmin) {
+    nav = navigationConfig['Super Admin'];
   } else if (role) {
     const roleKeyMap = {
       'finance-executive': 'Finance Executive',

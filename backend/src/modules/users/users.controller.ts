@@ -8,6 +8,7 @@ import {
   Param,
   UseGuards,
   Req,
+  ForbiddenException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -61,12 +62,30 @@ export class UsersController {
   }
 
   @Post(':id/reset-password')
-  @RequirePermissions('user.update')
+  @RequirePermissions('user.update', 'admin.users.manage', 'super-admin.read')
   async resetPassword(
     @Param('id') id: string,
-    @Body('new_password') newPassword: string,
+    @Body() body: { new_password?: string; newPassword?: string },
+    @Req() req: any,
   ) {
-    return this.usersService.resetPassword(id, newPassword);
+    const rawRole =
+      typeof req?.user?.role === 'object' && req?.user?.role !== null
+        ? req.user.role.code || req.user.role.name || ''
+        : req?.user?.role || '';
+    const normalizedRole = String(rawRole)
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+
+    if (normalizedRole !== 'SUPER_ADMIN') {
+      throw new ForbiddenException(
+        'Only Super Admin is authorized to reset user passwords.',
+      );
+    }
+
+    const passwordValue = body?.new_password ?? body?.newPassword ?? '';
+    const actorUserId = req?.user?.sub || req?.user?.id || null;
+    return this.usersService.resetPassword(id, passwordValue, actorUserId);
   }
 
   @Post(':id/toggle-status')

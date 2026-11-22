@@ -6,7 +6,7 @@ import { apiClient } from '../../../lib/apiClient';
 import DataTable from '../../../shared/components/DataTable';
 import { useSearchStore } from '@/store/searchStore';
 import { employeesService } from '../../../services/hr/employeesService';
-import { UserPlus, Shield, Mail, KeyRound, Save, UserCheck, Trash2, UserX, Eye, EyeOff, Copy, Check } from 'lucide-react';
+import { UserPlus, Shield, Mail, KeyRound, Save, UserCheck, Trash2, UserX, Lock } from 'lucide-react';
 
 const DEFAULT_ROLES = [
   { name: 'Super Admin', code: 'SUPER_ADMIN' },
@@ -33,9 +33,6 @@ export default function UsersManagementView() {
   const [roles, setRoles] = useState(DEFAULT_ROLES);
   const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showAllPasswords, setShowAllPasswords] = useState(false);
-  const [visiblePasswords, setVisiblePasswords] = useState({});
-  const [copiedId, setCopiedId] = useState(null);
 
   const [formData, setFormData] = useState({
     employeeId: '',
@@ -89,6 +86,10 @@ export default function UsersManagementView() {
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
+    if (!formData.password || formData.password.trim().length < 8) {
+      showToast('Password must be at least 8 characters long.');
+      return;
+    }
     setLoading(true);
     try {
       const matchedRole = roles.find(r => r.code === formData.roleCode || r.name === formData.roleCode);
@@ -96,7 +97,7 @@ export default function UsersManagementView() {
         employeeId: formData.employeeId || undefined,
         name: formData.name,
         email: formData.email,
-        password: formData.password || 'admin123',
+        password: formData.password.trim(),
         roleCode: matchedRole?.code || formData.roleCode,
         role: matchedRole?.name || formData.roleCode,
         department: formData.department || 'General'
@@ -146,15 +147,6 @@ export default function UsersManagementView() {
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button 
-            type="button"
-            className="action-btn"
-            style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '8px 14px', borderRadius: '6px', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
-            onClick={() => setShowAllPasswords(prev => !prev)}
-          >
-            {showAllPasswords ? <EyeOff size={15} color="#475569" /> : <Eye size={15} color="#475569" />}
-            {showAllPasswords ? 'Hide Passwords' : 'Show Passwords'}
-          </button>
-          <button 
             className="action-btn"
             style={{ background: 'var(--color-primary)', border: 'none', padding: '8px 16px', borderRadius: '6px', color: '#000', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
             onClick={() => setShowAddModal(true)}
@@ -187,41 +179,34 @@ export default function UsersManagementView() {
           { header: 'Name', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
           { header: 'Email Address / Login ID', accessor: 'email' },
           { 
-            header: 'Password', 
-            accessor: 'password', 
-            render: (row) => {
-              const pass = row.password || 'Himalaya@2026';
-              const isVisible = showAllPasswords || visiblePasswords[row.id];
-              const isCopied = copiedId === row.id;
-              return (
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '4px 8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                  <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#1e293b', fontWeight: 600, minWidth: '85px' }}>
-                    {isVisible ? pass : '••••••••'}
+            header: 'Security', 
+            accessor: 'security', 
+            render: (row) => (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                <span
+                  title="Passwords are one-way bcrypt hashed and can never be viewed. Contact Super Admin for password resets."
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: '#f8fafc',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid #e2e8f0',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#475569',
+                  }}
+                >
+                  <Lock size={12} color="#16a34a" /> Encrypted (bcrypt)
+                </span>
+                {row.isLocked && (
+                  <span style={{ fontSize: '10px', fontWeight: 700, background: '#fee2e2', color: '#b91c1c', padding: '2px 7px', borderRadius: '999px' }}>
+                    Locked
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setVisiblePasswords(prev => ({ ...prev, [row.id]: !isVisible }))}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center', color: '#64748b' }}
-                    title={isVisible ? 'Hide Password' : 'Show Password'}
-                  >
-                    {isVisible ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(pass);
-                      setCopiedId(row.id);
-                      setTimeout(() => setCopiedId(null), 2000);
-                      showToast(`Password copied for ${row.name}`);
-                    }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center', color: isCopied ? '#16a34a' : '#0284c7' }}
-                    title="Copy Password"
-                  >
-                    {isCopied ? <Check size={14} color="#16a34a" /> : <Copy size={14} />}
-                  </button>
-                </div>
-              );
-            } 
+                )}
+              </div>
+            ) 
           },
           { header: 'System Role', accessor: 'role', render: (row) => (
             <span style={{ padding: '4px 8px', background: '#F1F5F9', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', color: '#0284c7' }}>
@@ -353,8 +338,8 @@ export default function UsersManagementView() {
                 <label className="form-label">Password *</label>
                 <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '0 12px', background: '#fff', gap: '8px' }}>
                   <KeyRound size={16} color="#94A3B8" style={{ flexShrink: 0 }} />
-                  <input type="password" required minLength={6} style={{ border: 'none', background: 'transparent', width: '100%', padding: '10px 0', outline: 'none', color: '#334155', fontSize: '14px' }} 
-                    value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder="Security Password" />
+                  <input type="password" required minLength={8} style={{ border: 'none', background: 'transparent', width: '100%', padding: '10px 0', outline: 'none', color: '#334155', fontSize: '14px' }} 
+                    value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder="Min 8 characters (stored one-way hashed)" />
                 </div>
               </div>
 

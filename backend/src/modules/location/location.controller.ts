@@ -22,7 +22,7 @@ export class LocationController {
   constructor(
     private readonly locationService: LocationService,
     @Optional() private readonly locationGateway?: LocationGateway,
-  ) {}
+  ) { }
 
   /**
    * Register/Refresh client device session

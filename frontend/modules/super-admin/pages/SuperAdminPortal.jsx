@@ -83,6 +83,8 @@ import QCDept from '../departments/QCDept';
 import DispatchDept from '../departments/DispatchDept';
 import FinanceDept from '../departments/FinanceDept';
 import HRDept from '../departments/HRDept';
+import HRSOPsView from '../../hr/components/HRSOPsView';
+import FinanceExpensesWorkspace from '../../finance/pages/FinanceExpensesWorkspace';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, ComposedChart
@@ -90,9 +92,9 @@ import {
 import {
   Users, User, Send, UserCheck, ShieldAlert, FileText, Layers, BarChart3, LayoutGrid,
   Trash2, Edit3, Edit2, Shield, UserX, UserPlus, CheckCircle, XCircle, DollarSign,
-  TrendingUp, Activity, Settings, Info, Save, Mail, MessageSquare, Briefcase, Eye, Box, Package, Plus, FlaskConical, Tag,
+  TrendingUp, Activity, Settings, Info, Save, Mail, MessageSquare, Briefcase, Eye, EyeOff, Box, Package, Plus, FlaskConical, Tag,
   Download, Search, ChevronLeft, ChevronRight, RefreshCw, Bell, ClipboardList, Trash, ArrowRight, Check, X, Wrench, Truck, Upload,
-  Building, MapPin, ShoppingCart, FileCheck, Clock, Camera
+  Building, MapPin, ShoppingCart, FileCheck, Clock, Camera, KeyRound, Copy, Lock, Shuffle
 } from 'lucide-react';
 
 
@@ -803,12 +805,16 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
     const compId = (typeof currentUser?.company_id === 'string' && currentUser.company_id.length > 5) ? currentUser.company_id : undefined;
 
     if (userModalMode === 'create') {
+      if (!userForm.password || userForm.password.trim().length < 8) {
+        showToast('Password must be at least 8 characters long.');
+        return;
+      }
       adminService.createUser({
         name: userForm.name || `${first_name} ${last_name}`.trim() || userForm.email,
         company_id: compId,
         username: userForm.email ? userForm.email.split('@')[0] : 'user' + Date.now(),
         email: userForm.email,
-        password: userForm.password || 'password123',
+        password: userForm.password.trim(),
         first_name,
         last_name,
         role: userForm.role,
@@ -895,23 +901,90 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
     }
   };
 
-  const resetUserPassword = async (user) => {
-    const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
-    const confirmed = await confirm({
-      title: 'Reset Password',
-      message: `Are you sure you want to reset password for "${user.name}"? A new random password "${tempPassword}" will be generated.`,
-      confirmText: 'Reset Password',
-      type: 'warning'
-    });
-    if (confirmed) {
-      withLoading(async () => {
-        await adminService.resetUserPassword(user.id, tempPassword);
-        logActivity('Password Reset', `Forced password reset for user ${user.name}`, 'User Management');
-        showToast(`Successfully reset password for ${user.name}. Temporary password: ${tempPassword}`);
-        syncData();
-      }, 'Failed to reset password').catch(err => {
-        showToast(`Failed to reset password: ${err.message}`);
-      });
+  // ── SUPER ADMIN SECURE PASSWORD RESET MODAL STATE & ACTIONS ──
+  const [resetPwdTarget, setResetPwdTarget] = useState(null);
+  const [resetPwdValue, setResetPwdValue] = useState('');
+  const [resetPwdShow, setResetPwdShow] = useState(false);
+  const [resetPwdSubmitting, setResetPwdSubmitting] = useState(false);
+  const [resetPwdError, setResetPwdError] = useState('');
+  const [resetPwdDoneValue, setResetPwdDoneValue] = useState('');
+  const [resetPwdCopied, setResetPwdCopied] = useState(false);
+
+  const generateStrongPassword = () => {
+    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const lower = 'abcdefghijkmnopqrstuvwxyz';
+    const digits = '23456789';
+    const symbols = '@#$%&*!';
+    const all = upper + lower + digits + symbols;
+    const pick = (pool) => {
+      if (typeof window !== 'undefined' && window.crypto?.getRandomValues) {
+        const arr = new Uint32Array(1);
+        window.crypto.getRandomValues(arr);
+        return pool[arr[0] % pool.length];
+      }
+      return pool[Math.floor(Math.random() * pool.length)];
+    };
+    const chars = [pick(upper), pick(lower), pick(digits), pick(symbols)];
+    for (let i = 0; i < 8; i++) chars.push(pick(all));
+    // Fisher-Yates shuffle
+    for (let i = chars.length - 1; i > 0; i--) {
+      const j = typeof window !== 'undefined' && window.crypto?.getRandomValues
+        ? (() => { const a = new Uint32Array(1); window.crypto.getRandomValues(a); return a[0] % (i + 1); })()
+        : Math.floor(Math.random() * (i + 1));
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    return chars.join('');
+  };
+
+  const resetUserPassword = (user) => {
+    setResetPwdTarget(user);
+    setResetPwdValue('');
+    setResetPwdShow(false);
+    setResetPwdError('');
+    setResetPwdDoneValue('');
+    setResetPwdCopied(false);
+  };
+
+  const closeResetPasswordModal = () => {
+    setResetPwdTarget(null);
+    setResetPwdValue('');
+    setResetPwdError('');
+    setResetPwdDoneValue('');
+    setResetPwdCopied(false);
+  };
+
+  const handleConfirmResetPassword = async (e) => {
+    e.preventDefault();
+    if (!resetPwdTarget) return;
+    const clean = resetPwdValue.trim();
+    if (clean.length < 8) {
+      setResetPwdError('New password must be at least 8 characters long.');
+      return;
+    }
+    setResetPwdSubmitting(true);
+    setResetPwdError('');
+    try {
+      await adminService.resetUserPassword(resetPwdTarget.id, clean);
+      logActivity(
+        'Password Reset',
+        `Super Admin reset password & revoked active sessions for ${resetPwdTarget.email || resetPwdTarget.name}`,
+        'User Management',
+      );
+      setResetPwdDoneValue(clean);
+      setResetPwdValue('');
+      showToast(`Password reset successfully for ${resetPwdTarget.name}. Old sessions revoked & account unlocked.`);
+      syncData();
+      loadLiveUsers();
+      if (typeof refetchAdminData === 'function') refetchAdminData();
+    } catch (err) {
+      const msg =
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to reset password.';
+      setResetPwdError(msg);
+    } finally {
+      setResetPwdSubmitting(false);
     }
   };
 
@@ -937,11 +1010,15 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
     const last_name = nameParts.slice(1).join(' ') || '';
 
     if (adminModalMode === 'create') {
+      if (!adminForm.password || adminForm.password.trim().length < 8) {
+        showToast('Administrator password must be at least 8 characters long.');
+        return;
+      }
       adminService.createUser({
         company_id: currentUser.company_id || 1,
         username: adminForm.email ? adminForm.email.split('@')[0] : 'admin' + Date.now(),
         email: adminForm.email,
-        password: adminForm.password || 'admin123',
+        password: adminForm.password.trim(),
         first_name,
         last_name,
         role_name: 'Admin',
@@ -3487,6 +3564,7 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
       return {
         id: u.id,
         publicId: u.publicId || (u.id ? `USR-${u.id.slice(0, 8)}` : 'USR-SEED'),
+        hasUserAccount: u.hasUserAccount !== false && Boolean(u.email),
         name: u.name || u.email?.split('@')[0],
         email: u.email,
         role: roleName,
@@ -3495,6 +3573,8 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
         department: u.department || (typeof u.role === 'object' ? u.role?.name : u.role) || 'Executive',
         status: u.isActive !== false ? 'Active' : 'Disabled',
         isActive: u.isActive !== false,
+        isLocked: Boolean(u.isLocked),
+        lockedUntil: u.lockedUntil || null,
         createdAt: u.createdAt,
         updatedAt: u.updatedAt,
         createdById: u.createdById,
@@ -3515,12 +3595,12 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
         <div className="app-card">
           <div className="card-top-bar" style={{ flexWrap: 'wrap', gap: '12px' }}>
             <div>
-              <h2 className="card-heading">Global ERP Login Accounts (Read-Only)</h2>
-              <span style={{ fontSize: '11px', color: '#475569' }}>Roster of system credentials and access roles managed by HR Department</span>
+              <h2 className="card-heading">Global ERP Login Accounts &amp; Password Security</h2>
+              <span style={{ fontSize: '11px', color: '#475569' }}>All passwords are one-way bcrypt hashed (never readable). Super Admin can reset any user&apos;s password &amp; unlock locked accounts.</span>
             </div>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <span style={{ fontSize: '11px', fontWeight: 'bold', background: '#f1f5f9', color: '#475569', padding: '6px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Shield size={14} color="#0284c7" /> Managed Exclusively by HR
+              <span style={{ fontSize: '11px', fontWeight: 'bold', background: '#eff6ff', color: '#1d4ed8', padding: '6px 12px', borderRadius: '6px', border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Shield size={14} color="#1d4ed8" /> Super Admin Password Control
               </span>
               <select
                 value={userRoleFilter}
@@ -3530,6 +3610,7 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
                 <option value="All">All Roles</option>
                 <option value="Super Admin">Super Admin</option>
                 <option value="Admin">Admin</option>
+                <option value="Back Office">Back Office</option>
                 <option value="Sales">Sales</option>
                 <option value="Production">Production</option>
                 <option value="HR">HR</option>
@@ -3570,18 +3651,56 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
                   header: 'Status', 
                   accessor: 'status', 
                   render: (row) => (
-                    <span style={{ 
-                      padding: '3px 9px', 
-                      borderRadius: '12px', 
-                      fontSize: '11px', 
-                      fontWeight: 700, 
-                      background: row.isActive ? '#dcfce7' : '#fee2e2', 
-                      color: row.isActive ? '#15803d' : '#b91c1c',
-                      border: `1px solid ${row.isActive ? '#bbf7d0' : '#fecaca'}`
-                    }}>
-                      {row.status || (row.isActive ? 'Active' : 'Inactive')}
-                    </span>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                      <span style={{ 
+                        padding: '3px 9px', 
+                        borderRadius: '12px', 
+                        fontSize: '11px', 
+                        fontWeight: 700, 
+                        background: row.isActive ? '#dcfce7' : '#fee2e2', 
+                        color: row.isActive ? '#15803d' : '#b91c1c',
+                        border: `1px solid ${row.isActive ? '#bbf7d0' : '#fecaca'}`
+                      }}>
+                        {row.status || (row.isActive ? 'Active' : 'Inactive')}
+                      </span>
+                      {row.isLocked && (
+                        <span style={{ padding: '2px 7px', borderRadius: '12px', fontSize: '10px', fontWeight: 700, background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                          <Lock size={10} /> Locked
+                        </span>
+                      )}
+                    </div>
                   ) 
+                },
+                {
+                  header: 'Password Reset',
+                  accessor: 'actions',
+                  render: (row) =>
+                    row.hasUserAccount ? (
+                      <button
+                        type="button"
+                        data-testid={`reset-password-${row.email || row.id}`}
+                        onClick={() => resetUserPassword(row)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '5px 11px',
+                          borderRadius: '7px',
+                          border: '1px solid #bfdbfe',
+                          background: '#eff6ff',
+                          color: '#1d4ed8',
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <KeyRound size={13} />
+                        {row.isLocked ? 'Reset & Unlock' : 'Reset Password'}
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>No Login Account</span>
+                    )
                 }
               ]}
               data={filteredUsers}
@@ -3617,13 +3736,18 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
                       <strong style={{ fontSize: '14px', color: '#0f172a' }}>{user.name}</strong>
                       <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{user.email}</div>
                     </div>
-                    <div style={{ display: 'flex', gap: '6px' }}>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                       <span style={{ fontSize: '11px', fontWeight: 800, background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
                         {typeof user.role === 'object' ? (user.role?.name || user.role?.code) : (user.role || 'Staff')}
                       </span>
                       <span style={{ fontSize: '11px', fontWeight: 700, background: user.isActive ? '#dcfce7' : '#fee2e2', color: user.isActive ? '#15803d' : '#b91c1c', padding: '2px 8px', borderRadius: '12px' }}>
                         {user.status || (user.isActive ? 'Active' : 'Inactive')}
                       </span>
+                      {user.isLocked && (
+                        <span style={{ fontSize: '10px', fontWeight: 700, background: '#fef2f2', color: '#dc2626', padding: '2px 7px', borderRadius: '12px', border: '1px solid #fca5a5' }}>
+                          Locked
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -3637,6 +3761,31 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
                       <strong style={{ color: '#334155' }}>{typeof user.department === 'object' ? (user.department?.name || 'General') : (user.department || 'General')}</strong>
                     </div>
                   </div>
+
+                  {user.hasUserAccount && (
+                    <button
+                      type="button"
+                      onClick={() => resetUserPassword(user)}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #bfdbfe',
+                        background: '#eff6ff',
+                        color: '#1d4ed8',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <KeyRound size={14} />
+                      {user.isLocked ? 'Reset Password & Unlock Account' : 'Reset Password'}
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -6710,6 +6859,10 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
         return <ExpenseManagementView />;
       case 'leave-approvals':
         return <LeaveApprovalView roleMode="SUPER_ADMIN" />;
+      case 'hr-sops':
+        return <HRSOPsView roleMode="SUPER_ADMIN" />;
+      case 'finance-expenses':
+        return <FinanceExpensesWorkspace />;
       case 'exit-clearance':
         return (
           <HRDept
@@ -7843,6 +7996,202 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
           </div>
         )}
       </div>
+      {/* ── SUPER ADMIN SECURE PASSWORD RESET MODAL ── */}
+      {resetPwdTarget && (
+        <div
+          className="modal-overlay active"
+          onClick={closeResetPasswordModal}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10050,
+            padding: '16px',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              background: '#ffffff',
+              borderRadius: '14px',
+              padding: '22px',
+              boxShadow: '0 20px 45px rgba(15, 23, 42, 0.25)',
+              border: '1px solid #e2e8f0',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: '#eff6ff', border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1d4ed8' }}>
+                  <KeyRound size={18} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>Reset User Password</h3>
+                  <div style={{ fontSize: '11.5px', color: '#64748b' }}>Super Admin Security Override</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeResetPasswordModal}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 12px', fontSize: '12px' }}>
+              <div style={{ fontWeight: 800, color: '#0f172a' }}>{resetPwdTarget.name}</div>
+              <div style={{ color: '#475569', marginTop: '2px' }}>{resetPwdTarget.email} • <strong>{resetPwdTarget.role}</strong></div>
+              {resetPwdTarget.isLocked && (
+                <div style={{ marginTop: '6px', color: '#b91c1c', fontWeight: 700, fontSize: '11px' }}>
+                  🔒 Account is currently locked — resetting the password will immediately unlock it.
+                </div>
+              )}
+            </div>
+
+            {resetPwdDoneValue ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: '10px', padding: '12px', color: '#065f46', fontSize: '12.5px' }}>
+                  <strong>Password updated &amp; encrypted (bcrypt).</strong> All previous login sessions for this user have been revoked and any lockout cleared.
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '5px' }}>
+                    NEW PASSWORD (SHOWN ONCE — COPY NOW)
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f1f5f9', border: '1.5px solid #93c5fd', borderRadius: '8px', padding: '10px 12px' }}>
+                    <code style={{ flex: 1, fontSize: '15px', fontWeight: 800, color: '#0f172a', letterSpacing: '0.04em' }}>
+                      {resetPwdDoneValue}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(resetPwdDoneValue);
+                        setResetPwdCopied(true);
+                        showToast(`New password copied for ${resetPwdTarget.email}`);
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: resetPwdCopied ? '#16a34a' : '#2563eb',
+                        color: '#ffffff',
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {resetPwdCopied ? <Check size={14} /> : <Copy size={14} />}
+                      {resetPwdCopied ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#b45309', marginTop: '6px' }}>
+                    ⚠️ After closing this window, this password can never be viewed again (one-way bcrypt hash).
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeResetPasswordModal}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', background: '#0f172a', color: '#ffffff', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+                >
+                  Done &amp; Close
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleConfirmResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {resetPwdError && (
+                  <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b', borderRadius: '8px', padding: '8px 10px', fontSize: '12px', fontWeight: 600 }}>
+                    {resetPwdError}
+                  </div>
+                )}
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>New Password (min 8 chars)</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetPwdValue(generateStrongPassword());
+                        setResetPwdShow(true);
+                        setResetPwdError('');
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        background: '#eff6ff',
+                        border: '1px solid #bfdbfe',
+                        color: '#1d4ed8',
+                        borderRadius: '6px',
+                        padding: '3px 8px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Shuffle size={12} /> Generate Strong
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #cbd5e1', borderRadius: '8px', padding: '0 10px', background: '#ffffff' }}>
+                    <input
+                      type={resetPwdShow ? 'text' : 'password'}
+                      value={resetPwdValue}
+                      onChange={(e) => {
+                        setResetPwdValue(e.target.value);
+                        if (resetPwdError) setResetPwdError('');
+                      }}
+                      placeholder="Enter new strong password"
+                      minLength={8}
+                      required
+                      autoComplete="new-password"
+                      style={{ flex: 1, border: 'none', outline: 'none', padding: '10px 4px', fontSize: '13.5px', color: '#0f172a', fontFamily: resetPwdShow ? 'monospace' : 'inherit' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setResetPwdShow((p) => !p)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px', display: 'flex' }}
+                      aria-label={resetPwdShow ? 'Hide password' : 'Show password'}
+                    >
+                      {resetPwdShow ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '11px', color: '#64748b', lineHeight: 1.45 }}>
+                  This immediately replaces the user&apos;s bcrypt hash, unlocks any failed-login lockout, and invalidates existing refresh sessions.
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={closeResetPasswordModal}
+                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#334155', fontWeight: 700, fontSize: '12.5px', cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetPwdSubmitting}
+                    style={{ flex: 2, padding: '10px', borderRadius: '8px', border: 'none', background: '#2563eb', color: '#ffffff', fontWeight: 700, fontSize: '12.5px', cursor: 'pointer' }}
+                  >
+                    {resetPwdSubmitting ? 'Resetting…' : 'Set New Password'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
       <ConfirmDialogComponent />
     </div>
     </SuperAdminFilterProvider>

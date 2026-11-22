@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { hash } from 'bcrypt';
 import { randomUUID } from 'crypto';
@@ -174,12 +178,13 @@ export class UsersService {
       }
 
       const empCode = linkedEmp?.employeeCode || u.publicId;
-      const normalizedEmail = (u.email || '').toLowerCase().trim();
+      const isLocked = Boolean(u.lockedUntil && new Date() < u.lockedUntil);
       mapped.push({
         id: u.id,
         publicId: empCode,
         employeeCode: empCode,
         employeeId: linkedEmp?.id || null,
+        hasUserAccount: true,
         name: u.name || linkedEmp?.fullName || `${linkedEmp?.firstName || ''} ${linkedEmp?.lastName || ''}`.trim(),
         email: u.email || linkedEmp?.workEmail || '',
         role: u.role?.name || linkedEmp?.jobTitle || 'Staff',
@@ -192,6 +197,9 @@ export class UsersService {
           'Super Admin',
         dispatchCategory: u.dispatchCategory,
         isActive: u.isActive,
+        isLocked,
+        lockedUntil: isLocked ? u.lockedUntil : null,
+        failedLoginAttempts: u.failedLoginAttempts || 0,
         status: u.isActive ? 'Active' : 'Inactive',
         createdAt: u.createdAt,
         updatedAt: u.updatedAt,
@@ -208,6 +216,7 @@ export class UsersService {
           publicId: empCode,
           employeeCode: empCode,
           employeeId: emp.id,
+          hasUserAccount: Boolean(emp.userId),
           name: empName,
           email: emp.workEmail || '',
           role: emp.jobTitle || 'Staff Member',
@@ -216,6 +225,9 @@ export class UsersService {
           department: emp.department?.name || 'Operations',
           dispatchCategory: null,
           isActive: emp.status === 'ACTIVE' || emp.status === 'CONFIRMED' || emp.status === 'ON_PROBATION',
+          isLocked: false,
+          lockedUntil: null,
+          failedLoginAttempts: 0,
           status: emp.status || 'Active',
           createdAt: emp.createdAt,
           updatedAt: emp.updatedAt,
@@ -307,11 +319,12 @@ export class UsersService {
         });
       }
 
-      const result = {
+      const result: any = {
         ...updatedUser,
         employeeId: employeeToLink?.id || null,
         employeeCode: employeeToLink?.employeeCode || updatedUser.publicId,
       };
+      delete result.password;
       return result;
     }
 
@@ -334,7 +347,12 @@ export class UsersService {
       data.name ||
       `${data.first_name || ''} ${data.last_name || ''}`.trim() ||
       email.split('@')[0];
-    const passwordToHash = data.password || 'admin123';
+    const passwordToHash = String(data.password || '').trim();
+    if (passwordToHash.length < 8) {
+      throw new BadRequestException(
+        'A password of at least 8 characters is required to create a user.',
+      );
+    }
     const hashAsync = hash as unknown as (
       data: string,
       saltOrRounds: number,
@@ -439,11 +457,13 @@ export class UsersService {
         console.warn('Auto-create employee for user warning:', err?.message);
       }
     }
-    return {
+    const safeCreated: any = {
       ...user,
       employeeId: employeeToLink?.id || null,
       employeeCode: employeeToLink?.employeeCode || user.publicId,
     };
+    delete safeCreated.password;
+    return safeCreated;
   }
 
   async getRoles() {
@@ -521,17 +541,92 @@ export class UsersService {
     return result;
   }
 
-  async resetPassword(id: string, newPassword: string) {
+  async resetPassword(
+    id: string,
+    newPassword: string,
+    actorUserId?: string | null,
+  ) {
+    const cleanPassword = String(newPassword || '').trim();
+    if (cleanPassword.length < 8) {
+      throw new BadRequestException(
+        'New password must be at least 8 characters long.',
+      );
+    }
+
+    const forbiddenWeak = new Set([
+      'admin123',
+      'password',
+      'password123',
+      '12345678',
+      '123456789',
+      'qwerty123',
+    ]);
+    if (forbiddenWeak.has(cleanPassword.toLowerCase())) {
+      throw new BadRequestException(
+        'This password is too weak. Choose a stronger password.',
+      );
+    }
+
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, email: true, name: true, companyId: true },
+    });
+    if (!targetUser) {
+      throw new NotFoundException('User login account not found.');
+    }
+
     const hashAsync = hash as unknown as (
       data: string,
       saltOrRounds: number,
     ) => Promise<string>;
-    const hashedPassword = await hashAsync(newPassword, 12);
+    const hashedPassword = await hashAsync(cleanPassword, 12);
+
     await this.prisma.user.update({
       where: { id },
-      data: { password: hashedPassword },
+      data: {
+        password: hashedPassword,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+      },
     });
-    return { success: true };
+
+    // Revoke all active refresh sessions so old tokens cannot persist after reset
+    try {
+      await this.prisma.refreshSession.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    } catch {
+      // non-fatal
+    }
+
+    // Write security audit trail (never log plaintext password)
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          companyId: targetUser.companyId,
+          actorUserId: actorUserId || targetUser.id,
+          action: 'PASSWORD_RESET_BY_SUPER_ADMIN',
+          entityType: 'User',
+          entityId: targetUser.id,
+          after: {
+            targetEmail: targetUser.email,
+            unlockedAccount: true,
+            revokedActiveSessions: true,
+          },
+        },
+      });
+    } catch {
+      // non-fatal
+    }
+
+    return {
+      success: true,
+      userId: targetUser.id,
+      email: targetUser.email,
+      unlocked: true,
+      sessionsRevoked: true,
+    };
   }
 
   async toggleStatus(id: string, isActive: boolean) {

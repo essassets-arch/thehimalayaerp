@@ -426,7 +426,7 @@ export const navigationConfig = {
     { id: 'purchase-indents', label: 'Purchase Order Approvals', icon: ClipboardCheck, path: '/super-admin/purchase-indents' },
     { id: 'salary-approval', label: 'Salary Approvals', icon: CreditCard, path: '/super-admin/salary-approval' },
     { id: 'exit-clearance', label: 'Exit Clearance (Read-Only)', icon: PackageCheck, path: '/super-admin/exit-clearance' },
-    { id: 'hr-sops', label: "HR SOP's & Formats", icon: BookOpen, path: '/hr/sops' },
+    { id: 'hr-sops', label: "HR SOP's & Formats", icon: BookOpen, path: '/super-admin/hr-sops' },
     { id: 'attendance', label: 'Attendance Data', icon: Clock, path: '/super-admin/attendance' },
     { id: 'customer-complaints', label: 'Customer Complaints', icon: MessageSquare, path: '/super-admin/customer-complaints' },
 
@@ -451,7 +451,7 @@ export const navigationConfig = {
     { id: 'analytics-dispatch', label: 'Dispatch Analytics', icon: Truck, path: '/super-admin/analytics/dispatch' },
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/super-admin/reports' },
     { id: 'notifications', label: 'Notification Management', icon: Bell, path: '/super-admin/notifications' },
-    { id: 'finance-expenses', label: 'Finance Expense', icon: Receipt, path: '/finance/expenses' },
+    { id: 'finance-expenses', label: 'Finance Expense', icon: Receipt, path: '/super-admin/finance-expenses' },
     { id: 'expense-management', label: 'Expense Management', icon: CreditCard, path: '/super-admin/expense-management' },
     { id: 'leave-approvals', label: 'Leave Approvals', icon: Calendar, path: '/super-admin/leave-approvals' }
   ]
