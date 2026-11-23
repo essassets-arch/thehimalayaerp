@@ -21,6 +21,7 @@ import { SalesOrderResponseDto } from './dto/sales-order-response.dto';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { IdempotencyInterceptor } from '../../common/interceptors/idempotency.interceptor';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
+import { UpdateSalesOrderDto } from './dto/update-sales-order.dto';
 import { ConvertQuotationToOrderDto } from './dto/convert-quotation-to-order.dto';
 import { IsOptional, IsString, IsNumber } from 'class-validator';
 
@@ -172,6 +173,17 @@ export class SalesController {
     @Req() req: any,
   ): Promise<SalesOrderResponseDto> {
     return this.salesService.createOrder(dto, req.user?.sub, req.user?.role);
+  }
+
+  @Patch(':id')
+  @Put(':id')
+  @RequirePermissions('sales.orders.update')
+  async updateOrder(
+    @Param('id') id: string,
+    @Body() dto: UpdateSalesOrderDto,
+    @Req() req: any,
+  ): Promise<any> {
+    return this.salesService.updateOrder(id, dto, req.user?.sub, req.user?.role);
   }
 
   @Post('from-quotation')

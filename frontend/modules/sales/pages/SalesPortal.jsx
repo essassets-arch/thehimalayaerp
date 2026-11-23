@@ -1434,9 +1434,12 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
             leads={leads}
             customers={customers}
             onUpdateOrderStatus={onUpdateOrderStatus}
-            onUpdateOrder={(id, updatedData) => {
+            onUpdateOrder={async (id, updatedData, meta) => {
+              if (!meta?.alreadySaved) {
+                await salesBackend.updateOrder(id, updatedData);
+              }
               dispatch({ type: 'UPDATE_ORDER', payload: { orderNo: id, ...updatedData } });
-              showToast('Order details updated successfully.');
+              showToast('Sales order updated successfully.');
             }}
             onUpdateDispatchStatus={(id, status) => {
               dispatch({ type: 'UPDATE_ORDER', payload: { orderNo: id, dispatchStatus: status } });

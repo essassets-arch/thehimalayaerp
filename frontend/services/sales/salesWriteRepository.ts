@@ -8,6 +8,12 @@ export interface SalesWriteRepository {
     options: WriteRequestOptions,
   ): Promise<any>;
 
+  updateOrder(
+    orderId: string,
+    input: any,
+    options?: Partial<WriteRequestOptions>,
+  ): Promise<any>;
+
   convertQuotationToOrder(
     input: any,
     options: WriteRequestOptions,

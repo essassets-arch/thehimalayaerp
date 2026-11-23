@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, Eye, Box, CheckCircle, Truck, PackageCheck, ChevronLeft, ChevronRight, MoreVertical, Download, ChevronDown, FileText, Clipboard, Trash2, RotateCcw } from 'lucide-react';
+import { Search, Eye, Pencil, Box, CheckCircle, Truck, PackageCheck, ChevronLeft, ChevronRight, MoreVertical, Download, ChevronDown, FileText, Clipboard, Trash2, RotateCcw } from 'lucide-react';
 import Swal from 'sweetalert2';
 import StatusBadge from '../shared/components/StatusBadge';
 import { useAuth } from '../shared/context/AuthContext';
 import ReminderModal from '../shared/components/ReminderModal.jsx';
+import EditOrderModal from './EditOrderModal.jsx';
 import SalesOwnerBadge from './SalesOwnerBadge.jsx';
 import { apiClient } from '../lib/apiClient';
 import { useERPStore } from '@/store/erpStore';
@@ -56,6 +57,7 @@ export default function OrdersView({
     }
   };
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [editingOrder, setEditingOrder] = useState(null);
   const [selectedDeliveryModal, setSelectedDeliveryModal] = useState(null);
   const [requestModal, setRequestModal] = useState(null);
   const [filter, setFilter] = useState('All Orders');
@@ -69,6 +71,36 @@ export default function OrdersView({
   useEffect(() => {
     setCurrentPage(1);
   }, [search, filter, pageSize]);
+
+  const handleSaveEditOrder = async (orderId, payload) => {
+    const targetNo = editingOrder?.orderNumber || editingOrder?.orderNo || orderId;
+    let updated;
+    if (typeof salesBackend?.updateOrder === 'function') {
+      updated = await salesBackend.updateOrder(orderId, payload);
+      if (typeof onUpdateOrder === 'function') {
+        try {
+          await onUpdateOrder(orderId, payload, { alreadySaved: true });
+        } catch {
+          // Ignore legacy local-only callback errors after authoritative backend save
+        }
+      }
+    } else if (typeof onUpdateOrder === 'function') {
+      updated = await onUpdateOrder(orderId, payload);
+    } else {
+      throw new Error('Unable to update order right now.');
+    }
+    if (selectedOrder && (selectedOrder.id === orderId || selectedOrder.orderNo === targetNo)) {
+      setSelectedOrder(null);
+    }
+    await Swal.fire({
+      icon: 'success',
+      title: 'Order Updated',
+      text: `Sales order #${targetNo} has been updated successfully.`,
+      timer: 1800,
+      showConfirmButton: false,
+    });
+    return updated;
+  };
 
   const handleExportCSV = async (mode = 'summary') => {
     try {
@@ -1674,6 +1706,23 @@ export default function OrdersView({
                                 >
                                   <Eye size={13} />
                                 </button>
+                                {!isProductionUser && (
+                                  <button
+                                    type="button"
+                                    title="Edit Order"
+                                    data-testid={`order-edit-action-${o.orderNo || o.id}`}
+                                    onClick={() => setEditingOrder(o)}
+                                    style={{
+                                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                      width: '30px', height: '30px',
+                                      background: '#eff6ff', border: '1px solid #bfdbfe',
+                                      borderRadius: '8px', cursor: 'pointer',
+                                      color: '#1d4ed8', flexShrink: 0
+                                    }}
+                                  >
+                                    <Pencil size={13} />
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   title="Delete Order"
@@ -2069,6 +2118,22 @@ export default function OrdersView({
                           <Eye size={14} />
                           View
                         </button>
+                        {!isProductionUser && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingOrder(o)}
+                            style={{
+                              padding: '8px 12px', height: '36px',
+                              background: '#eff6ff', border: '1px solid #bfdbfe',
+                              borderRadius: '8px', cursor: 'pointer',
+                              fontSize: '12.5px', fontWeight: '700', color: '#1d4ed8',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                            }}
+                          >
+                            <Pencil size={14} />
+                            Edit
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleDeleteOrderClick(o)}
@@ -2453,6 +2518,24 @@ export default function OrdersView({
                   </button>
                 ) : (
                   <>
+                    {!isProductionUser && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = currentDetailsOrder;
+                          setSelectedOrder(null);
+                          setEditingOrder(target);
+                        }}
+                        style={{
+                          padding: '10px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0,
+                          background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', cursor: 'pointer',
+                          display: 'inline-flex', alignItems: 'center', gap: '6px'
+                        }}
+                      >
+                        <Pencil size={14} />
+                        Edit Order
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => {
@@ -2628,6 +2711,15 @@ export default function OrdersView({
           </div>
         )}
 
+
+        {/* Edit Sales Order Modal */}
+        {editingOrder && (
+          <EditOrderModal
+            order={editingOrder}
+            onClose={() => setEditingOrder(null)}
+            onSave={handleSaveEditOrder}
+          />
+        )}
 
         {/* Reminder Modal */}
         <ReminderModal

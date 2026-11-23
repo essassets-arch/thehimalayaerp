@@ -10,6 +10,15 @@ export const backendSalesWriteRepository: SalesWriteRepository = {
     return res.data;
   },
 
+  async updateOrder(orderId, input, options = {}) {
+    const encodedId = encodeURIComponent(String(orderId || ''));
+    return backendFetch(`/api/backend/sales/orders/${encodedId}`, {
+      method: 'PATCH',
+      body: input,
+      ...(options?.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}),
+    });
+  },
+
   async convertQuotationToOrder(input, options) {
     const res = await apiClient.post('/sales/orders/from-quotation', input, {
       headers: { 'Idempotency-Key': options.idempotencyKey },

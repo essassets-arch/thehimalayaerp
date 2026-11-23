@@ -895,6 +895,12 @@ export const ERPProvider = ({ children }) => {
     return res;
   }, [callWriteMethod, loadSalesOrders]);
 
+  const updateOrder = useCallback(async (orderId, input, options) => {
+    const res = await callWriteMethod('updateOrder', orderId, input, options);
+    if (loadSalesOrders) await loadSalesOrders({ page: 1, pageSize: 500 });
+    return res;
+  }, [callWriteMethod, loadSalesOrders]);
+
   const createCustomer = useCallback((input, options) => callCustomerWriteMethod('create', input, options), [callCustomerWriteMethod]);
   const updateCustomer = useCallback((customerId, input, options) => callCustomerWriteMethod('update', customerId, input, options), [callCustomerWriteMethod]);
   const deactivateCustomer = useCallback((customerId, input, options) => callCustomerWriteMethod('deactivate', customerId, input, options), [callCustomerWriteMethod]);
@@ -970,6 +976,7 @@ export const ERPProvider = ({ children }) => {
     restoreQuotation,
     deleteOrder,
     restoreOrder,
+    updateOrder,
     loadSamples,
     refreshSamples: loadSamples,
     createSample,
@@ -984,7 +991,7 @@ export const ERPProvider = ({ children }) => {
     runCreditCheck, approveCreditException, confirmOrder, sendToPlantHead, cancelOrder, raiseCustomerComplaint, 
     requestReturn, requestReplacement, createLead, updateLead, qualifyLead, addLeadFollowup, addLeadReminder, 
     markLeadLost, restoreLead, deleteLead, createCustomer, updateCustomer, deactivateCustomer, restoreCustomer,
-    deleteQuotation, restoreQuotation, deleteOrder, restoreOrder,
+    deleteQuotation, restoreQuotation, deleteOrder, restoreOrder, updateOrder,
     createSample, updateSample, updateSampleStatus, loadQuotations
   ]);
 

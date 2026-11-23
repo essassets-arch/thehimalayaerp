@@ -13,6 +13,7 @@ import { SalesOrderResponseDto } from './dto/sales-order-response.dto';
 import { mapSalesOrder } from './mappers/sales-order.mapper';
 import { Prisma, SalesOrderStatus } from '@prisma/client';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
+import { UpdateSalesOrderDto } from './dto/update-sales-order.dto';
 import { ConvertQuotationToOrderDto } from './dto/convert-quotation-to-order.dto';
 import { Decimal } from '@prisma/client/runtime/library';
 import { WorkflowService } from '../workflow/workflow.service';
@@ -1683,6 +1684,314 @@ export class SalesService {
     if (!order) return null;
     const fulfillmentData = await this.getFulfillmentData([order], companyId);
     return mapSalesOrder(order, fulfillmentData);
+  }
+
+  async updateOrder(
+    id: string,
+    dto: UpdateSalesOrderDto,
+    userId?: string,
+    role?: string,
+  ): Promise<any> {
+    const rawId = String(id || '').trim();
+    let decodedId = rawId;
+    try {
+      decodedId = decodeURIComponent(rawId);
+    } catch {
+      decodedId = rawId;
+    }
+    const cleanId = decodedId.replace(/^#/, '').trim();
+    const scope = getOrderSalesScope(userId, role);
+
+    const updatedOrderId = await this.prisma.$transaction(async (tx) => {
+      const existingOrder = await tx.salesOrder.findFirst({
+        where: {
+          AND: [
+            scope,
+            {
+              OR: [
+                { id: decodedId },
+                { id: rawId },
+                { orderNumber: decodedId },
+                { orderNumber: cleanId },
+                { orderNumber: { equals: cleanId, mode: 'insensitive' } },
+              ],
+            },
+          ],
+        },
+        include: {
+          items: {
+            include: {
+              workOrders: { select: { id: true } },
+              dispatchItems: { select: { id: true, quantity: true } },
+              invoiceItems: { select: { id: true } },
+              replacementRequestItems: { select: { id: true } },
+              complaintItems: { select: { id: true } },
+            },
+          },
+          dispatches: { select: { id: true, status: true } },
+        },
+      });
+
+      if (!existingOrder) {
+        throw new NotFoundException(`Sales order '${id}' not found or access denied.`);
+      }
+
+      if (existingOrder.deletedAt) {
+        throw new BadRequestException(
+          'Cannot edit a deleted order. Please restore it first.',
+        );
+      }
+
+      const freightAmount =
+        dto.freightAmount !== undefined
+          ? Number(dto.freightAmount)
+          : dto.transportCharges !== undefined
+            ? Number(dto.transportCharges)
+            : Number(existingOrder.freightAmount || 0);
+
+      const updateData: Prisma.SalesOrderUpdateInput = {
+        updatedById: userId || existingOrder.updatedById,
+        version: { increment: 1 },
+        freightAmount,
+      };
+
+      if (dto.customerPurchaseOrderNo !== undefined) {
+        updateData.customerPurchaseOrderNo = dto.customerPurchaseOrderNo.trim() || null;
+      }
+      if (dto.customerPurchaseOrderDate !== undefined) {
+        updateData.customerPurchaseOrderDate =
+          dto.customerPurchaseOrderDate && String(dto.customerPurchaseOrderDate).trim()
+            ? new Date(dto.customerPurchaseOrderDate)
+            : null;
+      }
+      if (dto.requestedDeliveryDate !== undefined) {
+        updateData.requestedDeliveryDate =
+          dto.requestedDeliveryDate && String(dto.requestedDeliveryDate).trim()
+            ? new Date(dto.requestedDeliveryDate)
+            : null;
+      }
+      if (dto.deliveryTerms !== undefined) {
+        updateData.deliveryTerms = dto.deliveryTerms.trim() || null;
+      }
+      if (dto.remarks !== undefined) {
+        updateData.remarks = dto.remarks;
+      }
+      if (dto.billingAddress !== undefined) {
+        updateData.billingAddress = dto.billingAddress;
+      }
+      if (dto.shippingAddress !== undefined) {
+        updateData.shippingAddress = dto.shippingAddress;
+      } else if (dto.deliveryAddress !== undefined) {
+        const prevAddr =
+          existingOrder.shippingAddress &&
+          typeof existingOrder.shippingAddress === 'object'
+            ? (existingOrder.shippingAddress as Record<string, any>)
+            : {};
+        updateData.shippingAddress = {
+          ...prevAddr,
+          line1: dto.deliveryAddress.trim(),
+          fullAddress: dto.deliveryAddress.trim(),
+        };
+      }
+
+      if (dto.paymentTermsDays !== undefined || dto.paymentTerms !== undefined) {
+        const parsedDays =
+          dto.paymentTermsDays !== undefined
+            ? Math.max(0, Math.round(Number(dto.paymentTermsDays)))
+            : dto.paymentTerms
+              ? parseInt(String(dto.paymentTerms).match(/\d+/)?.[0] || String(existingOrder.paymentTermDays || 15), 10)
+              : existingOrder.paymentTermDays || 15;
+        updateData.paymentTermDays = parsedDays;
+        updateData.paymentTermsDays = parsedDays;
+        updateData.paymentTerms =
+          dto.paymentTerms !== undefined && dto.paymentTerms.trim()
+            ? dto.paymentTerms.trim()
+            : `${parsedDays} Days`;
+        const startDate =
+          existingOrder.paymentTermStartDate || existingOrder.orderDate || new Date();
+        updateData.paymentDueDate = new Date(
+          startDate.getTime() + parsedDays * 86400000,
+        );
+      }
+
+      // Line items update (with full FK & dispatched-quantity safety)
+      if (Array.isArray(dto.items)) {
+        if (dto.items.length === 0) {
+          throw new BadRequestException('An order must contain at least one line item.');
+        }
+
+        const existingById = new Map(existingOrder.items.map((it) => [it.id, it]));
+        const incomingIds = new Set(
+          dto.items
+            .map((it) => it.id)
+            .filter((itemId): itemId is string => Boolean(itemId && existingById.has(itemId))),
+        );
+
+        // 1. Delete removed items ONLY if they have no child operational documents
+        for (const existingItem of existingOrder.items) {
+          if (!incomingIds.has(existingItem.id)) {
+            const hasLinkedDocs =
+              existingItem.workOrders.length > 0 ||
+              existingItem.dispatchItems.length > 0 ||
+              existingItem.invoiceItems.length > 0 ||
+              existingItem.replacementRequestItems.length > 0 ||
+              existingItem.complaintItems.length > 0;
+            if (hasLinkedDocs) {
+              throw new BadRequestException(
+                `Cannot remove "${existingItem.productNameSnapshot}" because it already has linked work orders, dispatches, or invoices.`,
+              );
+            }
+            await tx.salesOrderItem.delete({ where: { id: existingItem.id } });
+          }
+        }
+
+        // Fetch catalog metadata for all referenced productIds
+        const productIds = Array.from(
+          new Set(dto.items.map((it) => it.productId).filter(Boolean)),
+        );
+        const catalogProducts = await tx.product.findMany({
+          where: { id: { in: productIds } },
+          select: { id: true, name: true, sku: true, unit: true },
+        });
+        const productMap = new Map(catalogProducts.map((p) => [p.id, p]));
+
+        let subtotal = new Decimal(0);
+        let discountTotal = new Decimal(0);
+        let taxableTotal = new Decimal(0);
+        let taxTotal = new Decimal(0);
+
+        for (const incoming of dto.items) {
+          const catalogProd = productMap.get(incoming.productId);
+          const existingItem = incoming.id ? existingById.get(incoming.id) : undefined;
+
+          if (!catalogProd && !existingItem) {
+            throw new BadRequestException(
+              `Invalid product selected (${incoming.productName || incoming.productId}). Please choose a product from the catalog.`,
+            );
+          }
+
+          const qty = new Decimal(Number(incoming.orderedQuantity));
+          const price = new Decimal(Number(incoming.unitPrice));
+          const gross = qty.mul(price);
+          const rawDiscount = new Decimal(Number(incoming.discountAmount || 0));
+          const discount = rawDiscount.gt(gross) ? gross : rawDiscount;
+          const taxable = gross.sub(discount);
+          const taxRate = new Decimal(Number(incoming.taxRate ?? existingItem?.taxRate ?? 18));
+          const taxAmount = taxable.mul(taxRate).div(100);
+          const lineTotal = taxable.add(taxAmount);
+
+          subtotal = subtotal.add(gross);
+          discountTotal = discountTotal.add(discount);
+          taxableTotal = taxableTotal.add(taxable);
+          taxTotal = taxTotal.add(taxAmount);
+
+          const resolvedSpecs =
+            incoming.specifications !== undefined
+              ? typeof incoming.specifications === 'string'
+                ? incoming.specifications.trim()
+                  ? { description: incoming.specifications.trim() }
+                  : Prisma.JsonNull
+                : incoming.specifications
+              : undefined;
+
+          if (existingItem) {
+            const dispatchedQty = existingItem.dispatchItems.reduce(
+              (sum, d) => sum + Number(d.quantity || 0),
+              0,
+            );
+            if (Number(incoming.orderedQuantity) < dispatchedQty) {
+              throw new BadRequestException(
+                `Quantity for "${existingItem.productNameSnapshot}" cannot be less than already dispatched quantity (${dispatchedQty}).`,
+              );
+            }
+            const productChanged =
+              incoming.productId && incoming.productId !== existingItem.productId;
+            if (
+              productChanged &&
+              (existingItem.workOrders.length > 0 || existingItem.dispatchItems.length > 0)
+            ) {
+              throw new BadRequestException(
+                `Cannot change product on "${existingItem.productNameSnapshot}" because work orders or dispatches already exist for this line.`,
+              );
+            }
+
+            await tx.salesOrderItem.update({
+              where: { id: existingItem.id },
+              data: {
+                ...(productChanged && catalogProd
+                  ? {
+                      productId: catalogProd.id,
+                      productNameSnapshot: catalogProd.name,
+                      productCodeSnapshot: catalogProd.sku || null,
+                    }
+                  : {}),
+                orderedQuantity: qty.toNumber(),
+                unit: incoming.unit || catalogProd?.unit || existingItem.unit || 'PCS',
+                unitPrice: price.toNumber(),
+                discountAmount: discount.toNumber(),
+                taxableAmount: taxable.toNumber(),
+                taxRate: taxRate.toNumber(),
+                taxAmount: taxAmount.toNumber(),
+                lineTotal: lineTotal.toNumber(),
+                ...(resolvedSpecs !== undefined ? { specifications: resolvedSpecs } : {}),
+              },
+            });
+          } else if (catalogProd) {
+            await tx.salesOrderItem.create({
+              data: {
+                salesOrderId: existingOrder.id,
+                productId: catalogProd.id,
+                productNameSnapshot: incoming.productName || catalogProd.name,
+                productCodeSnapshot: incoming.productCode || catalogProd.sku || null,
+                orderedQuantity: qty.toNumber(),
+                unit: incoming.unit || catalogProd.unit || 'PCS',
+                unitPrice: price.toNumber(),
+                discountAmount: discount.toNumber(),
+                taxableAmount: taxable.toNumber(),
+                taxRate: taxRate.toNumber(),
+                taxAmount: taxAmount.toNumber(),
+                lineTotal: lineTotal.toNumber(),
+                ...(resolvedSpecs !== undefined ? { specifications: resolvedSpecs } : {}),
+              },
+            });
+          }
+        }
+
+        const grandTotal = taxableTotal.add(taxTotal).add(new Decimal(freightAmount));
+        const paid = new Decimal(Number(existingOrder.paidAmount || 0));
+        const outstanding = grandTotal.sub(paid);
+
+        updateData.subtotal = subtotal.toNumber();
+        updateData.discountAmount = discountTotal.toNumber();
+        updateData.taxableAmount = taxableTotal.toNumber();
+        updateData.taxAmount = taxTotal.toNumber();
+        updateData.totalAmount = grandTotal.toNumber();
+        updateData.outstandingAmount = outstanding.gt(0) ? outstanding.toNumber() : 0;
+      } else if (dto.freightAmount !== undefined || dto.transportCharges !== undefined) {
+        const grandTotal = new Decimal(Number(existingOrder.taxableAmount || 0))
+          .add(new Decimal(Number(existingOrder.taxAmount || 0)))
+          .add(new Decimal(freightAmount));
+        const paid = new Decimal(Number(existingOrder.paidAmount || 0));
+        const outstanding = grandTotal.sub(paid);
+        updateData.totalAmount = grandTotal.toNumber();
+        updateData.outstandingAmount = outstanding.gt(0) ? outstanding.toNumber() : 0;
+      }
+
+      await tx.salesOrder.update({
+        where: { id: existingOrder.id },
+        data: updateData,
+      });
+
+      await tx.salesOrderHistory
+        .create({
+          data: { salesOrderId: existingOrder.id },
+        })
+        .catch(() => {});
+
+      return existingOrder.id;
+    });
+
+    return this.getOrder(updatedOrderId, userId, role);
   }
 
   async deleteOrder(id: string, reason: string = 'Deleted by user') {

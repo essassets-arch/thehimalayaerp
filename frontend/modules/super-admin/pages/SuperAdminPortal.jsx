@@ -5188,9 +5188,11 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
               showToast(`Failed to update status: ${err.message}`);
             }
           }}
-          onUpdateOrder={async (id, updatedData) => {
+          onUpdateOrder={async (id, updatedData, meta) => {
             try {
-              await apiClient.put(`/admin-ops/direct-orders/${id}`, updatedData);
+              if (!meta?.alreadySaved) {
+                await apiClient.patch(`/sales/orders/${encodeURIComponent(String(id))}`, updatedData);
+              }
               showToast(`Order details updated successfully.`);
               await syncData();
             } catch (err) {
