@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
@@ -1692,6 +1693,12 @@ export class SalesService {
     userId?: string,
     role?: string,
   ): Promise<any> {
+    if (isCustomerBlindRole(role)) {
+      throw new ForbiddenException(
+        'Factory and plant roles cannot edit commercial sales orders.',
+      );
+    }
+
     const rawId = String(id || '').trim();
     let decodedId = rawId;
     try {
