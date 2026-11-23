@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { getSalesScope } from '../../common/utils/rbac.util';
+import { isCustomerBlindRole } from '../../common/security/customer-privacy.util';
 
 export interface SearchResultItem {
   id: string;
@@ -191,6 +192,7 @@ export class SearchService {
     ) {
       try {
         const salesScope = getSalesScope(userId, role, 'SalesOrder');
+        const blindRole = isCustomerBlindRole(normalizedRole);
         const orders = await this.prisma.salesOrder.findMany({
           where: {
             customer: { companyId },
@@ -198,20 +200,27 @@ export class SearchService {
             deletedAt: null,
             OR: [
               { orderNumber: { contains: queryStr, mode: 'insensitive' } },
-              {
-                customerPurchaseOrderNo: {
-                  contains: queryStr,
-                  mode: 'insensitive',
-                },
-              },
-              {
-                customer: {
-                  companyName: { contains: queryStr, mode: 'insensitive' },
-                },
-              },
+              ...(blindRole
+                ? []
+                : [
+                    {
+                      customerPurchaseOrderNo: {
+                        contains: queryStr,
+                        mode: 'insensitive' as const,
+                      },
+                    },
+                    {
+                      customer: {
+                        companyName: {
+                          contains: queryStr,
+                          mode: 'insensitive' as const,
+                        },
+                      },
+                    },
+                  ]),
             ],
           },
-          include: { customer: true, workflowState: true },
+          include: { customer: !blindRole, workflowState: true },
           take: limit,
           orderBy: { createdAt: 'desc' },
         });
@@ -232,13 +241,17 @@ export class SearchService {
           groups.push({
             type: 'SALES_ORDER',
             label: 'Sales Orders',
-            results: orders.map((o) => ({
+            results: orders.map((o: any) => ({
               id: o.id,
               title: o.orderNumber,
-              subtitle: o.customer?.companyName || 'Sales Order',
-              meta: o.customerPurchaseOrderNo
-                ? `PO: ${o.customerPurchaseOrderNo}`
-                : '',
+              subtitle: blindRole
+                ? 'Sales Order'
+                : o.customer?.companyName || 'Sales Order',
+              meta: blindRole
+                ? ''
+                : o.customerPurchaseOrderNo
+                  ? `PO: ${o.customerPurchaseOrderNo}`
+                  : '',
               status: o.workflowState?.name || o.status || 'CONFIRMED',
               route: orderRoute,
             })),

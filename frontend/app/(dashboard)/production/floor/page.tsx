@@ -352,29 +352,9 @@ export default function ProductionFloorPage() {
 
       const resolvedSoNumber = soNumber || matchedSO?.orderNumber || (job.workOrderNumber ? `SO-2026-${job.workOrderNumber.replace(/\D/g, '').slice(-5).padStart(5, '0')}` : 'SO-2026-00001');
 
-      const soCustomer = job.productionPlan?.salesOrder?.customer || matchedSO?.customer;
-      const soLead =
-        job.productionPlan?.salesOrder?.sourceQuotation?.lead ||
-        job.productionPlan?.salesOrder?.quotation?.lead ||
-        matchedSO?.sourceQuotation?.lead ||
-        matchedSO?.quotation?.lead;
-
-      const customerName =
-        (job.customerName && job.customerName !== 'Standard Production' && job.customerName.trim()) ||
-        (soCustomer?.companyName && soCustomer.companyName.trim()) ||
-        (soLead?.groupName && soLead.groupName.trim()) ||
-        (soLead?.projectName && soLead.projectName.trim()) ||
-        (soLead?.companyName && soLead.companyName.trim()) ||
-        (matchedSO?.customerName && matchedSO.customerName.trim()) ||
-        (soCustomer?.name && soCustomer.name.trim()) ||
-        (soCustomer?.contactPerson && soCustomer.contactPerson.trim()) ||
-        (soLead?.contactPerson && soLead.contactPerson.trim()) ||
-        'Customer Order';
-
       const enrichedJob = {
         ...job,
         resolvedSoNumber,
-        resolvedCustomer: customerName,
         matchedSalesOrder: matchedSO
       };
 
@@ -382,7 +362,7 @@ export default function ProductionFloorPage() {
         groups[resolvedSoNumber] = {
           orderKey: resolvedSoNumber,
           salesOrderNumber: resolvedSoNumber,
-          customerName,
+          customerName: resolvedSoNumber,
           items: [],
           totalQty: 0,
           activeCount: 0,
@@ -456,8 +436,7 @@ export default function ProductionFloorPage() {
 
     return allGrouped.filter(group => {
       const matchHeader =
-        group.salesOrderNumber.toLowerCase().includes(q) ||
-        group.customerName.toLowerCase().includes(q);
+        group.salesOrderNumber.toLowerCase().includes(q);
 
       const matchItem = group.items.some(job =>
         (job.workOrderNumber || '').toLowerCase().includes(q) ||
@@ -746,7 +725,7 @@ export default function ProductionFloorPage() {
           <Search size={16} color="#64748b" style={{ flexShrink: 0 }} />
           <input
             type="text"
-            placeholder={activeTab === 'ACTIVE' ? "Search Order #, Customer, Product..." : "Search completed history..."}
+            placeholder={activeTab === 'ACTIVE' ? "Search Order ID, WO, Product..." : "Search completed history..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -791,13 +770,9 @@ export default function ProductionFloorPage() {
                       <span
                         className={styles.soLink}
                         onClick={() => handleOpenOrderModal(group)}
-                        title="Click to view full sales order details"
+                        title="Click to view full order specifications"
                       >
                         {group.salesOrderNumber}
-                      </span>
-                      <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Building2 size={13} color="#94a3b8" />
-                        <strong style={{ color: '#0f172a' }}>{group.customerName}</strong>
                       </span>
                     </div>
 

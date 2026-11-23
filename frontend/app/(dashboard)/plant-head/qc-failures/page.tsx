@@ -99,46 +99,6 @@ export default function PlantHeadQCFailuresPage() {
     const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
     const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
 
-    const so = job.productionPlan?.salesOrder || job.salesOrder;
-    const leadObj = so?.quotation?.lead || so?.sourceQuotation?.lead || job.quotation?.lead || job.sourceQuotation?.lead;
-    const customerObj = so?.customer || job.customer;
-    const customerName =
-      (leadObj?.groupName && leadObj.groupName.trim()) ||
-      customerObj?.companyName ||
-      customerObj?.name ||
-      leadObj?.companyName ||
-      leadObj?.projectName ||
-      leadObj?.customerName ||
-      so?.customerName ||
-      job.customerName ||
-      job.companyName ||
-      'Consignee Client';
-    const formatAddr = (addr: any) => {
-      if (!addr) return '';
-      if (typeof addr === 'string') {
-        const trimmed = addr.trim();
-        if (trimmed.toLowerCase().includes('andheri, mumbai') || trimmed.toLowerCase() === 'plant warehouse') return '';
-        return trimmed;
-      }
-      if (typeof addr === 'object') {
-        const parts = [addr.line1 || addr.addressLine1 || addr.street, addr.line2 || addr.addressLine2, addr.city, addr.state, addr.country, addr.pincode].filter(Boolean);
-        return parts.join(', ') || '';
-      }
-      return '';
-    };
-
-    const address =
-      formatAddr(customerObj?.billingAddress) ||
-      formatAddr(customerObj?.shippingAddress) ||
-      formatAddr(customerObj?.address) ||
-      formatAddr(so?.billingAddress) ||
-      formatAddr(so?.shippingAddress) ||
-      formatAddr(job.customerAddress) ||
-      'Address Not Specified';
-
-    const rawGst = customerObj?.gstin || customerObj?.gst || job.customerGst || so?.customerGstin;
-    const gst = (rawGst && String(rawGst).trim().toUpperCase() !== '27ABCDE4321G2Z8') ? String(rawGst).trim() : 'Unregistered / Non-GST';
-
     const rawDate = job.createdAt || (job.productionPlan?.salesOrder as any)?.createdAt;
     const orderDate = rawDate
       ? new Date(rawDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -176,9 +136,6 @@ export default function PlantHeadQCFailuresPage() {
     const mapped = {
       ref: soNo,
       orderNo: soNo,
-      customerName,
-      address,
-      gst,
       orderDate,
       salesStatus: 'Confirmed',
       productionStatus: job.productionStatus || 'QC Failed',
@@ -193,10 +150,9 @@ export default function PlantHeadQCFailuresPage() {
     const q = searchQuery.toLowerCase();
     const soNo = (job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber || '').toLowerCase();
     const woNo = (job.workOrderNumber || job.id || '').toLowerCase();
-    const customer = (job.productionPlan?.salesOrder?.customer?.companyName || job.customerName || '').toLowerCase();
     const product = getProductName(job).toLowerCase();
     const reason = (job.failureReason || '').toLowerCase();
-    return soNo.includes(q) || woNo.includes(q) || customer.includes(q) || product.includes(q) || reason.includes(q);
+    return soNo.includes(q) || woNo.includes(q) || product.includes(q) || reason.includes(q);
   });
 
   const renderHistoryStatus = (job: any) => {
@@ -308,7 +264,7 @@ export default function PlantHeadQCFailuresPage() {
               <Search size={16} style={{ flexShrink: 0 }} />
               <input
                 type="text"
-                placeholder="Search sales order, WO, product, customer..."
+                placeholder="Search order ID, WO, product, defect..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -347,19 +303,6 @@ export default function PlantHeadQCFailuresPage() {
                 const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
                 const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
                 const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
-                const so = job.productionPlan?.salesOrder || job.salesOrder;
-                const leadObj = so?.quotation?.lead || so?.sourceQuotation?.lead || job.quotation?.lead || job.sourceQuotation?.lead;
-                const customerObj = so?.customer || job.customer;
-                const customerName =
-                  customerObj?.companyName ||
-                  customerObj?.name ||
-                  leadObj?.companyName ||
-                  leadObj?.projectName ||
-                  leadObj?.customerName ||
-                  so?.customerName ||
-                  job.customerName ||
-                  job.companyName ||
-                  'Consignee Client';
                 const prodName = getProductName(job);
 
                 return (
@@ -376,12 +319,6 @@ export default function PlantHeadQCFailuresPage() {
                           </span>
                           <span className={styles.woBadgeMobile}>
                             {job.workOrderNumber || 'WO'}
-                          </span>
-                        </div>
-                        <div style={{ color: '#64748b', fontSize: '12px', fontWeight: '600', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Building2 size={13} color="#94a3b8" style={{ flexShrink: 0 }} />
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {customerName}
                           </span>
                         </div>
                       </div>
@@ -460,8 +397,7 @@ export default function PlantHeadQCFailuresPage() {
               <table>
                 <thead>
                   <tr>
-                    <th style={{ minWidth: '180px' }}>Sales Order & WO #</th>
-                    <th style={{ minWidth: '160px' }}>Customer</th>
+                    <th style={{ minWidth: '180px' }}>Order ID & WO #</th>
                     <th style={{ minWidth: '220px' }}>Product Item</th>
                     <th style={{ minWidth: '90px', textAlign: 'center' }}>Qty</th>
                     <th style={{ minWidth: '180px' }}>Failure Reason</th>
@@ -480,19 +416,6 @@ export default function PlantHeadQCFailuresPage() {
                     const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
                     const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
                     const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
-                    const so = job.productionPlan?.salesOrder || job.salesOrder;
-                    const leadObj = so?.quotation?.lead || so?.sourceQuotation?.lead || job.quotation?.lead || job.sourceQuotation?.lead;
-                    const customerObj = so?.customer || job.customer;
-                    const customerName =
-                      customerObj?.companyName ||
-                      customerObj?.name ||
-                      leadObj?.companyName ||
-                      leadObj?.projectName ||
-                      leadObj?.customerName ||
-                      so?.customerName ||
-                      job.customerName ||
-                      job.companyName ||
-                      'Consignee Client';
                     const prodName = getProductName(job);
 
                     return (
@@ -510,14 +433,6 @@ export default function PlantHeadQCFailuresPage() {
                               WO: {job.workOrderNumber || '—'}
                             </span>
                           </div>
-                        </td>
-
-                        {/* Customer */}
-                        <td>
-                          <span style={{ fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Building2 size={13} color="#94a3b8" />
-                            {customerName}
-                          </span>
                         </td>
 
                         {/* Product Item */}

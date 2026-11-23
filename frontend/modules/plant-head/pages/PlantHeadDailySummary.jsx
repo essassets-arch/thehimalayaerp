@@ -276,12 +276,12 @@ export const PlantHeadDailySummary = () => {
       `"${data.summaryText}"`,
       '',
       'INCOMING SALES ORDERS',
-      'Order No,Customer,Product,Quantity,Status,Target Date,Age',
-      ...(data.orders?.table || []).map(o => `"${o.orderNo}","${o.customerName}","${o.productName}",${o.quantity},"${o.status}","${o.targetDate}","${o.age}"`),
+      'Order No,Product,Quantity,Status,Target Date,Age',
+      ...(data.orders?.table || []).map(o => `"${o.orderNo}","${o.productName}",${o.quantity},"${o.status}","${o.targetDate}","${o.age}"`),
       '',
       'PRODUCTION PLANNING & FG ALLOCATION',
-      'Order No,Customer,Product,Ordered,FG Available,Reserved FG,Produce Needed,Status',
-      ...(data.planning?.table || []).map(p => `"${p.orderNo}","${p.customerName || ''}","${p.productName}",${p.ordered},${p.fgAvailable},${p.reservedFg},${p.produce},"${p.status}"`),
+      'Order No,Product,Ordered,FG Available,Reserved FG,Produce Needed,Status',
+      ...(data.planning?.table || []).map(p => `"${p.orderNo}","${p.productName}",${p.ordered},${p.fgAvailable},${p.reservedFg},${p.produce},"${p.status}"`),
       '',
       'MATERIAL REQUESTS & WAREHOUSE DEFICITS',
       'MR No,Work Order,Material,Requested,Available In Stock,Shortage Qty,Status,Age',
@@ -292,8 +292,8 @@ export const PlantHeadDailySummary = () => {
       ...(data.qc?.failureTable || []).map(q => `"${q.workOrderNo}","${q.productName}","${q.batchNo}",${q.failedQty},"${q.reason}","${q.decision}"`),
       '',
       'DISPATCH SUMMARY',
-      'Dispatch No,Order No,Customer,Consignment,Quantity,Status,Vehicle,Target Date',
-      ...(data.dispatch?.table || []).map(d => `"${d.dispatchNo || ''}","${d.orderNo}","${d.customerName}","${d.productName}",${d.quantity},"${d.dispatchStatus}","${d.vehicleNumber || ''}","${d.targetDate}"`)
+      'Dispatch No,Order No,Consignment,Quantity,Status,Vehicle,Target Date',
+      ...(data.dispatch?.table || []).map(d => `"${d.dispatchNo || ''}","${d.orderNo}","${d.productName}",${d.quantity},"${d.dispatchStatus}","${d.vehicleNumber || ''}","${d.targetDate}"`)
     ];
 
     const csvContent = 'data:text/csv;charset=utf-8,' + lines.join('\n');
@@ -326,7 +326,6 @@ export const PlantHeadDailySummary = () => {
     if (q) {
       list = list.filter(o =>
         (o.orderNo || '').toLowerCase().includes(q) ||
-        (o.customerName || '').toLowerCase().includes(q) ||
         (o.productName || '').toLowerCase().includes(q) ||
         (o.status || '').toLowerCase().includes(q)
       );
@@ -345,7 +344,6 @@ export const PlantHeadDailySummary = () => {
     if (q) {
       list = list.filter(p =>
         (p.orderNo || '').toLowerCase().includes(q) ||
-        (p.customerName || '').toLowerCase().includes(q) ||
         (p.productName || '').toLowerCase().includes(q) ||
         (p.status || '').toLowerCase().includes(q)
       );
@@ -405,7 +403,6 @@ export const PlantHeadDailySummary = () => {
       list = list.filter(d =>
         (d.dispatchNo || '').toLowerCase().includes(q) ||
         (d.orderNo || '').toLowerCase().includes(q) ||
-        (d.customerName || '').toLowerCase().includes(q) ||
         (d.productName || '').toLowerCase().includes(q) ||
         (d.dispatchStatus || '').toLowerCase().includes(q)
       );
@@ -602,7 +599,7 @@ export const PlantHeadDailySummary = () => {
         <Search size={18} color="#64748b" />
         <input
           type="text"
-          placeholder="Instant filter by Order No, Customer, Product, SKU, Work Order, or Status across all sections..."
+          placeholder="Instant filter by Order No, Product, SKU, Work Order, or Status across all sections..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{ width: '100%', border: 'none', outline: 'none', fontSize: '13px', fontWeight: '600', color: '#0f172a' }}
@@ -776,7 +773,6 @@ export const PlantHeadDailySummary = () => {
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', color: '#475569', textTransform: 'uppercase', fontSize: '11px' }}>
                 <th style={{ padding: '8px 10px', textAlign: 'left' }}>Order No</th>
-                <th style={{ padding: '8px 10px', textAlign: 'left' }}>Customer</th>
                 <th style={{ padding: '8px 10px', textAlign: 'left' }}>Product</th>
                 <th style={{ padding: '8px 10px', textAlign: 'right' }}>Qty</th>
                 <th style={{ padding: '8px 10px', textAlign: 'center' }}>Status</th>
@@ -788,7 +784,6 @@ export const PlantHeadDailySummary = () => {
               {(expandedTables.orders ? filteredOrders : filteredOrders.slice(0, 8)).map((row, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '8px 10px', fontWeight: '800', color: '#0284c7' }}>{row.orderNo}</td>
-                  <td style={{ padding: '8px 10px', color: '#334155' }}>{row.customerName}</td>
                   <td style={{ padding: '8px 10px', color: '#334155' }}>{row.productName}</td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '800' }}>{row.quantity}</td>
                   <td style={{ padding: '8px 10px', textAlign: 'center' }}>
@@ -805,7 +800,7 @@ export const PlantHeadDailySummary = () => {
                 </tr>
               ))}
               {filteredOrders.length === 0 && (
-                <tr><td colSpan={7} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8' }}>No sales orders match the active filter.</td></tr>
+                <tr><td colSpan={6} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8' }}>No sales orders match the active filter.</td></tr>
               )}
             </tbody>
           </table>
@@ -1469,7 +1464,6 @@ export const PlantHeadDailySummary = () => {
               <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', color: '#475569', textTransform: 'uppercase', fontSize: '11px' }}>
                 <th style={{ padding: '8px 10px', textAlign: 'left' }}>Dispatch No</th>
                 <th style={{ padding: '8px 10px', textAlign: 'left' }}>Order No</th>
-                <th style={{ padding: '8px 10px', textAlign: 'left' }}>Customer</th>
                 <th style={{ padding: '8px 10px', textAlign: 'left' }}>Consignment Items</th>
                 <th style={{ padding: '8px 10px', textAlign: 'right' }}>Qty / Wt</th>
                 <th style={{ padding: '8px 10px', textAlign: 'center' }}>Vehicle</th>
@@ -1482,7 +1476,6 @@ export const PlantHeadDailySummary = () => {
                 <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '8px 10px', fontWeight: '800', color: '#0284c7' }}>{row.dispatchNo}</td>
                   <td style={{ padding: '8px 10px', color: '#334155', fontWeight: '700' }}>{row.orderNo}</td>
-                  <td style={{ padding: '8px 10px', color: '#1e293b' }}>{row.customerName}</td>
                   <td style={{ padding: '8px 10px', color: '#475569' }}>{row.productName}</td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '800' }}>{row.quantity}</td>
                   <td style={{ padding: '8px 10px', textAlign: 'center', color: '#64748b' }}>{row.vehicleNumber}</td>
@@ -1495,7 +1488,7 @@ export const PlantHeadDailySummary = () => {
                 </tr>
               ))}
               {filteredDispatches.length === 0 && (
-                <tr><td colSpan={8} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8' }}>No dispatch consignments match the active filter.</td></tr>
+                <tr><td colSpan={7} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8' }}>No dispatch consignments match the active filter.</td></tr>
               )}
             </tbody>
           </table>

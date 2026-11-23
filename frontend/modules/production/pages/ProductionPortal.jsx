@@ -209,7 +209,6 @@ const ActiveFloorCard = ({ wo, customerName, targetDate, onPause, onResume, onCo
         <div>
           <h3 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-text-primary)', margin: 0, wordBreak: 'break-word' }}>{wo.productName}</h3>
           <div style={{ display: 'flex', gap: '8px 12px', fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '4px', flexWrap: 'wrap' }}>
-            <span>Customer: <strong style={{ color: 'var(--color-text-primary)' }}>{customerName}</strong></span>
             <span>Produced: <strong style={{ color: 'var(--color-text-primary)' }}>{producedQty}/{totalQty} Tons</strong></span>
             <span>Target: <strong style={{ color: 'var(--color-text-primary)' }}>{resolvedTarget}</strong></span>
           </div>
@@ -384,7 +383,7 @@ const RunningOrdersTable = ({ workOrders, orders, todayStr }) => {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
           <thead>
             <tr style={{ background: 'rgba(248,250,252,0.8)' }}>
-              {['Work Order', 'Product', 'Customer', 'Target Date', 'Status', 'Duration'].map(h => (
+              {['Work Order', 'Product', 'Target Date', 'Status', 'Duration'].map(h => (
                 <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#5E6B82', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', borderBottom: '1px solid var(--color-border)' }}>{h}</th>
               ))}
             </tr>
@@ -408,7 +407,6 @@ const RunningOrdersTable = ({ workOrders, orders, todayStr }) => {
                     {wo.orderNo && <div style={{ fontSize: '11px', color: '#8893A7', marginTop: '1px' }}>{wo.orderNo}</div>}
                   </td>
                   <td style={{ padding: '11px 16px', color: 'var(--color-text-primary)', fontWeight: '600' }}>{wo.productName}</td>
-                  <td style={{ padding: '11px 16px', color: 'var(--color-text-secondary)' }}>{customerName}</td>
                   <td style={{ padding: '11px 16px', whiteSpace: 'nowrap' }}>
                     <span style={{ color: isOverdue ? '#dc2626' : 'var(--color-text-secondary)', fontWeight: isOverdue ? '700' : '500' }}>
                       {isOverdue ? '⚠️ ' : ''}{targetDate}
@@ -2488,9 +2486,6 @@ export default function ProductionPortal() {
                               </span>
                             )}
                           </div>
-                          <div style={{ color: '#64748b', fontSize: '11.5px', fontWeight: '600', marginTop: '2px' }}>
-                            {customerName}
-                          </div>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
                           <span style={{ color: '#1e293b', fontSize: '12.5px', fontWeight: '800' }}>
@@ -2641,11 +2636,6 @@ export default function ProductionPortal() {
                           </div>
                         )
                       },
-                      {
-                        header: 'Customer',
-                        accessor: 'customerName',
-                        render: (row) => resolveOrderCustomerName(row) || row.customerName || 'N/A'
-                      },
                       { header: 'Product Item', accessor: 'productInterested', render: (row) => renderProductSummary(row) },
                       { header: 'Quantity Needed', accessor: 'estimatedQuantity', render: (row) => `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units` },
                       { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD') }
@@ -2669,11 +2659,6 @@ export default function ProductionPortal() {
                             )}
                           </div>
                         )
-                      },
-                      {
-                        header: 'Customer',
-                        accessor: 'customerName',
-                        render: (row) => resolveOrderCustomerName(row) || row.customerName || 'N/A'
                       },
                       { header: 'Product Item', accessor: 'productInterested', render: (row) => renderProductSummary(row) },
                       { header: 'Quantity', accessor: 'estimatedQuantity', render: (row) => `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units` },
@@ -3565,12 +3550,6 @@ export default function ProductionPortal() {
                     </span>
                   )
                 },
-                {
-                  header: 'Customer', accessor: 'orderNo', render: (row) => {
-                    const order = orders.find(o => o.orderNo === row.orderNo);
-                    return order?.customer?.name || '—';
-                  }
-                },
                 { header: 'Product Item', accessor: 'productName', nowrap: true },
                 { header: 'Volume', accessor: 'quantity', render: (row) => `${row.quantity} Tons` },
                 { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status} /> }
@@ -3677,9 +3656,6 @@ export default function ProductionPortal() {
                       }}
                     >
                       {group.orderNo}
-                    </span>
-                    <span style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>
-                      👤 {group.customerName}
                     </span>
                     <span style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
                       📦 {group.items.length} {group.items.length === 1 ? 'Product' : 'Products'}
@@ -3867,13 +3843,6 @@ export default function ProductionPortal() {
                   {row.orderNo || row.orderId || row.id || '—'}
                 </span>
               )
-            },
-            {
-              header: 'Customer', accessor: 'orderNo', render: (row) => {
-                const orderRef = row.orderNo || row.order_no || row.orderId;
-                const order = orders.find(o => String(o.orderNo) === String(orderRef) || String(o.id) === String(orderRef) || String(o.order_no) === String(orderRef));
-                return <span style={{ fontWeight: 600 }}>{order?.customerName || order?.customer?.companyName || order?.customer?.name || order?.companyName || row?.customerName || row?.customer_name || '—'}</span>;
-              }
             },
             { header: 'Product Item', accessor: 'productName', render: (row) => <span style={{ fontWeight: 600 }}>{row.productName || 'Custom Product'}</span> },
             {

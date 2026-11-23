@@ -15,6 +15,7 @@ import styles from './OrdersView.module.css';
 import { exportOrdersToCSV } from '../services/sales/salesExportService';
 import { isTradingProduct, isPureTradingOrder } from '@/shared/utils/dispatchCategory';
 import { getOrderStatusLabel, isDeliveredOrder } from '@/shared/utils/orderStatusResolver';
+import { isCurrentUserCustomerBlind } from '@/shared/utils/customerPrivacy';
 
 export default function OrdersView({ 
   orders, 
@@ -777,6 +778,9 @@ export default function OrdersView({
 
   const resolveOrderCustomerName = (o) => {
     if (!o) return '—';
+    if (isCurrentUserCustomerBlind()) {
+      return o.orderNo || o.orderNumber || o.id || 'Confidential';
+    }
     const leadName =
       o.quotation?.lead?.companyName ||
       o.quotation?.lead?.projectName ||
@@ -800,6 +804,9 @@ export default function OrdersView({
 
   const resolveOrderProjectName = (o) => {
     if (!o) return '—';
+    if (isCurrentUserCustomerBlind()) {
+      return o.orderNo || o.orderNumber || o.id || 'Confidential';
+    }
     const projName =
       o.projectName ||
       o.project_name ||
@@ -2283,10 +2290,20 @@ export default function OrdersView({
               {/* Client Coordinates & Order Details */}
               <div className="sheet-meta">
                 <div>
-                  <p style={{ margin: 0, fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>Bill To:</p>
-                  <p style={{ margin: '4px 0 0 0', fontWeight: '800', color: '#1e293b', fontSize: '15px' }}>{currentDetailsOrder.customerName || currentDetailsOrder.customer?.name || currentDetailsOrder.customer?.companyName || '—'}</p>
-                  <p style={{ margin: '2px 0 0 0', color: '#475569', fontWeight: '500' }}>{clientAddress}</p>
-                  <p style={{ margin: '4px 0 0 0', color: '#475569', fontWeight: '600' }}>GST: <span style={{ textTransform: 'uppercase', fontFamily: 'monospace' }}>{clientGST}</span></p>
+                  {isCurrentUserCustomerBlind() ? (
+                    <>
+                      <p style={{ margin: 0, fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>Order Reference:</p>
+                      <p style={{ margin: '4px 0 0 0', fontWeight: '800', color: '#1e293b', fontSize: '15px', fontFamily: 'monospace' }}>{currentDetailsOrder.orderNo || currentDetailsOrder.orderNumber || '—'}</p>
+                      <p style={{ margin: '4px 0 0 0', color: '#64748b', fontWeight: '500', fontSize: '12px' }}>Customer identity hidden for factory privacy compliance.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p style={{ margin: 0, fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>Bill To:</p>
+                      <p style={{ margin: '4px 0 0 0', fontWeight: '800', color: '#1e293b', fontSize: '15px' }}>{currentDetailsOrder.customerName || currentDetailsOrder.customer?.name || currentDetailsOrder.customer?.companyName || '—'}</p>
+                      <p style={{ margin: '2px 0 0 0', color: '#475569', fontWeight: '500' }}>{clientAddress}</p>
+                      <p style={{ margin: '4px 0 0 0', color: '#475569', fontWeight: '600' }}>GST: <span style={{ textTransform: 'uppercase', fontFamily: 'monospace' }}>{clientGST}</span></p>
+                    </>
+                  )}
                 </div>
                 <div className="sheet-meta-right">
                   <p style={{ margin: 0 }}><strong>Order Date:</strong> {formatOrderDate(currentDetailsOrder)}</p>

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import styles from './TestCertificateDocument.module.css';
+import { isCurrentUserCustomerBlind } from '@/shared/utils/customerPrivacy';
 
 export interface TestSpecificationRow {
   srNo: number;
@@ -75,6 +76,7 @@ export const defaultLoadTestingRows: LoadTestingRow[] = [
 ];
 
 export default function TestCertificateDocument({ report, id = 'test-certificate-document' }: Props) {
+  const hideCustomerIdentity = isCurrentUserCustomerBlind();
   const formattedDate = report.reportDate
     ? new Date(report.reportDate).toLocaleDateString('en-GB')
     : new Date().toLocaleDateString('en-GB');
@@ -179,13 +181,15 @@ export default function TestCertificateDocument({ report, id = 'test-certificate
               <span className={styles.metaValue}>{formattedDate}</span>
             </div>
 
-            <div className={styles.metaRow}>
-              <span className={styles.metaLabel}>Client / Consignee:</span>
-              <span className={styles.metaValue}>{report.clientName || 'Valued Client'}</span>
-            </div>
+            {!hideCustomerIdentity && (
+              <div className={styles.metaRow}>
+                <span className={styles.metaLabel}>Client / Consignee:</span>
+                <span className={styles.metaValue}>{report.clientName || 'Valued Client'}</span>
+              </div>
+            )}
 
             <div className={styles.metaRow}>
-              <span className={styles.metaLabel}>P.O. Reference No.:</span>
+              <span className={styles.metaLabel}>Order / P.O. Reference:</span>
               <span className={styles.metaValueHighlight}>{report.poNumber || 'PO-RECORDED'}</span>
             </div>
 
@@ -206,10 +210,12 @@ export default function TestCertificateDocument({ report, id = 'test-certificate
               </span>
             </div>
 
-            <div className={styles.metaRow}>
-              <span className={styles.metaLabel}>Project Reference:</span>
-              <span className={styles.metaValue}>{report.projectName || 'Infrastructure Project Site'}</span>
-            </div>
+            {!hideCustomerIdentity && (
+              <div className={styles.metaRow}>
+                <span className={styles.metaLabel}>Project Reference:</span>
+                <span className={styles.metaValue}>{report.projectName || 'Infrastructure Project Site'}</span>
+              </div>
+            )}
 
             <div className={styles.metaRow}>
               <span className={styles.metaLabel}>Certificate Number:</span>

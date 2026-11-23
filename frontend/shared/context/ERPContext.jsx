@@ -27,6 +27,7 @@ import { leadsReadRepository } from '../../services/leads/leadsReadRepository';
 import { useAuthStore } from '../../store/authStore';
 import { SEEDED_INVENTORY_ITEMS } from '../data/inventoryMasterData';
 import { hasPermission } from '../../services/permissions/permissionService';
+import { isCustomerBlindRole } from '../utils/customerPrivacy';
 
 import { purchaseIndentService } from '../../services/procurement/purchaseIndentService';
 import { purchaseOrderService } from '../../services/procurement/purchaseOrderService';
@@ -65,10 +66,15 @@ export const useERP = () => {
     }
   }, [addNotification]);
 
+  const isBlindRole = isCustomerBlindRole(currentUser);
   const customersReadEnabled =
+    !isBlindRole &&
     process.env.NEXT_PUBLIC_BACKEND_CUSTOMERS_READ === 'true' &&
     hasPermission(currentUser, 'sales.customers.read');
-  const leadsReadEnabled = process.env.NEXT_PUBLIC_BACKEND_LEADS_READ !== 'false' && hasPermission(currentUser, 'sales.leads.read');
+  const leadsReadEnabled =
+    !isBlindRole &&
+    process.env.NEXT_PUBLIC_BACKEND_LEADS_READ !== 'false' &&
+    hasPermission(currentUser, 'sales.leads.read');
 
   const replaceCustomerCache = store.replaceCustomerCache;
   const replaceLeadCache = store.replaceLeadCache;
@@ -138,7 +144,7 @@ export const useERP = () => {
       const currentState = currentStore.state;
       
       let customersRes = { success: true, customers: [] };
-      if (!customersReadEnabled) {
+      if (!customersReadEnabled && !isBlindRole) {
         const res = await apiClient.get('/admin-ops/customers').catch(() => ({ success: false }));
         if (res.success) {
           customersRes = res;

@@ -15,6 +15,7 @@ import {
   ParseIntPipe,
   DefaultValuePipe,
   Req,
+  ForbiddenException,
 } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -22,6 +23,7 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { IdempotencyInterceptor } from '../../common/interceptors/idempotency.interceptor';
+import { isCustomerBlindRole } from '../../common/security/customer-privacy.util';
 
 @Controller('sales/customers')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -49,23 +51,22 @@ export class CustomersController {
     'dispatch.orders.read',
     'dispatch.orders.create',
     'logistics.dispatches.read',
-    'store.read',
-    'store.view',
-    'store.materials.read',
-    'admin.planthead.read',
-    'planthead.read',
-    'plant-head.read',
   )
   findAll(
     @CurrentUser() user: any,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('pageSize', new DefaultValuePipe(1000), ParseIntPipe) pageSize: number,
+    @Query('pageSize', new DefaultValuePipe(100), ParseIntPipe) pageSize: number,
     @Query('search') search?: string,
   ) {
+    if (isCustomerBlindRole(user?.role)) {
+      throw new ForbiddenException(
+        'Access Denied: Customer directory is restricted for Plant Head, Production, QC, and Store roles.',
+      );
+    }
     return this.customersService.list(
       user.companyId,
       page,
-      pageSize,
+      Math.min(100, Math.max(1, pageSize)),
       search,
       user.sub,
       user.role,
@@ -81,6 +82,11 @@ export class CustomersController {
     @Query('phone') phone?: string,
     @Query('companyName') companyName?: string,
   ) {
+    if (isCustomerBlindRole(user?.role)) {
+      throw new ForbiddenException(
+        'Access Denied: Customer lookup is restricted for your role.',
+      );
+    }
     return this.customersService.checkDuplicates(
       user.companyId,
       gstin,
@@ -93,6 +99,11 @@ export class CustomersController {
   @Get(':id')
   @RequirePermissions('sales.customers.read')
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    if (isCustomerBlindRole(user?.role)) {
+      throw new ForbiddenException(
+        'Access Denied: Customer details are restricted for your role.',
+      );
+    }
     return this.customersService.getById(
       id,
       user.companyId,

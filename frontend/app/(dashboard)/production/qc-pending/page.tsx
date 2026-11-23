@@ -716,7 +716,7 @@ export default function QCPendingPage() {
             <Search size={16} color="#64748b" style={{ flexShrink: 0 }} />
             <input
               type="text"
-              placeholder="Search sales order, WO, product, customer..."
+              placeholder="Search order ID, WO, product..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -762,12 +762,11 @@ export default function QCPendingPage() {
                 const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
                 const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
                 const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
-                const customerName = resolveCustomerName(job);
                 const status = job.qcInspectionStatus || (activeTab === 'pending' ? 'QC PENDING' : 'PASSED');
 
                 return (
                   <div key={job.id} className={styles.mobileCard}>
-                    {/* Header: SO, Customer & Status */}
+                    {/* Header: Order ID & Status */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
@@ -786,10 +785,6 @@ export default function QCPendingPage() {
                             </span>
                           )}
                         </div>
-                        <span style={{ color: '#64748b', fontSize: '12px', fontWeight: '600', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Building2 size={13} color="#94a3b8" style={{ flexShrink: 0 }} />
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customerName}</span>
-                        </span>
                       </div>
 
                       <span className={status === 'PASSED' ? styles.badgePassed : status === 'FAILED' ? styles.badgeFailed : styles.badgePending}>
@@ -863,8 +858,7 @@ export default function QCPendingPage() {
               <table className={styles.qcTable}>
                 <thead>
                   <tr>
-                    <th style={{ width: '200px' }}>Sales Order & WO #</th>
-                    <th style={{ width: '170px' }}>Customer</th>
+                    <th style={{ width: '200px' }}>Order ID & WO #</th>
                     <th>Product Item</th>
                     <th style={{ textAlign: 'center', width: '110px' }}>Ordered Qty</th>
                     <th style={{ textAlign: 'center', width: '140px' }}>Status</th>
@@ -879,7 +873,6 @@ export default function QCPendingPage() {
                     const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
                     const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
                     const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
-                    const customerName = resolveCustomerName(job);
                     const status = job.qcInspectionStatus || (activeTab === 'pending' ? 'QC PENDING' : 'PASSED');
 
                     return (
@@ -904,13 +897,6 @@ export default function QCPendingPage() {
                               )}
                             </div>
                           </div>
-                        </td>
-
-                        {/* Customer */}
-                        <td>
-                          <span style={{ fontWeight: '700', color: '#334155', fontSize: '13px' }}>
-                            {customerName}
-                          </span>
                         </td>
 
                         {/* Product */}
@@ -1042,19 +1028,10 @@ export default function QCPendingPage() {
                     />
                   </div>
                   <div>
-                    <label className={styles.fieldLabel}>Sales Order Reference</label>
+                    <label className={styles.fieldLabel}>Order ID Reference</label>
                     <input
                       type="text"
                       value={inspectJob.productionPlan?.salesOrder?.orderNumber || inspectJob.salesOrder?.orderNumber || 'SO-2026-00001'}
-                      disabled
-                      className={styles.inputDisabled}
-                    />
-                  </div>
-                  <div>
-                    <label className={styles.fieldLabel}>Customer Company</label>
-                    <input
-                      type="text"
-                      value={inspectJob.productionPlan?.salesOrder?.customer?.companyName || inspectJob.productionPlan?.salesOrder?.customer?.name || inspectJob.customerName || 'Internal'}
                       disabled
                       className={styles.inputDisabled}
                     />

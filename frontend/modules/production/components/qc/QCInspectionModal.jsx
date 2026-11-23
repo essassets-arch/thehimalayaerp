@@ -150,7 +150,7 @@ export default function QCInspectionModal({ selectedOrder, onClose }) {
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#24345C', margin: 0 }}>QC Inspection Sign-off</h3>
               <p style={{ fontSize: '11px', color: '#8893A7', margin: '2px 0 0 0' }}>
-                Order: {selectedOrder.orderNo || selectedOrder.id} · {selectedOrder.customerName}
+                Order ID: {selectedOrder.orderNo || selectedOrder.id}
               </p>
             </div>
           </div>

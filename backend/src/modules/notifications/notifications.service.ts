@@ -3,6 +3,10 @@ import { NotificationPriority } from '@prisma/client';
 export { NotificationPriority } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { FirebasePushService } from './firebase-push.service';
+import {
+  isCustomerBlindRole,
+  sanitizeNotificationTextForBlindRole,
+} from '../../common/security/customer-privacy.util';
 
 export interface CreateNotificationDto {
   companyId: string;
@@ -41,11 +45,59 @@ export interface NotifyRoleDto {
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
+  private readonly customerNamesCache = new Map<
+    string,
+    { names: string[]; expiresAt: number }
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly firebasePushService: FirebasePushService,
   ) {}
+
+  private async getKnownCustomerNames(companyId?: string): Promise<string[]> {
+    const key = companyId || 'ALL';
+    const now = Date.now();
+    const cached = this.customerNamesCache.get(key);
+    if (cached && cached.expiresAt > now) {
+      return cached.names;
+    }
+
+    try {
+      const [customers, leads] = await Promise.all([
+        this.prisma.customer.findMany({
+          where: { ...(companyId ? { companyId } : {}), deletedAt: null },
+          select: { companyName: true },
+          take: 2000,
+        }),
+        this.prisma.lead.findMany({
+          where: { ...(companyId ? { companyId } : {}), deletedAt: null },
+          select: { companyName: true },
+          take: 2000,
+        }),
+      ]);
+      const nameSet = new Set<string>();
+      for (const c of customers) {
+        if (c.companyName && c.companyName.trim().length >= 3) {
+          nameSet.add(c.companyName.trim());
+        }
+      }
+      for (const l of leads) {
+        if (l.companyName && l.companyName.trim().length >= 3) {
+          nameSet.add(l.companyName.trim());
+        }
+      }
+      // Longest names first so multi-word names match before substrings
+      const sorted = Array.from(nameSet).sort((a, b) => b.length - a.length);
+      this.customerNamesCache.set(key, {
+        names: sorted,
+        expiresAt: now + 60_000,
+      });
+      return sorted;
+    } catch {
+      return [];
+    }
+  }
 
   /**
    * The canonical ERP event contract. Business modules supply an event code;
@@ -198,6 +250,15 @@ export class NotificationsService {
       }
     }
 
+    // 0b. Customer Privacy Scrub for Plant Head, Production, QC, and Store notifications (DB + FCM push)
+    let safeTitle = title;
+    let safeMessage = message;
+    if (recipient && isCustomerBlindRole(recipient.role?.code)) {
+      const knownNames = await this.getKnownCustomerNames(companyId);
+      safeTitle = sanitizeNotificationTextForBlindRole(title, knownNames);
+      safeMessage = sanitizeNotificationTextForBlindRole(message, knownNames);
+    }
+
     // 1. Create PostgreSQL Notification first (Source of Truth)
     const notification = await this.prisma.notification.create({
       data: {
@@ -206,8 +267,8 @@ export class NotificationsService {
         type,
         module: module || event.module,
         priority: priority || event.priority,
-        title,
-        message,
+        title: safeTitle,
+        message: safeMessage,
         route,
         entityType,
         entityId,
@@ -247,8 +308,8 @@ export class NotificationsService {
         const response = await this.firebasePushService.sendPushToUser(
           userId,
           companyId,
-          title,
-          message,
+          safeTitle,
+          safeMessage,
           {
             notificationId: notification.id,
             type,
@@ -547,7 +608,7 @@ export class NotificationsService {
       ...isolationFilter,
     };
 
-    const [items, unreadCount] = await Promise.all([
+    const [items, unreadCount, recipient] = await Promise.all([
       this.prisma.notification.findMany({
         where: whereCondition,
         orderBy: {
@@ -562,10 +623,24 @@ export class NotificationsService {
           isRead: false,
         },
       }),
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: { select: { code: true } } },
+      }),
     ]);
 
+    let finalItems = items;
+    if (recipient && isCustomerBlindRole(recipient.role?.code) && items.length > 0) {
+      const knownNames = await this.getKnownCustomerNames(resolvedCompanyId);
+      finalItems = items.map((item) => ({
+        ...item,
+        title: sanitizeNotificationTextForBlindRole(item.title, knownNames),
+        message: sanitizeNotificationTextForBlindRole(item.message, knownNames),
+      }));
+    }
+
     return {
-      items,
+      items: finalItems,
       unreadCount,
     };
   }

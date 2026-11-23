@@ -39,6 +39,7 @@ import { apiClient } from "@/lib/apiClient";
 import { getBackendAssetUrl } from "@/lib/assetUrl";
 import StatusBadge from "@/shared/components/StatusBadge";
 import { getOrderStatusLabel, isDeliveredOrder } from "@/shared/utils/orderStatusResolver";
+import { isCurrentUserCustomerBlind } from "@/shared/utils/customerPrivacy";
 
 const statusColors: Record<string, { bg: string; color: string; border: string }> = {
   CONFIRMED:          { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
@@ -792,10 +793,12 @@ export default function OrderDetailPage() {
               </h1>
               <StatusBadge status={accurateStatusLabel} />
             </div>
-            <div style={{ fontSize: 13, color: "#64748b", marginTop: 3 }}>
-              Customer: <strong style={{ color: "#002e5d" }}>{customerName}</strong>
-              {customerCode && <span style={{ marginLeft: 6, fontFamily: "monospace", color: "#64748b", fontSize: 11 }}>({customerCode})</span>}
-            </div>
+            {!isCurrentUserCustomerBlind() && (
+              <div style={{ fontSize: 13, color: "#64748b", marginTop: 3 }}>
+                Customer: <strong style={{ color: "#002e5d" }}>{customerName}</strong>
+                {customerCode && <span style={{ marginLeft: 6, fontFamily: "monospace", color: "#64748b", fontSize: 11 }}>({customerCode})</span>}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1141,28 +1144,38 @@ export default function OrderDetailPage() {
         {/* Customer & Commercial Details */}
         <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
           <div style={{ fontWeight: 800, fontSize: 14, color: "#002e5d", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-            <Building2 size={16} color="#0284c7" /> Customer &amp; Billing Information
+            <Building2 size={16} color="#0284c7" /> {isCurrentUserCustomerBlind() ? "Order Information" : "Customer & Billing Information"}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <InfoCard icon={User} label="Customer Name" value={customerName} highlight subtext={customerCode ? `Code: ${customerCode}` : undefined} />
-            <InfoCard icon={Hash} label="Sales Order No" value={order.orderNumber || order.id} />
-            <InfoCard icon={DollarSign} label="Grand Total" value={totalAmount ? `₹${totalAmount.toLocaleString("en-IN")}` : "—"} highlight subtext={`Base: ₹${subtotalAmount.toLocaleString("en-IN")}`} />
+            {!isCurrentUserCustomerBlind() && (
+              <InfoCard icon={User} label="Customer Name" value={customerName} highlight subtext={customerCode ? `Code: ${customerCode}` : undefined} />
+            )}
+            <InfoCard icon={Hash} label="Order ID" value={order.orderNumber || order.id} highlight={isCurrentUserCustomerBlind()} />
+            {!isCurrentUserCustomerBlind() && (
+              <InfoCard icon={DollarSign} label="Grand Total" value={totalAmount ? `₹${totalAmount.toLocaleString("en-IN")}` : "—"} highlight subtext={`Base: ₹${subtotalAmount.toLocaleString("en-IN")}`} />
+            )}
             <InfoCard icon={Calendar} label="Order Date" value={fmtDate(order.orderDate || order.createdAt)} />
             <InfoCard icon={Calendar} label="Target Delivery" value={fmtDate(order.targetDate || order.requestedDeliveryDate || order.expectedDeliveryDate)} highlight />
-            <InfoCard icon={CreditCard} label="Payment Status" value={paymentStatusLabel} highlight={paymentStatusLabel === "Fully Paid"} subtext={paidAmount > 0 ? `Paid: ₹${paidAmount.toLocaleString("en-IN")}` : `Balance: ₹${balanceAmount.toLocaleString("en-IN")}`} />
-            <InfoCard icon={FileText} label="GST Number" value={customer?.taxId || customer?.gstin || customer?.gstNumber || customer?.gst || order.gstNumber || order.gstin || order.quotation?.gstin || order.sourceQuotation?.gstin || "—"} />
+            {!isCurrentUserCustomerBlind() && (
+              <InfoCard icon={CreditCard} label="Payment Status" value={paymentStatusLabel} highlight={paymentStatusLabel === "Fully Paid"} subtext={paidAmount > 0 ? `Paid: ₹${paidAmount.toLocaleString("en-IN")}` : `Balance: ₹${balanceAmount.toLocaleString("en-IN")}`} />
+            )}
+            {!isCurrentUserCustomerBlind() && (
+              <InfoCard icon={FileText} label="GST Number" value={customer?.taxId || customer?.gstin || customer?.gstNumber || customer?.gst || order.gstNumber || order.gstin || order.quotation?.gstin || order.sourceQuotation?.gstin || "—"} />
+            )}
           </div>
         </div>
 
         {/* Delivery & Logistics Site */}
         <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
           <div style={{ fontWeight: 800, fontSize: 14, color: "#002e5d", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-            <MapPin size={16} color="#0284c7" /> Delivery Destination &amp; Logistics
+            <MapPin size={16} color="#0284c7" /> {isCurrentUserCustomerBlind() ? "Fulfillment & Logistics Status" : "Delivery Destination & Logistics"}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div style={{ gridColumn: "span 2" }}>
-              <InfoCard icon={MapPin} label="Delivery Site Address" value={deliveryAddr} />
-            </div>
+            {!isCurrentUserCustomerBlind() && (
+              <div style={{ gridColumn: "span 2" }}>
+                <InfoCard icon={MapPin} label="Delivery Site Address" value={deliveryAddr} />
+              </div>
+            )}
             <InfoCard
               icon={Layers}
               label="Order Status"
@@ -1187,11 +1200,13 @@ export default function OrderDetailPage() {
               value={`${workOrders.length} ${workOrders.length > 0 && workOrders.every((w: any) => ['COMPLETED', 'DISPATCHED'].includes(String(w.status || '').toUpperCase())) ? "Dispatched" : "Active"}`}
               subtext={workOrders.length > 0 ? `${workOrders.filter((w: any) => ['COMPLETED', 'DISPATCHED'].includes(String(w.status || '').toUpperCase())).length}/${workOrders.length} Completed` : undefined}
             />
-            <InfoCard
-              icon={Phone}
-              label="Contact Phone"
-              value={customer?.phone || customer?.mobile || customer?.contactNumber || customer?.contactPersonPhone || order.customerPhone || order.quotation?.siteInchargeMobile || order.sourceQuotation?.siteInchargeMobile || order.quotation?.lead?.phone || order.lead?.phone || dispatches.find((d: any) => d.receiverPhone)?.receiverPhone || "—"}
-            />
+            {!isCurrentUserCustomerBlind() && (
+              <InfoCard
+                icon={Phone}
+                label="Contact Phone"
+                value={customer?.phone || customer?.mobile || customer?.contactNumber || customer?.contactPersonPhone || order.customerPhone || order.quotation?.siteInchargeMobile || order.sourceQuotation?.siteInchargeMobile || order.quotation?.lead?.phone || order.lead?.phone || dispatches.find((d: any) => d.receiverPhone)?.receiverPhone || "—"}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -1626,9 +1641,15 @@ export default function OrderDetailPage() {
                           )}
                         </td>
                         <td style={{ padding: "12px 14px" }}>
-                          <div style={{ fontWeight: 750, color: "#002e5d" }}>{disp.receivedBy || customerName}</div>
-                          {disp.receiverPhone && (
-                            <div style={{ fontSize: 11, fontFamily: "monospace", color: "#16a34a", fontWeight: 700 }}>+91 {disp.receiverPhone}</div>
+                          {isCurrentUserCustomerBlind() ? (
+                            <div style={{ fontWeight: 700, color: "#64748b", fontSize: 12 }}>Confidential</div>
+                          ) : (
+                            <>
+                              <div style={{ fontWeight: 750, color: "#002e5d" }}>{disp.receivedBy || customerName}</div>
+                              {disp.receiverPhone && (
+                                <div style={{ fontSize: 11, fontFamily: "monospace", color: "#16a34a", fontWeight: 700 }}>+91 {disp.receiverPhone}</div>
+                              )}
+                            </>
                           )}
                         </td>
                         <td style={{ padding: "12px 14px", color: "#002e5d", fontSize: 12, fontWeight: 700 }}>
@@ -1684,8 +1705,8 @@ export default function OrderDetailPage() {
                 const driverName = disp.driverName || "Driver Assigned";
                 const vehicleNo = disp.vehicleNumber || "";
                 const driverPhone = disp.driverPhone || "";
-                const receiverName = disp.receivedBy || customerName;
-                const receiverPhone = disp.receiverPhone || "";
+                const receiverName = isCurrentUserCustomerBlind() ? "Confidential" : (disp.receivedBy || customerName);
+                const receiverPhone = isCurrentUserCustomerBlind() ? "" : (disp.receiverPhone || "");
                 const createdAtRaw = disp.createdAt || disp.created_at || disp.creationDate;
                 const createdAtStr = createdAtRaw ? new Date(createdAtRaw).toLocaleString("en-IN") : (disp.dispatchDate ? new Date(disp.dispatchDate).toLocaleDateString("en-IN") : "—");
                 const dispAt = disp.dispatchedAt ? new Date(disp.dispatchedAt).toLocaleString("en-IN") : "—";

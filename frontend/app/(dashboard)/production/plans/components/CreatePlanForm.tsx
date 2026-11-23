@@ -94,7 +94,7 @@ export function CreatePlanForm() {
                   <SelectContent>
                     {salesOrders?.map((so: any) => (
                       <SelectItem key={so.id} value={so.id}>
-                        {so.orderNumber} - {so.customer?.companyName}
+                        {so.orderNumber}
                       </SelectItem>
                     ))}
                     {salesOrders?.length === 0 && (

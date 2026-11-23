@@ -52,7 +52,6 @@ export default function QCPendingView() {
           workOrderNo: workOrder.workOrderNo || workOrder.id,
           orderId,
           orderNo: order.orderNo || order.id || orderId,
-          customerName: order.customerName ?? order.customer_name ?? workOrder.customerName ?? 'Unknown Customer',
           products: items.map((item) => item.productName || item.product_name || item.name).filter(Boolean).join(', ') || 'Unknown Product',
           items,
           totalQty: resolveProducedQuantity(workOrder, entry, order),
@@ -74,7 +73,6 @@ export default function QCPendingView() {
     return pendingOrders.filter((row) =>
       String(row.orderNo || '').toLowerCase().includes(q) ||
       String(row.workOrderNo || '').toLowerCase().includes(q) ||
-      String(row.customerName || '').toLowerCase().includes(q) ||
       String(row.products || '').toLowerCase().includes(q) ||
       String(row.batchNumberFinal || '').toLowerCase().includes(q)
     );
@@ -88,7 +86,6 @@ export default function QCPendingView() {
   const columns = [
     { header: 'Order No', accessor: 'orderNo', render: (row) => <strong>{row.orderNo}</strong> },
     { header: 'Work Order', accessor: 'workOrderNo' },
-    { header: 'Customer', accessor: 'customerName' },
     { header: 'Product', accessor: 'products' },
     { header: 'Produced Qty', accessor: 'totalQty', render: (row) => `${Number(row.totalQty ?? 0).toLocaleString()} units` },
     { header: 'Batch No', accessor: 'batchNumberFinal' },

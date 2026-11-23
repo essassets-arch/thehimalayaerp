@@ -38,6 +38,7 @@ import {
 import { backendFetch } from '@/lib/backendFetch';
 import { useERPStore } from '@/store/erpStore';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import { isCustomerBlindRole, isCurrentUserCustomerBlind } from '@/shared/utils/customerPrivacy';
 import './CustomerComplaints.css';
 
 const COMPLAINT_TYPES = [
@@ -114,6 +115,7 @@ const getPriorityBadge = (p) => {
 
 export default function CustomerComplaintManagement({ mode = 'sales', currentUser }) {
   const isPlantHead = mode === 'plant-head' || mode === 'admin';
+  const hideCustomerIdentity = mode === 'plant-head' || isCustomerBlindRole(currentUser) || isCurrentUserCustomerBlind();
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   // List & Filter States
@@ -213,10 +215,10 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
   }, [fetchComplaints]);
 
   useEffect(() => {
-    if (!isPlantHead) {
+    if (!isPlantHead && !hideCustomerIdentity) {
       fetchMeta();
     }
-  }, [isPlantHead, fetchMeta]);
+  }, [isPlantHead, hideCustomerIdentity, fetchMeta]);
 
   // Filtered orders for selected customer in Create Form
   const availableOrdersForCustomer = useMemo(() => {
@@ -854,7 +856,7 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
               <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '12px' }} />
               <input
                 type="text"
-                placeholder="Search ID, Order, Customer..."
+                placeholder={hideCustomerIdentity ? "Search Complaint ID, Order ID..." : "Search ID, Order, Customer..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
@@ -869,18 +871,20 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
             </div>
 
             {/* Customer Filter */}
-            <div>
-              <select
-                value={customerFilter}
-                onChange={(e) => setCustomerFilter(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px', border: '1px solid #DCE5F0', borderRadius: '8px', fontSize: '13px', background: '#fff' }}
-              >
-                <option value="">All Customers</option>
-                {metaCustomers.map((c) => (
-                  <option key={c.id} value={c.id}>{c.companyName}</option>
-                ))}
-              </select>
-            </div>
+            {!hideCustomerIdentity && (
+              <div>
+                <select
+                  value={customerFilter}
+                  onChange={(e) => setCustomerFilter(e.target.value)}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #DCE5F0', borderRadius: '8px', fontSize: '13px', background: '#fff' }}
+                >
+                  <option value="">All Customers</option>
+                  {metaCustomers.map((c) => (
+                    <option key={c.id} value={c.id}>{c.companyName}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Order Filter */}
             <div>
@@ -995,7 +999,7 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
                 <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
                   <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '800', color: '#475569' }}>Complaint ID</th>
                   <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '800', color: '#475569' }}>Order</th>
-                  <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '800', color: '#475569' }}>Customer</th>
+                  {!hideCustomerIdentity && <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '800', color: '#475569' }}>Customer</th>}
                   {isPlantHead && <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '800', color: '#475569' }}>Sales Person</th>}
                   <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '800', color: '#475569' }}>Product</th>
                   <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '800', color: '#475569' }}>Complaint Type</th>
@@ -1050,9 +1054,11 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
                         <td style={{ padding: '14px 16px', fontWeight: '700', color: '#1e293b' }}>
                           {c.order?.orderNumber || c.order?.orderNo || '—'}
                         </td>
-                        <td style={{ padding: '14px 16px', fontWeight: '600', color: '#334155' }}>
-                          {c.customer?.companyName || '—'}
-                        </td>
+                        {!hideCustomerIdentity && (
+                          <td style={{ padding: '14px 16px', fontWeight: '600', color: '#334155' }}>
+                            {c.customer?.companyName || '—'}
+                          </td>
+                        )}
                         {isPlantHead && (
                           <td style={{ padding: '14px 16px', color: '#475569', fontSize: '13px' }}>
                             {c.salesExecutive?.name || 'Sales Executive'}
@@ -2650,14 +2656,16 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
                 <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   
                   {/* Top Key Info Cards */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px' }}>
-                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 16px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>CUSTOMER</span>
-                      <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b', marginTop: '4px' }}>
-                        {selectedComplaint.customer?.companyName || '—'}
+                  <div style={{ display: 'grid', gridTemplateColumns: hideCustomerIdentity ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: '14px' }}>
+                    {!hideCustomerIdentity && (
+                      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 16px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>CUSTOMER</span>
+                        <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b', marginTop: '4px' }}>
+                          {selectedComplaint.customer?.companyName || '—'}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#64748b' }}>{selectedComplaint.customer?.customerCode}</div>
                       </div>
-                      <div style={{ fontSize: '12px', color: '#64748b' }}>{selectedComplaint.customer?.customerCode}</div>
-                    </div>
+                    )}
 
                     <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 16px' }}>
                       <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>SALES ORDER</span>

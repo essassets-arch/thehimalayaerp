@@ -37,8 +37,7 @@ export default function QCInspectionDetailsPage() {
 
   const headerDetails = [
     { label: 'Work Order', value: workOrder.workOrderNumber || 'N/A' },
-    { label: 'Sales Order', value: so.orderNumber || 'N/A' },
-    { label: 'Customer', value: so.customer?.companyName || so.customer?.name || 'N/A' },
+    { label: 'Order ID', value: so.orderNumber || 'N/A' },
     { label: 'Target Qty', value: workOrder.quantity || 0 },
     { label: 'Produced Qty', value: workOrder.productionBatches?.reduce((sum: number, b: any) => sum + Number(b.quantity), 0) || 0 },
   ];

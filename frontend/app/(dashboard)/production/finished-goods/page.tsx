@@ -248,20 +248,6 @@ export default function FinishedGoodsPage() {
       },
     },
     {
-      id: "customer",
-      header: "Customer",
-      size: 160,
-      cell: ({ row }) => {
-        const item = row.original as any;
-        const custName = item.customerName || item.workOrder?.productionPlan?.salesOrder?.customer?.companyName || "Internal Stock";
-        return (
-          <span className="font-medium text-slate-700 dark:text-slate-200">
-            {custName}
-          </span>
-        );
-      },
-    },
-    {
       id: "product",
       header: "Product",
       size: 180,

@@ -377,7 +377,7 @@ export default function QCFailedPage() {
               <Search size={16} style={{ flexShrink: 0 }} />
               <input
                 type="text"
-                placeholder="Search sales order, WO, product, customer..."
+                placeholder="Search order ID, WO, product, defect..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -416,19 +416,6 @@ export default function QCFailedPage() {
                 const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
                 const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
                 const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
-                const so = job.productionPlan?.salesOrder || job.salesOrder;
-                const leadObj = so?.quotation?.lead || so?.sourceQuotation?.lead || job.quotation?.lead || job.sourceQuotation?.lead;
-                const customerObj = so?.customer || job.customer;
-                const customerName =
-                  customerObj?.companyName ||
-                  customerObj?.name ||
-                  leadObj?.companyName ||
-                  leadObj?.projectName ||
-                  leadObj?.customerName ||
-                  so?.customerName ||
-                  job.customerName ||
-                  job.companyName ||
-                  'Consignee Client';
                 const prodName = getProductName(job);
                 const isSent = isSentToFloor(job);
 
@@ -447,10 +434,6 @@ export default function QCFailedPage() {
                           <span className={styles.woBadgeMobile}>
                             {job.workOrderNumber || 'WO'}
                           </span>
-                        </div>
-                        <div style={{ color: '#64748b', fontSize: '12px', fontWeight: '600', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Building2 size={13} color="#94a3b8" style={{ flexShrink: 0 }} />
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customerName}</span>
                         </div>
                       </div>
 
@@ -552,8 +535,7 @@ export default function QCFailedPage() {
               <table>
                 <thead>
                   <tr>
-                    <th style={{ minWidth: '180px' }}>Sales Order & WO #</th>
-                    <th style={{ minWidth: '160px' }}>Customer</th>
+                    <th style={{ minWidth: '180px' }}>Order ID & WO #</th>
                     <th style={{ minWidth: '220px' }}>Product Item</th>
                     <th style={{ minWidth: '90px', textAlign: 'center' }}>Qty</th>
                     <th style={{ minWidth: '180px' }}>Failure Reason</th>
@@ -572,19 +554,6 @@ export default function QCFailedPage() {
                     const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
                     const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
                     const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
-                    const so = job.productionPlan?.salesOrder || job.salesOrder;
-                    const leadObj = so?.quotation?.lead || so?.sourceQuotation?.lead || job.quotation?.lead || job.sourceQuotation?.lead;
-                    const customerObj = so?.customer || job.customer;
-                    const customerName =
-                      customerObj?.companyName ||
-                      customerObj?.name ||
-                      leadObj?.companyName ||
-                      leadObj?.projectName ||
-                      leadObj?.customerName ||
-                      so?.customerName ||
-                      job.customerName ||
-                      job.companyName ||
-                      'Consignee Client';
                     const prodName = getProductName(job);
                     const isSent = isSentToFloor(job);
 
@@ -603,14 +572,6 @@ export default function QCFailedPage() {
                               WO: {job.workOrderNumber || '—'}
                             </span>
                           </div>
-                        </td>
-
-                        {/* Customer */}
-                        <td>
-                          <span style={{ fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Building2 size={13} color="#94a3b8" />
-                            {customerName}
-                          </span>
                         </td>
 
                         {/* Product Item */}

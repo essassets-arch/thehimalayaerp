@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PlantHeadService } from './plant-head.service';
 import type { Request } from 'express';
 import { SubmitFulfillmentPlanDto } from './dto/fulfillment-plan.dto';
+import { isCustomerBlindRole } from '../../common/security/customer-privacy.util';
 
 @Controller('plant-head')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -349,6 +350,9 @@ export class PlantHeadController {
     @Query('status') status?: string,
   ) {
     const companyId = this.resolveCompanyId(req);
+    const effectiveCustomer = isCustomerBlindRole((req as any).user?.role)
+      ? undefined
+      : customer;
     return this.plantHeadService.getDispatchAnalytics(
       companyId,
       filter,
@@ -360,7 +364,7 @@ export class PlantHeadController {
       salesPerson,
       product,
       capacity,
-      customer,
+      effectiveCustomer,
       status,
     );
   }

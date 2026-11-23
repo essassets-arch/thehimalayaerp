@@ -106,25 +106,9 @@ export default function CompletedOrdersPage() {
           String(so.id) === String(wo.productionPlan?.salesOrderId)
         );
 
-        const customerName =
-          wo.customerName ||
-          wo.productionPlan?.salesOrder?.customer?.companyName ||
-          matchedSO?.customerName ||
-          matchedSO?.customer?.companyName ||
-          matchedSO?.customer?.name ||
-          '—';
-
-        const productName =
-          wo.salesOrderItem?.productNameSnapshot ||
-          wo.salesOrderItem?.product?.name ||
-          wo.productName ||
-          matchedSO?.items?.[0]?.productNameSnapshot ||
-          'Custom FRP Product';
-
         return {
           ...wo,
           resolvedSoNumber: soNumber || matchedSO?.orderNumber || `SO-${wo.id.slice(0, 6).toUpperCase()}`,
-          resolvedCustomer: customerName,
           resolvedProductName: productName
         };
       });
@@ -141,7 +125,6 @@ export default function CompletedOrdersPage() {
         !q ||
         (wo.workOrderNumber || wo.id || '').toLowerCase().includes(q) ||
         (wo.resolvedSoNumber || '').toLowerCase().includes(q) ||
-        (wo.resolvedCustomer || '').toLowerCase().includes(q) ||
         (wo.resolvedProductName || '').toLowerCase().includes(q);
 
       // Status tab
@@ -214,11 +197,10 @@ export default function CompletedOrdersPage() {
   // Export CSV
   const handleExportCSV = () => {
     if (filteredData.length === 0) return;
-    const headers = ['Work Order No', 'Sales Order No', 'Customer', 'Product', 'Produced Qty', 'Started At', 'Completed At', 'Duration (Mins)', 'Status'];
+    const headers = ['Work Order No', 'Order ID', 'Product', 'Produced Qty', 'Started At', 'Completed At', 'Duration (Mins)', 'Status'];
     const rows = filteredData.map((wo: any) => [
       wo.workOrderNumber || wo.id,
       wo.resolvedSoNumber,
-      `"${(wo.resolvedCustomer || '').replace(/"/g, '""')}"`,
       `"${(wo.resolvedProductName || '').replace(/"/g, '""')}"`,
       wo.producedQuantity || wo.producedQty || wo.quantity || 0,
       wo.startedAt ? new Date(wo.startedAt).toLocaleString('en-IN') : '—',
@@ -401,7 +383,7 @@ export default function CompletedOrdersPage() {
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search WO, SO, Customer, Item..."
+                placeholder="Search WO, Order ID, Item..."
                 aria-label="Search completed orders"
               />
               {search && (
@@ -434,8 +416,7 @@ export default function CompletedOrdersPage() {
             <table className={styles.customTable}>
               <thead>
                 <tr>
-                  <th>Sales Order #</th>
-                  <th>Customer</th>
+                  <th>Order ID #</th>
                   <th>Product / Specification</th>
                   <th style={{ textAlign: 'center' }}>Produced Qty</th>
                   <th>Manufacturing Time</th>
@@ -463,13 +444,6 @@ export default function CompletedOrdersPage() {
                           <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
                             WO: {wo.workOrderNumber || wo.id.slice(0, 10)}
                           </span>
-                        </div>
-                      </td>
-
-                      <td>
-                        <div className={styles.customerName}>
-                          <Building2 size={14} color="#64748b" style={{ flexShrink: 0 }} />
-                          <span>{wo.resolvedCustomer}</span>
                         </div>
                       </td>
 
@@ -565,12 +539,8 @@ export default function CompletedOrdersPage() {
             <div className={styles.modalBody}>
               <div className={styles.modalGrid}>
                 <div className={styles.modalField}>
-                  <label>Linked Sales Order</label>
+                  <label>Linked Order ID</label>
                   <span style={{ color: '#2563eb' }}>{selectedOrder.resolvedSoNumber}</span>
-                </div>
-                <div className={styles.modalField}>
-                  <label>Customer Name</label>
-                  <span>{selectedOrder.resolvedCustomer}</span>
                 </div>
                 <div className={styles.modalField}>
                   <label>Manufactured Product</label>

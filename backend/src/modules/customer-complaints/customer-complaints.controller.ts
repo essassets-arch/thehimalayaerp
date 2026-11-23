@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -12,6 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { isCustomerBlindRole } from '../../common/security/customer-privacy.util';
 import {
   AdminRemarksDto,
   CompleteDispatchDto,
@@ -39,6 +41,11 @@ export class CustomerComplaintsController {
   metaOrdersAndCustomers(@Req() req: any) {
     const userId = req.user?.id || req.user?.sub || 'system';
     const role = req.user?.role?.code || req.user?.role;
+    if (isCustomerBlindRole(role)) {
+      throw new ForbiddenException(
+        'Customer master metadata is restricted for factory roles.',
+      );
+    }
     return this.service.getMetaOrdersAndCustomers(userId, role);
   }
 

@@ -2841,7 +2841,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                         <span style={{ fontSize: '16px', fontWeight: '800', color: 'var(--color-text-primary)' }}>{orderNo}</span>
                       </div>
                       <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
-                        {order ? `Customer: ${order.customer?.name || order.customerName || 'Unknown'}` : 'Internal Stock Replenishment Run'}
+                        {order ? `Order Ref: ${orderNo}` : 'Internal Stock Replenishment Run'}
                       </span>
                     </div>
                   </div>
@@ -2989,7 +2989,6 @@ export default function PlantHeadPortal({ overrideView } = {}) {
         <DataTable
           columns={[
             { header: 'Order No', accessor: 'orderNo' },
-            { header: 'Customer Name', accessor: 'customer.name', render: (row) => row.customerName || row.customer?.name || 'Unknown' },
             { header: 'Product Item', accessor: 'products' },
             {
               header: 'Quantity Value',
@@ -3018,7 +3017,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
           ]}
           data={createdOrders}
           searchQuery={globalSearch}
-          searchField="customer.name"
+          searchField="orderNo"
           actions={(row) => isAwaitingPlantHead(row) ? (
             <button
               className="action-btn"
@@ -3370,7 +3369,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
             <Search size={14} color="var(--color-text-secondary)" style={{ flexShrink: 0 }} />
             <input
               type="text"
-              placeholder="Search orders, customer, sales person…"
+              placeholder="Search order ID, product, sales person…"
               value={incomingSearch}
               onChange={e => setIncomingSearch(e.target.value)}
               style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', color: 'var(--color-text-primary)', width: '100%' }}
@@ -3458,8 +3457,8 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                     {/* Details Breakdown */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12.5px', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
                       <div>
-                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Customer</span>
-                        <span style={{ fontWeight: '700', color: '#1e293b' }}>{row.customerName || row.quotation?.lead?.companyName || row.quotation?.lead?.projectName || row.customer?.companyName || row.customer?.name || '—'}</span>
+                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Order ID</span>
+                        <span style={{ fontWeight: '700', color: '#1e293b', fontFamily: 'monospace' }}>{row.orderNo || row.id || '—'}</span>
                       </div>
                       <div>
                         <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Sales Person</span>
@@ -3550,7 +3549,6 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                   </strong>
                 )
               },
-              { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.quotation?.lead?.companyName || row.quotation?.lead?.projectName || row.customer?.companyName || row.customer?.name || '—'}</span> },
               { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || row.salesperson || row.salesExecutive?.name || 'Sales Executive'}</span> },
               { header: 'Product Item', accessor: 'products', render: (row) => renderProductSummary(row) },
               {
@@ -3834,7 +3832,6 @@ export default function PlantHeadPortal({ overrideView } = {}) {
       const q = planningSearch.toLowerCase();
       const matchSearch = !q ||
         (o.orderNo || '').toLowerCase().includes(q) ||
-        (o.customerName || o.customer || '').toLowerCase().includes(q) ||
         (o.products || o.productItem || '').toLowerCase().includes(q);
       const matchPriority = planningPriorityFilter === 'All' ||
         (o.priority || '').toLowerCase() === planningPriorityFilter.toLowerCase();
@@ -3888,7 +3885,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
             <Search size={15} color="#64748b" style={{ flexShrink: 0 }} />
             <input
               type="text"
-              placeholder="Search order, customer, product…"
+              placeholder="Search order ID or product…"
               value={planningSearch}
               onChange={e => setPlanningSearch(e.target.value)}
               style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', color: '#0f172a', width: '100%' }}
@@ -4001,13 +3998,6 @@ export default function PlantHeadPortal({ overrideView } = {}) {
 
                     {/* Details Grid */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-                      <div style={{ gridColumn: 'span 2' }}>
-                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800', letterSpacing: '0.04em' }}>Customer</span>
-                        <span style={{ fontWeight: '700', color: '#0f172a', fontSize: '13px' }}>
-                          {row.customerName || row.quotation?.lead?.companyName || row.quotation?.lead?.projectName || row.customer?.companyName || row.customer?.name || row.customer || '—'}
-                        </span>
-                      </div>
-
                       <div>
                         <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800', letterSpacing: '0.04em' }}>Sales Person</span>
                         <span style={{ fontWeight: '600', color: '#334155' }}>👤 {row.salesPersonName || row.salesperson || row.salesExecutive?.name || 'Sales Executive'}</span>
@@ -4120,7 +4110,6 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                   </strong>
                 )
               },
-              { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.quotation?.lead?.companyName || row.quotation?.lead?.projectName || row.customer?.companyName || row.customer?.name || row.customer || '—'}</span> },
               { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || row.salesperson || row.salesExecutive?.name || 'Sales Executive'}</span> },
               {
                 header: 'Products',
@@ -4191,7 +4180,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
             ]}
             data={displayedPlanningOrders}
             searchQuery={''}
-            searchField="customerName"
+            searchField="orderNo"
             actions={(row) => {
               const hasPendingFulfillment = Array.isArray(row.items) && row.items.some(item => {
                 const f = item.fulfillment || {};
@@ -4439,7 +4428,6 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                 </span>
               )
             },
-            { header: 'Customer Name', accessor: 'customerName' },
             { header: 'Product Name', accessor: 'productName' },
             { header: 'Quantity', accessor: 'quantity', render: (row) => `${row.quantity} Tons` },
             {
@@ -4469,7 +4457,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
           ]}
           data={qcFailedOrders}
           searchQuery={globalSearch}
-          searchField="customerName"
+          searchField="orderNo"
           emptyMessage="No QC failure logs recorded."
         />
       </div>
@@ -5895,8 +5883,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
               <thead>
                 <tr>
                   <th>Request No</th>
-                  <th>Order</th>
-                  <th>Customer</th>
+                  <th>Order ID</th>
                   <th>Product</th>
                   <th>Requested</th>
                   <th>Approved</th>
@@ -5907,12 +5894,11 @@ export default function PlantHeadPortal({ overrideView } = {}) {
               </thead>
               <tbody>
                 {replacementRequests.length === 0 ? (
-                  <tr><td colSpan="9" style={{ textAlign: 'center', padding: '28px', color: 'var(--color-text-muted)' }}>No replacement requests found.</td></tr>
+                  <tr><td colSpan="8" style={{ textAlign: 'center', padding: '28px', color: 'var(--color-text-muted)' }}>No replacement requests found.</td></tr>
                 ) : replacementRequests.map(row => (
                   <tr key={row.id}>
                     <td style={{ fontWeight: 800, fontFamily: 'monospace' }}>{row.request_no}</td>
                     <td>{row.order_number}</td>
-                    <td>{row.customer_name}</td>
                     <td>{row.product_name}</td>
                     <td>{row.requested_qty}</td>
                     <td>{row.approved_qty}</td>
@@ -6041,9 +6027,9 @@ export default function PlantHeadPortal({ overrideView } = {}) {
 
               {/* Order Info Details Card (Styled Metadata Bar) */}
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: isMobile ? '12px 14px' : '14px 18px', display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px 16px', fontSize: '12.5px', color: '#475569', marginBottom: '20px' }}>
-                <div style={{ gridColumn: isMobile ? 'span 2' : 'auto' }}>
-                  <span style={{ display: 'block', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '800' }}>Customer</span>
-                  <strong style={{ color: '#0f172a', fontSize: '13px' }}>{selectedOrderForPlanning.customerName || selectedOrderForPlanning.quotation?.lead?.companyName || selectedOrderForPlanning.customer?.companyName || selectedOrderForPlanning.customer?.name || 'Unknown'}</strong>
+                <div>
+                  <span style={{ display: 'block', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '800' }}>Order ID</span>
+                  <strong style={{ color: '#0f172a', fontSize: '13px', fontFamily: 'monospace' }}>{selectedOrderForPlanning.orderNo || selectedOrderForPlanning.orderNumber || '—'}</strong>
                 </div>
                 <div>
                   <span style={{ display: 'block', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '800' }}>Sales Person</span>

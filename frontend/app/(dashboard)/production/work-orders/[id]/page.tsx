@@ -31,11 +31,8 @@ export default function WorkOrderDetailsPage() {
   
   // Extract info
   const workOrderRef = wo.workOrderNumber;
-  // Handling case where customer could be directly in the response or nested
   const salesOrder = wo.productionPlan?.salesOrder;
-  const customerName = salesOrder?.customer?.companyName || salesOrder?.customerName || 'Production Stock';
-  const address = salesOrder?.customer?.address || 'Internal Warehouse';
-  const gst = salesOrder?.customer?.gstNumber || 'N/A';
+  const orderNumber = salesOrder?.orderNumber || 'Internal Stock';
   const date = new Date(wo.createdAt).toLocaleDateString();
 
   return (
@@ -69,10 +66,8 @@ export default function WorkOrderDetailsPage() {
         {/* Client Coordinates & Order Details */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
           <div>
-            <p style={{ margin: 0, fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>Assigned For:</p>
-            <p style={{ margin: '4px 0 0 0', fontWeight: '800', color: '#1e293b', fontSize: '15px' }}>{customerName}</p>
-            <p style={{ margin: '4px 0 0 0', color: '#475569', fontWeight: '500', fontSize: '13px' }}>{address}</p>
-            {gst !== 'N/A' && <p style={{ margin: '8px 0 0 0', color: '#1e293b', fontWeight: '700', fontSize: '12.5px' }}>GST: <span style={{ color: '#475569', fontWeight: '600' }}>{gst}</span></p>}
+            <p style={{ margin: 0, fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>Order Reference:</p>
+            <p style={{ margin: '4px 0 0 0', fontWeight: '800', color: '#1e293b', fontSize: '15px', fontFamily: 'monospace' }}>{orderNumber}</p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', columnGap: '12px', rowGap: '12px', alignItems: 'center', justifyContent: 'end' }}>
             <p style={{ margin: 0, textAlign: 'right', fontWeight: '700', color: '#5E6B82', fontSize: '13px' }}>Date:</p>

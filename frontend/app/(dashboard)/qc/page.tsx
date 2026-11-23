@@ -50,17 +50,16 @@ export default function QCInspectionListPage() {
     if (!data) return [];
     if (!search) return data;
     const lower = search.toLowerCase();
-    return data.filter((q: QCInspection) => 
-      q.workOrder?.workOrderNumber?.toLowerCase().includes(lower) || 
-      q.workOrder?.productionPlan?.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
-      q.workOrder?.productionPlan?.salesOrder?.customer?.companyName?.toLowerCase().includes(lower)
+    return data.filter((q: QCInspection) =>
+      q.workOrder?.workOrderNumber?.toLowerCase().includes(lower) ||
+      q.workOrder?.productionPlan?.salesOrder?.orderNumber?.toLowerCase().includes(lower)
     );
   }, [data, search]);
 
   const columns: ColumnDef<QCInspection>[] = [
     {
       id: 'salesOrder',
-      header: 'Sales Order',
+      header: 'Order ID',
       accessorFn: (row) => row.workOrder?.productionPlan?.salesOrder?.orderNumber || 'SO-2026-00001',
       cell: ({ row }) => (
         <span className="font-bold text-blue-600 hover:underline">
@@ -69,16 +68,14 @@ export default function QCInspectionListPage() {
       ),
     },
     {
-      id: 'customer',
-      header: 'Customer',
-      accessorFn: (row) =>
-        row.workOrder?.productionPlan?.salesOrder?.customer?.companyName ||
-        row.workOrder?.productionPlan?.salesOrder?.customer?.name ||
-        'N/A',
-      cell: ({ row }) =>
-        row.original.workOrder?.productionPlan?.salesOrder?.customer?.companyName ||
-        row.original.workOrder?.productionPlan?.salesOrder?.customer?.name ||
-        'N/A',
+      id: 'workOrder',
+      header: 'Work Order',
+      accessorFn: (row) => row.workOrder?.workOrderNumber || 'N/A',
+      cell: ({ row }) => (
+        <span className="font-mono text-xs text-slate-700">
+          {row.original.workOrder?.workOrderNumber || 'N/A'}
+        </span>
+      ),
     },
     {
       accessorKey: 'createdAt',

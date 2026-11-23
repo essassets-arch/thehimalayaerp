@@ -13,6 +13,7 @@ import {
   LoadTestingRow,
 } from './TestCertificateDocument';
 import { defaultSpecificationsCert2 } from './TestCertificateDocument2';
+import { isCurrentUserCustomerBlind } from '../../../shared/utils/customerPrivacy';
 
 interface Props {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export default function TestReportFormModal({
   customers = [],
 }: Props) {
   const isEditing = !!initialData?.id;
+  const hideCustomerIdentity = isCurrentUserCustomerBlind();
 
   const [templateType, setTemplateType] = useState<'CERT_1' | 'CERT_2'>('CERT_1');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -621,17 +623,19 @@ export default function TestReportFormModal({
                   </div>
 
                   <div className={styles.formField}>
-                    <label className={styles.formLabel}>Client / Customer Name *</label>
+                    <label className={styles.formLabel}>
+                      {hideCustomerIdentity ? 'Order / Batch Reference *' : 'Client / Customer Name *'}
+                    </label>
                     <input
                       type="text"
                       required
                       value={clientName}
                       onChange={(e) => setClientName(e.target.value)}
                       className={styles.formInput}
-                      placeholder="e.g. Larsen &amp; Toubro Ltd."
-                      list="client-suggestions"
+                      placeholder={hideCustomerIdentity ? 'e.g. SO-2026-00012' : 'e.g. Larsen & Toubro Ltd.'}
+                      list={hideCustomerIdentity ? undefined : 'client-suggestions'}
                     />
-                    {customers.length > 0 && (
+                    {!hideCustomerIdentity && customers.length > 0 && (
                       <datalist id="client-suggestions">
                         {customers.map((c) => (
                           <option key={c.id || c.companyName} value={c.companyName} />

@@ -34,7 +34,6 @@ export default function ReturnsView() {
       ...request,
       orderNumber: rawOrderNo || request.salesOrderId || '—',
       orderId: rawOrderNo || request.salesOrderId || '—',
-      customerName: request.salesOrder?.customer?.companyName || request.salesOrder?.customer?.name || 'Unknown customer',
     };
   }), [requests]);
 
@@ -45,7 +44,7 @@ export default function ReturnsView() {
     const isPending = PENDING_RETURN_STATUSES.includes(request.status);
     if (activeTab === 'pending' ? !isPending : isPending) return false;
     const query = search.trim().toLowerCase();
-    return !query || [request.id, request.returnNumber, request.orderId, request.orderNumber, request.customerName]
+    return !query || [request.id, request.returnNumber, request.orderId, request.orderNumber]
       .some((value) => String(value || '').toLowerCase().includes(query));
   }), [allRows, activeTab, search]);
 
@@ -121,7 +120,7 @@ export default function ReturnsView() {
         </div>
         <div className="search-box" style={{ flex: '1 1 240px', minWidth: 'min(100%, 240px)' }}>
           <Search size={14} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search request, order, customer…" style={{ width: '100%' }} />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search return or order ID…" style={{ width: '100%' }} />
         </div>
       </div>
       <div className={`${styles.tabs} erp-tab-scroll-bar`} role="tablist" aria-label="Return request filters" style={{ display: 'flex', overflowX: 'auto', WebkitOverflowScrolling: 'touch', gap: '8px', width: '100%', minWidth: 0 }}>
@@ -147,18 +146,17 @@ export default function ReturnsView() {
         </button>
       </div>
       <div className="crm-table-container scroll-mode erp-table-responsive">
-        <table className="crm-table responsive-table flat-table" style={{ minWidth: '780px' }}>
-          <thead><tr><th>Return ID</th><th>Order ID</th><th>Customer</th><th>Products / Qty</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
+        <table className="crm-table responsive-table flat-table" style={{ minWidth: '720px' }}>
+          <thead><tr><th>Return ID</th><th>Order ID</th><th>Products / Qty</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="7" style={{ textAlign: 'center', padding: 30 }}>Loading return requests…</td></tr>
+              <tr><td colSpan="6" style={{ textAlign: 'center', padding: 30 }}>Loading return requests…</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan="7" style={{ textAlign: 'center', padding: 30 }}>No return requests found.</td></tr>
+              <tr><td colSpan="6" style={{ textAlign: 'center', padding: 30 }}>No return requests found.</td></tr>
             ) : rows.map((request) => (
               <tr key={request.id}>
                 <td style={{ fontFamily: 'monospace', fontWeight: 800 }}>{request.returnNumber}</td>
                 <td style={{ fontFamily: 'monospace' }}>{request.orderId}</td>
-                <td>{request.customerName}</td>
                 <td>{request.items.map((item) => `${item.product?.name || item.productId || 'Item'} (${item.requestedQuantity})`).join(', ')}</td>
                 <td>{request.items.map((item) => item.reason).filter(Boolean).join(', ') || request.remarks || '—'}</td>
                 <td>{request.status.replaceAll('_', ' ')}</td>
@@ -189,11 +187,8 @@ export default function ReturnsView() {
               <button type="button" className={styles.closeIcon} aria-label="Close return details" onClick={() => setViewRequest(null)}>×</button>
             </div>
             <div className={styles.detailsGrid}>
-              <ReturnDetail label="Original Order" value={viewRequest.orderId} />
-              <ReturnDetail label="Customer" value={viewRequest.customerName} />
+              <ReturnDetail label="Original Order ID" value={viewRequest.orderId} />
               <ReturnDetail label="Status" value={viewRequest.status?.replaceAll('_', ' ')} />
-              <ReturnDetail label="Contact Person" value={viewRequest.contactPerson} />
-              <ReturnDetail label="Pickup Address" value={viewRequest.pickupAddress} />
               <ReturnDetail label="Preferred Pickup Date" value={viewRequest.preferredPickupDate} />
               <ReturnDetail label="Refund Expected" value={viewRequest.refundExpected ? 'Yes' : 'No'} />
               <ReturnDetail label="Replacement Expected" value={viewRequest.replacementExpected ? 'Yes' : 'No'} />

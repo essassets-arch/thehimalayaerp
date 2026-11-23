@@ -5,6 +5,7 @@ import OrderTimeline from '../../components/OrderTimeline';
 import { useERPStore } from '../../store/erpStore';
 import { backendFetch } from '../../lib/backendFetch';
 import { getOrderStatusLabel } from '../utils/orderStatusResolver';
+import { isCustomerBlindRole, isCurrentUserCustomerBlind } from '../utils/customerPrivacy';
 
 export default function OrderDetailsModal({ order, role, onClose }) {
   const safeOrder = order || {};
@@ -20,7 +21,11 @@ export default function OrderDetailsModal({ order, role, onClose }) {
   const [asyncData, setAsyncData] = useState(null);
 
   // Hide pricing for production and plant-head roles — they only need product + quantity
-  const isProduction = role === 'production' || role === 'plant';
+  const isProduction = role === 'production' || role === 'plant' || role === 'plant-head';
+  const hideCustomerIdentity =
+    role === 'plant' ||
+    isCustomerBlindRole(role) ||
+    isCurrentUserCustomerBlind();
 
   // Normalize data formats to support both top-level state data and custom format data
   const orderRef = safeOrder.orderNo || safeOrder.ref || safeOrder.salesOrderNumber || '';
@@ -353,10 +358,20 @@ export default function OrderDetailsModal({ order, role, onClose }) {
         {/* Client Coordinates & Order Details */}
         <div className="sheet-meta">
           <div>
-            <p style={{ margin: 0, fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>Bill To:</p>
-            <p style={{ margin: '4px 0 0 0', fontWeight: '800', color: '#1e293b', fontSize: '15px' }}>{customerName}</p>
-            <p style={{ margin: '4px 0 0 0', color: '#475569', fontWeight: '500', fontSize: '13.5px', lineHeight: '1.4' }}>{resolvedAddress}</p>
-            <p style={{ margin: '8px 0 0 0', color: '#1e293b', fontWeight: '700', fontSize: '12.5px' }}>GST: <span style={{ color: resolvedGst ? '#0369a1' : '#64748B', fontWeight: resolvedGst ? '700' : '500' }}>{displayGst}</span></p>
+            {hideCustomerIdentity ? (
+              <>
+                <p style={{ margin: 0, fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>Order Reference:</p>
+                <p style={{ margin: '4px 0 0 0', fontWeight: '800', color: '#1e293b', fontSize: '16px', fontFamily: 'monospace' }}>{orderRef || '—'}</p>
+                <p style={{ margin: '6px 0 0 0', color: '#64748b', fontWeight: '500', fontSize: '12px' }}>Customer identity hidden for factory privacy compliance.</p>
+              </>
+            ) : (
+              <>
+                <p style={{ margin: 0, fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>Bill To:</p>
+                <p style={{ margin: '4px 0 0 0', fontWeight: '800', color: '#1e293b', fontSize: '15px' }}>{customerName}</p>
+                <p style={{ margin: '4px 0 0 0', color: '#475569', fontWeight: '500', fontSize: '13.5px', lineHeight: '1.4' }}>{resolvedAddress}</p>
+                <p style={{ margin: '8px 0 0 0', color: '#1e293b', fontWeight: '700', fontSize: '12.5px' }}>GST: <span style={{ color: resolvedGst ? '#0369a1' : '#64748B', fontWeight: resolvedGst ? '700' : '500' }}>{displayGst}</span></p>
+              </>
+            )}
           </div>
           <div className="sheet-meta-right" style={{ display: 'grid', gridTemplateColumns: 'auto auto', columnGap: '12px', rowGap: '12px', alignItems: 'center' }}>
             <p style={{ margin: 0, textAlign: 'right', fontWeight: '700', color: '#5E6B82', fontSize: '13px' }}>Order Date:</p>

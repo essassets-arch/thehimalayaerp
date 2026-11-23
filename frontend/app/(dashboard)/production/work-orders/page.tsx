@@ -716,7 +716,7 @@ export default function WorkOrderListPage() {
           <Search size={16} color="#94a3b8" />
           <input
             type="text"
-            placeholder="Search Order #, Customer, Product..."
+            placeholder="Search Order ID, WO, Product..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -750,13 +750,9 @@ export default function WorkOrderListPage() {
                       <span
                         className={styles.soLink}
                         onClick={() => handleOpenOrderModal(group)}
-                        title="Click to view full sales order details"
+                        title="Click to view full order specifications"
                       >
                         {group.salesOrderNumber}
-                      </span>
-                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Building2 size={13} color="#94a3b8" />
-                        <strong>{group.customerName}</strong>
                       </span>
                     </div>
 
@@ -1053,8 +1049,7 @@ export default function WorkOrderListPage() {
             <table className={styles.workOrderTable}>
               <thead>
                 <tr>
-                  <th style={{ width: '220px' }}>Sales Order & WO #</th>
-                  <th style={{ width: '180px' }}>Customer</th>
+                  <th style={{ width: '220px' }}>Order ID & WO #</th>
                   <th>Product Item</th>
                   <th style={{ textAlign: 'center', width: '120px' }}>Ordered Qty</th>
                   <th style={{ textAlign: 'center', width: '140px' }}>Target Date</th>
@@ -1088,12 +1083,6 @@ export default function WorkOrderListPage() {
                             )}
                           </div>
                         </div>
-                      </td>
-
-                      <td>
-                        <span style={{ fontWeight: '700', color: '#334155', fontSize: '13px' }}>
-                          {row.resolvedCustomer}
-                        </span>
                       </td>
 
                       <td>

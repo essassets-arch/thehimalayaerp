@@ -6,6 +6,7 @@ import { saveAs } from 'file-saver';
 import { apiClient } from '../lib/apiClient';
 import { clientLogos } from './logosBase64';
 import { resolveQuotationTerms } from './sales/quotationTerms';
+import { isCurrentUserCustomerBlind } from '../shared/utils/customerPrivacy';
 
 export const isApkEnvironment = () => {
   if (typeof window === 'undefined') return false;
@@ -1233,11 +1234,14 @@ export const exportDispatchReportPDF = async (filters = {}) => {
     doc.text('2. Live Dispatch Manifest Ledger', margin, y);
     y += 4;
 
-    const manifestCols = ['Dispatch #', 'Order #', 'Customer', 'Date', 'Transporter', 'Vehicle', 'Qty', 'Freight', 'Status', 'SLA'];
+    const blindExport = isCurrentUserCustomerBlind();
+    const manifestCols = blindExport
+      ? ['Dispatch #', 'Order #', 'Date', 'Transporter', 'Vehicle', 'Qty', 'Freight', 'Status', 'SLA']
+      : ['Dispatch #', 'Order #', 'Customer', 'Date', 'Transporter', 'Vehicle', 'Qty', 'Freight', 'Status', 'SLA'];
     const manifestRows = dispatches.slice(0, 30).map(d => [
       d.dispatchNo,
       d.orderNumber,
-      (d.customerName || '').slice(0, 22),
+      ...(blindExport ? [] : [(d.customerName || '').slice(0, 22)]),
       d.dispatchedAt || '—',
       (d.transporterName || 'Not recorded').slice(0, 16),
       d.vehicleNumber || '—',

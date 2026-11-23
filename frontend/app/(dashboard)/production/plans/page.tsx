@@ -48,10 +48,9 @@ export default function ProductionPlanListPage() {
     if (!data) return [];
     if (!search) return data;
     const lower = search.toLowerCase();
-    return data.filter((p: ProductionPlan) => 
-      p.planNumber?.toLowerCase().includes(lower) || 
-      p.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
-      p.salesOrder?.customer?.companyName?.toLowerCase().includes(lower)
+    return data.filter((p: ProductionPlan) =>
+      p.planNumber?.toLowerCase().includes(lower) ||
+      p.salesOrder?.orderNumber?.toLowerCase().includes(lower)
     );
   }, [data, search]);
 
@@ -63,21 +62,9 @@ export default function ProductionPlanListPage() {
     },
     {
       id: 'salesOrder',
-      header: 'Sales Order',
+      header: 'Order ID',
       accessorFn: (row) => row.salesOrder?.orderNumber || '—',
       cell: ({ row }) => <span>{row.original.salesOrder?.orderNumber || '—'}</span>,
-    },
-    {
-      id: 'customer',
-      header: 'Customer',
-      accessorFn: (row) => row.salesOrder?.customer?.companyName || row.salesOrder?.customer?.name || '—',
-      cell: ({ row }) => (
-        <span>
-          {row.original.salesOrder?.customer?.companyName ||
-            row.original.salesOrder?.customer?.name ||
-            '—'}
-        </span>
-      ),
     },
     {
       accessorKey: 'createdAt',

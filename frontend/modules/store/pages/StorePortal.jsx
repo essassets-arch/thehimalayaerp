@@ -3037,9 +3037,6 @@ export default function StorePortal() {
                   <strong style={{ color: '#0f766e', fontSize: '16px', fontWeight: '800' }}>{orderNo}</strong>
                   {order && (
                     <>
-                      <span style={{ fontSize: '14px', color: '#24345C', fontWeight: '600' }}>
-                        {order.customer?.name || order.customerName}
-                      </span>
                       <span style={{ fontSize: '12px', color: '#5E6B82', background: '#f1f5f9', padding: '3px 10px', borderRadius: '6px', fontWeight: '500' }}>
                         {order.products}
                       </span>

@@ -460,12 +460,11 @@ export const PlantHeadProductionAnalytics = () => {
       XLSX.utils.book_append_sheet(wb, wsCap, 'Capacity_Distribution');
 
       // Sheet 5: Work Orders Register
-      const woHeaders = [['Work Order #', 'Plan Number', 'SO Number', 'Customer', 'Product', 'Category', 'Size', 'Capacity', 'Composition', 'Finished Sets', 'Covers', 'Frames', 'Total Units', 'Weight (KG)', 'Status', 'QC Result', 'Date']];
+      const woHeaders = [['Work Order #', 'Plan Number', 'SO Number', 'Product', 'Category', 'Size', 'Capacity', 'Composition', 'Finished Sets', 'Covers', 'Frames', 'Total Units', 'Weight (KG)', 'Status', 'QC Result', 'Date']];
       const woRows = (report?.workOrdersList || []).map(w => [
         w.workOrderNumber,
         w.planNumber,
         w.orderNumber,
-        w.customer,
         w.product,
         w.category,
         w.size,
@@ -610,9 +609,9 @@ export const PlantHeadProductionAnalytics = () => {
     const q = searchQuery.toLowerCase();
     return workOrdersList.filter(w =>
       (w.workOrderNumber || '').toLowerCase().includes(q) ||
+      (w.orderNumber || '').toLowerCase().includes(q) ||
       (w.product || '').toLowerCase().includes(q) ||
       (w.category || '').toLowerCase().includes(q) ||
-      (w.customer || '').toLowerCase().includes(q) ||
       (w.size || '').toLowerCase().includes(q) ||
       (w.capacity || '').toLowerCase().includes(q)
     );
@@ -732,7 +731,7 @@ export const PlantHeadProductionAnalytics = () => {
     const woHeaders = [
       '',
       `"6. DETAILED WORK ORDERS REGISTER (${targetWos.length} Records)"`,
-      `"Work Order No","Order No","Plan No","Customer Account","Product Description","Family","Capacity / Rating","Size / Dimension (mm)","Composition","Planned Sets","Finished Sets","Remaining Sets","Total Components (pcs)","Covers (pcs)","Frames (pcs)","Loose Covers","Loose Frames","Effective Weight (kg)","Floor Scale Weight (kg)","Calculated Weight (kg)","Effective Weight (MT)","Weight Source","Press / Machine","QC Result","QC Remarks","Production Status","Created Date","Completed Date"`
+      `"Work Order No","Order No","Plan No","Product Description","Family","Capacity / Rating","Size / Dimension (mm)","Composition","Planned Sets","Finished Sets","Remaining Sets","Total Components (pcs)","Covers (pcs)","Frames (pcs)","Loose Covers","Loose Frames","Effective Weight (kg)","Floor Scale Weight (kg)","Calculated Weight (kg)","Effective Weight (MT)","Weight Source","Press / Machine","QC Result","QC Remarks","Production Status","Created Date","Completed Date"`
     ];
     const woRows = targetWos.map(w => {
       const qty = Number(w.quantity) || 0;
@@ -743,7 +742,6 @@ export const PlantHeadProductionAnalytics = () => {
         escapeCSV(w.workOrderNumber),
         escapeCSV(w.orderNumber),
         escapeCSV(w.planNumber),
-        escapeCSV(w.customer),
         escapeCSV(w.product),
         escapeCSV(w.type),
         escapeCSV(w.capacity),
@@ -2486,7 +2484,7 @@ export const PlantHeadProductionAnalytics = () => {
                   type="text"
                   value={manifestSearchQuery}
                   onChange={(e) => handleManifestSearchChange(e.target.value)}
-                  placeholder="Filter by WO #, Plan #, Customer, Product, Size, Capacity..."
+                  placeholder="Filter by WO #, Plan #, Order ID, Product, Size, Capacity..."
                   style={{
                     width: '100%',
                     padding: '7px 30px 7px 32px',
@@ -2555,8 +2553,7 @@ export const PlantHeadProductionAnalytics = () => {
                   <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                     <th style={{ width: '40px', textAlign: 'center', padding: '9px 6px', color: '#475569', fontWeight: '800' }}>#</th>
                     <th style={{ textAlign: 'left', padding: '9px 10px', color: '#475569', fontWeight: '800' }}>Work Order #</th>
-                    <th style={{ textAlign: 'left', padding: '9px 10px', color: '#475569', fontWeight: '800' }}>Plan / SO</th>
-                    <th style={{ textAlign: 'left', padding: '9px 10px', color: '#475569', fontWeight: '800' }}>Customer</th>
+                    <th style={{ textAlign: 'left', padding: '9px 10px', color: '#475569', fontWeight: '800' }}>Plan / Order ID</th>
                     <th style={{ textAlign: 'left', padding: '9px 10px', color: '#475569', fontWeight: '800', minWidth: '220px' }}>Product Description</th>
                     <th style={{ textAlign: 'left', padding: '9px 8px', color: '#475569', fontWeight: '800' }}>Size (mm)</th>
                     <th style={{ textAlign: 'left', padding: '9px 8px', color: '#475569', fontWeight: '800' }}>Capacity</th>
@@ -2574,7 +2571,7 @@ export const PlantHeadProductionAnalytics = () => {
                 <tbody>
                   {paginatedManifestOrders.length === 0 ? (
                     <tr>
-                      <td colSpan={16} style={{ textAlign: 'center', padding: '32px 16px', color: '#64748b' }}>
+                      <td colSpan={15} style={{ textAlign: 'center', padding: '32px 16px', color: '#64748b' }}>
                         No work orders matching your search or status filter.
                       </td>
                     </tr>
@@ -2606,9 +2603,6 @@ export const PlantHeadProductionAnalytics = () => {
                             {wo.orderNumber && wo.orderNumber !== 'SO-STOCK' && (
                               <div style={{ fontSize: '10px', color: '#64748b' }}>{wo.orderNumber}</div>
                             )}
-                          </td>
-                          <td style={{ padding: '7px 10px', color: '#1e293b', fontWeight: '600', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={wo.customer}>
-                            {wo.customer || 'Standard Production'}
                           </td>
                           <td style={{ padding: '7px 10px', fontWeight: '700', color: '#0f172a' }}>
                             {wo.product}
@@ -3108,8 +3102,8 @@ export const PlantHeadProductionAnalytics = () => {
                 <strong>{selectedWorkOrderModal.size} ({selectedWorkOrderModal.capacity})</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
-                <span style={{ color: '#64748b' }}>Customer / Destination:</span>
-                <strong>{selectedWorkOrderModal.customer}</strong>
+                <span style={{ color: '#64748b' }}>Order ID:</span>
+                <strong>{selectedWorkOrderModal.orderNumber || 'Standard Production'}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
                 <span style={{ color: '#64748b' }}>QC Inspection Result:</span>

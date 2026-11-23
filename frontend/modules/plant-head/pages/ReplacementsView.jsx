@@ -48,7 +48,6 @@ export default function ReplacementsView() {
       ...request,
       orderNumber: rawOrderNo || request.salesOrderId || '—',
       orderId: rawOrderNo || request.salesOrderId || '—',
-      customerName: request.salesOrder?.customer?.companyName || request.salesOrder?.customer?.name || 'Unknown customer',
     };
   }), [requests]);
 
@@ -59,7 +58,7 @@ export default function ReplacementsView() {
     const isPending = PENDING_REPLACEMENT_STATUSES.includes(request.status);
     if (activeTab === 'pending' ? !isPending : isPending) return false;
     const query = search.trim().toLowerCase();
-    return !query || [request.id, request.requestNumber, request.orderId, request.orderNumber, request.customerName]
+    return !query || [request.id, request.requestNumber, request.orderId, request.orderNumber]
       .some((value) => String(value || '').toLowerCase().includes(query));
   }), [allRows, activeTab, search]);
 
@@ -131,7 +130,7 @@ export default function ReplacementsView() {
         </button>
         <div className={`search-box ${styles.search}`}>
           <Search size={14} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search request, order, customer…" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search request or order ID…" />
         </div>
       </div>
       <div className={styles.tabs} role="tablist" aria-label="Replacement request filters">
@@ -155,18 +154,17 @@ export default function ReplacementsView() {
         </button>
       </div>
       <div className={`crm-table-container scroll-mode erp-table-responsive ${styles.tableContainer}`}>
-        <table className={`crm-table flat-table ${styles.table}`} style={{ minWidth: '780px' }}>
-          <thead><tr><th>Request ID</th><th>Order ID</th><th>Customer</th><th>Products / Qty</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
+        <table className={`crm-table flat-table ${styles.table}`} style={{ minWidth: '720px' }}>
+          <thead><tr><th>Request ID</th><th>Order ID</th><th>Products / Qty</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="7" style={{ textAlign: 'center', padding: 30 }}>Loading replacement requests…</td></tr>
+              <tr><td colSpan="6" style={{ textAlign: 'center', padding: 30 }}>Loading replacement requests…</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan="7" style={{ textAlign: 'center', padding: 30 }}>No replacement requests found.</td></tr>
+              <tr><td colSpan="6" style={{ textAlign: 'center', padding: 30 }}>No replacement requests found.</td></tr>
             ) : rows.map((request) => (
               <tr key={request.id}>
                 <td data-label="Request ID" className={styles.requestId}>{request.requestNumber}</td>
                 <td data-label="Order ID" className={styles.orderId}>{request.salesOrder?.orderNumber || request.orderId}</td>
-                <td data-label="Customer">{request.customerName}</td>
                 <td data-label="Products / Qty">{request.items.map((item) => `${item.product?.name || item.productId || 'Item'} (${item.requestedQuantity})`).join(', ')}</td>
                 <td>{request.items.map((item) => item.reason).filter(Boolean).join(', ') || request.remarks || '—'}</td>
                 <td data-label="Status"><span className={styles.status}>{request.status.replaceAll('_', ' ')}</span></td>
@@ -198,11 +196,9 @@ export default function ReplacementsView() {
               <button type="button" className="modal-close" onClick={() => setViewRequest(null)}>×</button>
             </div>
             <div className={styles.detailGrid}>
-              <Detail label="Original Order" value={viewRequest.salesOrder?.orderNumber || viewRequest.orderId} />
-              <Detail label="Customer" value={viewRequest.customerName} />
+              <Detail label="Original Order ID" value={viewRequest.salesOrder?.orderNumber || viewRequest.orderId} />
               <Detail label="Status" value={viewRequest.status?.replaceAll('_', ' ')} />
               <Detail label="Pickup Required" value={viewRequest.pickupRequired ? 'Yes' : 'No'} />
-              <Detail label="Replacement Address" value={viewRequest.replacementDeliveryAddress || viewRequest.replacementAddress} />
               <Detail label="Preferred Date" value={viewRequest.preferredReplacementDate || viewRequest.preferredDate} />
               <Detail label="Description" value={viewRequest.customerRemarks} wide />
               <Detail label="Sales Remarks" value={viewRequest.internalRemarks} wide />

@@ -9,6 +9,7 @@ import { productionService } from '../../services/production.service';
 import { dispatchService } from '../../services/dispatch.service';
 import { financeService } from '../../services/finance.service';
 import Timeline from './Timeline';
+import { isCurrentUserCustomerBlind } from '../utils/customerPrivacy';
 import { ArrowLeft, Box, Clipboard, Truck, CreditCard, ShieldAlert, Zap, Clock, ShieldCheck, CheckCircle2, Building2, Package, UserCheck, Scale } from 'lucide-react';
 
 const STATUS_COLORS = {
@@ -462,9 +463,11 @@ export default function GlobalOrderTracker() {
           <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Order Ref</span>
           <h1 style={{ fontSize: '28px', fontWeight: '900', color: 'var(--color-text-primary)', margin: '2px 0 10px 0', letterSpacing: '-0.8px' }}>{order.orderNo}</h1>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
-              <Building2 size={15} color="var(--color-text-secondary)" /> Customer: <strong style={{ color: 'var(--color-text-primary)', marginLeft: '4px' }}>{order.customer?.name || order.customerName}</strong>
-            </span>
+            {!isCurrentUserCustomerBlind() && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
+                <Building2 size={15} color="var(--color-text-secondary)" /> Customer: <strong style={{ color: 'var(--color-text-primary)', marginLeft: '4px' }}>{order.customer?.name || order.customerName}</strong>
+              </span>
+            )}
             <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
               <Package size={15} color="var(--color-text-secondary)" /> Products: <strong style={{ color: 'var(--color-text-primary)', marginLeft: '4px' }}>{order.products}</strong>
             </span>

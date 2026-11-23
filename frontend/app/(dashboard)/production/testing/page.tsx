@@ -19,6 +19,7 @@ import TestCertificateDocument2 from '@/modules/production/components/TestCertif
 import TestReportFormModal from '@/modules/production/components/TestReportFormModal';
 import CertificatePreviewModal from '@/modules/production/components/CertificatePreviewModal';
 import { downloadTestCertificatePdf } from '@/modules/production/utils/testCertificatePdf';
+import { isCurrentUserCustomerBlind } from '@/shared/utils/customerPrivacy';
 import styles from './testing.module.css';
 
 export default function ProductionTestingPage() {
@@ -79,8 +80,12 @@ export default function ProductionTestingPage() {
     }
   };
 
-  /* ── Load Customers for Autocomplete ── */
+  /* ── Load Customers for Autocomplete (skipped for customer-blind factory roles) ── */
   const fetchCustomers = async () => {
+    if (isCurrentUserCustomerBlind()) {
+      setCustomers([]);
+      return;
+    }
     try {
       const res = await backendFetch<{ success?: boolean; data?: any[] }>('/api/backend/sales/customers?page=1&pageSize=1000', { cacheTtlMs: 0 });
       const list = Array.isArray(res) ? res : (res?.data || []);
@@ -294,13 +299,14 @@ export default function ProductionTestingPage() {
 
   /* ── Export Reports Register to Excel ── */
   const exportReportsToExcel = () => {
+    const blind = isCurrentUserCustomerBlind();
     const wsData = reports.map((r) => ({
       'Certificate No': r.reportNumber,
       'Revision': r.revision ?? 0,
       'Type': isCert2Report(r) ? 'TDS Technical Specification' : 'MTC Proof Load',
       'Date': r.reportDate ? new Date(r.reportDate).toLocaleDateString('en-GB') : '',
-      'Client Name': r.clientName,
-      'P.O. No': r.poNumber || '',
+      ...(blind ? {} : { 'Client Name': r.clientName }),
+      'P.O. / Order Ref': r.poNumber || '',
       'Product Name': r.productName,
       'Clear Opening': r.clearOpening || '',
       'Capacity Rating': r.finalLoadTon ? `${r.finalLoadTon} Ton` : r.cycleLoadsTon ? `${r.cycleLoadsTon} Ton` : '',
@@ -799,16 +805,24 @@ export default function ProductionTestingPage() {
                           {report.reportDate ? new Date(report.reportDate).toLocaleDateString('en-GB') : '-'}
                         </td>
                         <td className={styles.clientCell}>
-                          <div style={{ fontWeight: 700, color: '#0f172a' }}>{report.clientName}</div>
-                          {report.poNumber && (
-                            <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
-                              PO: <span style={{ fontWeight: 600, color: '#475569' }}>{report.poNumber}</span>
+                          {isCurrentUserCustomerBlind() ? (
+                            <div style={{ fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>
+                              {report.poNumber || report.reportNumber || 'Order Ref'}
                             </div>
-                          )}
-                          {report.projectName && (
-                            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '1px' }}>
-                              {report.projectName}
-                            </div>
+                          ) : (
+                            <>
+                              <div style={{ fontWeight: 700, color: '#0f172a' }}>{report.clientName}</div>
+                              {report.poNumber && (
+                                <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                                  PO: <span style={{ fontWeight: 600, color: '#475569' }}>{report.poNumber}</span>
+                                </div>
+                              )}
+                              {report.projectName && (
+                                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '1px' }}>
+                                  {report.projectName}
+                                </div>
+                              )}
+                            </>
                           )}
                         </td>
                         <td className={styles.productCell}>

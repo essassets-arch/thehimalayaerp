@@ -471,7 +471,7 @@ export default function ReadyForDispatchPage() {
               <Search size={16} style={{ flexShrink: 0 }} />
               <input
                 type="text"
-                placeholder="Search order #, WO, customer, product..."
+                placeholder="Search order ID, WO, product..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -524,11 +524,6 @@ export default function ReadyForDispatchPage() {
                         title="Click to view full sales order specifications"
                       >
                         {group.salesOrderNumber}
-                      </span>
-
-                      <span className={styles.customerChip}>
-                        <Building2 size={13} color="#64748b" />
-                        {group.customerName}
                       </span>
 
                       <span className={styles.qtyChip}>

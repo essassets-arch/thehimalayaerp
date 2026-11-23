@@ -474,20 +474,6 @@ export const PlantHeadDispatchAnalytics = () => {
       const wsCap = XLSX.utils.aoa_to_sheet([...capHeaders, ...capRows]);
       XLSX.utils.book_append_sheet(wb, wsCap, 'Capacity_Performance');
 
-      // Sheet 4: Top Customers
-      const custHeaders = [['Rank', 'Customer Corporate Entity', 'Quantity (PCS)', 'Weight (KG)', 'Share (%)', 'City', 'Status']];
-      const custRows = (analyticsData.topCustomers || []).map(c => [
-        c.rank,
-        c.customer,
-        c.quantity,
-        c.weight,
-        c.share,
-        c.city || 'Not recorded',
-        c.status,
-      ]);
-      const wsCust = XLSX.utils.aoa_to_sheet([...custHeaders, ...custRows]);
-      XLSX.utils.book_append_sheet(wb, wsCust, 'Top_Customers');
-
       // Sheet 5: Daily Dispatch Trend
       const trendHeaders = [['Date', 'Day Label', 'Weight (KG)', 'Quantity (PCS)', 'Peak Status', 'Shipment Notes']];
       const trendRows = (analyticsData.dailyTrends || []).map(t => [
@@ -549,12 +535,11 @@ export const PlantHeadDispatchAnalytics = () => {
       XLSX.utils.book_append_sheet(wb, wsRecon, 'Reconciliation_Audit');
 
       // Sheet 10: Daily Dispatches Manifest
-      const dispatchHeaders = [['Dispatch #', 'SO Number', 'Date', 'Customer', 'Product', 'Capacity', 'Size', 'Colour', 'Quantity (PCS)', 'Weight (KG)', 'Vehicle', 'Transporter', 'Destination', 'Status']];
+      const dispatchHeaders = [['Dispatch #', 'SO Number', 'Date', 'Product', 'Capacity', 'Size', 'Colour', 'Quantity (PCS)', 'Weight (KG)', 'Vehicle', 'Transporter', 'Status']];
       const dispatchRows = (analyticsData.dispatchOrders || []).map(d => [
         d.id,
         d.soNumber,
         d.date,
-        d.customer,
         d.product,
         d.capacity,
         d.size,
@@ -563,7 +548,6 @@ export const PlantHeadDispatchAnalytics = () => {
         d.weight,
         d.vehicle,
         d.transporter,
-        d.destination,
         d.status,
       ]);
       const wsDispatch = XLSX.utils.aoa_to_sheet([...dispatchHeaders, ...dispatchRows]);
@@ -611,7 +595,6 @@ export const PlantHeadDispatchAnalytics = () => {
       list = list.filter(d =>
         (d.id && String(d.id).toLowerCase().includes(q)) ||
         (d.soNumber && String(d.soNumber).toLowerCase().includes(q)) ||
-        (d.customer && String(d.customer).toLowerCase().includes(q)) ||
         (d.product && String(d.product).toLowerCase().includes(q)) ||
         (d.capacity && String(d.capacity).toLowerCase().includes(q)) ||
         (d.size && String(d.size).toLowerCase().includes(q)) ||
@@ -1461,28 +1444,6 @@ export const PlantHeadDispatchAnalytics = () => {
               </select>
             </div>
 
-            {/* 4. Customer / Client Account */}
-            <div>
-              <label style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                Customer / Client Account
-              </label>
-              <select
-                value={customerFilter}
-                onChange={(e) => setCustomerFilter(e.target.value)}
-                className="prem-select"
-                style={{
-                  borderColor: customerFilter !== 'All' ? '#0284c7' : '#cbd5e1',
-                  background: customerFilter !== 'All' ? '#f0f9ff' : '#ffffff',
-                  color: customerFilter !== 'All' ? '#0369a1' : '#0f172a'
-                }}
-              >
-                <option value="All">All Clients ({availableCustomers.length})</option>
-                {availableCustomers.map((cust) => (
-                  <option key={cust} value={cust}>{cust}</option>
-                ))}
-              </select>
-            </div>
-
             {/* 5. Sales Representative */}
             <div>
               <label style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
@@ -2121,78 +2082,6 @@ export const PlantHeadDispatchAnalytics = () => {
                 </div>
               </div>
 
-              {/* Card 3: Top 5 Customers by Weight */}
-              <div className="prem-card print-card" style={{ padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '6px', borderBottom: '1px solid #f1f5f9' }}>
-                    <span style={{ fontSize: '11.5px', fontWeight: '900', color: '#0f2e5a', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Users size={13} color="#f59e0b" /> Top 5 Customers by Weight
-                    </span>
-                    <span style={{ fontSize: '10px', color: '#15803d', fontWeight: '800', background: '#f0fdf4', padding: '1px 6px', borderRadius: '4px', border: '1px solid #86efac' }}>
-                      {top5Share}% Share
-                    </span>
-                  </div>
-
-                  {/* Customer Rankings */}
-                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {topCustomers.map((cust, idx) => (
-                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10.5px' }}>
-                          <span style={{ fontWeight: '700', color: '#0f2e5a', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <span style={{
-                              width: '15px',
-                              height: '15px',
-                              borderRadius: '4px',
-                              background: idx === 0 ? '#fef3c7' : '#f1f5f9',
-                              color: idx === 0 ? '#b45309' : '#475569',
-                              border: idx === 0 ? '1px solid #fde68a' : '1px solid #e2e8f0',
-                              fontSize: '9px',
-                              fontWeight: '900',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              {idx + 1}
-                            </span>
-                            <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={cust.customer}>
-                              {cust.customer}
-                            </span>
-                          </span>
-                          <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#1e293b' }}>
-                            {fmtKg(cust.weight)} KG <span style={{ color: '#64748b', fontWeight: '500', fontSize: '9.5px' }}>({cust.share}%)</span>
-                          </span>
-                        </div>
-                        {/* Progress Bar */}
-                        <div style={{ width: '100%', height: '4px', borderRadius: '2px', background: '#f1f5f9', overflow: 'hidden' }}>
-                          <div
-                            style={{
-                              width: `${Math.min(100, Math.max(3, (cust.weight / (topCustomers[0]?.weight || 1)) * 100))}%`,
-                              height: '100%',
-                              borderRadius: '2px',
-                              background: idx === 0 ? 'linear-gradient(90deg, #f59e0b, #d97706)' : 'linear-gradient(90deg, #0284c7, #0369a1)',
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ marginTop: '8px', padding: '5px 8px', borderRadius: '6px', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px' }}>
-                    <span style={{ color: '#64748b', fontWeight: '600' }}>Top 5 Total Weight:</span>
-                    <span style={{ fontWeight: '800', color: '#0f2e5a', fontFamily: 'monospace' }}>{fmtKg(top5Weight)} KG</span>
-                  </div>
-                </div>
-
-                {/* Bottom Green Insight Box */}
-                <div className="insight-pill" style={{ marginTop: '8px' }}>
-                  <Info size={12} color="#16a34a" style={{ flexShrink: 0, marginTop: '1px' }} />
-                  <span>
-                    {customerConcentration?.insight ||
-                      `The Top 5 customers together account for ${top5Share}% (${(top5Weight / 1000).toFixed(1)} tonnes) of total dispatch weight across 35 clients.`}
-                  </span>
-                </div>
-              </div>
-
               {/* Card 4: Dispatch Trend by Day */}
               <div className="prem-card print-card" style={{ padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
@@ -2369,52 +2258,6 @@ export const PlantHeadDispatchAnalytics = () => {
                 <div className="insight-pill" style={{ marginTop: '8px' }}>
                   <Info size={11} color="#16a34a" style={{ flexShrink: 0, marginTop: '1px' }} />
                   <span>{analyticsData.salesRefInsight || 'Plant Head accounts for 91.4% of total outbound dispatch volume.'}</span>
-                </div>
-              </div>
-
-              {/* Card 3: Top 5 Client vs Total Weight */}
-              <div className="prem-card print-card" style={{ padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ paddingBottom: '5px', borderBottom: '1px solid #f1f5f9' }}>
-                    <span style={{ fontSize: '11px', fontWeight: '900', color: '#0f2e5a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Top 5 Client vs Total Weight
-                    </span>
-                  </div>
-                  <div style={{ marginTop: '6px', overflowX: 'auto' }}>
-                    <table className="prem-table">
-                      <thead>
-                        <tr>
-                          <th>Rank</th>
-                          <th>Client</th>
-                          <th style={{ textAlign: 'right' }}>Weight (KG)</th>
-                          <th style={{ textAlign: 'right' }}>Share</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {topCustomers.map((c, idx) => (
-                          <tr key={idx}>
-                            <td style={{ fontFamily: 'monospace', color: '#64748b', fontWeight: '700' }}>#{c.rank}</td>
-                            <td style={{ fontWeight: '700', maxWidth: '85px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.customer}>
-                              {c.customer}
-                            </td>
-                            <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: '800', color: '#0f2e5a' }}>
-                              {fmtKg(c.weight)}
-                            </td>
-                            <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#64748b' }}>{c.share}%</td>
-                          </tr>
-                        ))}
-                        <tr style={{ background: '#f8fafc', fontWeight: '800', borderTop: '2px solid #cbd5e1' }}>
-                          <td colSpan={2} style={{ color: '#0f2e5a' }}>TOTAL TOP 5</td>
-                          <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#0f2e5a' }}>{fmtKg(top5Weight)}</td>
-                          <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#16a34a' }}>{top5Share}%</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div className="insight-pill" style={{ marginTop: '8px' }}>
-                  <Info size={11} color="#16a34a" style={{ flexShrink: 0, marginTop: '1px' }} />
-                  <span>Concentrated accounts represent {top5Share}% of gross outbound weight.</span>
                 </div>
               </div>
 
@@ -3150,7 +2993,6 @@ export const PlantHeadDispatchAnalytics = () => {
                           <th style={{ width: '85px' }}>Date</th>
                           <th style={{ width: '95px' }}>Dispatch No</th>
                           <th style={{ width: '90px' }}>Order No</th>
-                          <th>Client / Customer</th>
                           <th style={{ width: '65px' }}>Product</th>
                           <th style={{ width: '55px' }}>Rating</th>
                           <th style={{ width: '75px' }}>Size</th>
@@ -3165,7 +3007,7 @@ export const PlantHeadDispatchAnalytics = () => {
                       <tbody>
                         {paginatedDispatches.length === 0 ? (
                           <tr>
-                            <td colSpan={14} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                            <td colSpan={13} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
                                 <Truck size={24} color="#94a3b8" />
                                 <span style={{ fontWeight: '700', fontSize: '12px', color: '#475569' }}>
@@ -3202,16 +3044,6 @@ export const PlantHeadDispatchAnalytics = () => {
                                 </td>
                                 <td style={{ fontFamily: 'monospace', fontSize: '10.5px', color: '#475569' }}>
                                   {d.soNumber || '—'}
-                                </td>
-                                <td>
-                                  <div style={{ fontWeight: '700', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }} title={d.customer}>
-                                    {d.customer}
-                                  </div>
-                                  {d.city && d.city !== 'Not recorded' && (
-                                    <div style={{ fontSize: '9.5px', color: '#64748b' }}>
-                                      {d.city}
-                                    </div>
-                                  )}
                                 </td>
                                 <td>
                                   <span style={{

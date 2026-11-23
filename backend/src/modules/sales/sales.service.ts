@@ -30,6 +30,7 @@ import {
   isPureTradingOrder,
   hasManufacturingItems,
 } from '../../common/utils/trading-product.util';
+import { isCustomerBlindRole } from '../../common/security/customer-privacy.util';
 
 const HISTORICAL_DISPATCH_INVOICES: Record<string, string> = {
   "HCPPL/2627/0088": "588",
@@ -170,24 +171,29 @@ export class SalesService {
     }
 
     if (search) {
+      const blindRole = isCustomerBlindRole(role);
       const searchOR: Prisma.SalesOrderWhereInput[] = [
         {
           orderNumber: { contains: search, mode: Prisma.QueryMode.insensitive },
         },
-        {
-          customerPurchaseOrderNo: {
-            contains: search,
-            mode: Prisma.QueryMode.insensitive,
-          },
-        },
-        {
-          customer: {
-            companyName: {
-              contains: search,
-              mode: Prisma.QueryMode.insensitive,
-            },
-          },
-        },
+        ...(blindRole
+          ? []
+          : [
+              {
+                customerPurchaseOrderNo: {
+                  contains: search,
+                  mode: Prisma.QueryMode.insensitive,
+                },
+              },
+              {
+                customer: {
+                  companyName: {
+                    contains: search,
+                    mode: Prisma.QueryMode.insensitive,
+                  },
+                },
+              },
+            ]),
       ];
       if (where.OR) {
         where.AND = [scope, { OR: where.OR }, { OR: searchOR }];
@@ -1421,7 +1427,7 @@ export class SalesService {
               role: 'PLANT_HEAD',
               type: 'SALES_ORDER_PENDING_PLANT_HEAD',
               title: 'New Order Awaiting Review',
-              message: `${order.orderNumber} — ${order.customer.companyName} is awaiting Plant Head acceptance.`,
+              message: `${order.orderNumber} — New order is awaiting Plant Head acceptance.`,
               route: '/plant-head/incoming-orders',
               entityType: 'SalesOrder',
               entityId: order.id,
