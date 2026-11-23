@@ -133,7 +133,10 @@ export class SalesService {
     role?: string,
   ): Promise<SalesOrderListResponseDto> {
     const page = Math.max(1, Number(query.page || 1));
-    const pageSize = Math.min(100, Math.max(1, Number(query.pageSize || query.limit || 25)));
+    const pageSize = Math.min(
+      1000,
+      Math.max(1, Number(query.pageSize ?? query.limit ?? 25)),
+    );
     const { search, status, includeDeleted } = query as any;
     const isIncludeDeleted = includeDeleted === true || includeDeleted === 'true' || includeDeleted === '1';
     const skip = (page - 1) * pageSize;

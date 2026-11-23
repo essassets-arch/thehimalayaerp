@@ -114,7 +114,12 @@ export class FinanceSalesAnalyticsQueryDto {
   page?: number = 1;
 
   @IsOptional()
-  @Type(() => Number)
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return parsed;
+    return Math.min(100, Math.max(1, Math.trunc(parsed)));
+  })
   @IsInt()
   @Min(1)
   @Max(100)
