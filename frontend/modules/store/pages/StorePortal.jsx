@@ -14,6 +14,7 @@ import { productionService } from '../../../services/production.service';
 import { apiClient } from '../../../lib/apiClient';
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
+import { filterAndRankBySearch, matchesSmartSearch } from '@/shared/utils/smartSearch';
 import { ArrowDownToLine, Plus, Trash2, Camera, FileCheck, ClipboardCheck, FileText, CheckCircle, AlertTriangle, AlertCircle, Eye, Edit2, Search, Sliders, X, Download, PackageCheck, Upload, ChevronLeft, ChevronRight, Filter, Package, Layers, RotateCw } from 'lucide-react';
 import StoreMaterialIssueView from '../../../components/material-workflow/StoreMaterialIssueView';
 import StoreReleasesView from '../../../components/material-workflow/StoreReleasesView';
@@ -1750,12 +1751,9 @@ export default function StorePortal() {
 
     const mappedInventory = dbRawInventory || [];
     const filteredItems = mappedInventory.filter(item => {
-      const query = (rawSearchQuery || '').toLowerCase();
-      const matchesSearch = (
-        !query ||
-        (item.code || '').toLowerCase().includes(query) ||
-        (item.material || '').toLowerCase().includes(query) ||
-        (item.category || '').toLowerCase().includes(query)
+      const matchesSearch = matchesSmartSearch(
+        [item.material, item.code, item.category],
+        rawSearchQuery,
       );
       if (!matchesSearch) return false;
       if (rawCategoryFilter !== 'All' && (item.category || 'Raw Material') !== rawCategoryFilter) return false;
@@ -3325,13 +3323,11 @@ export default function StorePortal() {
     const lowStockItemsOnlyAll = mappedInventory.filter(item => (Number(item.stock) || 0) > 0 && Number(item.stock) < Number(item.reorderLevel ?? item.minStock ?? 0));
     const allAlertItemsAll = [...outOfStockItemsAll, ...lowStockItemsOnlyAll];
 
-    const lsQuery = (lowStockSearch || '').toLowerCase();
-    const filterBySearch = (list) => list.filter(item => (
-      !lsQuery ||
-      (item.code || '').toLowerCase().includes(lsQuery) ||
-      (item.material || '').toLowerCase().includes(lsQuery) ||
-      (item.category || '').toLowerCase().includes(lsQuery)
-    ));
+    const filterBySearch = (list) => filterAndRankBySearch(
+      list,
+      (item) => [item.material, item.code, item.category],
+      lowStockSearch,
+    );
 
     const outOfStockItems = filterBySearch(outOfStockItemsAll);
     const lowStockItemsOnly = filterBySearch(lowStockItemsOnlyAll);
@@ -3376,15 +3372,10 @@ export default function StorePortal() {
     }, [smartSearchCatalog]);
 
     const filteredSmartCatalog = useMemo(() => {
-      const q = (bulkIndentSearch || '').toLowerCase().trim();
-      if (!q) {
-        // Show ALL low stock and out of stock materials
-        return lowStockCatalog;
-      }
-      return lowStockCatalog.filter(i => 
-        (i.material || '').toLowerCase().includes(q) ||
-        (i.code || '').toLowerCase().includes(q) ||
-        (i.category || '').toLowerCase().includes(q)
+      return filterAndRankBySearch(
+        lowStockCatalog,
+        (i) => [i.material, i.code, i.category],
+        bulkIndentSearch,
       );
     }, [lowStockCatalog, bulkIndentSearch]);
 

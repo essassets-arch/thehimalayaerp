@@ -19,6 +19,7 @@ import {
 import { toast } from 'sonner';
 import styles from './qc-failures.module.css';
 import { backendFetch } from '@/lib/backendFetch';
+import { filterAndRankBySearch } from '@/shared/utils/smartSearch';
 import OrderDetailsModal from '@/shared/components/OrderDetailsModal';
 
 export default function PlantHeadQCFailuresPage() {
@@ -146,14 +147,16 @@ export default function PlantHeadQCFailuresPage() {
   };
 
   const currentList = activeTab === 'ACTIVE' ? activeJobs : historyJobs;
-  const filteredJobs = currentList.filter((job: any) => {
-    const q = searchQuery.toLowerCase();
-    const soNo = (job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber || '').toLowerCase();
-    const woNo = (job.workOrderNumber || job.id || '').toLowerCase();
-    const product = getProductName(job).toLowerCase();
-    const reason = (job.failureReason || '').toLowerCase();
-    return soNo.includes(q) || woNo.includes(q) || product.includes(q) || reason.includes(q);
-  });
+  const filteredJobs = filterAndRankBySearch(
+    currentList,
+    (job: any) => [
+      getProductName(job),
+      job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber || '',
+      job.workOrderNumber || job.id || '',
+      job.failureReason || '',
+    ],
+    searchQuery,
+  );
 
   const renderHistoryStatus = (job: any) => {
     const prodStatus = String(job.productionStatus || job.status || '').toUpperCase();

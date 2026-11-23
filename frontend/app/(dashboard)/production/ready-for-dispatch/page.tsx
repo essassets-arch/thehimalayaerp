@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import Swal from 'sweetalert2';
 import styles from './ready-for-dispatch.module.css';
 import { backendFetch } from '@/lib/backendFetch';
+import { matchesSmartSearch } from '@/shared/utils/smartSearch';
 import OrderDetailsModal from '@/shared/components/OrderDetailsModal';
 
 interface ReadyJob {
@@ -336,27 +337,24 @@ export default function ReadyForDispatchPage() {
   const groupedOrders = useMemo(() => {
     if (!searchQuery.trim()) return currentGroupsList;
 
-    const q = searchQuery.toLowerCase().trim();
-    return currentGroupsList.filter((group) => {
-      const matchHeader =
-        group.salesOrderNumber.toLowerCase().includes(q) ||
-        group.customerName.toLowerCase().includes(q);
-
-      const matchItem = group.items.some((job) => {
-        const prod = getProductName(job).toLowerCase();
-        const wo = (job.workOrderNumber || '').toLowerCase();
-        const sku = (
-          job.productCode ||
-          job.salesOrderItem?.productCodeSnapshot ||
-          job.salesOrderItem?.product?.sku ||
-          job.salesOrderItem?.product?.code ||
-          ''
-        ).toLowerCase();
-        return prod.includes(q) || wo.includes(q) || sku.includes(q);
-      });
-
-      return matchHeader || matchItem;
-    });
+    return currentGroupsList.filter((group) =>
+      matchesSmartSearch(
+        [
+          ...group.items.map((job) =>
+            `${getProductName(job)} ${job.workOrderNumber || ''} ${
+              job.productCode ||
+              job.salesOrderItem?.productCodeSnapshot ||
+              job.salesOrderItem?.product?.sku ||
+              job.salesOrderItem?.product?.code ||
+              ''
+            }`,
+          ),
+          group.salesOrderNumber,
+          group.customerName,
+        ],
+        searchQuery,
+      ),
+    );
   }, [currentGroupsList, searchQuery]);
 
   const paginatedGroupedOrders = useMemo(() => {

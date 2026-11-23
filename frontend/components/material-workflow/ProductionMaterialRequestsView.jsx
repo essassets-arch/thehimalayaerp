@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import Swal from 'sweetalert2';
 import { useCreateMaterialRequest, useMaterialRequests } from '../../hooks/useMaterialRequests';
 import { backendFetch } from '../../lib/backendFetch';
+import { filterAndRankBySearch } from '@/shared/utils/smartSearch';
 import { 
   ArrowLeft, 
   Package, 
@@ -102,10 +103,10 @@ export default function ProductionMaterialRequestsView() {
   const [notes, setNotes] = useState('');
 
   // Dropdown list filtering
-  const filteredCatalog = catalog.filter(item => 
-    item.material.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (item.code && item.code.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (item.category && item.category.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredCatalog = filterAndRankBySearch(
+    catalog,
+    (item) => [item.material, item.code, item.category],
+    searchQuery,
   );
 
   const isAdded = (name) => requestItems.some(item => item.material.toLowerCase() === name.toLowerCase());

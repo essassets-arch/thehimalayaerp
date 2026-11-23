@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { backendFetch } from '@/lib/backendFetch';
+import { matchesSmartSearch } from '@/shared/utils/smartSearch';
 import styles from './material-analytics.module.css';
 
 const today = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
@@ -69,9 +70,8 @@ export default function MaterialWiseAnalysisView() {
   }, [selected, historyPage, data, historyRefresh]);
 
   const rows = useMemo(() => {
-    const term = search.trim().toLowerCase();
     return (data?.materials || []).filter(row =>
-      (!term || [row.materialName, row.materialSku, row.category].some(value => value.toLowerCase().includes(term))) &&
+      matchesSmartSearch([row.materialName, row.materialSku, row.category], search) &&
       (unit === 'ALL' || row.unit === unit) &&
       (status === 'ALL' || row.stockStatus === status || row.movement === status),
     ).sort((a, b) => a.materialName.localeCompare(b.materialName));

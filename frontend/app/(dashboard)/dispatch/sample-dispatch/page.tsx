@@ -26,6 +26,7 @@ import {
 import { toast } from 'sonner';
 import { backendFetch } from '@/lib/backendFetch';
 import { isTradingProduct, getDispatchCategory } from '@/shared/utils/dispatchCategory';
+import { matchesSmartSearch } from '@/shared/utils/smartSearch';
 import {
   DispatchPageShell,
   DispatchPageHeader,
@@ -452,18 +453,20 @@ function SampleDispatchListContent() {
       if (!matchesFilter) return false;
 
       if (!search.trim()) return true;
-      const q = search.toLowerCase();
-      return (
-        req.orderNo.toLowerCase().includes(q) ||
-        req.customer.toLowerCase().includes(q) ||
-        (req.projectName && req.projectName.toLowerCase().includes(q)) ||
-        (req.contactPerson && req.contactPerson.toLowerCase().includes(q)) ||
-        (req.leadNumber && req.leadNumber.toLowerCase().includes(q)) ||
-        (req.salesPerson && req.salesPerson.toLowerCase().includes(q)) ||
-        req.product.toLowerCase().includes(q) ||
-        req.address.toLowerCase().includes(q) ||
-        (req.vehicleNo && req.vehicleNo.toLowerCase().includes(q)) ||
-        (req.transporter && req.transporter.toLowerCase().includes(q))
+      return matchesSmartSearch(
+        [
+          req.product,
+          req.orderNo,
+          req.customer,
+          req.projectName,
+          req.contactPerson,
+          req.leadNumber,
+          req.salesPerson,
+          req.address,
+          req.vehicleNo,
+          req.transporter,
+        ],
+        search,
       );
     });
   }, [requests, filter, search]);

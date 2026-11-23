@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import PaginationControl from '@/shared/components/PaginationControl';
+import { matchesSmartSearch } from '@/shared/utils/smartSearch';
 import { 
   Play, 
   CheckCircle2, 
@@ -432,19 +433,16 @@ export default function ProductionFloorPage() {
   const groupedOrders = useMemo(() => {
     const allGrouped = groupJobsByOrder(displayedJobsList);
     if (!searchQuery.trim()) return allGrouped;
-    const q = searchQuery.toLowerCase().trim();
 
-    return allGrouped.filter(group => {
-      const matchHeader =
-        group.salesOrderNumber.toLowerCase().includes(q);
-
-      const matchItem = group.items.some(job =>
-        (job.workOrderNumber || '').toLowerCase().includes(q) ||
-        getProductName(job).toLowerCase().includes(q)
-      );
-
-      return matchHeader || matchItem;
-    });
+    return allGrouped.filter(group =>
+      matchesSmartSearch(
+        [
+          ...group.items.map(job => `${getProductName(job)} ${job.workOrderNumber || ''}`),
+          group.salesOrderNumber,
+        ],
+        searchQuery,
+      ),
+    );
   }, [displayedJobsList, salesOrders, searchQuery, currentTime]);
 
   const paginatedGroupedOrders = useMemo(() => {

@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import PaginationControl from '@/shared/components/PaginationControl';
+import { matchesSmartSearch } from '@/shared/utils/smartSearch';
 import { 
   ClipboardList, 
   Eye, 
@@ -336,18 +337,14 @@ export default function WorkOrderListPage() {
 
       // Search filter
       if (!search.trim()) return true;
-      const q = search.toLowerCase().trim();
-
-      const matchHeader =
-        group.salesOrderNumber.toLowerCase().includes(q) ||
-        group.customerName.toLowerCase().includes(q);
-
-      const matchItem = group.items.some(wo => 
-        (wo.workOrderNumber || '').toLowerCase().includes(q) ||
-        getProductName(wo).toLowerCase().includes(q)
+      return matchesSmartSearch(
+        [
+          ...group.items.map(wo => `${getProductName(wo)} ${wo.workOrderNumber || ''}`),
+          group.salesOrderNumber,
+          group.customerName,
+        ],
+        search,
       );
-
-      return matchHeader || matchItem;
     });
   }, [groupedOrders, activeTab, search]);
 
@@ -357,12 +354,9 @@ export default function WorkOrderListPage() {
       const cat = getNormalizedStatus(wo);
       if (activeTab !== 'ALL' && cat !== activeTab) return false;
       if (!search.trim()) return true;
-      const q = search.toLowerCase().trim();
-      return (
-        (wo.resolvedSoNumber || '').toLowerCase().includes(q) ||
-        (wo.workOrderNumber || '').toLowerCase().includes(q) ||
-        (wo.resolvedCustomer || '').toLowerCase().includes(q) ||
-        getProductName(wo).toLowerCase().includes(q)
+      return matchesSmartSearch(
+        [getProductName(wo), wo.resolvedSoNumber, wo.workOrderNumber, wo.resolvedCustomer],
+        search,
       );
     });
   }, [workOrdersList, activeTab, search]);

@@ -51,6 +51,7 @@ import HRSOPsView from '../../hr/components/HRSOPsView';
 import FinishedGoodsStockView from '../../../components/FinishedGoodsStockView';
 import PlantHeadProductionTargetView from './PlantHeadProductionTargetView';
 import PlantHeadDispatchTargetView from './PlantHeadDispatchTargetView';
+import { matchesSmartSearch } from '@/shared/utils/smartSearch';
 
 const isMaterialMatch = (invName, reqName) => {
   const inv = (invName || '').toLowerCase();
@@ -2693,13 +2694,16 @@ export default function PlantHeadPortal({ overrideView } = {}) {
   const renderMaterialApprovals = () => {
     const MAT_STATUS_OPTS = ['All', 'REQUESTED', 'APPROVED', 'RETURNED_FOR_CORRECTION', 'ISSUED'];
     const allReqs = mRequests.filter(r => materialStatusFilter === 'All' ? true : r.status === materialStatusFilter);
-    const searchedReqs = allReqs.filter(r => {
-      const q = materialSearch.toLowerCase();
-      return !q ||
-        (r.orderNo || '').toLowerCase().includes(q) ||
-        (r.requester || '').toLowerCase().includes(q) ||
-        (r.materials || []).some(m => (m.materialName || '').toLowerCase().includes(q));
-    });
+    const searchedReqs = allReqs.filter(r =>
+      matchesSmartSearch(
+        [
+          ...(r.materials || []).map(m => m.materialName),
+          r.orderNo,
+          r.requester,
+        ],
+        materialSearch,
+      ),
+    );
     const pendingReqs = searchedReqs;
     const groupedByOrder = pendingReqs.reduce((acc, req) => {
       if (!acc[req.orderNo]) acc[req.orderNo] = [];
@@ -3140,12 +3144,15 @@ export default function PlantHeadPortal({ overrideView } = {}) {
       if (isPureTradingOrder(o) || !hasMfgItemsUtil(o)) return false;
       const statusCheck = String(o.workflowStatus || o.status || o.planningStatus || o.workflowStateCode || '').toUpperCase();
       if (['READY_FOR_DISPATCH', 'DISPATCHED', 'DELIVERED'].includes(statusCheck)) return false;
-      const q = incomingSearch.toLowerCase();
-      const matchQuery = !q ||
-        (o.orderNo || '').toLowerCase().includes(q) ||
-        (o.customerName || o.customer?.name || '').toLowerCase().includes(q) ||
-        (o.salesPersonName || o.salesperson || '').toLowerCase().includes(q) ||
-        (o.products || '').toLowerCase().includes(q);
+      const matchQuery = matchesSmartSearch(
+        [
+          o.products,
+          ...(o.detailedItems || []).map(it => `${it.productName || ''} ${it.productDetails || ''}`),
+          o.orderNo,
+          o.salesPersonName || o.salesperson,
+        ],
+        incomingSearch,
+      );
 
       const statusUpper = String(o.workflowStatus || o.status || o.planningStatus || o.workflowStateCode || '').toUpperCase();
       const isAccepted =
@@ -3829,10 +3836,14 @@ export default function PlantHeadPortal({ overrideView } = {}) {
       });
 
     const filtered = allPlanningOrders.filter(o => {
-      const q = planningSearch.toLowerCase();
-      const matchSearch = !q ||
-        (o.orderNo || '').toLowerCase().includes(q) ||
-        (o.products || o.productItem || '').toLowerCase().includes(q);
+      const matchSearch = matchesSmartSearch(
+        [
+          o.products || o.productItem,
+          ...(o.detailedItems || []).map(it => `${it.productName || ''} ${it.productDetails || ''}`),
+          o.orderNo,
+        ],
+        planningSearch,
+      );
       const matchPriority = planningPriorityFilter === 'All' ||
         (o.priority || '').toLowerCase() === planningPriorityFilter.toLowerCase();
       return matchSearch && matchPriority;
@@ -4480,12 +4491,9 @@ export default function PlantHeadPortal({ overrideView } = {}) {
     const mappedInventory = dbRawInventory.length > 0 ? dbRawInventory : getMappedInventory(directRawInventory.length > 0 ? directRawInventory : (state.rawInventory || []));
 
     const filteredItems = mappedInventory.filter(item => {
-      const query = (rawSearchQuery || '').toLowerCase();
-      const matchesSearch = (
-        !query ||
-        (item.code || '').toLowerCase().includes(query) ||
-        (item.material || '').toLowerCase().includes(query) ||
-        (item.category || '').toLowerCase().includes(query)
+      const matchesSearch = matchesSmartSearch(
+        [item.material, item.code, item.category],
+        rawSearchQuery,
       );
       if (!matchesSearch) return false;
       if (rawInvStatusFilter === 'In Stock') return item.status === 'In Stock';
@@ -5633,10 +5641,14 @@ export default function PlantHeadPortal({ overrideView } = {}) {
     ];
 
     const filteredIndents = allIndents.filter(ind => {
-      const matchSearch = !indentSearch ||
-        (ind.publicId || ind.indentNo || ind.id || '').toLowerCase().includes(indentSearch.toLowerCase()) ||
-        (ind.materialName || ind.material || '').toLowerCase().includes(indentSearch.toLowerCase()) ||
-        (ind.items || []).some(it => (it.material || it.name || '').toLowerCase().includes(indentSearch.toLowerCase()));
+      const matchSearch = matchesSmartSearch(
+        [
+          ind.materialName || ind.material,
+          ...(ind.items || []).map(it => it.material || it.name),
+          ind.publicId || ind.indentNo || ind.id,
+        ],
+        indentSearch,
+      );
       let matchStatus = true;
       if (indentStatusFilter === 'PENDING') matchStatus = ind.status === 'PENDING_PLANT_HEAD_APPROVAL' || ind.status === 'PENDING_PLANT_HEAD' || ind.status === 'PENDING';
       else if (indentStatusFilter === 'PLANT_HEAD_REJECTED') matchStatus = ind.status === 'PLANT_HEAD_REJECTED' || ind.status === 'CORRECTION_REQUIRED' || ind.status === 'RETURNED_FOR_CORRECTION';

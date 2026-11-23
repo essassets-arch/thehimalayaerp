@@ -80,8 +80,10 @@ export class ProductsController {
     @Query('search') search?: string,
     @Query('scope') scope?: string,
     @Query('type') type?: string,
+    @Query('productType') productType?: string,
     @Query('category') category?: string,
     @Query('dispatchCategory') dispatchCategory?: string,
+    @Query('dedupe') dedupe?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('pageSize') pageSize?: string,
@@ -93,7 +95,15 @@ export class ProductsController {
       type,
       user.sub || user.id,
       user.role,
-      { page, limit, pageSize, category, dispatchCategory },
+      {
+        page,
+        limit,
+        pageSize,
+        category,
+        dispatchCategory,
+        productType,
+        dedupe,
+      },
     );
   }
 

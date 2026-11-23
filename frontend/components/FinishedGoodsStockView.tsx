@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import Swal from "sweetalert2";
 
 import { backendFetch } from "@/lib/backendFetch";
+import { filterAndRankBySearch } from "@/shared/utils/smartSearch";
 import styles from "@/app/(dashboard)/production/all-stock/all-stock.module.css";
 import modalStyles from "@/app/(dashboard)/production/finished-goods/finished-goods.module.css";
 
@@ -325,17 +326,23 @@ export default function FinishedGoodsStockView({
   }, [data, role]);
 
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, activeTab, pageSize]);
+
   const filteredData = useMemo(() => {
-    if (!search) return allItems;
-    const lower = search.toLowerCase();
-    return allItems.filter((i) =>
-      i.jobNo?.toLowerCase().includes(lower) ||
-      i.productName?.toLowerCase().includes(lower) ||
-      i.productCode?.toLowerCase().includes(lower) ||
-      i.category?.toLowerCase().includes(lower) ||
-      i.productType?.toLowerCase().includes(lower) ||
-      i.brand?.toLowerCase().includes(lower) ||
-      i.dispatchCategory?.toLowerCase().includes(lower)
+    return filterAndRankBySearch(
+      allItems,
+      (i) => [
+        i.productName,
+        i.productCode,
+        i.category,
+        i.jobNo,
+        i.brand,
+        i.productType,
+        i.dispatchCategory,
+      ],
+      search,
     );
   }, [allItems, search]);
 
@@ -362,15 +369,17 @@ export default function FinishedGoodsStockView({
   }, [historyData]);
 
   const filteredHistory = useMemo(() => {
-    if (!search) return historyItems;
-    const lower = search.toLowerCase();
-    return historyItems.filter((i) =>
-      i.dispatchNo?.toLowerCase().includes(lower) ||
-      i.orderNumber?.toLowerCase().includes(lower) ||
-      i.productName?.toLowerCase().includes(lower) ||
-      i.productCode?.toLowerCase().includes(lower) ||
-      i.customerName?.toLowerCase().includes(lower) ||
-      i.vehicleNumber?.toLowerCase().includes(lower)
+    return filterAndRankBySearch(
+      historyItems,
+      (i) => [
+        i.productName,
+        i.productCode,
+        i.orderNumber,
+        i.dispatchNo,
+        i.customerName,
+        i.vehicleNumber,
+      ],
+      search,
     );
   }, [historyItems, search]);
 

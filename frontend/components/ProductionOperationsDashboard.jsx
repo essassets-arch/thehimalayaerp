@@ -22,6 +22,7 @@ import {
   TrendingUp,
   TrendingDown
 } from 'lucide-react';
+import { matchesSmartSearch } from '@/shared/utils/smartSearch';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -419,13 +420,15 @@ export default function ProductionOperationsDashboard({
         if (activeStageFilter === 'dispatched' && item.stage !== 'DISPATCHED') return false;
       }
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        return (
-          (item.workOrderNo || '').toLowerCase().includes(q) ||
-          (item.salesOrderCustomer || '').toLowerCase().includes(q) ||
-          (item.customer || '').toLowerCase().includes(q) ||
-          (item.product || '').toLowerCase().includes(q) ||
-          (item.status || '').toLowerCase().includes(q)
+        return matchesSmartSearch(
+          [
+            item.product,
+            item.workOrderNo,
+            item.salesOrderCustomer,
+            item.customer,
+            item.status,
+          ],
+          searchQuery,
         );
       }
       return true;

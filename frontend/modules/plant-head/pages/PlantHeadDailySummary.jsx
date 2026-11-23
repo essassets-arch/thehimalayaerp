@@ -12,6 +12,7 @@ import { backendFetch } from '../../../lib/backendFetch';
 import { useRouter } from 'next/navigation';
 import { safeSaveFile } from '../../../services/export.service';
 import { useAuth } from '../../../shared/context/AuthContext';
+import { filterAndRankBySearch } from '@/shared/utils/smartSearch';
 
 export const PlantHeadDailySummary = () => {
   const router = useRouter();
@@ -311,7 +312,7 @@ export const PlantHeadDailySummary = () => {
   };
 
   // ── SEARCH & FILTERED DATA LOGIC ──
-  const q = searchQuery.trim().toLowerCase();
+  const q = searchQuery.trim();
 
   // 1. Orders
   const filteredOrders = useMemo(() => {
@@ -323,14 +324,7 @@ export const PlantHeadDailySummary = () => {
     } else if (orderFilter === 'OVERDUE') {
       list = list.filter(o => o.targetDate && o.targetDate !== 'N/A' && new Date(o.targetDate) < new Date());
     }
-    if (q) {
-      list = list.filter(o =>
-        (o.orderNo || '').toLowerCase().includes(q) ||
-        (o.productName || '').toLowerCase().includes(q) ||
-        (o.status || '').toLowerCase().includes(q)
-      );
-    }
-    return list;
+    return filterAndRankBySearch(list, (o) => [o.productName, o.orderNo, o.status], q);
   }, [data?.orders?.table, orderFilter, q]);
 
   // 2. Planning
@@ -341,14 +335,7 @@ export const PlantHeadDailySummary = () => {
     } else if (planningFilter === 'PRODUCE') {
       list = list.filter(p => p.produce > 0);
     }
-    if (q) {
-      list = list.filter(p =>
-        (p.orderNo || '').toLowerCase().includes(q) ||
-        (p.productName || '').toLowerCase().includes(q) ||
-        (p.status || '').toLowerCase().includes(q)
-      );
-    }
-    return list;
+    return filterAndRankBySearch(list, (p) => [p.productName, p.orderNo, p.status], q);
   }, [data?.planning?.table, planningFilter, q]);
 
   // 3. Material Requests
@@ -359,15 +346,7 @@ export const PlantHeadDailySummary = () => {
     } else if (mrFilter === 'PENDING') {
       list = list.filter(m => m.status === 'PENDING_PLANT_HEAD_APPROVAL' || m.status === 'PENDING');
     }
-    if (q) {
-      list = list.filter(m =>
-        (m.mrNo || '').toLowerCase().includes(q) ||
-        (m.workOrderNo || '').toLowerCase().includes(q) ||
-        (m.materialName || '').toLowerCase().includes(q) ||
-        (m.status || '').toLowerCase().includes(q)
-      );
-    }
-    return list;
+    return filterAndRankBySearch(list, (m) => [m.materialName, m.mrNo, m.workOrderNo, m.status], q);
   }, [data?.materialRequests?.table, mrFilter, q]);
 
   // 4. QC Failures
@@ -378,15 +357,7 @@ export const PlantHeadDailySummary = () => {
     } else if (qcFilter === 'REWORK') {
       list = list.filter(qItem => qItem.decision === 'REWORK');
     }
-    if (q) {
-      list = list.filter(qItem =>
-        (qItem.workOrderNo || '').toLowerCase().includes(q) ||
-        (qItem.productName || '').toLowerCase().includes(q) ||
-        (qItem.batchNo || '').toLowerCase().includes(q) ||
-        (qItem.reason || '').toLowerCase().includes(q)
-      );
-    }
-    return list;
+    return filterAndRankBySearch(list, (qItem) => [qItem.productName, qItem.workOrderNo, qItem.batchNo, qItem.reason], q);
   }, [data?.qc?.failureTable, qcFilter, q]);
 
   // 5. Dispatches
@@ -399,15 +370,7 @@ export const PlantHeadDailySummary = () => {
     } else if (dispatchFilter === 'READY') {
       list = list.filter(d => ['READY_FOR_PICKUP', 'DISPATCH_APPROVED'].includes(d.dispatchStatus));
     }
-    if (q) {
-      list = list.filter(d =>
-        (d.dispatchNo || '').toLowerCase().includes(q) ||
-        (d.orderNo || '').toLowerCase().includes(q) ||
-        (d.productName || '').toLowerCase().includes(q) ||
-        (d.dispatchStatus || '').toLowerCase().includes(q)
-      );
-    }
-    return list;
+    return filterAndRankBySearch(list, (d) => [d.productName, d.dispatchNo, d.orderNo, d.dispatchStatus], q);
   }, [data?.dispatch?.table, dispatchFilter, q]);
 
   // Dynamic Plant Head Signature info

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { backendFetch } from "@/lib/backendFetch";
+import { matchesSmartSearch } from "@/shared/utils/smartSearch";
 import {
   DispatchPageShell,
   DispatchPageHeader,
@@ -431,13 +432,15 @@ export default function RemainingDispatchPage() {
 
       // Search Filter
       if (!search.trim()) return true;
-      const lower = search.toLowerCase();
-      return (
-        item.orderNumber.toLowerCase().includes(lower) ||
-        item.customerName.toLowerCase().includes(lower) ||
-        item.productName.toLowerCase().includes(lower) ||
-        item.deliveryAddress.toLowerCase().includes(lower) ||
-        (item.workOrderNumber && item.workOrderNumber.toLowerCase().includes(lower))
+      return matchesSmartSearch(
+        [
+          item.productName,
+          item.orderNumber,
+          item.customerName,
+          item.deliveryAddress,
+          item.workOrderNumber,
+        ],
+        search,
       );
     });
   }, [allRemainingItems, userDispatchCat, isDispatch2, search]);

@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { DataTable } from "@/components/erp/data-table/DataTable";
 import { StatusBadge } from "@/components/erp/common/StatusBadge";
 import { backendFetch } from "@/lib/backendFetch";
+import { filterAndRankBySearch } from "@/shared/utils/smartSearch";
 import styles from "./finished-goods.module.css";
 
 interface FinishedGoodsRow {
@@ -103,10 +104,10 @@ export default function FinishedGoodsPage() {
 
   const filteredData = useMemo(() => {
     const base = activeTab === "all" ? allItems : activeTab === "ready" ? readyItems : historyItems;
-    if (!search) return base;
-    const lower = search.toLowerCase();
-    return base.filter((i) =>
-      i.jobNo?.toLowerCase().includes(lower) || i.productName?.toLowerCase().includes(lower)
+    return filterAndRankBySearch(
+      base,
+      (i) => [i.productName, i.productCode, i.jobNo],
+      search,
     );
   }, [allItems, readyItems, historyItems, search, activeTab]);
 

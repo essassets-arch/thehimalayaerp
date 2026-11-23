@@ -15,6 +15,11 @@ import {
   parsePaginationParams,
   formatPaginatedResult,
 } from '../../common/utils/pagination.util';
+import {
+  buildProductPrismaSearchWhere,
+  dedupeCatalogProducts,
+  rankProductsBySearch,
+} from '../../common/utils/product-search.util';
 
 @Injectable()
 export class ProductsService {
@@ -283,103 +288,187 @@ export class ProductsService {
       pageSize?: string | number;
       category?: string;
       dispatchCategory?: string;
+      productType?: string;
+      dedupe?: string;
     },
   ) {
-    const pagination = parsePaginationParams(options, 50, 100);
+    const shouldDedupe = options?.dedupe !== 'false';
+    const isCatalogOrPickerScope =
+      scope === 'catalog' ||
+      scope === 'sales' ||
+      scope === 'daily-report' ||
+      scope === 'production' ||
+      scope === 'dispatch' ||
+      scope === 'all_products';
+
+    // Allow full deduplicated catalog loading for client pickers (Daily Report,
+    // Testing, Sales ProductPicker, Dispatch) while keeping paginated tables fast.
+    const defaultLimit =
+      scope === 'sales' || scope === 'daily-report' || type === 'RAW_MATERIAL'
+        ? 5000
+        : isCatalogOrPickerScope
+          ? 100
+          : 5000;
+    const maxLimit = 5000;
+    const pagination = parsePaginationParams(options, defaultLimit, maxLimit);
+    const trimmedSearch = search?.trim() || '';
+    const requestedProductType = String(options?.productType || '')
+      .trim()
+      .toUpperCase();
+
+    const matchesRequestedProductType = (p: any): boolean => {
+      if (!requestedProductType || requestedProductType === 'ALL') return true;
+      const trading =
+        isTradingProduct(p) ||
+        normalizeDispatchCategory(p.dispatchCategory) === 'D2';
+      if (requestedProductType === 'MANUFACTURING') return !trading;
+      if (requestedProductType === 'TRADING') return trading;
+      return String(p.productType || '').toUpperCase() === requestedProductType;
+    };
 
     if (scope === 'catalog') {
-      const activeProductsWhere: any = getCatalogProductsPrismaWhere(companyId);
+      const baseCatalogWhere: any = getCatalogProductsPrismaWhere(companyId);
+      const filteredWhere: any = { ...baseCatalogWhere };
 
       if (options?.category && options.category !== 'All') {
-        activeProductsWhere.category = {
+        filteredWhere.category = {
           equals: options.category,
           mode: 'insensitive',
         };
       }
       if (options?.dispatchCategory && options.dispatchCategory !== 'All') {
-        activeProductsWhere.dispatchCategory = options.dispatchCategory;
-      }
-
-      if (search) {
-        const rawSearch = search.trim();
-        const normalizedSearch = rawSearch.replace(/[^a-zA-Z0-9]/g, '');
-        const tokens = rawSearch.split(/\s+/).filter(Boolean);
-
-        const searchConditions: any[] = [
-          { name: { contains: rawSearch, mode: 'insensitive' } },
-          { sku: { contains: rawSearch, mode: 'insensitive' } },
-          { sku: { contains: normalizedSearch, mode: 'insensitive' } },
-          { name: { contains: normalizedSearch, mode: 'insensitive' } },
-          { category: { contains: rawSearch, mode: 'insensitive' } },
-          { hsnCode: { contains: rawSearch, mode: 'insensitive' } },
-          { description: { contains: rawSearch, mode: 'insensitive' } },
-          { brand: { contains: rawSearch, mode: 'insensitive' } },
-        ];
-
-        if (tokens.length > 1) {
-          searchConditions.push({
-            AND: tokens.map((token) => ({
-              OR: [
-                { name: { contains: token, mode: 'insensitive' } },
-                { sku: { contains: token, mode: 'insensitive' } },
-                { category: { contains: token, mode: 'insensitive' } },
-                { hsnCode: { contains: token, mode: 'insensitive' } },
-                { description: { contains: token, mode: 'insensitive' } },
-                { brand: { contains: token, mode: 'insensitive' } },
-              ],
-            })),
-          });
+        if (options.dispatchCategory === 'Unassigned') {
+          filteredWhere.OR = [
+            { dispatchCategory: null },
+            { dispatchCategory: '' },
+            { dispatchCategory: 'Unassigned' },
+          ];
+        } else {
+          filteredWhere.dispatchCategory = options.dispatchCategory;
         }
-        activeProductsWhere.OR = searchConditions;
       }
 
-      const [rawProducts, total] = await Promise.all([
-        this.prisma.product.findMany({
-          where: activeProductsWhere,
+      const searchWhere = trimmedSearch
+        ? buildProductPrismaSearchWhere(trimmedSearch)
+        : null;
+      const queryWhere: any = searchWhere
+        ? { AND: [filteredWhere, searchWhere] }
+        : filteredWhere;
+
+      const catalogSelect = {
+        id: true,
+        publicId: true,
+        companyId: true,
+        name: true,
+        sku: true,
+        category: true,
+        productType: true,
+        brand: true,
+        dispatchCategory: true,
+        isTrading: true,
+        gstRate: true,
+        hsnCode: true,
+        variantDetails: true,
+        weight: true,
+        coverUnitWeight: true,
+        frameUnitWeight: true,
+        imageUrl: true,
+        unit: true,
+        unitPrice: true,
+        minimumStock: true,
+        componentType: true,
+        coversPerSet: true,
+        framesPerSet: true,
+        setRatio: true,
+        isActive: true,
+        description: true,
+        createdAt: true,
+        updatedAt: true,
+      };
+
+      let rawProducts = await this.prisma.product.findMany({
+        where: queryWhere,
+        select: catalogSelect,
+        orderBy: { name: 'asc' },
+      });
+
+      // Fallback 1: If company-scoped query returned 0 rows and no search was set, fall back to unscoped active catalog
+      if (rawProducts.length === 0 && !trimmedSearch && companyId) {
+        const unscopedBase: any = getCatalogProductsPrismaWhere();
+        if (filteredWhere.category) unscopedBase.category = filteredWhere.category;
+        if (filteredWhere.dispatchCategory) {
+          unscopedBase.dispatchCategory = filteredWhere.dispatchCategory;
+        }
+        rawProducts = await this.prisma.product.findMany({
+          where: unscopedBase,
+          select: catalogSelect,
           orderBy: { name: 'asc' },
-          skip: pagination.skip,
-          take: pagination.take,
-        }),
-        pagination.hasExplicitPagination
-          ? this.prisma.product.count({ where: activeProductsWhere })
-          : Promise.resolve(0),
-      ]);
-
-      let products = rawProducts;
-      let resolvedTotal = total;
-
-      if (products.length === 0 && pagination.page === 1 && companyId) {
-        const fallbackWhere: any = getCatalogProductsPrismaWhere();
-        if (activeProductsWhere.OR) fallbackWhere.OR = activeProductsWhere.OR;
-        if (activeProductsWhere.category) fallbackWhere.category = activeProductsWhere.category;
-        if (activeProductsWhere.dispatchCategory) {
-          fallbackWhere.dispatchCategory = activeProductsWhere.dispatchCategory;
-        }
-        const [fbRows, fbTotal] = await Promise.all([
-          this.prisma.product.findMany({
-            where: fallbackWhere,
-            orderBy: { name: 'asc' },
-            skip: pagination.skip,
-            take: pagination.take,
-          }),
-          pagination.hasExplicitPagination
-            ? this.prisma.product.count({ where: fallbackWhere })
-            : Promise.resolve(0),
-        ]);
-        products = fbRows;
-        resolvedTotal = fbTotal;
+        });
       }
 
-      const filtered = products.filter(isCatalogProduct);
-      return formatPaginatedResult(
-        filtered,
-        resolvedTotal || filtered.length,
-        pagination,
+      // Fallback 2: Typo/fuzzy fallback when Prisma ILIKE found 0 matches
+      if (rawProducts.length === 0 && trimmedSearch) {
+        const typoPool = await this.prisma.product.findMany({
+          where: filteredWhere,
+          select: catalogSelect,
+          orderBy: { name: 'asc' },
+        });
+        rawProducts = typoPool;
+      }
+
+      const catalogOnly = rawProducts.filter(isCatalogProduct);
+      const rankedOrDeduped = trimmedSearch
+        ? rankProductsBySearch(catalogOnly, trimmedSearch, {
+            dedupe: shouldDedupe,
+          })
+        : shouldDedupe
+          ? dedupeCatalogProducts(catalogOnly)
+          : catalogOnly;
+
+      // Compute accurate DB-wide KPI summary before applying the Manufacturing/Trading tab filter
+      let mfgCount = 0;
+      let tradingCount = 0;
+      let d1Count = 0;
+      let d2Count = 0;
+      let unassignedCount = 0;
+      for (const p of rankedOrDeduped) {
+        const trading =
+          isTradingProduct(p) ||
+          normalizeDispatchCategory(p.dispatchCategory) === 'D2';
+        if (trading) tradingCount++;
+        else mfgCount++;
+        const dc = normalizeDispatchCategory(p.dispatchCategory);
+        if (dc === 'D1') d1Count++;
+        else if (dc === 'D2') d2Count++;
+        else unassignedCount++;
+      }
+
+      const typeFiltered = rankedOrDeduped.filter(matchesRequestedProductType);
+      const total = typeFiltered.length;
+      const paged = typeFiltered.slice(
+        pagination.skip,
+        pagination.skip + pagination.take,
       );
+
+      const formatted = formatPaginatedResult(paged, total, pagination);
+      if (!Array.isArray(formatted)) {
+        return {
+          ...formatted,
+          summary: {
+            allCount: rankedOrDeduped.length,
+            mfgCount,
+            tradingCount,
+            d1Count,
+            d2Count,
+            unassignedCount,
+          },
+        };
+      }
+      return formatted;
     }
 
     if (scope === 'store' || scope === 'inventory') {
-      const storeWhere = {
+      const storeWhere: any = {
         OR: [{ companyId }, { companyId: { not: '' } }],
         isActive: true,
       };
@@ -423,23 +512,22 @@ export class ProductsService {
         storageLocation: rm.storageLocation || '',
       }));
 
-      const combined = [...products, ...normalizedRaw].slice(0, pagination.take);
+      const combinedAll = [...products, ...normalizedRaw];
+      const matched = trimmedSearch
+        ? rankProductsBySearch(combinedAll, trimmedSearch, { dedupe: false })
+        : combinedAll;
+      const combined = matched.slice(0, pagination.take);
       return formatPaginatedResult(
         combined,
-        (prodTotal || products.length) + normalizedRaw.length,
+        trimmedSearch ? matched.length : (prodTotal || products.length) + normalizedRaw.length,
         pagination,
       );
     }
 
     if (type === 'RAW_MATERIAL') {
       const catalog = await loadRawMaterialCatalog(this.prisma, companyId);
-      const term = search?.trim().toLowerCase();
-      const matched = term
-        ? catalog.filter((m) =>
-            [m.name, m.sku, m.category].some((value) =>
-              value.toLowerCase().includes(term),
-            ),
-          )
+      const matched = trimmedSearch
+        ? rankProductsBySearch(catalog, trimmedSearch, { dedupe: false })
         : catalog;
       const sliced = matched.slice(
         pagination.skip,
@@ -530,42 +618,17 @@ export class ProductsService {
       where.productType = type;
     }
 
-    if (search) {
-      const rawSearch = search.trim();
-      // Product codes are commonly entered with optional spaces, hyphens, or
-      // punctuation (for example, "frpmhceld 10 x 10").  Match their compact
-      // SKU form as well, without making the user reproduce its exact format.
-      const normalizedSearch = rawSearch.replace(/[^a-zA-Z0-9]/g, '');
-      const tokens = rawSearch.split(/\s+/).filter(Boolean);
-
-      const searchConditions: any[] = [
-        { name: { contains: rawSearch, mode: 'insensitive' } },
-        { sku: { contains: rawSearch, mode: 'insensitive' } },
-        { sku: { contains: normalizedSearch, mode: 'insensitive' } },
-        { name: { contains: normalizedSearch, mode: 'insensitive' } },
-        { category: { contains: rawSearch, mode: 'insensitive' } },
-        { hsnCode: { contains: rawSearch, mode: 'insensitive' } },
-        { description: { contains: rawSearch, mode: 'insensitive' } },
-        { brand: { contains: rawSearch, mode: 'insensitive' } },
-      ];
-
-      if (tokens.length > 1) {
-        searchConditions.push({
-          AND: tokens.map((token) => ({
-            OR: [
-              { name: { contains: token, mode: 'insensitive' } },
-              { sku: { contains: token, mode: 'insensitive' } },
-              { category: { contains: token, mode: 'insensitive' } },
-              { hsnCode: { contains: token, mode: 'insensitive' } },
-              { description: { contains: token, mode: 'insensitive' } },
-              { brand: { contains: token, mode: 'insensitive' } },
-            ],
-          })),
-        });
-      }
-
-      where.OR = searchConditions;
+    if (options?.category && options.category !== 'All') {
+      where.category = { equals: options.category, mode: 'insensitive' };
     }
+    if (options?.dispatchCategory && options.dispatchCategory !== 'All') {
+      where.dispatchCategory = options.dispatchCategory;
+    }
+
+    const searchWhere = trimmedSearch
+      ? buildProductPrismaSearchWhere(trimmedSearch)
+      : null;
+    const effectiveWhere = searchWhere ? { AND: [where, searchWhere] } : where;
 
     const isDailyReportScope =
       scope === 'daily-report' ||
@@ -574,18 +637,9 @@ export class ProductsService {
       scope === 'production' ||
       scope === 'dispatch';
 
-    if (options?.category && options.category !== 'All') {
-      where.category = { equals: options.category, mode: 'insensitive' };
-    }
-    if (options?.dispatchCategory && options.dispatchCategory !== 'All') {
-      where.dispatchCategory = options.dispatchCategory;
-    }
-
     const findArgs: any = {
-      where,
-      orderBy: isDailyReportScope ? { name: 'asc' } : { createdAt: 'desc' },
-      skip: pagination.skip,
-      take: pagination.take,
+      where: effectiveWhere,
+      orderBy: isDailyReportScope ? { name: 'asc' } : { name: 'asc' },
     };
 
     if (scope === 'sales') {
@@ -602,28 +656,81 @@ export class ProductsService {
         dispatchCategory: true,
         unitPrice: true,
         description: true,
+        variantDetails: true,
         productType: true,
+        isTrading: true,
+        createdAt: true,
       };
-      if (search && search.trim()) {
-        findArgs.take = Math.min(pagination.take, 80);
-      }
+    } else if (isDailyReportScope) {
+      findArgs.select = {
+        id: true,
+        publicId: true,
+        name: true,
+        sku: true,
+        category: true,
+        brand: true,
+        gstRate: true,
+        hsnCode: true,
+        unit: true,
+        dispatchCategory: true,
+        unitPrice: true,
+        weight: true,
+        coverUnitWeight: true,
+        frameUnitWeight: true,
+        componentType: true,
+        coversPerSet: true,
+        framesPerSet: true,
+        setRatio: true,
+        variantDetails: true,
+        productType: true,
+        isTrading: true,
+        isActive: true,
+        createdAt: true,
+      };
     }
 
-    const [products, total] = await Promise.all([
-      this.prisma.product.findMany(findArgs),
-      pagination.hasExplicitPagination
-        ? this.prisma.product.count({ where })
-        : Promise.resolve(0),
-    ]);
+    let products = await this.prisma.product.findMany(findArgs);
 
-    const finalList =
-      scope === 'catalog' ? products.filter(isCatalogProduct) : products;
+    // Typo fallback: if Prisma ILIKE returned 0 rows for a search query, score in-memory against scope pool
+    if (products.length === 0 && trimmedSearch) {
+      products = await this.prisma.product.findMany({
+        ...findArgs,
+        where,
+      });
+    }
 
-    return formatPaginatedResult(
-      finalList,
-      total || finalList.length,
-      pagination,
+    const scopeCleaned =
+      scope === 'daily-report' || scope === 'production'
+        ? products.filter(
+            (p) =>
+              isCatalogProduct(p) &&
+              !isTradingProduct(p) &&
+              normalizeDispatchCategory(p.dispatchCategory) !== 'D2',
+          )
+        : scope === 'catalog'
+          ? products.filter(isCatalogProduct)
+          : products;
+
+    const ranked = trimmedSearch
+      ? rankProductsBySearch(scopeCleaned, trimmedSearch, {
+          dedupe: shouldDedupe,
+        })
+      : shouldDedupe
+        ? dedupeCatalogProducts(scopeCleaned)
+        : scopeCleaned;
+
+    const typeFiltered = ranked.filter(matchesRequestedProductType);
+    const total = typeFiltered.length;
+    const takeLimit =
+      scope === 'sales' && trimmedSearch
+        ? Math.min(pagination.take, 100)
+        : pagination.take;
+    const paged = typeFiltered.slice(
+      pagination.skip,
+      pagination.skip + takeLimit,
     );
+
+    return formatPaginatedResult(paged, total, pagination);
   }
 
   async findOne(companyId: string, id: string) {

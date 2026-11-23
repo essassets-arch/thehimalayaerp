@@ -21,6 +21,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { backendFetch } from '@/lib/backendFetch';
+import { matchesSmartSearch } from '@/shared/utils/smartSearch';
 import styles from './completed.module.css';
 
 interface WorkOrder {
@@ -120,12 +121,10 @@ export default function CompletedOrdersPage() {
     const list = Array.isArray(data) ? data : [];
     return list.filter((wo: any) => {
       // Search
-      const q = search.toLowerCase().trim();
-      const matchSearch =
-        !q ||
-        (wo.workOrderNumber || wo.id || '').toLowerCase().includes(q) ||
-        (wo.resolvedSoNumber || '').toLowerCase().includes(q) ||
-        (wo.resolvedProductName || '').toLowerCase().includes(q);
+      const matchSearch = matchesSmartSearch(
+        [wo.resolvedProductName, wo.workOrderNumber || wo.id, wo.resolvedSoNumber],
+        search,
+      );
 
       // Status tab
       const statusUpper = String(wo.status || wo.workflowStatus || wo.workflowState?.code || '').toUpperCase();

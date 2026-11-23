@@ -4039,9 +4039,42 @@ export class ProductionWorkflowService {
       };
     });
 
+    // Audit-safe deduplication: collapse accidental zero-stock duplicate product imports
+    // while ALWAYS preserving every row that holds any stock or ledger movement.
+    const seenByKey = new Map<string, number>();
+    const dedupedItems: typeof items = [];
+    const hasMovement = (it: (typeof items)[number]) =>
+      it.openingStock > 0 ||
+      it.productionIn > 0 ||
+      it.dispatchOut > 0 ||
+      it.testingOut > 0 ||
+      it.reservedQty > 0 ||
+      it.availableStock > 0 ||
+      it.extraCover > 0 ||
+      it.extraFrame > 0;
+
+    for (const item of items) {
+      const key = `${String(item.productName || '').toLowerCase().replace(/[^a-z0-9]/g, '')}|${String(item.productCode || '').toLowerCase().replace(/[^a-z0-9]/g, '')}|${String(item.productType || '').toUpperCase()}`;
+      const existingIdx = seenByKey.get(key);
+      if (existingIdx === undefined) {
+        seenByKey.set(key, dedupedItems.length);
+        dedupedItems.push(item);
+      } else {
+        const existingItem = dedupedItems[existingIdx];
+        const currMoved = hasMovement(item);
+        const prevMoved = hasMovement(existingItem);
+        if (currMoved && !prevMoved) {
+          dedupedItems[existingIdx] = item;
+        } else if (currMoved && prevMoved) {
+          // Both duplicate rows have real stock/movement — keep both so zero inventory is ever hidden
+          dedupedItems.push(item);
+        }
+      }
+    }
+
     return {
-      items,
-      total: items.length,
+      items: dedupedItems,
+      total: dedupedItems.length,
     };
   }
 

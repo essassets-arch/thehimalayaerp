@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { backendFetch } from '../../../lib/backendFetch';
+import { filterAndRankBySearch } from '@/shared/utils/smartSearch';
 import Swal from 'sweetalert2';
 import {
   Plus,
@@ -602,14 +603,15 @@ export default function DailyReportEntryView({
   }, [products]);
 
   const filteredCatalogProducts = useMemo(() => {
-    return products.filter(p => {
+    const typeScoped = products.filter(p => {
       if (multiProductTypeFilter !== 'ALL' && p.type !== multiProductTypeFilter && p.category !== multiProductTypeFilter) return false;
-      if (!multiProductSearch.trim()) return true;
-      const q = multiProductSearch.toLowerCase().trim();
-      const qParts = q.split(/\s+/).filter(Boolean);
-      const fullStr = `${p.name || ''} ${p.sku || ''} ${p.size || ''} ${p.type || ''} ${p.capacity || ''} ${p.variantDetails || ''} ${p.category || ''}`.toLowerCase();
-      return qParts.every(part => fullStr.includes(part));
+      return true;
     });
+    return filterAndRankBySearch(
+      typeScoped,
+      (p) => [p.name, p.sku, p.size, p.type, p.capacity, p.variantDetails, p.category],
+      multiProductSearch,
+    );
   }, [products, multiProductTypeFilter, multiProductSearch]);
 
   // Fetch Existing Report if Editing

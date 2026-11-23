@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { getSalesScope } from '../../common/utils/rbac.util';
 import { isCustomerBlindRole } from '../../common/security/customer-privacy.util';
+import {
+  buildProductPrismaSearchWhere,
+  rankProductsBySearch,
+} from '../../common/utils/product-search.util';
 
 export interface SearchResultItem {
   id: string;
@@ -422,7 +426,7 @@ export class SearchService {
       }
     }
 
-    // 7. PRODUCTS / MATERIALS
+    // 7. PRODUCTS / MATERIALS (Smart normalized multi-token + alias + relevance-ranked + deduplicated)
     if (
       shouldSearch('PRODUCT') &&
       this.canAccessDomain(normalizedRole, [
@@ -434,19 +438,48 @@ export class SearchService {
       ])
     ) {
       try {
-        const products = await this.prisma.product.findMany({
+        const searchWhere = buildProductPrismaSearchWhere(queryStr);
+        const productSelect = {
+          id: true,
+          publicId: true,
+          name: true,
+          sku: true,
+          category: true,
+          brand: true,
+          hsnCode: true,
+          variantDetails: true,
+          description: true,
+          unit: true,
+          unitPrice: true,
+          weight: true,
+          imageUrl: true,
+          productType: true,
+          dispatchCategory: true,
+          createdAt: true,
+        };
+
+        let candidateProducts = await this.prisma.product.findMany({
           where: {
             companyId,
             isActive: true,
-            OR: [
-              { name: { contains: queryStr, mode: 'insensitive' } },
-              { sku: { contains: queryStr, mode: 'insensitive' } },
-              { category: { contains: queryStr, mode: 'insensitive' } },
-            ],
+            ...(searchWhere || {}),
           },
-          take: limit,
+          select: productSelect,
+          take: Math.max(limit * 15, 300),
           orderBy: { name: 'asc' },
         });
+
+        // Typo fallback if Prisma ILIKE returned 0 matches
+        if (candidateProducts.length === 0) {
+          candidateProducts = await this.prisma.product.findMany({
+            where: { companyId, isActive: true },
+            select: productSelect,
+          });
+        }
+
+        const products = rankProductsBySearch(candidateProducts, queryStr, {
+          dedupe: true,
+        }).slice(0, limit);
 
         if (products.length > 0) {
           const prodRoute =
@@ -655,6 +688,7 @@ export class SearchService {
     const totalCount = groups.reduce((acc, g) => acc + g.results.length, 0);
 
     groups.forEach((g) => {
+      if (g.type === 'PRODUCT') return; // Already relevance-ranked by rankProductsBySearch
       g.results.sort((a, b) => {
         const aExact =
           a.title.toLowerCase() === queryStr.toLowerCase() ||

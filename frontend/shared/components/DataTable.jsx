@@ -1,4 +1,5 @@
 import React from 'react';
+import { filterAndRankBySearch } from '../utils/smartSearch';
 
 const formatCellValue = (val) => {
   if (val === null || val === undefined) return '';
@@ -21,28 +22,30 @@ export default function DataTable({
   className = '',
   scrollMode = false
 }) {
-  // Filter data by search query
-  const filteredData = (data || []).filter(item => {
-    if (!searchQuery) return true;
-    if (!searchField) return true;
-    
-    const searchTerms = searchQuery.toLowerCase().trim();
-    const fieldList = searchField.split(',').map(s => s.trim()).filter(Boolean);
-    
-    return fieldList.some(fieldPath => {
-      const fields = fieldPath.split('.');
-      let targetValue = item;
-      for (const field of fields) {
-        if (targetValue && targetValue[field] !== undefined) {
-          targetValue = targetValue[field];
-        } else {
-          targetValue = '';
+  // Smart multi-token, dimension-aware & typo-tolerant filtering across specified fields
+  const fieldList = searchField
+    ? searchField.split(',').map(s => s.trim()).filter(Boolean)
+    : [];
+
+  const filteredData = filterAndRankBySearch(
+    data || [],
+    (item) => {
+      if (fieldList.length === 0) return [];
+      return fieldList.map((fieldPath) => {
+        const fields = fieldPath.split('.');
+        let targetValue = item;
+        for (const field of fields) {
+          if (targetValue && targetValue[field] !== undefined) {
+            targetValue = targetValue[field];
+          } else {
+            targetValue = '';
+          }
         }
-      }
-      const strVal = formatCellValue(targetValue);
-      return String(strVal).toLowerCase().includes(searchTerms);
-    });
-  });
+        return formatCellValue(targetValue);
+      });
+    },
+    fieldList.length > 0 ? searchQuery : '',
+  );
 
   return (
     <div className={`crm-table-container erp-table-responsive ${scrollMode ? 'scroll-mode' : ''}`}>

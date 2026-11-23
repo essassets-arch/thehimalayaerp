@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import PaginationControl from '@/shared/components/PaginationControl';
+import { matchesSmartSearch } from '@/shared/utils/smartSearch';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -542,13 +543,16 @@ export default function QCPendingPage() {
   const filteredJobs = useMemo(() => {
     const list = jobs.filter((job: any) => {
       if (!searchQuery.trim()) return true;
-      const q = searchQuery.toLowerCase();
-      const soNo = (job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber || '').toLowerCase();
-      const woNo = (job.workOrderNumber || job.id || '').toLowerCase();
-      const customer = (resolveCustomerName(job) || job.productionPlan?.salesOrder?.customer?.companyName || job.productionPlan?.salesOrder?.customer?.name || job.customerName || '').toLowerCase();
-      const leadProject = (job.productionPlan?.salesOrder?.sourceQuotation?.lead?.projectName || job.productionPlan?.salesOrder?.quotation?.lead?.projectName || '').toLowerCase();
-      const product = (job.salesOrderItem?.product?.name || job.productName || '').toLowerCase();
-      return soNo.includes(q) || woNo.includes(q) || customer.includes(q) || leadProject.includes(q) || product.includes(q);
+      return matchesSmartSearch(
+        [
+          job.salesOrderItem?.product?.name || job.productName,
+          job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber,
+          job.workOrderNumber || job.id,
+          resolveCustomerName(job) || job.productionPlan?.salesOrder?.customer?.companyName || job.productionPlan?.salesOrder?.customer?.name || job.customerName,
+          job.productionPlan?.salesOrder?.sourceQuotation?.lead?.projectName || job.productionPlan?.salesOrder?.quotation?.lead?.projectName,
+        ],
+        searchQuery,
+      );
     });
 
     return [...list].sort((a: any, b: any) => {

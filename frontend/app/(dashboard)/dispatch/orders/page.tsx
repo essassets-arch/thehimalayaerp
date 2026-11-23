@@ -27,6 +27,7 @@ import {
   Layers,
   Clock,
 } from "lucide-react";
+import { matchesSmartSearch } from "@/shared/utils/smartSearch";
 
 import { backendFetch } from "@/lib/backendFetch";
 import { useAuth } from "@/shared/context/AuthContext";
@@ -1827,11 +1828,18 @@ export default function DispatchOrdersPage() {
         matchesText(item.orderNumber) ||
         matchesText(item.workOrderNumber) ||
         matchesText(item.productionPlanNumber) ||
-        item.customerName.toLowerCase().includes(lower) ||
-        (item.salesPersonName && item.salesPersonName.toLowerCase().includes(lower)) ||
-        (item.projectName && item.projectName.toLowerCase().includes(lower)) ||
-        item.productName.toLowerCase().includes(lower) ||
-        item.deliveryAddress.toLowerCase().includes(lower)
+        matchesSmartSearch(
+          [
+            item.productName,
+            item.customerName,
+            item.salesPersonName,
+            item.projectName,
+            item.deliveryAddress,
+            item.orderNumber,
+            item.workOrderNumber,
+          ],
+          search,
+        )
       );
     });
   }, [pendingItems, currentCategory, productsMap, search]);
@@ -2029,21 +2037,25 @@ export default function DispatchOrdersPage() {
     });
 
     if (!search.trim()) return sorted;
-    const lower = search.toLowerCase();
-    return sorted.filter(
-      (d) => {
-        const cust = resolveCustomerName(d.salesOrder, d);
-        return (
-          d.dispatchNo?.toLowerCase().includes(lower) ||
-          d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
-          cust.toLowerCase().includes(lower) ||
-          d.receivedBy?.toLowerCase().includes(lower) ||
-          d.receiverPhone?.toLowerCase().includes(lower) ||
-          d.driverName?.toLowerCase().includes(lower) ||
-          d.vehicleNumber?.toLowerCase().includes(lower)
-        );
-      }
-    );
+    return sorted.filter((d) => {
+      const cust = resolveCustomerName(d.salesOrder, d);
+      const itemNames = Array.isArray((d as any).items)
+        ? (d as any).items.map((it: any) => it?.product?.name || it?.productName || '').join(' ')
+        : '';
+      return matchesSmartSearch(
+        [
+          itemNames,
+          d.dispatchNo,
+          d.salesOrder?.orderNumber,
+          cust,
+          d.receivedBy,
+          d.receiverPhone,
+          d.driverName,
+          d.vehicleNumber,
+        ],
+        search,
+      );
+    });
   }, [historyDispatches, search, isDispatch2]);
 
   // KPI Computations

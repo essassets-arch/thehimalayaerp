@@ -20,6 +20,7 @@ import TestReportFormModal from '@/modules/production/components/TestReportFormM
 import CertificatePreviewModal from '@/modules/production/components/CertificatePreviewModal';
 import { downloadTestCertificatePdf } from '@/modules/production/utils/testCertificatePdf';
 import { isCurrentUserCustomerBlind } from '@/shared/utils/customerPrivacy';
+import { filterAndRankBySearch, matchesSmartSearch } from '@/shared/utils/smartSearch';
 import styles from './testing.module.css';
 
 export default function ProductionTestingPage() {
@@ -490,27 +491,22 @@ export default function ProductionTestingPage() {
     await safeSaveFile(doc, `testing_log_${new Date().toISOString().split('T')[0]}.pdf`, 'application/pdf');
   };
 
-  const filteredLogRecords = records.filter(r =>
-    (r.productName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (r.referenceNo || '').toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredLogRecords = filterAndRankBySearch(
+    records,
+    (r) => [r.productName, r.referenceNo],
+    searchQuery,
   );
 
-  const filteredReports = reports.filter(r => {
-    if (reportStatusFilter !== 'ALL' && r.status !== reportStatusFilter) return false;
-    if (reportTemplateFilter === 'CERT_1' && isCert2Report(r)) return false;
-    if (reportTemplateFilter === 'CERT_2' && !isCert2Report(r)) return false;
-
-    if (!reportSearch.trim()) return true;
-    const term = reportSearch.toLowerCase();
-    return (
-      (r.reportNumber || '').toLowerCase().includes(term) ||
-      (r.clientName || '').toLowerCase().includes(term) ||
-      (r.productName || '').toLowerCase().includes(term) ||
-      (r.poNumber || '').toLowerCase().includes(term) ||
-      (r.projectName || '').toLowerCase().includes(term) ||
-      (r.clearOpening || '').toLowerCase().includes(term)
-    );
-  });
+  const filteredReports = filterAndRankBySearch(
+    reports.filter(r => {
+      if (reportStatusFilter !== 'ALL' && r.status !== reportStatusFilter) return false;
+      if (reportTemplateFilter === 'CERT_1' && isCert2Report(r)) return false;
+      if (reportTemplateFilter === 'CERT_2' && !isCert2Report(r)) return false;
+      return true;
+    }),
+    (r) => [r.productName, r.reportNumber, r.clientName, r.poNumber, r.projectName, r.clearOpening],
+    reportSearch,
+  );
 
   const StatusBadge = ({ status }: { status: string }) => {
     const map = {
@@ -978,8 +974,19 @@ export default function ProductionTestingPage() {
                           onChange={e => setFormData({ ...formData, productId: e.target.value })}
                         >
                           <option value="">Select a product from Master Catalog</option>
-                          {products
-                            .filter(p => p.id === formData.productId || [p.name, p.sku, p.publicId].join(' ').toLowerCase().includes(productSearch.toLowerCase()))
+                          {filterAndRankBySearch(
+                            products,
+                            (p) => [p.name, p.sku, p.publicId, p.category],
+                            productSearch,
+                          )
+                            .concat(
+                              formData.productId &&
+                              !products
+                                .filter(p => matchesSmartSearch([p.name, p.sku, p.publicId, p.category], productSearch))
+                                .some(p => p.id === formData.productId)
+                                ? products.filter(p => p.id === formData.productId)
+                                : [],
+                            )
                             .map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku || p.publicId})</option>)}
                         </select>
                         {productError && (

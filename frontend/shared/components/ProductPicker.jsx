@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { backendFetch } from '../../lib/backendFetch';
+import { filterAndRankBySearch, parseSmartQuery } from '../utils/smartSearch';
 
 /**
  * Maps raw backend products into standardized sales items and precalculates
@@ -111,76 +112,22 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * High-performance smart multi-token fuzzy/exact search with relevance scoring.
- * Uses pre-computed lowercase fields to eliminate string allocations in inner loops.
+ * High-performance smart multi-token, dimension-aware & typo-tolerant search with relevance scoring.
  */
 function smartSearchProducts(items, searchQuery) {
   if (!searchQuery || !searchQuery.trim()) return items;
-
-  const raw = searchQuery.trim().toLowerCase();
-  const normalized = raw.replace(/[^a-z0-9]/g, '');
-  const tokens = raw.split(/\s+/).filter(Boolean);
-  const scored = [];
-
-  for (let i = 0; i < items.length; i++) {
-    const p = items[i];
-    const name = p._nameLower;
-    const code = p._codeLower;
-    const brand = p._brandLower;
-    const hsn = p._hsnLower;
-    const desc = p._descLower;
-    const normName = p._nameNorm;
-    const normCode = p._codeNorm;
-
-    let score = 0;
-
-    // 1. Exact match (highest priority)
-    if (code === raw || normCode === normalized) {
-      score += 200;
-    } else if (name === raw || normName === normalized) {
-      score += 160;
-    }
-
-    // 2. Starts with query
-    if (code.startsWith(raw) || (normalized && normCode.startsWith(normalized))) {
-      score += 80;
-    }
-    if (name.startsWith(raw) || (normalized && normName.startsWith(normalized))) {
-      score += 65;
-    }
-
-    // 3. Substring match
-    if (code.includes(raw)) score += 40;
-    if (name.includes(raw)) score += 35;
-    if (normalized.length >= 2 && normCode.includes(normalized)) score += 30;
-    if (normalized.length >= 2 && normName.includes(normalized)) score += 25;
-    if (brand.includes(raw)) score += 20;
-    if (hsn.includes(raw)) score += 20;
-    if (desc.includes(raw)) score += 15;
-
-    // 4. Multi-token match: all tokens present across attributes
-    if (tokens.length > 1) {
-      const allTokensMatch = tokens.every(t => {
-        const normT = t.replace(/[^a-z0-9]/g, '');
-        return (
-          name.includes(t) ||
-          code.includes(t) ||
-          brand.includes(t) ||
-          hsn.includes(t) ||
-          desc.includes(t) ||
-          (normT && (normName.includes(normT) || normCode.includes(normT)))
-        );
-      });
-      if (allTokensMatch) score += 55;
-    }
-
-    if (score > 0) {
-      scored.push({ product: p, score });
-    }
-  }
-
-  scored.sort((a, b) => b.score - a.score || (a.product.product_name || '').localeCompare(b.product.product_name || ''));
-  return scored.map(s => s.product);
+  return filterAndRankBySearch(
+    items,
+    (p) => [
+      p.product_name,
+      p.product_code,
+      p.category,
+      p.brand,
+      p.hsn_sac_code,
+      p.description,
+    ],
+    searchQuery,
+  );
 }
 
 /**
@@ -188,7 +135,13 @@ function smartSearchProducts(items, searchQuery) {
  */
 function highlightMatch(text, query) {
   if (!text || !query || !query.trim()) return text;
-  const rawTokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const parsed = parseSmartQuery(query);
+  const rawTokens = Array.from(
+    new Set([
+      ...query.trim().toLowerCase().split(/\s+/).filter(Boolean),
+      ...parsed.tokens,
+    ]),
+  ).filter(Boolean);
   if (rawTokens.length === 0) return text;
 
   const escaped = rawTokens.map(t => t.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|');

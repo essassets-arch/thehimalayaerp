@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import Swal from 'sweetalert2';
 import styles from './qc-failed.module.css';
 import { backendFetch } from '@/lib/backendFetch';
+import { matchesSmartSearch } from '@/shared/utils/smartSearch';
 import OrderDetailsModal from '@/shared/components/OrderDetailsModal';
 
 export default function QCFailedPage() {
@@ -264,15 +265,18 @@ export default function QCFailedPage() {
 
   const currentList = activeTab === 'ACTIVE' ? activeJobs : historyJobs;
   const filteredJobs = currentList
-    .filter((job: any) => {
-      const q = searchQuery.toLowerCase();
-      const soNo = (job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber || '').toLowerCase();
-      const woNo = (job.workOrderNumber || job.id || '').toLowerCase();
-      const customer = (job.productionPlan?.salesOrder?.customer?.companyName || job.customerName || '').toLowerCase();
-      const product = getProductName(job).toLowerCase();
-      const reason = (job.failureReason || '').toLowerCase();
-      return soNo.includes(q) || woNo.includes(q) || customer.includes(q) || product.includes(q) || reason.includes(q);
-    })
+    .filter((job: any) =>
+      matchesSmartSearch(
+        [
+          getProductName(job),
+          job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber,
+          job.workOrderNumber || job.id,
+          job.productionPlan?.salesOrder?.customer?.companyName || job.customerName,
+          job.failureReason,
+        ],
+        searchQuery,
+      ),
+    )
     .sort((a: any, b: any) => {
       const tA = new Date(a.failedAt || a.createdAt || a.created_at || 0).getTime();
       const tB = new Date(b.failedAt || b.createdAt || b.created_at || 0).getTime();

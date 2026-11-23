@@ -46,6 +46,7 @@ import {
 } from 'recharts';
 import { backendFetch } from '../../../lib/backendFetch';
 import UltraResponsiveChart from '../../../shared/components/UltraResponsiveChart';
+import { filterAndRankBySearch } from '@/shared/utils/smartSearch';
 
 // ── Curated Harmonious Industrial Palette ──
 const PALETTE = {
@@ -334,15 +335,17 @@ export const PlantHeadProductionAnalytics = () => {
       else if (sf === 'PENDING') list = list.filter(o => !o.isCompleted && o.status !== 'COMPLETED');
     }
     if (manifestSearchQuery.trim()) {
-      const q = manifestSearchQuery.toLowerCase();
-      list = list.filter(o =>
-        String(o.workOrderNumber || '').toLowerCase().includes(q) ||
-        String(o.orderNumber || '').toLowerCase().includes(q) ||
-        String(o.planNumber || '').toLowerCase().includes(q) ||
-        String(o.product || '').toLowerCase().includes(q) ||
-        String(o.customer || '').toLowerCase().includes(q) ||
-        String(o.size || '').toLowerCase().includes(q) ||
-        String(o.capacity || '').toLowerCase().includes(q)
+      list = filterAndRankBySearch(
+        list,
+        (o) => [
+          o.product,
+          o.size,
+          o.capacity,
+          o.workOrderNumber,
+          o.orderNumber,
+          o.planNumber,
+        ],
+        manifestSearchQuery,
       );
     }
     return list;
@@ -605,15 +608,17 @@ export const PlantHeadProductionAnalytics = () => {
   }, [report?.workOrdersList]);
 
   const filteredWorkOrders = useMemo(() => {
-    if (!searchQuery.trim()) return workOrdersList;
-    const q = searchQuery.toLowerCase();
-    return workOrdersList.filter(w =>
-      (w.workOrderNumber || '').toLowerCase().includes(q) ||
-      (w.orderNumber || '').toLowerCase().includes(q) ||
-      (w.product || '').toLowerCase().includes(q) ||
-      (w.category || '').toLowerCase().includes(q) ||
-      (w.size || '').toLowerCase().includes(q) ||
-      (w.capacity || '').toLowerCase().includes(q)
+    return filterAndRankBySearch(
+      workOrdersList,
+      (w) => [
+        w.product,
+        w.category,
+        w.size,
+        w.capacity,
+        w.workOrderNumber,
+        w.orderNumber,
+      ],
+      searchQuery,
     );
   }, [workOrdersList, searchQuery]);
 

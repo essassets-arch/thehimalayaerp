@@ -16,6 +16,7 @@ import { exportOrdersToCSV } from '../services/sales/salesExportService';
 import { isTradingProduct, isPureTradingOrder } from '@/shared/utils/dispatchCategory';
 import { getOrderStatusLabel, isDeliveredOrder } from '@/shared/utils/orderStatusResolver';
 import { isCurrentUserCustomerBlind } from '@/shared/utils/customerPrivacy';
+import { matchesSmartSearch } from '@/shared/utils/smartSearch';
 
 export default function OrdersView({ 
   orders, 
@@ -903,13 +904,10 @@ export default function OrdersView({
 
     const orderNoStr = String(o.orderNo || o.orderNumber || o.orderId || o.id || '');
     const poNoStr = String(o.customerPurchaseOrderNo || o.customerPoNo || o.poNumber || o.poNo || '');
-    const qStr = search.trim().toLowerCase();
-
-    const matchesSearch = !qStr ||
-      custName.toLowerCase().includes(qStr) || 
-      itemsStr.toLowerCase().includes(qStr) ||
-      orderNoStr.toLowerCase().includes(qStr) ||
-      poNoStr.toLowerCase().includes(qStr);
+    const matchesSearch = matchesSmartSearch(
+      [itemsStr, custName, orderNoStr, poNoStr],
+      search,
+    );
 
     if (filter === 'Deleted') {
       return isDeleted && matchesSearch;

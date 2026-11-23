@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { backendFetch } from '@/lib/backendFetch';
+import { filterAndRankBySearch } from '@/shared/utils/smartSearch';
 import styles from './testing.module.css';
 
 export default function PlantHeadTestingPage() {
@@ -150,14 +151,14 @@ export default function PlantHeadTestingPage() {
   const approvedCount = records.filter(r => r.status === 'Approved').length;
   const retestCount = records.filter(r => r.status === 'Needs Retest' || r.status === 'Rejected').length;
 
-  const filteredRecords = records.filter(r => {
-    const matchesSearch =
-      (r.productName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (r.referenceNo || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (r.reviewedBy || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'All' || r.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const statusFilteredRecords = records.filter(
+    r => statusFilter === 'All' || r.status === statusFilter,
+  );
+  const filteredRecords = filterAndRankBySearch(
+    statusFilteredRecords,
+    (r) => [r.productName, r.referenceNo, r.reviewedBy],
+    searchQuery,
+  );
 
   const getStatusBadge = (status: string) => {
     switch (status) {

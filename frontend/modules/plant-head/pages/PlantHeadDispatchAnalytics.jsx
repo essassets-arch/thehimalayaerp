@@ -49,6 +49,7 @@ import {
 } from 'recharts';
 import * as XLSX from 'xlsx';
 import { backendFetch } from '../../../lib/backendFetch';
+import { filterAndRankBySearch } from '@/shared/utils/smartSearch';
 
 // ── Curated Brand Palette ──
 const BRAND = {
@@ -591,18 +592,21 @@ export const PlantHeadDispatchAnalytics = () => {
       list = list.filter(d => d.date === dispatchDateFilter);
     }
     if (dispatchSearchQuery && dispatchSearchQuery.trim()) {
-      const q = dispatchSearchQuery.trim().toLowerCase();
-      list = list.filter(d =>
-        (d.id && String(d.id).toLowerCase().includes(q)) ||
-        (d.soNumber && String(d.soNumber).toLowerCase().includes(q)) ||
-        (d.product && String(d.product).toLowerCase().includes(q)) ||
-        (d.capacity && String(d.capacity).toLowerCase().includes(q)) ||
-        (d.size && String(d.size).toLowerCase().includes(q)) ||
-        (d.colour && String(d.colour).toLowerCase().includes(q)) ||
-        (d.vehicle && String(d.vehicle).toLowerCase().includes(q)) ||
-        (d.transporter && String(d.transporter).toLowerCase().includes(q)) ||
-        (d.destination && String(d.destination).toLowerCase().includes(q)) ||
-        (d.city && String(d.city).toLowerCase().includes(q))
+      list = filterAndRankBySearch(
+        list,
+        (d) => [
+          d.product,
+          d.size,
+          d.capacity,
+          d.colour,
+          d.id,
+          d.soNumber,
+          d.vehicle,
+          d.transporter,
+          d.destination,
+          d.city,
+        ],
+        dispatchSearchQuery,
       );
     }
     return list;
@@ -713,14 +717,19 @@ export const PlantHeadDispatchAnalytics = () => {
       list = list.filter(r => r.status === dailyReportStatusFilter);
     }
     if (dailyReportSearchQuery && dailyReportSearchQuery.trim()) {
-      const q = dailyReportSearchQuery.trim().toLowerCase();
-      list = list.filter(r =>
-        (r.reportNo && String(r.reportNo).toLowerCase().includes(q)) ||
-        (r.enteredBy && String(r.enteredBy).toLowerCase().includes(q)) ||
-        (r.dispatchExecutive && String(r.dispatchExecutive).toLowerCase().includes(q)) ||
-        (r.shift && String(r.shift).toLowerCase().includes(q)) ||
-        (r.date && String(r.date).toLowerCase().includes(q)) ||
-        (Array.isArray(r.items) && r.items.some(it => (it && ((it.productName && String(it.productName).toLowerCase().includes(q)) || (it.size && String(it.size).toLowerCase().includes(q))))))
+      list = filterAndRankBySearch(
+        list,
+        (r) => [
+          ...(Array.isArray(r.items)
+            ? r.items.map(it => `${it?.productName || ''} ${it?.size || ''}`)
+            : []),
+          r.reportNo,
+          r.enteredBy,
+          r.dispatchExecutive,
+          r.shift,
+          r.date,
+        ],
+        dailyReportSearchQuery,
       );
     }
     return list;

@@ -69,13 +69,17 @@ export default function ProductMasterUI({ role, scope }) {
   const [pageSize, setPageSize] = useState(25);
   const [serverTotal, setServerTotal] = useState(0);
   const [serverTotalPages, setServerTotalPages] = useState(1);
+  const [serverSummary, setServerSummary] = useState(null);
   const [serverCategories, setServerCategories] = useState([]);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterFamily, setFilterFamily] = useState('All');
   const [filterDispatch, setFilterDispatch] = useState('All');
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 250);
+    const t = setTimeout(() => {
+      setPage(1);
+      setDebouncedSearch(searchQuery.trim());
+    }, 220);
     return () => clearTimeout(t);
   }, [searchQuery]);
 
@@ -120,25 +124,39 @@ export default function ProductMasterUI({ role, scope }) {
   const canDelete = isSuperAdmin;
   const canEdit = isSuperAdmin || isPlantHead || isDispatch2;
 
-  // Fetch Server-Side Paginated Catalog Data
+  // Fetch Server-Side Paginated Catalog Data (with server-side productType, smart ranking & deduplication)
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
+      const targetProductType =
+        effectiveScope !== 'ALL' ? effectiveScope : activeSubMenu;
       const qs = new URLSearchParams({
         scope: 'catalog',
         page: String(page),
-        limit: String(Math.min(100, pageSize || 25)),
+        limit: String(Math.min(500, pageSize || 25)),
       });
+      if (targetProductType && targetProductType !== 'ALL') {
+        qs.set('productType', targetProductType);
+      }
       if (debouncedSearch) qs.set('search', debouncedSearch);
       if (filterFamily && filterFamily !== 'All') qs.set('category', filterFamily);
-      if (filterDispatch === 'D1' || filterDispatch === 'D2') {
+      if (
+        filterDispatch === 'D1' ||
+        filterDispatch === 'D2' ||
+        filterDispatch === 'Unassigned'
+      ) {
         qs.set('dispatchCategory', filterDispatch);
       }
-      const res = await backendFetch(`/api/backend/products?${qs.toString()}`, { cacheTtlMs: 10000 });
+      const res = await backendFetch(`/api/backend/products?${qs.toString()}`, {
+        cacheTtlMs: debouncedSearch ? 0 : 5000,
+      });
       const list = Array.isArray(res) ? res : (res?.items || res?.data || []);
       const meta = res?.pagination;
+      if (res?.summary) {
+        setServerSummary(res.summary);
+      }
       if (meta) {
-        setServerTotal(Number(meta.total || list.length));
+        setServerTotal(Number(meta.total ?? list.length));
         setServerTotalPages(Math.max(1, Number(meta.totalPages || 1)));
       } else {
         setServerTotal(list.length);
@@ -217,7 +235,7 @@ export default function ProductMasterUI({ role, scope }) {
     } finally {
       setLoading(false);
     }
-  }, [showToast, page, pageSize, debouncedSearch, filterFamily, filterDispatch, effectiveScope]);
+  }, [showToast, page, pageSize, debouncedSearch, filterFamily, filterDispatch, effectiveScope, activeSubMenu]);
 
   useEffect(() => {
     fetchProducts();
@@ -277,34 +295,33 @@ export default function ProductMasterUI({ role, scope }) {
   }, [rawProducts, filterDispatch, activeSubMenu]);
 
   // Server-driven pagination metadata
-  const totalItems = serverTotal > filteredProducts.length ? serverTotal : filteredProducts.length;
+  const totalItems = serverTotal;
   const totalPages = Math.max(serverTotalPages, 1);
-
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch, filterFamily, filterDispatch, pageSize, activeSubMenu]);
 
   const currentPageData = filteredProducts;
 
-  // KPI Computations
-  const activeCount = useMemo(() => rawProducts.filter(p => p.isActive !== false).length, [rawProducts]);
-  const d1Count = useMemo(() => rawProducts.filter(p => p.dispatch_category === 'D1').length, [rawProducts]);
-  const d2Count = useMemo(() => rawProducts.filter(p => p.dispatch_category === 'D2').length, [rawProducts]);
-  const unassignedCount = useMemo(() => rawProducts.filter(p => p.dispatch_category === 'Unassigned' || !p.dispatch_category).length, [rawProducts]);
+  // KPI Computations (use real server-wide DB totals when available)
+  const activeCount = serverSummary ? serverSummary.allCount : rawProducts.filter(p => p.isActive !== false).length;
+  const d1Count = serverSummary ? serverSummary.d1Count : rawProducts.filter(p => p.dispatch_category === 'D1').length;
+  const d2Count = serverSummary ? serverSummary.d2Count : rawProducts.filter(p => p.dispatch_category === 'D2').length;
+  const unassignedCount = serverSummary ? serverSummary.unassignedCount : rawProducts.filter(p => p.dispatch_category === 'Unassigned' || !p.dispatch_category).length;
   const familyCount = Math.max(0, availableFamilies.length - 1);
 
-  const mfgCount = useMemo(() => rawProducts.filter(p => {
-    const t = String(p.product_type || '').toUpperCase();
-    return t === 'MANUFACTURING' || t === 'MANUFACTURED';
-  }).length, [rawProducts]);
-  
-  const tradingCount = useMemo(() => rawProducts.filter(p => {
-    const t = String(p.product_type || '').toUpperCase();
-    return t === 'TRADING';
-  }).length, [rawProducts]);
-  
-  const allCount = rawProducts.length;
+  const mfgCount = serverSummary
+    ? serverSummary.mfgCount
+    : rawProducts.filter(p => {
+        const t = String(p.product_type || '').toUpperCase();
+        return t === 'MANUFACTURING' || t === 'MANUFACTURED';
+      }).length;
+
+  const tradingCount = serverSummary
+    ? serverSummary.tradingCount
+    : rawProducts.filter(p => {
+        const t = String(p.product_type || '').toUpperCase();
+        return t === 'TRADING';
+      }).length;
+
+  const allCount = serverSummary ? serverSummary.allCount : rawProducts.length;
 
   const dispatchCats = effectiveScope === 'MANUFACTURING' ? ['All Dispatches', 'D1'] :
     effectiveScope === 'TRADING' ? ['All Dispatches', 'D2'] :
@@ -686,7 +703,7 @@ export default function ProductMasterUI({ role, scope }) {
         <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'stretch', width: '100%' }}>
           <button
             type="button"
-            onClick={() => setActiveSubMenu('ALL')}
+            onClick={() => { setPage(1); setActiveSubMenu('ALL'); }}
             style={{
               flex: isMobile ? 1 : 'none',
               display: 'inline-flex',
@@ -724,6 +741,7 @@ export default function ProductMasterUI({ role, scope }) {
           <button
             type="button"
             onClick={() => {
+              setPage(1);
               setActiveSubMenu('MANUFACTURING');
               if (filterDispatch === 'D2') setFilterDispatch('All');
             }}
@@ -764,6 +782,7 @@ export default function ProductMasterUI({ role, scope }) {
           <button
             type="button"
             onClick={() => {
+              setPage(1);
               setActiveSubMenu('TRADING');
               if (filterDispatch === 'D1') setFilterDispatch('All');
             }}
@@ -828,11 +847,21 @@ export default function ProductMasterUI({ role, scope }) {
           <Search size={18} style={{ color: '#94A3B8', flexShrink: 0 }} />
           <input 
             type="text" 
-            placeholder="Search by code, name, category, or brand..." 
+            placeholder="Smart search: e.g. frp 600x600, mhc 10 x 10, dhmc, grating, SKU..." 
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             style={{ width: '100%', border: 'none', background: 'transparent', color: '#0F172A', fontSize: '13.5px', outline: 'none', padding: 0 }}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => { setSearchQuery(''); setDebouncedSearch(''); setPage(1); }}
+              style={{ border: 'none', background: '#E2E8F0', color: '#475569', borderRadius: '999px', width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}
+            >
+              ×
+            </button>
+          )}
         </div>
 
         {/* Filter Controls Group */}
@@ -842,7 +871,7 @@ export default function ProductMasterUI({ role, scope }) {
             <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B', whiteSpace: 'nowrap' }}>Category:</span>
             <select 
               value={filterFamily} 
-              onChange={e => setFilterFamily(e.target.value)}
+              onChange={e => { setPage(1); setFilterFamily(e.target.value); }}
               style={{ width: isMobile ? '100%' : 'auto', padding: '9px 12px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
             >
               {availableFamilies.map(f => <option key={f} value={f}>{f === 'All' ? 'All Categories' : f}</option>)}
@@ -854,7 +883,7 @@ export default function ProductMasterUI({ role, scope }) {
             <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B', whiteSpace: 'nowrap' }}>Dispatch:</span>
             <select 
               value={filterDispatch} 
-              onChange={e => setFilterDispatch(e.target.value)}
+              onChange={e => { setPage(1); setFilterDispatch(e.target.value); }}
               style={{ width: isMobile ? '100%' : 'auto', padding: '9px 12px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
             >
               {dispatchCats.map(d => <option key={d} value={d}>{d === 'All' ? 'All Dispatches' : d}</option>)}
@@ -866,7 +895,7 @@ export default function ProductMasterUI({ role, scope }) {
             <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B', whiteSpace: 'nowrap' }}>Per Page:</span>
             <select 
               value={pageSize} 
-              onChange={e => setPageSize(Number(e.target.value))}
+              onChange={e => { setPage(1); setPageSize(Number(e.target.value)); }}
               style={{ width: isMobile ? '100%' : 'auto', padding: '9px 12px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', cursor: 'pointer', fontWeight: 500 }}
             >
               <option value={10}>10</option>
