@@ -34,6 +34,7 @@ export interface LiveUserResponse {
   overallStatus?: 'LIVE' | 'STALE' | 'OFFLINE' | 'PERMISSION_DENIED' | 'TRACKING_STOPPED' | 'NO_LOCATION';
   trackingStatus?: 'ACTIVE_SHIFT' | 'ACTIVE_DEVICE' | 'STOPPED';
   gpsFreshness?: 'LIVE' | 'STALE' | 'NO_LOCATION';
+  activeSessionsCount?: number;
   latestLocation?: {
     latitude: number;
     longitude: number;
@@ -45,6 +46,12 @@ export interface LiveUserResponse {
     receivedAt?: Date | string;
     gpsAgeSeconds?: number | null;
     source?: string;
+    locationQuality?: 'HIGH_GPS' | 'MODERATE_GPS' | 'WIFI_APPROX' | 'IP_COARSE';
+    sourceDevice?: {
+      deviceType: string;
+      operatingSystem: string | null;
+      browser: string | null;
+    } | null;
   } | null;
   activeShift?: {
     sessionId: string;
@@ -119,6 +126,7 @@ export class LocationService {
           : {}),
         lastSeenAt: now,
         connectedAt: now,
+        disconnectedAt: null,
       },
       create: {
         companyId,
@@ -260,17 +268,16 @@ export class LocationService {
         : { isSuspiciousJump: true, filteredSynthetic: true };
     }
 
-    // Reject ultra-coarse desktop/ISP IP-fallback readings (> 1000m) when a real GPS fix already exists
-    if (
-      dto.accuracy != null &&
-      dto.accuracy > 1000 &&
-      existingLocation
-    ) {
+    // Reject ultra-coarse desktop/ISP IP-fallback readings (> 1000m) unconditionally
+    // so bogus ±20km–±60km city centroids never poison LatestUserLocation even on first session ping.
+    if (dto.accuracy != null && dto.accuracy > 1000) {
       await this.prisma.deviceSession.update({
         where: { id: session.id },
         data: { lastSeenAt: now },
       });
-      return { ...existingLocation, filteredCoarseAccuracy: true };
+      return existingLocation
+        ? { ...existingLocation, filteredCoarseAccuracy: true }
+        : { filteredCoarseAccuracy: true };
     }
 
     if (existingLocation && captured <= existingLocation.capturedAt) {
@@ -453,7 +460,9 @@ export class LocationService {
             punchOutAt: staleDayEnd,
           },
         });
-      } else if (activeShift) {
+      } else if (activeShift && (dto.accuracy == null || dto.accuracy <= 200)) {
+        // Only write accurate GPS/high-confidence fixes (<= 200m) into an active shift route;
+        // coarse ±500m office Wi-Fi/desktop pings must never corrupt field/factory shift coordinates.
         const clientPointId = `rt-${session.id}-${captured.getTime()}`;
         const lastShiftPoint = await this.prisma.employeeLocationPoint.findFirst({
           where: { sessionId: activeShift.id, isFilteredJump: false },
@@ -645,7 +654,7 @@ export class LocationService {
       now.getTime() - RECENT_THRESHOLD_SECONDS * 1000,
     );
 
-    const whereClause: any = { isActive: true };
+    const whereClause: any = { isActive: true, deletedAt: null };
     if (companyId) {
       whereClause.companyId = companyId;
     }
@@ -770,65 +779,144 @@ export class LocationService {
       });
 
       // ── Determine Primary Authoritative Location & Status per User ──
+      // Aggregate across ALL device sessions + active shift so a coarse desktop IP login
+      // never teleports or hides an accurate mobile/field GPS fix.
       const primarySession = u.deviceSessions && u.deviceSessions.length > 0 ? u.deviceSessions[0] : null;
       const activeShift = u.employeeLocationSessions && u.employeeLocationSessions.length > 0 ? u.employeeLocationSessions[0] : null;
 
-      // Check coordinates candidates: primarySession.latestLocation vs activeShift.points[0]
-      const sessionLoc = primarySession?.latestLocation || null;
-      const shiftNewestPoint = activeShift?.points && activeShift.points.length > 0 ? activeShift.points[0] : null;
+      const classifyQuality = (
+        acc: number | null | undefined,
+      ): 'HIGH_GPS' | 'MODERATE_GPS' | 'WIFI_APPROX' | 'IP_COARSE' => {
+        if (acc == null) return 'MODERATE_GPS';
+        if (acc <= 50) return 'HIGH_GPS';
+        if (acc <= 150) return 'MODERATE_GPS';
+        if (acc <= 1000) return 'WIFI_APPROX';
+        return 'IP_COARSE';
+      };
+
+      type CoordCandidate = {
+        latitude: number;
+        longitude: number;
+        accuracy: number | null;
+        speed: number | null;
+        heading: number | null;
+        batteryLevel: number | null;
+        capturedAt: Date | string;
+        receivedAt: Date | string;
+        source: string;
+        capturedMs: number;
+        isHighAccuracy: boolean;
+        isUltraCoarse: boolean;
+        sourceDevice: {
+          deviceType: string;
+          operatingSystem: string | null;
+          browser: string | null;
+        } | null;
+      };
+
+      const candidates: CoordCandidate[] = [];
+
+      // Candidate 1: Active shift GPS points (prefer newest high-accuracy point <= 200m, else newest shift point)
+      const shiftPoints: any[] = activeShift?.points || [];
+      if (shiftPoints.length > 0) {
+        const bestShiftPt =
+          shiftPoints.find((p: any) => p.accuracy == null || Number(p.accuracy) <= 200) ||
+          shiftPoints[0];
+        if (bestShiftPt) {
+          const capMs = new Date(bestShiftPt.recordedAt).getTime();
+          const acc = bestShiftPt.accuracy != null ? Number(bestShiftPt.accuracy) : null;
+          candidates.push({
+            latitude: Number(bestShiftPt.latitude),
+            longitude: Number(bestShiftPt.longitude),
+            accuracy: acc,
+            speed: bestShiftPt.speed,
+            heading: bestShiftPt.heading,
+            batteryLevel: bestShiftPt.batteryLevel,
+            capturedAt: bestShiftPt.recordedAt,
+            receivedAt: bestShiftPt.serverReceivedAt || bestShiftPt.recordedAt,
+            source: bestShiftPt.source || 'SHIFT_GPS',
+            capturedMs: capMs,
+            isHighAccuracy: acc == null || acc <= 150,
+            isUltraCoarse: acc != null && acc > 1000,
+            sourceDevice: null,
+          });
+        }
+      }
+
+      // Candidate 2: ALL device sessions that have a stored latestLocation (not just deviceSessions[0])
+      for (const ds of u.deviceSessions || []) {
+        if (!ds.latestLocation) continue;
+        const loc = ds.latestLocation;
+        const capMs = new Date(loc.capturedAt).getTime();
+        const acc = loc.accuracy != null ? Number(loc.accuracy) : null;
+        candidates.push({
+          latitude: Number(loc.latitude),
+          longitude: Number(loc.longitude),
+          accuracy: acc,
+          speed: loc.speed,
+          heading: loc.heading,
+          batteryLevel: loc.batteryLevel,
+          capturedAt: loc.capturedAt,
+          receivedAt: loc.receivedAt || loc.capturedAt,
+          source: 'DEVICE_SESSION',
+          capturedMs: capMs,
+          isHighAccuracy: acc == null || acc <= 150,
+          isUltraCoarse: acc != null && acc > 1000,
+          sourceDevice: {
+            deviceType: ds.deviceType,
+            operatingSystem: ds.operatingSystem || null,
+            browser: ds.browser || null,
+          },
+        });
+      }
+
+      // Authoritative selection:
+      // 1) Never use ultra-coarse IP-only (>1000m) if ANY usable <=1000m fix exists.
+      // 2) Never let a coarse Wi-Fi/desktop reading (>=250m) override a genuine GPS fix (<=150m)
+      //    recorded within the past 12 hours.
+      let chosenCandidate: CoordCandidate | null = null;
+      const nonUltraCoarse = candidates.filter((c) => !c.isUltraCoarse);
+      const pool = nonUltraCoarse.length > 0 ? nonUltraCoarse : candidates;
+
+      if (pool.length > 0) {
+        const highAccSorted = pool
+          .filter((c) => c.isHighAccuracy)
+          .sort((a, b) => b.capturedMs - a.capturedMs);
+        const allSorted = [...pool].sort((a, b) => b.capturedMs - a.capturedMs);
+
+        const newestHighAcc = highAccSorted[0] || null;
+        const newestOverall = allSorted[0] || null;
+
+        if (newestHighAcc && newestOverall) {
+          const highAccAgeHours = (now.getTime() - newestHighAcc.capturedMs) / (1000 * 3600);
+          const overallIsCoarse =
+            newestOverall.accuracy != null && newestOverall.accuracy >= 250;
+          if (newestHighAcc.capturedMs >= newestOverall.capturedMs) {
+            chosenCandidate = newestHighAcc;
+          } else if (overallIsCoarse && highAccAgeHours <= 12) {
+            chosenCandidate = newestHighAcc;
+          } else {
+            chosenCandidate = newestOverall;
+          }
+        } else {
+          chosenCandidate = newestHighAcc || newestOverall;
+        }
+      }
 
       let latestCoord: any = null;
-      if (sessionLoc && shiftNewestPoint) {
-        const sessionTime = new Date(sessionLoc.capturedAt).getTime();
-        const shiftTime = new Date(shiftNewestPoint.recordedAt).getTime();
-        if (shiftTime >= sessionTime) {
-          latestCoord = {
-            latitude: Number(shiftNewestPoint.latitude),
-            longitude: Number(shiftNewestPoint.longitude),
-            accuracy: shiftNewestPoint.accuracy,
-            speed: shiftNewestPoint.speed,
-            heading: shiftNewestPoint.heading,
-            batteryLevel: shiftNewestPoint.batteryLevel,
-            capturedAt: shiftNewestPoint.recordedAt,
-            receivedAt: shiftNewestPoint.serverReceivedAt || shiftNewestPoint.recordedAt,
-            source: shiftNewestPoint.source || 'SHIFT_GPS',
-          };
-        } else {
-          latestCoord = {
-            latitude: Number(sessionLoc.latitude),
-            longitude: Number(sessionLoc.longitude),
-            accuracy: sessionLoc.accuracy,
-            speed: sessionLoc.speed,
-            heading: sessionLoc.heading,
-            batteryLevel: sessionLoc.batteryLevel,
-            capturedAt: sessionLoc.capturedAt,
-            receivedAt: sessionLoc.receivedAt || sessionLoc.capturedAt,
-            source: 'DEVICE_SESSION',
-          };
-        }
-      } else if (shiftNewestPoint) {
+      if (chosenCandidate) {
         latestCoord = {
-          latitude: Number(shiftNewestPoint.latitude),
-          longitude: Number(shiftNewestPoint.longitude),
-          accuracy: shiftNewestPoint.accuracy,
-          speed: shiftNewestPoint.speed,
-          heading: shiftNewestPoint.heading,
-          batteryLevel: shiftNewestPoint.batteryLevel,
-          capturedAt: shiftNewestPoint.recordedAt,
-          receivedAt: shiftNewestPoint.serverReceivedAt || shiftNewestPoint.recordedAt,
-          source: shiftNewestPoint.source || 'SHIFT_GPS',
-        };
-      } else if (sessionLoc) {
-        latestCoord = {
-          latitude: Number(sessionLoc.latitude),
-          longitude: Number(sessionLoc.longitude),
-          accuracy: sessionLoc.accuracy,
-          speed: sessionLoc.speed,
-          heading: sessionLoc.heading,
-          batteryLevel: sessionLoc.batteryLevel,
-          capturedAt: sessionLoc.capturedAt,
-          receivedAt: sessionLoc.receivedAt || sessionLoc.capturedAt,
-          source: 'DEVICE_SESSION',
+          latitude: chosenCandidate.latitude,
+          longitude: chosenCandidate.longitude,
+          accuracy: chosenCandidate.accuracy,
+          speed: chosenCandidate.speed,
+          heading: chosenCandidate.heading,
+          batteryLevel: chosenCandidate.batteryLevel,
+          capturedAt: chosenCandidate.capturedAt,
+          receivedAt: chosenCandidate.receivedAt,
+          source: chosenCandidate.source,
+          locationQuality: classifyQuality(chosenCandidate.accuracy),
+          sourceDevice: chosenCandidate.sourceDevice,
         };
       }
 
@@ -844,22 +932,21 @@ export class LocationService {
         latestCoord.gpsAgeSeconds = gpsAgeSeconds;
       }
 
-      const heartbeatAgeSeconds = primarySession
-        ? Math.max(
+      // Evaluate online connectivity across ALL device sessions (not only sessions[0])
+      const activeSessions = (u.deviceSessions || []).filter((ds: any) => {
+        if (ds.disconnectedAt) return false;
+        const ageSec = Math.max(
           0,
-          Math.round(
-            (now.getTime() - new Date(primarySession.lastSeenAt).getTime()) / 1000,
-          ),
-        )
-        : null;
-
-      const isDeviceOnline =
-        heartbeatAgeSeconds !== null &&
-        heartbeatAgeSeconds <= ONLINE_THRESHOLD_SECONDS &&
-        !primarySession?.disconnectedAt;
+          Math.round((now.getTime() - new Date(ds.lastSeenAt).getTime()) / 1000),
+        );
+        return ageSec <= ONLINE_THRESHOLD_SECONDS;
+      });
+      const isDeviceOnline = activeSessions.length > 0;
 
       const locationPermission: LocationPermissionState =
-        primarySession?.locationPermission || 'PROMPT';
+        activeSessions.some((ds: any) => ds.locationPermission === 'GRANTED')
+          ? 'GRANTED'
+          : primarySession?.locationPermission || 'PROMPT';
 
       // 1. Separate tracking service status
       const trackingStatus: 'ACTIVE_SHIFT' | 'ACTIVE_DEVICE' | 'STOPPED' = activeShift
@@ -875,7 +962,8 @@ export class LocationService {
           ? 'STALE'
           : 'NO_LOCATION';
 
-      // 3. Truthful Overall Status
+      // 3. Truthful Overall Status:
+      // Always report NO_LOCATION when a user has zero coordinates so the "No GPS" counter is accurate.
       let overallStatus:
         | 'LIVE'
         | 'STALE'
@@ -884,14 +972,14 @@ export class LocationService {
         | 'TRACKING_STOPPED'
         | 'NO_LOCATION';
 
-      if (locationPermission === 'DENIED') {
+      if (locationPermission === 'DENIED' && !latestCoord) {
         overallStatus = 'PERMISSION_DENIED';
       } else if (isGpsFresh) {
         overallStatus = 'LIVE';
       } else if (latestCoord) {
         overallStatus = isDeviceOnline ? 'STALE' : 'OFFLINE';
       } else {
-        overallStatus = isDeviceOnline ? 'NO_LOCATION' : 'OFFLINE';
+        overallStatus = 'NO_LOCATION';
       }
 
       // Active shift metadata if employee is punched in
@@ -938,6 +1026,7 @@ export class LocationService {
         overallStatus,
         trackingStatus,
         gpsFreshness,
+        activeSessionsCount: activeSessions.length,
         latestLocation: latestCoord,
         activeShift: activeShiftData,
         sessions,
@@ -946,10 +1035,11 @@ export class LocationService {
   }
 
   /**
-   * Cleanup method to wipe device sessions older than 30 days
+   * Cleanup method to wipe stale device sessions older than retention window (default 7 days)
    */
   async cleanupOldSessions(): Promise<number> {
-    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days
+    const retentionDays = Number(process.env.DEVICE_SESSION_RETENTION_DAYS) || 7;
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
     const result = await this.prisma.deviceSession.deleteMany({
       where: {
         lastSeenAt: {
@@ -1254,8 +1344,9 @@ export class LocationService {
     };
   }
 
-  // In-memory cache for reverse geocoding
+  // In-memory cache for reverse geocoding & circuit breaker for unbilled Google Maps keys
   private geocodeCache = new Map<string, any>();
+  private googleGeocodeDeniedUntil = 0;
 
   /**
    * Reverse geocode coordinates via Google Maps Geocoding API.
@@ -1306,8 +1397,8 @@ export class LocationService {
       process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
       '';
 
-    // Tier 1: Try Google Maps Geocoding API if configured
-    if (apiKey) {
+    // Tier 1: Try Google Maps Geocoding API if configured and not circuit-broken (e.g. billing disabled)
+    if (apiKey && Date.now() >= this.googleGeocodeDeniedUntil) {
       try {
         const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`;
         const response = await fetch(url, { signal: AbortSignal.timeout(6000) });
@@ -1373,6 +1464,9 @@ export class LocationService {
             this.geocodeCache.set(cacheKey, result);
             return result;
           } else {
+            if (data.status === 'REQUEST_DENIED' || data.status === 'OVER_DAILY_LIMIT') {
+              this.googleGeocodeDeniedUntil = Date.now() + 60 * 60 * 1000; // Skip Google for 1h, go straight to OpenStreetMap
+            }
             this.logger.warn(
               `Google reverse geocode returned status ${data.status}: ${data.error_message || ''}. Falling back to OpenStreetMap.`,
             );

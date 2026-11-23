@@ -33,6 +33,8 @@ export class LocationGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
   private readonly logger = new Logger(LocationGateway.name);
+  // Track active socket IDs per userId so closing 1 browser tab doesn't falsely mark multi-tab users OFFLINE
+  private readonly activeUserSockets = new Map<string, Set<string>>();
 
   @WebSocketServer()
   server: Server;
@@ -115,6 +117,7 @@ export class LocationGateway
       socket.data.user = {
         userId: payload.sub,
         sid: payload.sid || null,
+        name: payload.name || payload.fullName || payload.email?.split('@')[0] || 'User',
         email: payload.email,
         role: payload.role,
         companyId: payload.companyId,
@@ -124,6 +127,12 @@ export class LocationGateway
       // Join user & auth-session rooms for instant force-logout delivery
       if (payload.sub) {
         await socket.join(`user:${payload.sub}`);
+        let sockets = this.activeUserSockets.get(payload.sub);
+        if (!sockets) {
+          sockets = new Set<string>();
+          this.activeUserSockets.set(payload.sub, sockets);
+        }
+        sockets.add(socket.id);
       }
       if (payload.sid) {
         await socket.join(`session:${payload.sid}`);
@@ -180,15 +189,35 @@ export class LocationGateway
 
   handleDisconnect(socket: Socket) {
     if (socket.data.user) {
+      const userId = socket.data.user.userId;
       this.logger.log(
         `User disconnected: ${socket.data.user.email} (${socket.id})`,
       );
-      // Update disconnect logs but rely on lastSeenAt for offline determination
-      const companyId = socket.data.user.companyId;
 
+      let remainingConnections = 0;
+      if (userId) {
+        const sockets = this.activeUserSockets.get(userId);
+        if (sockets) {
+          sockets.delete(socket.id);
+          remainingConnections = sockets.size;
+          if (remainingConnections === 0) {
+            this.activeUserSockets.delete(userId);
+          }
+        }
+      }
+
+      // Only broadcast device:disconnected when this user's LAST live socket closes
+      // so closing 1 of 3 tabs never causes ONLINE <-> OFFLINE flapping on the Live Map.
+      if (remainingConnections > 0) {
+        return;
+      }
+
+      const companyId = socket.data.user.companyId;
       const disconnectData = {
-        userId: socket.data.user.userId,
+        userId,
+        sessionId: socket.data.sessionId || null,
         socketId: socket.id,
+        remainingConnections: 0,
         disconnectedAt: new Date().toISOString(),
       };
 
@@ -304,14 +333,23 @@ export class LocationGateway
         dto,
       );
 
-      if (loc?.isSuspiciousJump) {
+      if (
+        !loc ||
+        loc.isSuspiciousJump ||
+        loc.filteredCoarseAccuracy ||
+        loc.filteredSynthetic ||
+        loc.latitude == null ||
+        loc.longitude == null
+      ) {
         this.logger.warn(
-          `Filtered suspicious jump broadcast for user ${user.userId}`,
+          `Filtered non-authoritative location broadcast for user ${user.userId} (jump=${Boolean(loc?.isSuspiciousJump)}, coarse=${Boolean(loc?.filteredCoarseAccuracy)})`,
         );
         return {
           success: true,
           filtered: true,
-          message: 'Suspicious GPS jump filtered',
+          message: loc?.filteredCoarseAccuracy
+            ? 'Coarse IP location filtered'
+            : 'Suspicious GPS jump filtered',
         };
       }
 

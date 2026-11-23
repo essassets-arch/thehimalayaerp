@@ -1,6 +1,6 @@
 'use client';
 
-import { loadGoogleMaps } from '../../../lib/loadGoogleMaps';
+import 'leaflet/dist/leaflet.css';
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { backendFetch } from '../../../lib/backendFetch';
@@ -26,6 +26,66 @@ export const formatGpsAge = (seconds) => {
   return `${hours}h ${remMins}m ago`;
 };
 
+const formatAccuracyBadge = (accuracy) => {
+  if (accuracy === null || accuracy === undefined || isNaN(Number(accuracy))) return null;
+  const m = Math.round(Number(accuracy));
+  if (m <= 50) return { label: `GPS ±${m}m`, bg: '#DCFCE7', color: '#166534', border: '#86EFAC', icon: '🎯' };
+  if (m <= 150) return { label: `GPS ±${m}m`, bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE', icon: '📍' };
+  if (m <= 1000) return { label: `Wi-Fi ±${m}m`, bg: '#FEF3C7', color: '#92400E', border: '#FCD34D', icon: '📡' };
+  const km = (m / 1000).toFixed(1);
+  return { label: `IP ~${km}km`, bg: '#FEE2E2', color: '#991B1B', border: '#FCA5A5', icon: '⚠️' };
+};
+
+const haversineMeters = (lat1, lng1, lat2, lng2) => {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const calcBearingDeg = (lat1, lng1, lat2, lng2) => {
+  const y = Math.sin(((lng2 - lng1) * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180);
+  const x =
+    Math.cos((lat1 * Math.PI) / 180) * Math.sin((lat2 * Math.PI) / 180) -
+    Math.sin((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.cos(((lng2 - lng1) * Math.PI) / 180);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+};
+
+const escapeHtml = (v) =>
+  String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+// ─── FREE OPENSTREETMAP / CARTO / SATELLITE TILE LAYERS ──────────────────────
+const MAP_TILE_LAYERS = {
+  clean: {
+    id: 'clean',
+    label: 'Clean Map',
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    maxZoom: 19,
+  },
+  osm: {
+    id: 'osm',
+    label: 'OSM Street',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19,
+  },
+  satellite: {
+    id: 'satellite',
+    label: 'Satellite',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri',
+    maxZoom: 18,
+  },
+};
+
 // ─── ROLE CATEGORIZATION & CONFIGURATION ──────────────────────────────────────
 export const getCategoryForRole = (roleStr) => {
   const r = (roleStr || '').toUpperCase().replace(/[\s-]+/g, '_');
@@ -44,6 +104,9 @@ export const getCategoryForRole = (roleStr) => {
   }
   if (r.includes('PRODUCTION') || r.includes('PLANNER') || r.includes('OPERATOR') || r.includes('MANUFACTURING') || r.includes('SUPERVISOR')) {
     return 'Production';
+  }
+  if (r.includes('BACK_OFFICE') || r.includes('BACKOFFICE') || r.includes('DATA_ANALYTICS') || r.includes('COORDINATOR')) {
+    return 'Back Office';
   }
   if (r.includes('QC') || r.includes('QUALITY') || r.includes('INSPECTOR') || r.includes('QA')) {
     return 'QC';
@@ -128,6 +191,19 @@ export const ROLE_CONFIG = {
     iconType: 'production',
     emoji: '⚙️',
     description: 'Production Planner & Operators',
+  },
+  'Back Office': {
+    name: 'Back Office',
+    shortName: 'Back Office',
+    color: '#0891B2',
+    accentColor: '#0E7490',
+    lightBg: '#ECFEFF',
+    borderColor: '#67E8F9',
+    textColor: '#0E7490',
+    glowColor: 'rgba(8, 145, 178, 0.5)',
+    iconType: 'back_office',
+    emoji: '🖥️',
+    description: 'Back Office & Operations Coordination',
   },
   QC: {
     name: 'Quality Control',
@@ -218,12 +294,14 @@ export const extractAuthoritativeSession = (user) => {
     const bOnline = b.status === 'ONLINE' ? 1 : 0;
     if (aOnline !== bOnline) return bOnline - aOnline;
 
-    const aHasGps = a.location?.latitude && a.location?.longitude ? 1 : 0;
-    const bHasGps = b.location?.latitude && b.location?.longitude ? 1 : 0;
-    if (aHasGps !== bHasGps) return bHasGps - aHasGps;
+    const aAcc = a.location?.accuracy ?? 999999;
+    const bAcc = b.location?.accuracy ?? 999999;
+    const aGoodGps = a.location?.latitude && aAcc <= 150 ? 1 : 0;
+    const bGoodGps = b.location?.latitude && bAcc <= 150 ? 1 : 0;
+    if (aGoodGps !== bGoodGps) return bGoodGps - aGoodGps;
 
-    const aTime = a.location?.capturedAt ? new Date(a.location.capturedAt).getTime() : 0;
-    const bTime = b.location?.capturedAt ? new Date(b.location.capturedAt).getTime() : 0;
+    const aTime = a.lastSeenAt ? new Date(a.lastSeenAt).getTime() : 0;
+    const bTime = b.lastSeenAt ? new Date(b.lastSeenAt).getTime() : 0;
     return bTime - aTime;
   });
 
@@ -231,14 +309,14 @@ export const extractAuthoritativeSession = (user) => {
 };
 
 // ─── HIGH-QUALITY SVG PIN MARKERS ─────────────────────────────────────────────
-export const generatePinSvg = (category, statusMode = 'OFFLINE', isHighlighted = false) => {
+const buildPinSvgMarkup = (category, statusMode = 'OFFLINE', isHighlighted = false) => {
   const cfg = ROLE_CONFIG[category] || ROLE_CONFIG.Other;
   const pinColor = cfg.color;
 
-  let statusColor = '#94A3B8'; // Offline gray
-  if (statusMode === 'LIVE') statusColor = '#10B981'; // Green
-  else if (statusMode === 'STALE') statusColor = '#F59E0B'; // Amber
-  else if (statusMode === 'PERMISSION_DENIED') statusColor = '#EF4444'; // Red
+  let statusColor = '#94A3B8';
+  if (statusMode === 'LIVE') statusColor = '#10B981';
+  else if (statusMode === 'STALE') statusColor = '#F59E0B';
+  else if (statusMode === 'PERMISSION_DENIED') statusColor = '#EF4444';
 
   const strokeColor = isHighlighted ? '#F59E0B' : '#FFFFFF';
   const strokeWidth = isHighlighted ? '3.5' : '2';
@@ -249,6 +327,7 @@ export const generatePinSvg = (category, statusMode = 'OFFLINE', isHighlighted =
     hr: '<path d="M20 15a3 3 0 1 0 0-6a3 3 0 0 0 0 6z M14 21a6 6 0 0 1 12 0" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
     dispatch: '<rect x="11" y="11" width="11" height="8" rx="1" stroke="#FFFFFF" stroke-width="1.6" fill="none"/><path d="M22 14h4l2 3v2h-6v-5z" stroke="#FFFFFF" stroke-width="1.6" fill="none"/><circle cx="14" cy="20" r="1.5" fill="#FFFFFF"/><circle cx="25" cy="20" r="1.5" fill="#FFFFFF"/>',
     production: '<circle cx="20" cy="16" r="3" stroke="#FFFFFF" stroke-width="1.6" fill="none"/><path d="M20 10v2M20 20v2M14 16h2M24 16h2M15.5 11.5l1.5 1.5M23 19l1.5 1.5M15.5 20.5l1.5-1.5M23 13l1.5-1.5" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round"/>',
+    back_office: '<rect x="12" y="11" width="16" height="10" rx="1.5" stroke="#FFFFFF" stroke-width="1.6" fill="none"/><path d="M17 24h6M20 21v3" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round"/>',
     qc: '<path d="M20 10l6 2.5v5c0 4-2.5 7-6 8.5c-3.5-1.5-6-4.5-6-8.5v-5l6-2.5z" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M18 17l1.5 1.5l3-3" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
     store: '<path d="M13 13l7-3l7 3v8l-7 3l-7-3v-8z M13 13l7 3l7-3 M20 16v8" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
     finance: '<rect x="12" y="11" width="16" height="11" rx="2" stroke="#FFFFFF" stroke-width="1.6" fill="none"/><line x1="12" y1="15" x2="28" y2="15" stroke="#FFFFFF" stroke-width="1.6"/><circle cx="16" cy="19" r="1" fill="#FFFFFF"/>',
@@ -258,92 +337,35 @@ export const generatePinSvg = (category, statusMode = 'OFFLINE', isHighlighted =
   };
 
   const chosenPath = iconPaths[cfg.iconType] || iconPaths.other;
-
-  const pinSvg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="52" viewBox="0 0 40 52">
-      <defs>
-        <filter id="shadow" x="-20%" y="-10%" width="140%" height="130%">
-          <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="rgba(0,0,0,0.35)"/>
-        </filter>
-      </defs>
-      <path d="M20 2 C9 2 2 9 2 20 C2 31 16 48 20 50 C24 48 38 31 38 20 C38 9 31 2 20 2 Z"
-            fill="${pinColor}" stroke="${strokeColor}" stroke-width="${strokeWidth}" filter="url(#shadow)" />
-      <circle cx="20" cy="17" r="12" fill="rgba(0,0,0,0.18)" />
-      ${chosenPath}
-      <circle cx="31" cy="9" r="5" fill="${statusColor}" stroke="#FFFFFF" stroke-width="2" />
-    </svg>
-  `;
-
-  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvg);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="38" height="48" viewBox="0 0 40 52" style="filter:drop-shadow(0 3px 4px rgba(15,23,42,0.35));display:block;">
+    <path d="M20 2 C9 2 2 9 2 20 C2 31 16 48 20 50 C24 48 38 31 38 20 C38 9 31 2 20 2 Z"
+          fill="${pinColor}" stroke="${strokeColor}" stroke-width="${strokeWidth}" />
+    <circle cx="20" cy="17" r="12" fill="rgba(0,0,0,0.18)" />
+    ${chosenPath}
+    <circle cx="31" cy="9" r="5" fill="${statusColor}" stroke="#FFFFFF" stroke-width="2" />
+  </svg>`;
 };
 
-export const getStopPinSvg = (stopNumber) => {
-  const pinSvg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 34 42">
-      <defs>
-        <filter id="stopShadow" x="-20%" y="-10%" width="140%" height="130%">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.3)"/>
-        </filter>
-      </defs>
-      <path d="M17 1 C8 1 2 7 2 16 C2 26 14 39 17 41 C20 39 32 26 32 16 C32 7 26 1 17 1 Z"
-            fill="#D97706" stroke="#FFFFFF" stroke-width="2" filter="url(#stopShadow)"/>
-      <circle cx="17" cy="16" r="10" fill="#FFFFFF"/>
-      <text x="17" y="20" font-size="11" font-weight="bold" fill="#92400E" text-anchor="middle" font-family="system-ui, sans-serif">${stopNumber}</text>
-    </svg>
-  `;
-  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvg);
-};
+export const generatePinSvg = (category, statusMode = 'OFFLINE', isHighlighted = false) =>
+  'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(buildPinSvgMarkup(category, statusMode, isHighlighted));
 
-export const getStartPinSvg = () => {
-  const pinSvg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">
-      <defs>
-        <filter id="startShadow" x="-20%" y="-10%" width="140%" height="130%">
-          <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="rgba(0,0,0,0.35)"/>
-        </filter>
-      </defs>
-      <path d="M18 1 C8.5 1 2 7.5 2 17 C2 28 15 43 18 45 C21 43 34 28 34 17 C34 7.5 27.5 1 18 1 Z"
-            fill="#16A34A" stroke="#FFFFFF" stroke-width="2" filter="url(#startShadow)"/>
-      <circle cx="18" cy="17" r="10" fill="#FFFFFF"/>
-      <text x="18" y="21" font-size="12" font-weight="bold" fill="#15803D" text-anchor="middle" font-family="system-ui, sans-serif">S</text>
-    </svg>
-  `;
-  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvg);
-};
+const buildBadgePinMarkup = (bg, fg, label, w = 32, h = 40) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 36 46" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.3));display:block;">
+  <path d="M18 1 C8.5 1 2 7.5 2 17 C2 28 15 43 18 45 C21 43 34 28 34 17 C34 7.5 27.5 1 18 1 Z" fill="${bg}" stroke="#FFFFFF" stroke-width="2"/>
+  <circle cx="18" cy="17" r="10" fill="#FFFFFF"/>
+  <text x="18" y="21" font-size="11.5" font-weight="bold" fill="${fg}" text-anchor="middle" font-family="system-ui, sans-serif">${escapeHtml(label)}</text>
+</svg>`;
 
-export const getEndPinSvg = () => {
-  const pinSvg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">
-      <defs>
-        <filter id="endShadow" x="-20%" y="-10%" width="140%" height="130%">
-          <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="rgba(0,0,0,0.35)"/>
-        </filter>
-      </defs>
-      <path d="M18 1 C8.5 1 2 7.5 2 17 C2 28 15 43 18 45 C21 43 34 28 34 17 C34 7.5 27.5 1 18 1 Z"
-            fill="#DC2626" stroke="#FFFFFF" stroke-width="2" filter="url(#endShadow)"/>
-      <circle cx="18" cy="17" r="10" fill="#FFFFFF"/>
-      <text x="18" y="21" font-size="12" font-weight="bold" fill="#991B1B" text-anchor="middle" font-family="system-ui, sans-serif">E</text>
-    </svg>
-  `;
-  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvg);
-};
+export const getStopPinSvg = (stopNumber) =>
+  'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(buildBadgePinMarkup('#D97706', '#92400E', stopNumber));
 
-export const getLeadPinSvg = () => {
-  const pinSvg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
-      <defs>
-        <filter id="leadShadow" x="-20%" y="-10%" width="140%" height="130%">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.3)"/>
-        </filter>
-      </defs>
-      <path d="M16 1 C7.5 1 2 6.8 2 15 C2 24.5 13.5 37 16 39 C18.5 37 30 24.5 30 15 C30 6.8 24.5 1 16 1 Z"
-            fill="#7C3AED" stroke="#FFFFFF" stroke-width="2" filter="url(#leadShadow)"/>
-      <circle cx="16" cy="15" r="9" fill="#FFFFFF"/>
-      <text x="16" y="19" font-size="10.5" font-weight="bold" fill="#5B21B6" text-anchor="middle" font-family="system-ui, sans-serif">L</text>
-    </svg>
-  `;
-  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvg);
-};
+export const getStartPinSvg = () =>
+  'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(buildBadgePinMarkup('#16A34A', '#15803D', 'S'));
+
+export const getEndPinSvg = () =>
+  'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(buildBadgePinMarkup('#DC2626', '#991B1B', 'E'));
+
+export const getLeadPinSvg = () =>
+  'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(buildBadgePinMarkup('#7C3AED', '#5B21B6', 'L'));
 
 const DAY_ROUTE_COLORS = [
   '#2563EB', // Blue
@@ -355,85 +377,106 @@ const DAY_ROUTE_COLORS = [
   '#DB2777', // Pink
 ];
 
+const DEPARTMENT_PILLS = [
+  'All',
+  'Sales',
+  'Plant Head',
+  'HR',
+  'Dispatch',
+  'Production',
+  'Back Office',
+  'QC',
+  'Store',
+  'Finance',
+  'Procurement',
+  'Admin',
+];
+
 export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {}) {
   const isHrPortal = portalMode === 'HR';
   const { accessToken } = useAuthStore();
 
-  // ─── 4 MAIN OPERATIONAL MODES ─────────────────────────────────────────────
-  // 'ALL_USERS': Default Super Admin live map for ALL authorized employees & users
-  // 'ACTIVE_SHIFTS': Focused attendance shift routes & distance
-  // 'ROUTE_HISTORY': Historical shift route playback & detected stops
-  // 'DEVICE_SESSIONS': Device hardware inventory & browser sessions
-  const [mode, setMode] = useState('ALL_USERS');
+  // ─── 4 OPERATIONAL MODES ───────────────────────────────────────────────────
+  const [mode, setMode] = useState('ALL_USERS'); // ALL_USERS | ACTIVE_SHIFTS | ROUTE_HISTORY | DEVICE_SESSIONS
 
-  // Common UI & Connection States
-  const [loading, setLoading] = useState(true);
+  // UI & Connection States (initialLoading is ONLY true before first load — never wipes list on refresh!)
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [mapsLoaded, setMapsLoaded] = useState(false);
   const [mapsError, setMapsError] = useState(null);
-  const [liveStatus, setLiveStatus] = useState('OFFLINE'); // 'LIVE' | 'RECONNECTING' | 'OFFLINE'
+  const [tileLayerKey, setTileLayerKey] = useState('clean'); // clean | osm | satellite
+  const [liveStatus, setLiveStatus] = useState('OFFLINE'); // LIVE | RECONNECTING | OFFLINE
   const [lastRestSync, setLastRestSync] = useState(null);
-  const [showTraffic, setShowTraffic] = useState(false);
   const [showDrawer, setShowDrawer] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
-  const [followUser, setFollowUser] = useState(false); // Follow selected user dynamically
+  const [followUser, setFollowUser] = useState(false);
+  const [expandedClusterKey, setExpandedClusterKey] = useState(null);
+  const [expandedDeviceUserId, setExpandedDeviceUserId] = useState(null);
+  const [zoomVersion, setZoomVersion] = useState(0);
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   // Unified Users & Shifts State
   const [allUsers, setAllUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState(null);
-  const [liveRoutes, setLiveRoutes] = useState([]);
   const [overview7d, setOverview7d] = useState({});
   const [selectedUserAddress, setSelectedUserAddress] = useState('');
 
   // 7-Day Route History & Playback State
-  const [allEmployees, setAllEmployees] = useState([]);
   const [selectedHistoryEmployeeId, setSelectedHistoryEmployeeId] = useState('');
-  const [historyDate, setHistoryDate] = useState(() => getLocalDateString(0));
   const [historyFromDate, setHistoryFromDate] = useState(() => getLocalDateString(6));
   const [historyToDate, setHistoryToDate] = useState(() => getLocalDateString(0));
-  const [historyRangeMode, setHistoryRangeMode] = useState('7D'); // '7D' | '14D' | 'CUSTOM'
+  const [historyRangeMode, setHistoryRangeMode] = useState('7D'); // 7D | 14D | CUSTOM
   const [history7dData, setHistory7dData] = useState(null);
-  const [activeHistoryDayDate, setActiveHistoryDayDate] = useState('ALL'); // 'ALL' | 'YYYY-MM-DD'
+  const [activeHistoryDayDate, setActiveHistoryDayDate] = useState('ALL');
   const [historyData, setHistoryData] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
   const [playbackIndex, setPlaybackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [routeRenderMode, setRouteRenderMode] = useState('GPS'); // 'GPS' | 'ROADS'
-  const [roadRouteInfo, setRoadRouteInfo] = useState(null); // { km, duration, loading, error }
+  const [routeRenderMode, setRouteRenderMode] = useState('GPS'); // GPS | ROADS
+  const [roadRouteInfo, setRoadRouteInfo] = useState(null);
 
-  // Filters & Search (Sales Team focused by default, All Staff 1 click away)
+  // Filters & Search (Default 'All' so no department looks missing on open)
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDepartment, setSelectedDepartment] = useState('Sales');
+  const [selectedDepartment, setSelectedDepartment] = useState('All');
   const [statusFilter, setStatusFilter] = useState('ALL'); // ALL | LIVE | STALE | OFFLINE | NO_LOCATION
-  const [shiftFilter, setShiftFilter] = useState('ALL'); // ALL | ON_SHIFT | OFF_SHIFT
 
-  // Google Maps Refs
+  // Leaflet & Runtime Refs
   const mapContainerRef = useRef(null);
+  const leafletRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const markersRef = useRef({}); // userId -> Google Maps Marker
-  const startMarkersRef = useRef({}); // userId/sessionId -> Punch-In Start Marker (S)
-  const stopMarkersRef = useRef([]); // Stop Markers
-  const leadMarkersRef = useRef([]); // CRM Lead Check-in Markers
-  const multiPolylinesRef = useRef([]); // Multi-Day 7d Polylines
-  const activePolylineRef = useRef(null); // Active Route Polyline
-  const directionsRendererRef = useRef(null); // Optional Google Roads DirectionsRenderer
-  const startMarkerRef = useRef(null);
-  const endMarkerRef = useRef(null);
-  const playbackMarkerRef = useRef(null);
+  const tileLayerRef = useRef(null);
+  const userLayerRef = useRef(null);
+  const overlayLayerRef = useRef(null);
   const accuracyCircleRef = useRef(null);
-  const trafficLayerRef = useRef(null);
-  const infoWindowRef = useRef(null);
+  const playbackMarkerRef = useRef(null);
+  const activePolylineRef = useRef(null);
   const socketRef = useRef(null);
   const addressCacheRef = useRef(new Map());
+  const lastOverviewFetchRef = useRef(0);
+  const hasLoadedOnceRef = useRef(false);
+  const fetchInFlightRef = useRef(false);
+  const usersByIdRef = useRef(new Map());
   const followUserRef = useRef(followUser);
   followUserRef.current = followUser;
   const selectedUserIdRef = useRef(selectedUserId);
   selectedUserIdRef.current = selectedUserId;
+  const liveStatusRef = useRef(liveStatus);
+  liveStatusRef.current = liveStatus;
 
-  const apiKey =
-    process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
-    'AIzaSyC2ISdvD-9mXT5RevQEyHfTio1Mtb6cZpg';
+  // Keep fresh user lookup map for click popups (eliminates stale closures!)
+  useEffect(() => {
+    const map = new Map();
+    allUsers.forEach((u) => map.set(u.userId, u));
+    usersByIdRef.current = map;
+  }, [allUsers]);
+
+  // Live 15s clock tick so GPS age counters advance smoothly without flickering the DOM
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 15000);
+    return () => clearInterval(id);
+  }, []);
 
   // Responsive mobile drawer
   useEffect(() => {
@@ -449,233 +492,293 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
     }
   }, []);
 
-  // ── Accuracy Circle Indicator ──────────────────────────────────────────────
-  const showAccuracyCircle = useCallback((lat, lng, accuracy, color = '#2563EB') => {
-    if (!mapInstanceRef.current || !window.google?.maps) return;
-    if (accuracyCircleRef.current) {
-      accuracyCircleRef.current.setMap(null);
-      accuracyCircleRef.current = null;
+  // Re-invalidate Leaflet map container size when drawer toggles
+  useEffect(() => {
+    if (mapInstanceRef.current) {
+      const t = setTimeout(() => {
+        mapInstanceRef.current?.invalidateSize?.();
+      }, 150);
+      return () => clearTimeout(t);
     }
-    if (!accuracy || accuracy > 10000) return;
+  }, [showDrawer, isMobile]);
 
-    accuracyCircleRef.current = new window.google.maps.Circle({
-      strokeColor: color,
-      strokeOpacity: 0.7,
-      strokeWeight: 1.5,
-      fillColor: color,
-      fillOpacity: 0.15,
-      map: mapInstanceRef.current,
-      center: { lat, lng },
-      radius: Math.max(accuracy, 12),
-      clickable: false,
-    });
-  }, []);
+  // Helper: live GPS age in seconds using capturedAt + nowTick
+  const getLiveGpsAgeSeconds = useCallback(
+    (u) => {
+      const cap = u?.latestLocation?.capturedAt;
+      if (cap) {
+        const ms = new Date(cap).getTime();
+        if (!isNaN(ms)) return Math.max(0, Math.round((nowTick - ms) / 1000));
+      }
+      return u?.latestLocation?.gpsAgeSeconds ?? null;
+    },
+    [nowTick]
+  );
 
+  // ── Accuracy Circle Helper ─────────────────────────────────────────────────
   const clearAccuracyCircle = useCallback(() => {
-    if (accuracyCircleRef.current) {
-      accuracyCircleRef.current.setMap(null);
+    if (accuracyCircleRef.current && mapInstanceRef.current) {
+      accuracyCircleRef.current.remove();
       accuracyCircleRef.current = null;
     }
   }, []);
 
-  // Clear overlays (polylines, stops, leads, playback pins)
+  const showAccuracyCircle = useCallback(
+    (lat, lng, accuracy, color = '#2563EB') => {
+      const L = leafletRef.current;
+      const map = mapInstanceRef.current;
+      if (!L || !map) return;
+      clearAccuracyCircle();
+      if (!accuracy || Number(accuracy) > 10000) return;
+
+      accuracyCircleRef.current = L.circle([Number(lat), Number(lng)], {
+        color,
+        opacity: 0.65,
+        weight: 1.5,
+        fillColor: color,
+        fillOpacity: 0.14,
+        radius: Math.max(Number(accuracy), 12),
+        interactive: false,
+      }).addTo(map);
+    },
+    [clearAccuracyCircle]
+  );
+
+  // Clear overlays (polylines, stops, leads, playback pins, accuracy circle)
   const clearAllOverlays = useCallback(() => {
-    if (activePolylineRef.current) {
-      activePolylineRef.current.setMap(null);
-      activePolylineRef.current = null;
+    if (overlayLayerRef.current) {
+      overlayLayerRef.current.clearLayers();
     }
-    if (directionsRendererRef.current) {
-      directionsRendererRef.current.setMap(null);
-      directionsRendererRef.current = null;
-    }
+    activePolylineRef.current = null;
+    playbackMarkerRef.current = null;
     setRoadRouteInfo(null);
-    if (multiPolylinesRef.current && multiPolylinesRef.current.length > 0) {
-      multiPolylinesRef.current.forEach((p) => p.setMap(null));
-      multiPolylinesRef.current = [];
-    }
-    if (startMarkerRef.current) {
-      startMarkerRef.current.setMap(null);
-      startMarkerRef.current = null;
-    }
-    if (endMarkerRef.current) {
-      endMarkerRef.current.setMap(null);
-      endMarkerRef.current = null;
-    }
-    if (playbackMarkerRef.current) {
-      playbackMarkerRef.current.setMap(null);
-      playbackMarkerRef.current = null;
-    }
-    if (stopMarkersRef.current && stopMarkersRef.current.length > 0) {
-      stopMarkersRef.current.forEach((m) => m.setMap(null));
-      stopMarkersRef.current = [];
-    }
-    if (leadMarkersRef.current && leadMarkersRef.current.length > 0) {
-      leadMarkersRef.current.forEach((m) => m.setMap(null));
-      leadMarkersRef.current = [];
-    }
     clearAccuracyCircle();
     setIsPlaying(false);
     setPlaybackIndex(0);
   }, [clearAccuracyCircle]);
 
-  // Clear all map markers
   const clearAllMapMarkers = useCallback(() => {
-    Object.values(markersRef.current).forEach((m) => m.setMap(null));
-    markersRef.current = {};
-    Object.values(startMarkersRef.current).forEach((m) => m.setMap(null));
-    startMarkersRef.current = {};
+    if (userLayerRef.current) {
+      userLayerRef.current.clearLayers();
+    }
   }, []);
 
-  // ─── 1. AUTHORITATIVE DATA FETCHING (LIVE USERS + ACTIVE SHIFTS) ───────────
-  const fetchAllData = useCallback(async () => {
-    try {
-      setLoading(true);
-      // Pass cacheTtlMs: 0 to bypass Next.js 30s cache and fetch authoritative fresh telemetry
-      const [usersRes, routesRes, empRes, overviewRes] = await Promise.allSettled([
-        isHrPortal
-          ? backendFetch('/location/live-users', { cacheTtlMs: 0 })
-          : backendFetch('/super-admin/live-users', { cacheTtlMs: 0 }).catch(() =>
-              backendFetch('/location/live-users', { cacheTtlMs: 0 })
-            ),
-        backendFetch('/location/routes/live', { cacheTtlMs: 0 }),
-        backendFetch('/hr/employees', { cacheTtlMs: 60000 }),
-        backendFetch('/location/overview-7d?days=7', { cacheTtlMs: 30000 }),
-      ]);
+  // ─── 1. SILENT, SCROLL-PRESERVING AUTHORITATIVE DATA SYNC ──────────────────
+  const fetchAllData = useCallback(
+    async ({ forceOverview = false } = {}) => {
+      if (fetchInFlightRef.current) return [];
+      fetchInFlightRef.current = true;
+      try {
+        if (!hasLoadedOnceRef.current) {
+          setInitialLoading(true);
+        }
+        setIsSyncing(true);
 
-      const rawOverview =
-        overviewRes.status === 'fulfilled'
-          ? overviewRes.value?.byUserId || overviewRes.value?.data?.byUserId || {}
-          : {};
-      if (rawOverview && Object.keys(rawOverview).length > 0) {
-        setOverview7d(rawOverview);
+        const nowMs = Date.now();
+        const shouldFetchOverview = forceOverview || nowMs - lastOverviewFetchRef.current > 5 * 60 * 1000;
+
+        const requests = [
+          isHrPortal
+            ? backendFetch('/location/live-users', { cacheTtlMs: 0 })
+            : backendFetch('/super-admin/live-users', { cacheTtlMs: 0 }).catch(() =>
+                backendFetch('/location/live-users', { cacheTtlMs: 0 })
+              ),
+          backendFetch('/location/routes/live', { cacheTtlMs: 0 }),
+        ];
+        if (shouldFetchOverview) {
+          requests.push(backendFetch('/location/overview-7d?days=7', { cacheTtlMs: 30000 }));
+        }
+
+        const results = await Promise.allSettled(requests);
+        const usersRes = results[0];
+        const routesRes = results[1];
+        const overviewRes = shouldFetchOverview ? results[2] : null;
+
+        if (overviewRes && overviewRes.status === 'fulfilled') {
+          const rawOverview = overviewRes.value?.byUserId || overviewRes.value?.data?.byUserId || {};
+          if (rawOverview && Object.keys(rawOverview).length > 0) {
+            setOverview7d(rawOverview);
+            lastOverviewFetchRef.current = nowMs;
+          }
+        }
+
+        const rawUsers =
+          usersRes.status === 'fulfilled'
+            ? Array.isArray(usersRes.value)
+              ? usersRes.value
+              : usersRes.value?.data || []
+            : null;
+
+        const rawRoutes =
+          routesRes.status === 'fulfilled'
+            ? Array.isArray(routesRes.value)
+              ? routesRes.value
+              : routesRes.value?.data || []
+            : [];
+
+        // If transient network failure after initial load, preserve existing UI state silently
+        if (!rawUsers) {
+          return [];
+        }
+
+        const routesMapByUserId = {};
+        const routesMapByEmpId = {};
+        rawRoutes.forEach((r) => {
+          if (r.userId) routesMapByUserId[r.userId] = r;
+          if (r.employeeId) routesMapByEmpId[r.employeeId] = r;
+        });
+
+        const normalized = rawUsers.map((u) => {
+          const uId = u.userId || u.id;
+          const shift =
+            routesMapByUserId[uId] ||
+            (u.employeeId ? routesMapByEmpId[u.employeeId] : null) ||
+            u.activeShift ||
+            null;
+          const cat = getCategoryForRole(u.role || u.jobTitle);
+          const latestLoc = u.latestLocation || shift?.latestLocation || null;
+
+          return {
+            ...u,
+            userId: uId,
+            roleCategory: cat,
+            activeShift: shift,
+            latestLocation: latestLoc,
+            overallStatus:
+              u.overallStatus ||
+              (latestLoc ? (u.gpsFreshness === 'LIVE' ? 'LIVE' : 'STALE') : 'NO_LOCATION'),
+            gpsFreshness:
+              u.gpsFreshness ||
+              (latestLoc
+                ? u.latestLocation?.gpsAgeSeconds <= 120
+                  ? 'LIVE'
+                  : 'STALE'
+                : 'NO_LOCATION'),
+            trackingStatus:
+              u.trackingStatus ||
+              (shift
+                ? 'ACTIVE_SHIFT'
+                : u.sessions?.some((s) => s.status === 'ONLINE')
+                ? 'ACTIVE_DEVICE'
+                : 'STOPPED'),
+          };
+        });
+
+        setAllUsers(normalized);
+        setLastRestSync(new Date().toLocaleTimeString());
+        hasLoadedOnceRef.current = true;
+        return normalized;
+      } catch (err) {
+        console.warn('[LiveMap] fetchAllData warning:', err?.message || err);
+        return [];
+      } finally {
+        fetchInFlightRef.current = false;
+        setInitialLoading(false);
+        setIsSyncing(false);
       }
+    },
+    [isHrPortal]
+  );
 
-      const rawUsers =
-        usersRes.status === 'fulfilled'
-          ? Array.isArray(usersRes.value)
-            ? usersRes.value
-            : usersRes.value?.data || []
-          : [];
-
-      const rawRoutes =
-        routesRes.status === 'fulfilled'
-          ? Array.isArray(routesRes.value)
-            ? routesRes.value
-            : routesRes.value?.data || []
-          : [];
-
-      const rawEmployees =
-        empRes.status === 'fulfilled'
-          ? Array.isArray(empRes.value)
-            ? empRes.value
-            : empRes.value?.items || empRes.value?.data?.items || empRes.value?.data || []
-          : [];
-
-      // Create a map of active shift routes keyed by userId and employeeId
-      const routesMapByUserId = {};
-      const routesMapByEmpId = {};
-      rawRoutes.forEach((r) => {
-        if (r.userId) routesMapByUserId[r.userId] = r;
-        if (r.employeeId) routesMapByEmpId[r.employeeId] = r;
-      });
-
-      // Normalize all users
-      const normalized = rawUsers.map((u) => {
-        const uId = u.userId || u.id;
-        const shift = routesMapByUserId[uId] || (u.employeeId ? routesMapByEmpId[u.employeeId] : null) || u.activeShift || null;
-        const cat = getCategoryForRole(u.role || u.jobTitle);
-
-        // Authoritative coordinates: shift latest point OR device latest location
-        const latestLoc = u.latestLocation || shift?.latestLocation || null;
-
-        return {
-          ...u,
-          userId: uId,
-          roleCategory: cat,
-          activeShift: shift,
-          latestLocation: latestLoc,
-          overallStatus: u.overallStatus || (latestLoc ? (u.gpsFreshness === 'LIVE' ? 'LIVE' : 'STALE') : 'NO_LOCATION'),
-          gpsFreshness: u.gpsFreshness || (latestLoc ? (u.latestLocation?.gpsAgeSeconds <= 120 ? 'LIVE' : 'STALE') : 'NO_LOCATION'),
-          trackingStatus: u.trackingStatus || (shift ? 'ACTIVE_SHIFT' : (u.sessions?.some((s) => s.status === 'ONLINE') ? 'ACTIVE_DEVICE' : 'STOPPED')),
-        };
-      });
-
-      setAllUsers(normalized);
-      setLiveRoutes(rawRoutes);
-      setAllEmployees(rawEmployees);
-      setLastRestSync(new Date().toLocaleTimeString());
-      return normalized;
-    } catch (err) {
-      console.warn('[SuperAdminMap] fetchAllData warning:', err?.message || err);
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  }, [isHrPortal]);
-
-  // Periodic resynchronization (every 10s)
+  // Smart adaptive background sync: 30s when socket LIVE, 12s when socket degraded (NEVER resets scroll!)
   useEffect(() => {
-    fetchAllData();
-    const timer = setInterval(() => {
-      fetchAllData();
-    }, 10000);
-    return () => clearInterval(timer);
+    void fetchAllData({ forceOverview: true });
+    let timerId = null;
+    const scheduleNext = () => {
+      const intervalMs = liveStatusRef.current === 'LIVE' ? 30000 : 12000;
+      timerId = setTimeout(async () => {
+        if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+          await fetchAllData();
+        }
+        scheduleNext();
+      }, intervalMs);
+    };
+    scheduleNext();
+    return () => {
+      if (timerId) clearTimeout(timerId);
+    };
   }, [fetchAllData]);
 
-  // ─── 2. GOOGLE MAPS LOADER & INITIALIZATION ─────────────────────────────────
+  // ─── 2. LEAFLET + OPENSTREETMAP INITIALIZATION (ZERO API KEY / ZERO BILLING) ─
   useEffect(() => {
     let cancelled = false;
-    loadGoogleMaps(apiKey)
-      .then(() => {
-        if (!cancelled) {
-          setMapsError(null);
-          setMapsLoaded(true);
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) setMapsError(error.message);
-      });
+    let map = null;
+
+    (async () => {
+      try {
+        const leafletMod = await import('leaflet');
+        const L = leafletMod.default || leafletMod;
+        if (cancelled || !mapContainerRef.current) return;
+
+        leafletRef.current = L;
+
+        map = L.map(mapContainerRef.current, {
+          center: [23.0225, 72.5714], // Ahmedabad / Gujarat HQ
+          zoom: 11,
+          zoomControl: false,
+          preferCanvas: true,
+        });
+
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        const cfg = MAP_TILE_LAYERS.clean;
+        tileLayerRef.current = L.tileLayer(cfg.url, {
+          attribution: cfg.attribution,
+          maxZoom: cfg.maxZoom,
+        }).addTo(map);
+
+        userLayerRef.current = L.layerGroup().addTo(map);
+        overlayLayerRef.current = L.layerGroup().addTo(map);
+
+        map.on('zoomend', () => {
+          setZoomVersion((v) => v + 1);
+        });
+
+        map.on('click', () => {
+          setExpandedClusterKey(null);
+        });
+
+        mapInstanceRef.current = map;
+        setMapsError(null);
+        setMapsLoaded(true);
+      } catch (err) {
+        console.error('Failed to initialize OpenStreetMap/Leaflet:', err);
+        if (!cancelled) setMapsError(err?.message || 'Failed to initialize map engine.');
+      }
+    })();
+
     return () => {
       cancelled = true;
+      if (map) {
+        map.remove();
+        mapInstanceRef.current = null;
+        tileLayerRef.current = null;
+        userLayerRef.current = null;
+        overlayLayerRef.current = null;
+        accuracyCircleRef.current = null;
+      }
+      setMapsLoaded(false);
     };
-  }, [apiKey]);
+  }, []);
 
+  // Switch tile layer smoothly in-place
   useEffect(() => {
-    if (!mapsLoaded || !mapContainerRef.current || mapInstanceRef.current) return;
+    const L = leafletRef.current;
+    const map = mapInstanceRef.current;
+    if (!L || !map) return;
 
-    try {
-      const mapOptions = {
-        center: { lat: 23.0225, lng: 72.5714 }, // Ahmedabad / Gujarat HQ
-        zoom: 12,
-        styles: [
-          { elementType: 'geometry', stylers: [{ color: '#f8fafc' }] },
-          { elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },
-          { elementType: 'labels.text.fill', stylers: [{ color: '#334155' }] },
-          { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-          { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#e2e8f0' }] },
-          { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#bae6fd' }] },
-          { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#dcfce7' }] },
-        ],
-        mapTypeControl: true,
-        mapTypeControlOptions: {
-          style: window.google.maps.MapTypeControlStyle.DROPDOWN_MENU,
-          position: window.google.maps.ControlPosition.TOP_RIGHT,
-        },
-        fullscreenControl: true,
-        streetViewControl: false,
-        zoomControl: true,
-      };
-
-      const map = new window.google.maps.Map(mapContainerRef.current, mapOptions);
-      mapInstanceRef.current = map;
-      infoWindowRef.current = new window.google.maps.InfoWindow();
-    } catch (err) {
-      console.error('Failed to initialize Google Maps:', err);
-      setMapsError('Failed to initialize Google Maps instance.');
+    const cfg = MAP_TILE_LAYERS[tileLayerKey] || MAP_TILE_LAYERS.clean;
+    if (tileLayerRef.current) {
+      tileLayerRef.current.remove();
     }
-  }, [mapsLoaded]);
+    tileLayerRef.current = L.tileLayer(cfg.url, {
+      attribution: cfg.attribution,
+      maxZoom: cfg.maxZoom,
+    }).addTo(map);
+    tileLayerRef.current.bringToBack();
+  }, [tileLayerKey, mapsLoaded]);
 
-  // ─── 3. SOCKET.IO REAL-TIME TELEMETRY LISTENER ──────────────────────────────
+  // ─── 3. SOCKET.IO REAL-TIME TELEMETRY LISTENER ─────────────────────────────
   useEffect(() => {
     if (!accessToken) return;
     const cleanToken = (accessToken || '').replace(/^Bearer\s+/i, '').trim();
@@ -683,11 +786,9 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
     let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_BACKEND_SOCKET_URL || '';
     if (typeof window !== 'undefined') {
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      if (isLocalhost) {
-        socketUrl = socketUrl || `${window.location.protocol}//${window.location.hostname}:4001`;
-      } else {
-        socketUrl = socketUrl || window.location.origin;
-      }
+      socketUrl = isLocalhost
+        ? socketUrl || `${window.location.protocol}//${window.location.hostname}:4001`
+        : socketUrl || window.location.origin;
     } else {
       socketUrl = socketUrl || 'http://localhost:4001';
     }
@@ -698,25 +799,21 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
       transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
+      reconnectionDelay: 1500,
     });
 
     socketRef.current = socket;
 
     socket.on('connect', () => {
       setLiveStatus('LIVE');
-      fetchAllData();
+      if (hasLoadedOnceRef.current) {
+        void fetchAllData();
+      }
     });
 
-    socket.on('connect_error', () => {
-      setLiveStatus('RECONNECTING');
-    });
+    socket.on('connect_error', () => setLiveStatus('RECONNECTING'));
+    socket.on('disconnect', () => setLiveStatus('OFFLINE'));
 
-    socket.on('disconnect', () => {
-      setLiveStatus('OFFLINE');
-    });
-
-    // ── Helper to update single user coordinate smoothly ──
     const handleCoordinateEvent = (data) => {
       const targetUserId = data.userId;
       if (!targetUserId) return;
@@ -725,11 +822,15 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
       const lng = Number(data.longitude);
       if (isNaN(lat) || isNaN(lng)) return;
 
+      const incomingAcc = data.accuracy != null ? Number(data.accuracy) : null;
+      // Drop ultra-coarse IP coordinates (>1000m) live
+      if (incomingAcc != null && incomingAcc > 1000) return;
+
       const now = new Date();
       const updatedCoord = {
         latitude: lat,
         longitude: lng,
-        accuracy: data.accuracy != null ? Number(data.accuracy) : null,
+        accuracy: incomingAcc,
         speed: data.speed != null ? Number(data.speed) : null,
         heading: data.heading != null ? Number(data.heading) : null,
         batteryLevel: data.batteryLevel != null ? Number(data.batteryLevel) : null,
@@ -739,10 +840,30 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
         source: data.source || 'REALTIME_SOCKET',
       };
 
-      // 1. Update React state
+      let acceptedCoordinate = true;
+
       setAllUsers((prev) =>
         prev.map((u) => {
           if (u.userId !== targetUserId) return u;
+
+          // Guard: never let a coarse desktop Wi-Fi ping (>=250m) overwrite a recent accurate GPS fix (<=150m within 12h)
+          const prevAcc = u.latestLocation?.accuracy != null ? Number(u.latestLocation.accuracy) : null;
+          const prevCapMs = u.latestLocation?.capturedAt ? new Date(u.latestLocation.capturedAt).getTime() : 0;
+          const prevAgeHours = prevCapMs ? (now.getTime() - prevCapMs) / (1000 * 3600) : 999;
+          if (
+            incomingAcc != null &&
+            incomingAcc >= 250 &&
+            prevAcc != null &&
+            prevAcc <= 150 &&
+            prevAgeHours <= 12
+          ) {
+            acceptedCoordinate = false;
+            return {
+              ...u,
+              trackingStatus: u.activeShift ? 'ACTIVE_SHIFT' : 'ACTIVE_DEVICE',
+            };
+          }
+
           return {
             ...u,
             latestLocation: updatedCoord,
@@ -753,39 +874,19 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
         })
       );
 
-      // 2. Update Map Marker in-place (no flicker / recreation)
-      if (mapInstanceRef.current && window.google?.maps) {
-        const latLng = new window.google.maps.LatLng(lat, lng);
-        const marker = markersRef.current[targetUserId];
-
-        if (marker) {
-          marker.setPosition(latLng);
+      if (acceptedCoordinate && selectedUserIdRef.current === targetUserId && mapInstanceRef.current) {
+        if (followUserRef.current) {
+          mapInstanceRef.current.panTo([lat, lng], { animate: true });
         }
-
-        // If this user is currently selected
-        if (selectedUserIdRef.current === targetUserId) {
-          // Dynamic Follow User recentering
-          if (followUserRef.current) {
-            mapInstanceRef.current.panTo(latLng);
-          }
-          showAccuracyCircle(lat, lng, data.accuracy || 15);
-
-          // Extend polyline if active
-          if (activePolylineRef.current) {
-            const path = activePolylineRef.current.getPath();
-            path.push(latLng);
-          }
+        showAccuracyCircle(lat, lng, incomingAcc || 15);
+        if (activePolylineRef.current && leafletRef.current) {
+          activePolylineRef.current.addLatLng([lat, lng]);
         }
       }
     };
 
-    socket.on('user:location:update', (data) => {
-      handleCoordinateEvent(data);
-    });
-
-    socket.on('employee:route:update', (data) => {
-      handleCoordinateEvent(data);
-    });
+    socket.on('user:location:update', handleCoordinateEvent);
+    socket.on('employee:route:update', handleCoordinateEvent);
 
     socket.on('device:connected', (data) => {
       setAllUsers((prev) =>
@@ -794,20 +895,26 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
           return {
             ...u,
             trackingStatus: u.activeShift ? 'ACTIVE_SHIFT' : 'ACTIVE_DEVICE',
-            overallStatus: u.latestLocation ? (u.gpsFreshness === 'LIVE' ? 'LIVE' : 'STALE') : 'NO_LOCATION',
+            overallStatus: u.latestLocation
+              ? u.gpsFreshness === 'LIVE'
+                ? 'LIVE'
+                : 'STALE'
+              : 'NO_LOCATION',
           };
         })
       );
     });
 
     socket.on('device:disconnected', (data) => {
+      // Only mark offline if this was the user's LAST live socket connection
+      if (data?.remainingConnections && data.remainingConnections > 0) return;
       setAllUsers((prev) =>
         prev.map((u) => {
           if (u.userId !== data.userId) return u;
           return {
             ...u,
-            overallStatus: 'OFFLINE',
-            trackingStatus: 'STOPPED',
+            overallStatus: u.latestLocation ? 'OFFLINE' : 'NO_LOCATION',
+            trackingStatus: u.activeShift ? 'ACTIVE_SHIFT' : 'STOPPED',
           };
         })
       );
@@ -819,413 +926,338 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
     };
   }, [accessToken, fetchAllData, showAccuracyCircle]);
 
-  // ─── 4. DRAW SHIFT ROUTE & STOPS ──────────────────────────────────────────
+  // ── Helper: Draw directional arrowheads along a Leaflet polyline ───────────
+  const drawDirectionalArrows = useCallback((L, layer, latLngs, color) => {
+    if (!latLngs || latLngs.length < 2) return;
+    let accumMeters = 0;
+    // Pick step spacing proportional to route length so short and long routes both get ~6-12 crisp arrows
+    let totalMeters = 0;
+    for (let i = 1; i < latLngs.length; i++) {
+      totalMeters += haversineMeters(latLngs[i - 1][0], latLngs[i - 1][1], latLngs[i][0], latLngs[i][1]);
+    }
+    const arrowSpacing = Math.max(250, Math.min(2500, totalMeters / 10));
+
+    for (let i = 1; i < latLngs.length; i++) {
+      const p1 = latLngs[i - 1];
+      const p2 = latLngs[i];
+      const seg = haversineMeters(p1[0], p1[1], p2[0], p2[1]);
+      accumMeters += seg;
+      if (accumMeters >= arrowSpacing && seg >= 15) {
+        accumMeters = 0;
+        const midLat = (p1[0] + p2[0]) / 2;
+        const midLng = (p1[1] + p2[1]) / 2;
+        const deg = calcBearingDeg(p1[0], p1[1], p2[0], p2[1]);
+        const arrowIcon = L.divIcon({
+          className: '',
+          iconSize: [14, 14],
+          iconAnchor: [7, 7],
+          html: `<div style="transform:rotate(${deg}deg);width:14px;height:14px;display:flex;align-items:center;justify-content:center;">
+            <svg width="12" height="12" viewBox="0 0 12 12">
+              <path d="M6 1 L11 10 L6 8 L1 10 Z" fill="${color}" stroke="#FFFFFF" stroke-width="1.2"/>
+            </svg>
+          </div>`,
+        });
+        L.marker([midLat, midLng], { icon: arrowIcon, interactive: false }).addTo(layer);
+      }
+    }
+  }, []);
+
+  // ─── 4. DRAW ACTIVE SHIFT ROUTE & STOPS ────────────────────────────────────
   const drawShiftRouteOnMap = useCallback(
     (user) => {
-      if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps || !user) return;
+      const L = leafletRef.current;
+      const map = mapInstanceRef.current;
+      const layer = overlayLayerRef.current;
+      if (!mapsLoaded || !L || !map || !layer || !user) return;
 
       clearAllOverlays();
 
       const shift = user.activeShift;
-      const path = [];
+      const latLngs = [];
 
-      // 1. Punch In coordinates
       const punchLat = shift?.punchInCoordinates?.latitude || shift?.punchInLatitude || shift?.punchIn?.latitude;
       const punchLng = shift?.punchInCoordinates?.longitude || shift?.punchInLongitude || shift?.punchIn?.longitude;
-      if (punchLat && punchLng) {
-        path.push(new window.google.maps.LatLng(punchLat, punchLng));
+      if (punchLat != null && punchLng != null) {
+        latLngs.push([Number(punchLat), Number(punchLng)]);
       }
 
-      // 2. Intermediate points
       const points = shift?.routePoints || shift?.points || [];
       points.forEach((p) => {
-        if (p.latitude && p.longitude) {
-          path.push(new window.google.maps.LatLng(Number(p.latitude), Number(p.longitude)));
+        if (p.latitude != null && p.longitude != null) {
+          latLngs.push([Number(p.latitude), Number(p.longitude)]);
         }
       });
 
-      // 3. Latest live location
-      if (user.latestLocation?.latitude && user.latestLocation?.longitude) {
-        path.push(new window.google.maps.LatLng(user.latestLocation.latitude, user.latestLocation.longitude));
+      if (user.latestLocation?.latitude != null && user.latestLocation?.longitude != null) {
+        latLngs.push([Number(user.latestLocation.latitude), Number(user.latestLocation.longitude)]);
       }
 
-      if (path.length === 0) return;
+      if (latLngs.length === 0) return;
 
-      if (path.length >= 2) {
-        const polyline = new window.google.maps.Polyline({
-          path,
-          geodesic: true,
-          strokeColor: '#0284C7',
-          strokeOpacity: 0.9,
-          strokeWeight: 5,
-          map: mapInstanceRef.current,
-        });
-        activePolylineRef.current = polyline;
+      if (latLngs.length >= 2) {
+        const poly = L.polyline(latLngs, {
+          color: '#0284C7',
+          opacity: 0.9,
+          weight: 5,
+        }).addTo(layer);
+        activePolylineRef.current = poly;
+        drawDirectionalArrows(L, layer, latLngs, '#0284C7');
       }
 
-      // Draw stops
       if (shift?.stops && shift.stops.length > 0) {
         shift.stops.forEach((st) => {
-          const stopMarker = new window.google.maps.Marker({
-            position: new window.google.maps.LatLng(Number(st.latitude), Number(st.longitude)),
-            map: mapInstanceRef.current,
-            title: `Stop #${st.stopNumber} (${st.durationMinutes} min)`,
-            icon: {
-              url: getStopPinSvg(st.stopNumber),
-              scaledSize: new window.google.maps.Size(30, 36),
-              anchor: new window.google.maps.Point(15, 36),
-            },
+          const stopIcon = L.divIcon({
+            className: '',
+            iconSize: [30, 36],
+            iconAnchor: [15, 36],
+            html: buildBadgePinMarkup('#D97706', '#92400E', st.stopNumber, 30, 36),
           });
-
-          stopMarker.addListener('click', () => {
-            if (!infoWindowRef.current) return;
-            infoWindowRef.current.setContent(`
-              <div style="font-family: system-ui, sans-serif; padding: 6px; min-width: 180px;">
-                <div style="font-weight: 700; color: #B45309; font-size: 13px; margin-bottom: 4px;">
-                  🛑 Stop #${st.stopNumber} (${st.durationMinutes} mins)
+          L.marker([Number(st.latitude), Number(st.longitude)], { icon: stopIcon })
+            .bindPopup(`
+              <div style="font-family:system-ui,sans-serif;min-width:190px;">
+                <div style="font-weight:700;color:#B45309;font-size:13px;margin-bottom:4px;">
+                  🛑 Stop #${escapeHtml(st.stopNumber)} (${escapeHtml(st.durationMinutes)} mins)
                 </div>
-                <div style="font-size: 11px; color: #475569;">
-                  <strong>Arrived:</strong> ${new Date(st.arrivedAt).toLocaleTimeString()}<br/>
-                  <strong>Departed:</strong> ${new Date(st.departedAt).toLocaleTimeString()}<br/>
-                  ${st.address ? `<strong>Address:</strong> ${st.address}` : ''}
+                <div style="font-size:11px;color:#475569;line-height:1.45;">
+                  <strong>Arrived:</strong> ${escapeHtml(new Date(st.arrivedAt).toLocaleTimeString())}<br/>
+                  <strong>Departed:</strong> ${escapeHtml(new Date(st.departedAt).toLocaleTimeString())}<br/>
+                  ${st.address ? `<strong>Address:</strong> ${escapeHtml(st.address)}` : ''}
                 </div>
               </div>
-            `);
-            infoWindowRef.current.open(mapInstanceRef.current, stopMarker);
-          });
-
-          stopMarkersRef.current.push(stopMarker);
+            `)
+            .addTo(layer);
         });
       }
 
-      // Fit bounds
-      const bounds = new window.google.maps.LatLngBounds();
-      path.forEach((p) => bounds.extend(p));
-      mapInstanceRef.current.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
+      const bounds = L.latLngBounds(latLngs);
+      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 });
 
-      if (user.latestLocation?.latitude && user.latestLocation?.longitude) {
+      if (user.latestLocation?.latitude != null && user.latestLocation?.longitude != null) {
         showAccuracyCircle(user.latestLocation.latitude, user.latestLocation.longitude, user.latestLocation.accuracy || 15);
       }
     },
-    [mapsLoaded, clearAllOverlays, showAccuracyCircle]
+    [mapsLoaded, clearAllOverlays, showAccuracyCircle, drawDirectionalArrows]
   );
 
-  // ─── 5. 7-DAY & SINGLE-DAY HISTORICAL ROUTE LOADER & PLAYBACK ──────────────
+  // ─── 5. 7-DAY & SINGLE-DAY HISTORICAL ROUTE LOADER & PLAYBACK (OSRM ROADS) ─
   const drawHistoryRoute = useCallback(
     (points, stops, session, leads = [], strokeColor = '#0284C7', renderMode = 'GPS') => {
-      if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps) return;
+      const L = leafletRef.current;
+      const map = mapInstanceRef.current;
+      const layer = overlayLayerRef.current;
+      if (!mapsLoaded || !L || !map || !layer) return;
 
       clearAllOverlays();
 
-      const path = [];
+      const latLngs = [];
       const punchInLat = session?.punchInCoordinates?.latitude || session?.punchInLatitude || session?.punchIn?.latitude;
       const punchInLng = session?.punchInCoordinates?.longitude || session?.punchInLongitude || session?.punchIn?.longitude;
       if (punchInLat != null && punchInLng != null) {
-        path.push(new window.google.maps.LatLng(Number(punchInLat), Number(punchInLng)));
+        latLngs.push([Number(punchInLat), Number(punchInLng)]);
       }
       (points || []).forEach((p) => {
         if (p.latitude != null && p.longitude != null) {
-          path.push(new window.google.maps.LatLng(Number(p.latitude), Number(p.longitude)));
+          latLngs.push([Number(p.latitude), Number(p.longitude)]);
         }
       });
       const punchOutLat = session?.punchOutCoordinates?.latitude || session?.punchOutLatitude || session?.punchOut?.latitude;
       const punchOutLng = session?.punchOutCoordinates?.longitude || session?.punchOutLongitude || session?.punchOut?.longitude;
       if (punchOutLat != null && punchOutLng != null && session?.status === 'COMPLETED') {
-        path.push(new window.google.maps.LatLng(Number(punchOutLat), Number(punchOutLng)));
+        latLngs.push([Number(punchOutLat), Number(punchOutLng)]);
       }
 
-      if (path.length === 0) return;
+      if (latLngs.length === 0) return;
 
-      // Always draw directional GPS polyline (arrows show exact day circle travel direction)
-      const arrowSymbol = {
-        path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-        scale: 3,
-        strokeColor: '#FFFFFF',
-        strokeWeight: 1.2,
-        fillColor: strokeColor,
-        fillOpacity: 1,
-      };
-
-      if (path.length >= 2) {
-        const polyline = new window.google.maps.Polyline({
-          path,
-          geodesic: true,
-          strokeColor,
-          strokeOpacity: renderMode === 'ROADS' ? 0.35 : 0.92,
-          strokeWeight: renderMode === 'ROADS' ? 3 : 5,
-          icons:
-            renderMode === 'ROADS'
-              ? []
-              : [
-                  {
-                    icon: arrowSymbol,
-                    offset: '24px',
-                    repeat: '85px',
-                  },
-                ],
-          map: mapInstanceRef.current,
-        });
-        activePolylineRef.current = polyline;
+      if (latLngs.length >= 2) {
+        const poly = L.polyline(latLngs, {
+          color: strokeColor,
+          opacity: renderMode === 'ROADS' ? 0.35 : 0.92,
+          weight: renderMode === 'ROADS' ? 3 : 5,
+        }).addTo(layer);
+        activePolylineRef.current = poly;
+        if (renderMode !== 'ROADS') {
+          drawDirectionalArrows(L, layer, latLngs, strokeColor);
+        }
       }
 
-      // Optional Google Maps Road-Following Mode (Punch-In -> Chronological Checkpoints -> Punch-Out)
-      if (renderMode === 'ROADS' && path.length >= 2 && window.google.maps.DirectionsService) {
+      // Free OSRM OpenStreetMap Road-Following Mode
+      if (renderMode === 'ROADS' && latLngs.length >= 2) {
         setRoadRouteInfo({ loading: true, km: null, duration: null, error: null });
-        const origin = path[0];
-        const destination = path[path.length - 1];
 
-        // Build up to 20 ordered waypoints prioritizing stops + evenly sampled GPS points
-        const midCandidates = [];
-        if (stops && stops.length > 0) {
-          stops.forEach((st) => {
-            midCandidates.push({
-              lat: Number(st.latitude),
-              lng: Number(st.longitude),
-              t: new Date(st.arrivedAt).getTime(),
-            });
-          });
-        }
-        // Sample GPS breadcrumbs separated by >= 600m to capture the actual loop even without stops
-        const approxMeters = (a, b) => {
-          const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-          const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-          const x = Math.sin(dLat / 2) ** 2 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-          return 6371000 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-        };
-        let lastKept = { lat: origin.lat(), lng: origin.lng() };
-        (points || []).forEach((p) => {
-          const cand = { lat: Number(p.latitude), lng: Number(p.longitude), t: new Date(p.recordedAt).getTime() };
-          if (approxMeters(lastKept, cand) >= 800) {
-            midCandidates.push(cand);
-            lastKept = cand;
-          }
-        });
-        midCandidates.sort((a, b) => a.t - b.t);
-        const dedupWaypoints = [];
-        for (const c of midCandidates) {
-          const prevW = dedupWaypoints[dedupWaypoints.length - 1];
-          if (!prevW || approxMeters(prevW, c) >= 400) {
-            dedupWaypoints.push(c);
+        const sampled = [latLngs[0]];
+        let lastKept = latLngs[0];
+        for (let i = 1; i < latLngs.length - 1; i++) {
+          if (haversineMeters(lastKept[0], lastKept[1], latLngs[i][0], latLngs[i][1]) >= 450) {
+            sampled.push(latLngs[i]);
+            lastKept = latLngs[i];
           }
         }
-        const maxWp = 20;
-        let finalWp = dedupWaypoints;
-        if (dedupWaypoints.length > maxWp) {
-          const step = dedupWaypoints.length / maxWp;
-          finalWp = Array.from({ length: maxWp }, (_, i) => dedupWaypoints[Math.floor(i * step)]);
+        sampled.push(latLngs[latLngs.length - 1]);
+
+        let finalWp = sampled;
+        if (sampled.length > 24) {
+          const step = (sampled.length - 1) / 23;
+          finalWp = Array.from({ length: 24 }, (_, idx) => sampled[Math.round(idx * step)]);
         }
 
-        const dirService = new window.google.maps.DirectionsService();
-        dirService.route(
-          {
-            origin,
-            destination,
-            waypoints: finalWp.map((w) => ({
-              location: new window.google.maps.LatLng(w.lat, w.lng),
-              stopover: false,
-            })),
-            travelMode: window.google.maps.TravelMode.DRIVING,
-            optimizeWaypoints: false,
-          },
-          (result, status) => {
-            if (status === 'OK' && result && mapInstanceRef.current) {
-              const renderer = new window.google.maps.DirectionsRenderer({
-                map: mapInstanceRef.current,
-                suppressMarkers: true,
-                preserveViewport: true,
-                polylineOptions: {
-                  strokeColor,
-                  strokeOpacity: 0.92,
-                  strokeWeight: 5,
-                  icons: [
-                    {
-                      icon: arrowSymbol,
-                      offset: '30px',
-                      repeat: '95px',
-                    },
-                  ],
-                },
-              });
-              renderer.setDirections(result);
-              directionsRendererRef.current = renderer;
+        const coordParam = finalWp.map(([la, ln]) => `${ln.toFixed(5)},${la.toFixed(5)}`).join(';');
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordParam}?overview=full&geometries=geojson`;
 
-              const legs = result.routes?.[0]?.legs || [];
-              const totalMeters = legs.reduce((acc, l) => acc + (l.distance?.value || 0), 0);
-              const totalSec = legs.reduce((acc, l) => acc + (l.duration?.value || 0), 0);
+        fetch(osrmUrl, { signal: AbortSignal.timeout(7000) })
+          .then((r) => (r.ok ? r.json() : Promise.reject(new Error('OSRM unavailable'))))
+          .then((data) => {
+            const route = data?.routes?.[0];
+            if (route?.geometry?.coordinates?.length >= 2 && overlayLayerRef.current) {
+              const roadPath = route.geometry.coordinates.map(([ln, la]) => [la, ln]);
+              L.polyline(roadPath, {
+                color: strokeColor,
+                opacity: 0.92,
+                weight: 5,
+              }).addTo(overlayLayerRef.current);
+              drawDirectionalArrows(L, overlayLayerRef.current, roadPath, strokeColor);
+
+              const totalSec = Math.round(route.duration || 0);
               const hrs = Math.floor(totalSec / 3600);
               const mins = Math.round((totalSec % 3600) / 60);
               setRoadRouteInfo({
                 loading: false,
-                km: Math.round((totalMeters / 1000) * 100) / 100,
+                km: Math.round(((route.distance || 0) / 1000) * 100) / 100,
                 duration: hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`,
                 error: null,
               });
             } else {
-              // Gracefully restore crisp GPS arrows if Directions API is restricted or returns no route
-              if (activePolylineRef.current) {
-                activePolylineRef.current.setOptions({
-                  strokeOpacity: 0.92,
-                  strokeWeight: 5,
-                  icons: [{ icon: arrowSymbol, offset: '24px', repeat: '85px' }],
-                });
-              }
-              setRoadRouteInfo({
-                loading: false,
-                km: null,
-                duration: null,
-                error: 'Road snapping unavailable for this API key/route — showing exact GPS path.',
-              });
+              throw new Error('No road path found');
             }
-          }
-        );
+          })
+          .catch(() => {
+            if (activePolylineRef.current) {
+              activePolylineRef.current.setStyle({ opacity: 0.92, weight: 5 });
+              drawDirectionalArrows(L, layer, latLngs, strokeColor);
+            }
+            setRoadRouteInfo({
+              loading: false,
+              km: null,
+              duration: null,
+              error: 'OSM road snapping temporarily unavailable — showing exact GPS path.',
+            });
+          });
       }
 
-      const bounds = new window.google.maps.LatLngBounds();
-      path.forEach((p) => bounds.extend(p));
+      const bounds = L.latLngBounds(latLngs);
 
       // Start Pin (S)
-      const startLat = punchInLat || (points && points[0] ? Number(points[0].latitude) : null);
-      const startLng = punchInLng || (points && points[0] ? Number(points[0].longitude) : null);
+      const startLat = punchInLat ?? points?.[0]?.latitude ?? null;
+      const startLng = punchInLng ?? points?.[0]?.longitude ?? null;
       if (startLat != null && startLng != null) {
-        const startMarker = new window.google.maps.Marker({
-          position: new window.google.maps.LatLng(Number(startLat), Number(startLng)),
-          map: mapInstanceRef.current,
-          title: 'Day Start / Punch In',
-          icon: {
-            url: getStartPinSvg(),
-            scaledSize: new window.google.maps.Size(34, 42),
-            anchor: new window.google.maps.Point(17, 42),
-          },
+        const startTime = session?.punchInAt || points?.[0]?.recordedAt;
+        const startIcon = L.divIcon({
+          className: '',
+          iconSize: [34, 42],
+          iconAnchor: [17, 42],
+          html: buildBadgePinMarkup('#16A34A', '#15803D', 'S', 34, 42),
         });
-        startMarker.addListener('click', () => {
-          if (!infoWindowRef.current) return;
-          const startTime = session?.punchInAt || points?.[0]?.recordedAt;
-          infoWindowRef.current.setContent(`
-            <div style="font-family: system-ui, sans-serif; padding: 6px; max-width: 240px;">
-              <div style="font-weight: 700; color: #15803D; font-size: 13px;">🟢 Start / Punch In</div>
-              <div style="font-size: 11px; color: #475569; margin-top: 4px;">
-                <strong>Time:</strong> ${startTime ? new Date(startTime).toLocaleString() : 'N/A'}<br/>
-                ${session?.punchInAddress ? `<strong>Address:</strong> ${session.punchInAddress}` : ''}
+        L.marker([Number(startLat), Number(startLng)], { icon: startIcon, zIndexOffset: 500 })
+          .bindPopup(`
+            <div style="font-family:system-ui,sans-serif;max-width:240px;">
+              <div style="font-weight:700;color:#15803D;font-size:13px;">🟢 Start / Punch In</div>
+              <div style="font-size:11px;color:#475569;margin-top:4px;">
+                <strong>Time:</strong> ${escapeHtml(startTime ? new Date(startTime).toLocaleString() : 'N/A')}<br/>
+                ${session?.punchInAddress ? `<strong>Address:</strong> ${escapeHtml(session.punchInAddress)}` : ''}
               </div>
             </div>
-          `);
-          infoWindowRef.current.open(mapInstanceRef.current, startMarker);
-        });
-        startMarkerRef.current = startMarker;
+          `)
+          .addTo(layer);
       }
 
       // End Pin (E)
-      const endLat = punchOutLat || (points && points.length > 0 ? Number(points[points.length - 1].latitude) : startLat);
-      const endLng = punchOutLng || (points && points.length > 0 ? Number(points[points.length - 1].longitude) : startLng);
+      const endLat = punchOutLat ?? (points?.length > 0 ? points[points.length - 1].latitude : startLat);
+      const endLng = punchOutLng ?? (points?.length > 0 ? points[points.length - 1].longitude : startLng);
       if (endLat != null && endLng != null) {
-        const endMarker = new window.google.maps.Marker({
-          position: new window.google.maps.LatLng(Number(endLat), Number(endLng)),
-          map: mapInstanceRef.current,
-          title: session?.status === 'COMPLETED' ? 'Shift Punch Out (End)' : 'Last Recorded Position',
-          icon: {
-            url: getEndPinSvg(),
-            scaledSize: new window.google.maps.Size(34, 42),
-            anchor: new window.google.maps.Point(17, 42),
-          },
+        const endTime = session?.punchOutAt || points?.[points.length - 1]?.recordedAt;
+        const endIcon = L.divIcon({
+          className: '',
+          iconSize: [34, 42],
+          iconAnchor: [17, 42],
+          html: buildBadgePinMarkup('#DC2626', '#991B1B', 'E', 34, 42),
         });
-        endMarker.addListener('click', () => {
-          if (!infoWindowRef.current) return;
-          const endTime = session?.punchOutAt || points?.[points.length - 1]?.recordedAt;
-          infoWindowRef.current.setContent(`
-            <div style="font-family: system-ui, sans-serif; padding: 6px; max-width: 240px;">
-              <div style="font-weight: 700; color: #B91C1C; font-size: 13px;">🔴 ${session?.status === 'COMPLETED' ? 'Punch Out' : 'Last Position'}</div>
-              <div style="font-size: 11px; color: #475569; margin-top: 4px;">
-                <strong>Time:</strong> ${endTime ? new Date(endTime).toLocaleString() : 'N/A'}<br/>
-                ${session?.punchOutAddress ? `<strong>Address:</strong> ${session.punchOutAddress}` : ''}
+        L.marker([Number(endLat), Number(endLng)], { icon: endIcon, zIndexOffset: 510 })
+          .bindPopup(`
+            <div style="font-family:system-ui,sans-serif;max-width:240px;">
+              <div style="font-weight:700;color:#B91C1C;font-size:13px;">🔴 ${session?.status === 'COMPLETED' ? 'Punch Out' : 'Last Position'}</div>
+              <div style="font-size:11px;color:#475569;margin-top:4px;">
+                <strong>Time:</strong> ${escapeHtml(endTime ? new Date(endTime).toLocaleString() : 'N/A')}<br/>
+                ${session?.punchOutAddress ? `<strong>Address:</strong> ${escapeHtml(session.punchOutAddress)}` : ''}
               </div>
             </div>
-          `);
-          infoWindowRef.current.open(mapInstanceRef.current, endMarker);
-        });
-        endMarkerRef.current = endMarker;
+          `)
+          .addTo(layer);
       }
 
-      // Numbered Stop Pins with clickable address InfoWindow
-      if (stops && stops.length > 0) {
-        stops.forEach((st) => {
-          const pos = new window.google.maps.LatLng(Number(st.latitude), Number(st.longitude));
-          bounds.extend(pos);
-          const stopMarker = new window.google.maps.Marker({
-            position: pos,
-            map: mapInstanceRef.current,
-            title: `Stop #${st.stopNumber} (${st.durationMinutes} min)`,
-            icon: {
-              url: getStopPinSvg(st.stopNumber),
-              scaledSize: new window.google.maps.Size(30, 36),
-              anchor: new window.google.maps.Point(15, 36),
-            },
-          });
-          stopMarker.addListener('click', () => {
-            if (!infoWindowRef.current) return;
-            infoWindowRef.current.setContent(`
-              <div style="font-family: system-ui, sans-serif; padding: 6px; max-width: 250px;">
-                <div style="font-weight: 700; color: #B45309; font-size: 13px;">🛑 Stop #${st.stopNumber} (${st.durationMinutes} mins)</div>
-                <div style="font-size: 11px; color: #475569; margin-top: 4px; line-height: 1.45;">
-                  <strong>Arrived:</strong> ${new Date(st.arrivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}<br/>
-                  <strong>Departed:</strong> ${new Date(st.departedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}<br/>
-                  <strong>Location:</strong> ${st.address || `${Number(st.latitude).toFixed(4)}, ${Number(st.longitude).toFixed(4)}`}
-                </div>
+      // Numbered Stop Pins
+      (stops || []).forEach((st) => {
+        const pos = [Number(st.latitude), Number(st.longitude)];
+        bounds.extend(pos);
+        const stopIcon = L.divIcon({
+          className: '',
+          iconSize: [30, 36],
+          iconAnchor: [15, 36],
+          html: buildBadgePinMarkup('#D97706', '#92400E', st.stopNumber, 30, 36),
+        });
+        L.marker(pos, { icon: stopIcon, zIndexOffset: 450 })
+          .bindPopup(`
+            <div style="font-family:system-ui,sans-serif;max-width:250px;">
+              <div style="font-weight:700;color:#B45309;font-size:13px;">🛑 Stop #${escapeHtml(st.stopNumber)} (${escapeHtml(st.durationMinutes)} mins)</div>
+              <div style="font-size:11px;color:#475569;margin-top:4px;line-height:1.45;">
+                <strong>Arrived:</strong> ${escapeHtml(new Date(st.arrivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}<br/>
+                <strong>Departed:</strong> ${escapeHtml(new Date(st.departedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}<br/>
+                <strong>Location:</strong> ${escapeHtml(st.address || `${Number(st.latitude).toFixed(4)}, ${Number(st.longitude).toFixed(4)}`)}
               </div>
-            `);
-            infoWindowRef.current.open(mapInstanceRef.current, stopMarker);
-          });
-          stopMarkersRef.current.push(stopMarker);
-        });
-      }
+            </div>
+          `)
+          .addTo(layer);
+      });
 
-      // CRM Lead / Customer Visit Pins (Purple 'L')
-      if (leads && leads.length > 0) {
-        leads.forEach((lead) => {
-          if (lead.latitude == null || lead.longitude == null) return;
-          const pos = new window.google.maps.LatLng(Number(lead.latitude), Number(lead.longitude));
-          bounds.extend(pos);
-          const leadMarker = new window.google.maps.Marker({
-            position: pos,
-            map: mapInstanceRef.current,
-            title: `Lead: ${lead.companyName}`,
-            icon: {
-              url: getLeadPinSvg(),
-              scaledSize: new window.google.maps.Size(30, 38),
-              anchor: new window.google.maps.Point(15, 38),
-            },
-          });
-          leadMarker.addListener('click', () => {
-            if (!infoWindowRef.current) return;
-            infoWindowRef.current.setContent(`
-              <div style="font-family: system-ui, sans-serif; padding: 6px; max-width: 250px;">
-                <div style="font-weight: 700; color: #5B21B6; font-size: 13px;">🏢 Lead: ${lead.companyName}</div>
-                <div style="font-size: 11px; color: #475569; margin-top: 4px; line-height: 1.45;">
-                  <strong>Ref:</strong> ${lead.leadNumber || '—'}<br/>
-                  <strong>Contact:</strong> ${lead.contactPerson || '—'}<br/>
-                  <strong>Captured:</strong> ${new Date(lead.createdAt).toLocaleString()}<br/>
-                  ${lead.address ? `<strong>Address:</strong> ${lead.address}` : ''}
-                </div>
+      // CRM Lead Pins (Purple 'L')
+      (leads || []).forEach((lead) => {
+        if (lead.latitude == null || lead.longitude == null) return;
+        const pos = [Number(lead.latitude), Number(lead.longitude)];
+        bounds.extend(pos);
+        const leadIcon = L.divIcon({
+          className: '',
+          iconSize: [30, 38],
+          iconAnchor: [15, 38],
+          html: buildBadgePinMarkup('#7C3AED', '#5B21B6', 'L', 30, 38),
+        });
+        L.marker(pos, { icon: leadIcon, zIndexOffset: 460 })
+          .bindPopup(`
+            <div style="font-family:system-ui,sans-serif;max-width:250px;">
+              <div style="font-weight:700;color:#5B21B6;font-size:13px;">🏢 Lead: ${escapeHtml(lead.companyName)}</div>
+              <div style="font-size:11px;color:#475569;margin-top:4px;line-height:1.45;">
+                <strong>Ref:</strong> ${escapeHtml(lead.leadNumber || '—')}<br/>
+                <strong>Contact:</strong> ${escapeHtml(lead.contactPerson || '—')}<br/>
+                <strong>Captured:</strong> ${escapeHtml(new Date(lead.createdAt).toLocaleString())}<br/>
+                ${lead.address ? `<strong>Address:</strong> ${escapeHtml(lead.address)}` : ''}
               </div>
-            `);
-            infoWindowRef.current.open(mapInstanceRef.current, leadMarker);
-          });
-          leadMarkersRef.current.push(leadMarker);
-        });
-      }
+            </div>
+          `)
+          .addTo(layer);
+      });
 
-      mapInstanceRef.current.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
+      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 });
     },
-    [mapsLoaded, clearAllOverlays]
+    [mapsLoaded, clearAllOverlays, drawDirectionalArrows]
   );
 
-  // Draw ALL 7 days simultaneously on Google Maps with color-coded polylines per day
+  // Draw ALL 7 days simultaneously on Leaflet
   const drawAll7DaysCombined = useCallback(
     (payload) => {
-      if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps || !payload?.days) return;
+      const L = leafletRef.current;
+      const map = mapInstanceRef.current;
+      const layer = overlayLayerRef.current;
+      if (!mapsLoaded || !L || !map || !layer || !payload?.days) return;
       clearAllOverlays();
 
-      const bounds = new window.google.maps.LatLngBounds();
-      let pointTotal = 0;
+      const allPts = [];
 
       payload.days.forEach((day, dayIdx) => {
         if (!day.hasData) return;
@@ -1233,105 +1265,75 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
         const path = [];
 
         if (day.punchIn?.latitude != null && day.punchIn?.longitude != null) {
-          path.push(new window.google.maps.LatLng(Number(day.punchIn.latitude), Number(day.punchIn.longitude)));
+          path.push([Number(day.punchIn.latitude), Number(day.punchIn.longitude)]);
         }
         (day.points || []).forEach((p) => {
           if (p.latitude != null && p.longitude != null) {
-            path.push(new window.google.maps.LatLng(Number(p.latitude), Number(p.longitude)));
+            path.push([Number(p.latitude), Number(p.longitude)]);
           }
         });
 
-        path.forEach((pt) => {
-          bounds.extend(pt);
-          pointTotal++;
-        });
+        path.forEach((pt) => allPts.push(pt));
 
         if (path.length >= 2) {
-          const poly = new window.google.maps.Polyline({
-            path,
-            geodesic: true,
-            strokeColor: color,
-            strokeOpacity: 0.85,
-            strokeWeight: 4,
-            map: mapInstanceRef.current,
-          });
-          multiPolylinesRef.current.push(poly);
+          L.polyline(path, { color, opacity: 0.85, weight: 4 }).addTo(layer);
         }
 
-        // Render stops for each day in combined view
         (day.stops || []).forEach((st) => {
-          const pos = new window.google.maps.LatLng(Number(st.latitude), Number(st.longitude));
-          bounds.extend(pos);
-          pointTotal++;
-          const m = new window.google.maps.Marker({
-            position: pos,
-            map: mapInstanceRef.current,
-            title: `${day.dayLabel} — Stop #${st.stopNumber} (${st.durationMinutes} min)`,
-            icon: {
-              url: getStopPinSvg(st.stopNumber),
-              scaledSize: new window.google.maps.Size(26, 32),
-              anchor: new window.google.maps.Point(13, 32),
-            },
+          const pos = [Number(st.latitude), Number(st.longitude)];
+          allPts.push(pos);
+          const stopIcon = L.divIcon({
+            className: '',
+            iconSize: [26, 32],
+            iconAnchor: [13, 32],
+            html: buildBadgePinMarkup('#D97706', '#92400E', st.stopNumber, 26, 32),
           });
-          m.addListener('click', () => {
-            if (!infoWindowRef.current) return;
-            infoWindowRef.current.setContent(`
-              <div style="font-family: system-ui, sans-serif; padding: 6px; max-width: 250px;">
-                <div style="font-weight: 700; color: ${color}; font-size: 12px;">${day.dayLabel}</div>
-                <div style="font-weight: 700; color: #B45309; font-size: 13px; margin-top: 2px;">🛑 Stop #${st.stopNumber} (${st.durationMinutes} mins)</div>
-                <div style="font-size: 11px; color: #475569; margin-top: 4px;">
-                  <strong>Time:</strong> ${new Date(st.arrivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – ${new Date(st.departedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}<br/>
-                  <strong>Location:</strong> ${st.address || `${Number(st.latitude).toFixed(4)}, ${Number(st.longitude).toFixed(4)}`}
+          L.marker(pos, { icon: stopIcon })
+            .bindPopup(`
+              <div style="font-family:system-ui,sans-serif;max-width:250px;">
+                <div style="font-weight:700;color:${color};font-size:12px;">${escapeHtml(day.dayLabel)}</div>
+                <div style="font-weight:700;color:#B45309;font-size:13px;margin-top:2px;">🛑 Stop #${escapeHtml(st.stopNumber)} (${escapeHtml(st.durationMinutes)} mins)</div>
+                <div style="font-size:11px;color:#475569;margin-top:4px;">
+                  <strong>Time:</strong> ${escapeHtml(new Date(st.arrivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))} – ${escapeHtml(new Date(st.departedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}<br/>
+                  <strong>Location:</strong> ${escapeHtml(st.address || `${Number(st.latitude).toFixed(4)}, ${Number(st.longitude).toFixed(4)}`)}
                 </div>
               </div>
-            `);
-            infoWindowRef.current.open(mapInstanceRef.current, m);
-          });
-          stopMarkersRef.current.push(m);
+            `)
+            .addTo(layer);
         });
 
-        // Render CRM leads with coordinates
         (day.leads || []).forEach((lead) => {
           if (lead.latitude == null || lead.longitude == null) return;
-          const pos = new window.google.maps.LatLng(Number(lead.latitude), Number(lead.longitude));
-          bounds.extend(pos);
-          pointTotal++;
-          const lm = new window.google.maps.Marker({
-            position: pos,
-            map: mapInstanceRef.current,
-            title: `${day.dayLabel} — Lead: ${lead.companyName}`,
-            icon: {
-              url: getLeadPinSvg(),
-              scaledSize: new window.google.maps.Size(26, 34),
-              anchor: new window.google.maps.Point(13, 34),
-            },
+          const pos = [Number(lead.latitude), Number(lead.longitude)];
+          allPts.push(pos);
+          const leadIcon = L.divIcon({
+            className: '',
+            iconSize: [26, 34],
+            iconAnchor: [13, 34],
+            html: buildBadgePinMarkup('#7C3AED', '#5B21B6', 'L', 26, 34),
           });
-          lm.addListener('click', () => {
-            if (!infoWindowRef.current) return;
-            infoWindowRef.current.setContent(`
-              <div style="font-family: system-ui, sans-serif; padding: 6px; max-width: 250px;">
-                <div style="font-weight: 700; color: #5B21B6; font-size: 13px;">🏢 ${lead.companyName}</div>
-                <div style="font-size: 11px; color: #475569; margin-top: 4px;">
-                  <strong>Date:</strong> ${day.dayLabel}<br/>
-                  <strong>Contact:</strong> ${lead.contactPerson || '—'}<br/>
-                  ${lead.address ? `<strong>Address:</strong> ${lead.address}` : ''}
+          L.marker(pos, { icon: leadIcon })
+            .bindPopup(`
+              <div style="font-family:system-ui,sans-serif;max-width:250px;">
+                <div style="font-weight:700;color:#5B21B6;font-size:13px;">🏢 ${escapeHtml(lead.companyName)}</div>
+                <div style="font-size:11px;color:#475569;margin-top:4px;">
+                  <strong>Date:</strong> ${escapeHtml(day.dayLabel)}<br/>
+                  <strong>Contact:</strong> ${escapeHtml(lead.contactPerson || '—')}<br/>
+                  ${lead.address ? `<strong>Address:</strong> ${escapeHtml(lead.address)}` : ''}
                 </div>
               </div>
-            `);
-            infoWindowRef.current.open(mapInstanceRef.current, lm);
-          });
-          leadMarkersRef.current.push(lm);
+            `)
+            .addTo(layer);
         });
       });
 
-      if (pointTotal > 0) {
-        mapInstanceRef.current.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
+      if (allPts.length > 0) {
+        map.fitBounds(L.latLngBounds(allPts), { padding: [60, 60], maxZoom: 16 });
       }
     },
     [mapsLoaded, clearAllOverlays]
   );
 
-  // Focus a specific day inside the loaded 7-day dataset
   const selectHistoryDay = useCallback(
     (dayDate, payloadOverride = null, renderModeOverride = null) => {
       const source = payloadOverride || history7dData;
@@ -1388,7 +1390,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
     [history7dData, drawAll7DaysCombined, drawHistoryRoute, clearAllOverlays, routeRenderMode]
   );
 
-  // Load 7-Day (or 14-Day / Custom) unified history from backend
   const load7DayHistory = useCallback(
     async (userIdOrEmpId, rangeOpts = {}) => {
       if (!userIdOrEmpId) return;
@@ -1426,7 +1427,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
           return;
         }
 
-        // Default directly onto the most recent tracked day's complete Day Circle Roadmap (Punch-In -> Punch-Out)
         const trackedDays = data.days.filter((d) => d.hasData && (d.points?.length > 0 || d.punchIn));
         if (trackedDays.length > 0) {
           const latestTracked = trackedDays[trackedDays.length - 1];
@@ -1444,7 +1444,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
     [historyRangeMode, historyFromDate, historyToDate, clearAllOverlays, drawAll7DaysCombined, selectHistoryDay]
   );
 
-  // Backward-compatible shortcut to jump straight into a user's Last 7 Days
   const openUser7DayHistory = useCallback(
     (targetId) => {
       if (!targetId) return;
@@ -1457,7 +1456,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
     [load7DayHistory]
   );
 
-  // Export 7-Day Movement & Stops CSV Report
   const export7DayCsv = useCallback(() => {
     if (!history7dData?.days) return;
     const u = history7dData.user || {};
@@ -1505,28 +1503,24 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
 
   const updatePlaybackMarker = useCallback(
     (pt) => {
-      if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps || !pt) return;
-      const latLng = new window.google.maps.LatLng(Number(pt.latitude), Number(pt.longitude));
+      const L = leafletRef.current;
+      const layer = overlayLayerRef.current;
+      if (!mapsLoaded || !L || !layer || !pt) return;
+      const pos = [Number(pt.latitude), Number(pt.longitude)];
 
       if (!playbackMarkerRef.current) {
-        playbackMarkerRef.current = new window.google.maps.Marker({
-          position: latLng,
-          map: mapInstanceRef.current,
-          zIndex: 9999,
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 9,
-            fillColor: '#2563EB',
-            fillOpacity: 1,
-            strokeColor: '#FFFFFF',
-            strokeWeight: 3,
-          },
-        });
+        playbackMarkerRef.current = L.circleMarker(pos, {
+          radius: 9,
+          fillColor: '#2563EB',
+          fillOpacity: 1,
+          color: '#FFFFFF',
+          weight: 3,
+        }).addTo(layer);
       } else {
-        playbackMarkerRef.current.setPosition(latLng);
+        playbackMarkerRef.current.setLatLng(pos);
       }
 
-      showAccuracyCircle(Number(pt.latitude), Number(pt.longitude), pt.accuracy || 15, '#2563EB');
+      showAccuracyCircle(pos[0], pos[1], pt.accuracy || 15, '#2563EB');
     },
     [mapsLoaded, showAccuracyCircle]
   );
@@ -1550,198 +1544,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
     return () => clearTimeout(timer);
   }, [isPlaying, playbackIndex, playbackSpeed, historyData, updatePlaybackMarker]);
 
-  // ─── 6. SYNCHRONIZE MAP MARKERS FOR ALL USERS ──────────────────────────────
-  useEffect(() => {
-    if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps) return;
-
-    if (mode === 'ROUTE_HISTORY') {
-      clearAllMapMarkers();
-      return;
-    }
-
-    const activeUserIds = new Set();
-
-    allUsers.forEach((u) => {
-      const uId = u.userId;
-      const lat = u.latestLocation?.latitude;
-      const lng = u.latestLocation?.longitude;
-
-      // If user has no coordinates, remove marker if present
-      if (lat == null || lng == null) {
-        if (markersRef.current[uId]) {
-          markersRef.current[uId].setMap(null);
-          delete markersRef.current[uId];
-        }
-        return;
-      }
-
-      activeUserIds.add(uId);
-
-      const latLng = new window.google.maps.LatLng(Number(lat), Number(lng));
-      const cat = u.roleCategory || getCategoryForRole(u.role);
-      const isSelected = selectedUserId === uId;
-      const pinStatus = u.overallStatus;
-      const iconUrl = generatePinSvg(cat, pinStatus, isSelected);
-
-      let marker = markersRef.current[uId];
-      if (!marker) {
-        marker = new window.google.maps.Marker({
-          position: latLng,
-          map: mapInstanceRef.current,
-          title: `${u.name} - ${u.role} (${pinStatus})`,
-          icon: {
-            url: iconUrl,
-            scaledSize: new window.google.maps.Size(40, 52),
-            anchor: new window.google.maps.Point(20, 50),
-          },
-          zIndex: isSelected ? 999 : pinStatus === 'LIVE' ? 200 : 100,
-        });
-
-        marker.addListener('click', () => {
-          setSelectedUserId(uId);
-          mapInstanceRef.current.panTo(latLng);
-          showAccuracyCircle(lat, lng, u.latestLocation?.accuracy || 15);
-
-          if (u.activeShift) {
-            drawShiftRouteOnMap(u);
-          }
-
-          if (infoWindowRef.current) {
-            const gpsAgeText = formatGpsAge(u.latestLocation?.gpsAgeSeconds);
-            const recordedTime = u.latestLocation?.capturedAt
-              ? new Date(u.latestLocation.capturedAt).toLocaleTimeString()
-              : 'N/A';
-
-            infoWindowRef.current.setContent(`
-              <div style="font-family: system-ui, sans-serif; padding: 6px; min-width: 220px;">
-                <div style="font-weight: 700; color: #0F172A; font-size: 13.5px; display: flex; align-items: center; justify-content: space-between;">
-                  <span>${u.name}</span>
-                  <span style="font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 8px; background: ${pinStatus === 'LIVE' ? '#DCFCE7' : pinStatus === 'STALE' ? '#FEF3C7' : '#F1F5F9'}; color: ${pinStatus === 'LIVE' ? '#15803D' : pinStatus === 'STALE' ? '#B45309' : '#64748B'};">
-                    ${pinStatus}
-                  </span>
-                </div>
-                <div style="font-size: 11.5px; color: #475569; margin-top: 5px; line-height: 1.5;">
-                  <strong>Role:</strong> ${u.role} (${cat})<br/>
-                  <strong>Department:</strong> ${u.department || 'Operations'}<br/>
-                  <strong>GPS Age:</strong> ${gpsAgeText}<br/>
-                  <strong>Captured:</strong> ${recordedTime}<br/>
-                  <strong>Accuracy:</strong> ±${Math.round(u.latestLocation?.accuracy || 10)}m<br/>
-                  ${u.latestLocation?.speed != null ? `<strong>Speed:</strong> ${Math.round(u.latestLocation.speed)} km/h<br/>` : ''}
-                  ${u.activeShift ? `<strong>Shift Distance:</strong> ${u.activeShift.totalDistanceKm || 0} km` : ''}
-                </div>
-              </div>
-            `);
-            infoWindowRef.current.open(mapInstanceRef.current, marker);
-          }
-        });
-
-        markersRef.current[uId] = marker;
-      } else {
-        marker.setPosition(latLng);
-        marker.setIcon({
-          url: iconUrl,
-          scaledSize: new window.google.maps.Size(40, 52),
-          anchor: new window.google.maps.Point(20, 50),
-        });
-        marker.setZIndex(isSelected ? 999 : pinStatus === 'LIVE' ? 200 : 100);
-      }
-
-      // Render Fixed Punch-In 'S' pin if on active shift
-      const shift = u.activeShift;
-      const punchLat = shift?.punchInCoordinates?.latitude || shift?.punchInLatitude;
-      const punchLng = shift?.punchInCoordinates?.longitude || shift?.punchInLongitude;
-      if (punchLat && punchLng) {
-        const punchLatLng = new window.google.maps.LatLng(Number(punchLat), Number(punchLng));
-        let startMarker = startMarkersRef.current[uId];
-        if (!startMarker) {
-          startMarker = new window.google.maps.Marker({
-            position: punchLatLng,
-            map: mapInstanceRef.current,
-            title: `Shift Punch-In (Start): ${u.name}`,
-            icon: {
-              url: getStartPinSvg(),
-              scaledSize: new window.google.maps.Size(32, 38),
-              anchor: new window.google.maps.Point(16, 38),
-            },
-            zIndex: 90,
-          });
-          startMarker.addListener('click', () => {
-            setSelectedUserId(uId);
-            drawShiftRouteOnMap(u);
-          });
-          startMarkersRef.current[uId] = startMarker;
-        } else {
-          startMarker.setPosition(punchLatLng);
-        }
-      } else if (startMarkersRef.current[uId]) {
-        startMarkersRef.current[uId].setMap(null);
-        delete startMarkersRef.current[uId];
-      }
-    });
-
-    // Clean obsolete markers
-    Object.keys(markersRef.current).forEach((id) => {
-      if (!activeUserIds.has(id)) {
-        markersRef.current[id].setMap(null);
-        delete markersRef.current[id];
-      }
-    });
-    Object.keys(startMarkersRef.current).forEach((id) => {
-      if (!activeUserIds.has(id)) {
-        startMarkersRef.current[id].setMap(null);
-        delete startMarkersRef.current[id];
-      }
-    });
-  }, [mode, mapsLoaded, allUsers, selectedUserId, drawShiftRouteOnMap, clearAllMapMarkers, showAccuracyCircle]);
-
-  // ─── 7. MAP TOOLBAR CONTROLS ───────────────────────────────────────────────
-  const fitAllMarkers = useCallback(() => {
-    if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps) return;
-    const bounds = new window.google.maps.LatLngBounds();
-    let count = 0;
-
-    allUsers.forEach((u) => {
-      if (u.latestLocation?.latitude && u.latestLocation?.longitude) {
-        bounds.extend(new window.google.maps.LatLng(Number(u.latestLocation.latitude), Number(u.latestLocation.longitude)));
-        count++;
-      }
-      const punchLat = u.activeShift?.punchInCoordinates?.latitude || u.activeShift?.punchInLatitude;
-      const punchLng = u.activeShift?.punchInCoordinates?.longitude || u.activeShift?.punchInLongitude;
-      if (punchLat && punchLng) {
-        bounds.extend(new window.google.maps.LatLng(Number(punchLat), Number(punchLng)));
-        count++;
-      }
-    });
-
-    if (count > 0) {
-      mapInstanceRef.current.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
-    } else {
-      mapInstanceRef.current.panTo({ lat: 23.0225, lng: 72.5714 });
-      mapInstanceRef.current.setZoom(12);
-    }
-  }, [mapsLoaded, allUsers]);
-
-  const centerOnHQ = () => {
-    if (!mapInstanceRef.current) return;
-    mapInstanceRef.current.panTo({ lat: 23.0225, lng: 72.5714 });
-    mapInstanceRef.current.setZoom(13);
-  };
-
-  const toggleTraffic = () => {
-    if (!mapInstanceRef.current || !window.google?.maps) return;
-    if (!trafficLayerRef.current) {
-      trafficLayerRef.current = new window.google.maps.TrafficLayer();
-    }
-    if (showTraffic) {
-      trafficLayerRef.current.setMap(null);
-      setShowTraffic(false);
-    } else {
-      trafficLayerRef.current.setMap(mapInstanceRef.current);
-      setShowTraffic(true);
-    }
-  };
-
-  // ─── 8. FILTERED USERS & SUMMARY METRICS ───────────────────────────────────
+  // ─── 6. FILTERED USERS & TRUTHFUL SUMMARY METRICS ──────────────────────────
   const summaryMetrics = useMemo(() => {
     let live = 0;
     let stale = 0;
@@ -1749,9 +1552,15 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
     let noLocation = 0;
     let permissionDenied = 0;
     let onShift = 0;
+    let onlineSessionsTotal = 0;
+    let totalSessionsCount = 0;
 
     allUsers.forEach((u) => {
       if (u.activeShift) onShift++;
+      const uSessions = u.sessions || [];
+      totalSessionsCount += uSessions.length;
+      onlineSessionsTotal += uSessions.filter((s) => s.status === 'ONLINE').length;
+
       if (u.overallStatus === 'LIVE') live++;
       else if (u.overallStatus === 'STALE') stale++;
       else if (u.overallStatus === 'OFFLINE') offline++;
@@ -1767,28 +1576,26 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
       noLocation,
       permissionDenied,
       onShift,
+      onlineSessionsTotal,
+      totalSessionsCount,
     };
   }, [allUsers]);
 
   const filteredUsers = useMemo(() => {
     return allUsers.filter((u) => {
-      // Enforce Active Shift tab filter cleanly
       if (mode === 'ACTIVE_SHIFTS' && !u.activeShift) return false;
 
-      // Department / Role Filter
       if (selectedDepartment !== 'All') {
         const cat = u.roleCategory || getCategoryForRole(u.role);
-        if (cat !== selectedDepartment && u.department !== selectedDepartment) return false;
+        const deptLower = (u.department || '').toLowerCase();
+        const selLower = selectedDepartment.toLowerCase();
+        if (cat !== selectedDepartment && deptLower !== selLower && !deptLower.startsWith(selLower)) {
+          return false;
+        }
       }
 
-      // Status Filter
       if (statusFilter !== 'ALL' && u.overallStatus !== statusFilter) return false;
 
-      // Shift Filter
-      if (shiftFilter === 'ON_SHIFT' && !u.activeShift) return false;
-      if (shiftFilter === 'OFF_SHIFT' && u.activeShift) return false;
-
-      // Search Query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesName = (u.name || '').toLowerCase().includes(q);
@@ -1801,13 +1608,286 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
 
       return true;
     });
-  }, [allUsers, mode, selectedDepartment, statusFilter, shiftFilter, searchQuery]);
+  }, [allUsers, mode, selectedDepartment, statusFilter, searchQuery]);
+
+  // Users strictly visible on the map right now (respects ALL filters & tabs!)
+  const mapVisibleUsers = useMemo(() => {
+    if (mode === 'DEVICE_SESSIONS') return allUsers;
+    return filteredUsers;
+  }, [mode, allUsers, filteredUsers]);
 
   const selectedUser = useMemo(() => {
     return allUsers.find((u) => u.userId === selectedUserId) || null;
   }, [allUsers, selectedUserId]);
 
-  // Smart grouped user list for the 7-Day History dropdown (Sales with telemetry first!)
+  // Build popup HTML dynamically from fresh user state (never stale!)
+  const buildUserPopupHtml = useCallback(
+    (u) => {
+      const cat = u.roleCategory || getCategoryForRole(u.role);
+      const pinStatus = u.overallStatus;
+      const gpsAgeText = formatGpsAge(getLiveGpsAgeSeconds(u));
+      const recordedTime = u.latestLocation?.capturedAt
+        ? new Date(u.latestLocation.capturedAt).toLocaleTimeString()
+        : 'N/A';
+      const accBadge = formatAccuracyBadge(u.latestLocation?.accuracy);
+      const dev = u.latestLocation?.sourceDevice;
+      const devStr = dev ? `${dev.deviceType} (${dev.operatingSystem || ''}${dev.browser ? ' / ' + dev.browser : ''})` : null;
+
+      return `
+        <div style="font-family:system-ui,sans-serif;min-width:225px;padding:2px;">
+          <div style="font-weight:700;color:#0F172A;font-size:13.5px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span>${escapeHtml(u.name)}</span>
+            <span style="font-size:10px;font-weight:800;padding:2px 6px;border-radius:8px;background:${pinStatus === 'LIVE' ? '#DCFCE7' : pinStatus === 'STALE' ? '#FEF3C7' : '#F1F5F9'};color:${pinStatus === 'LIVE' ? '#15803D' : pinStatus === 'STALE' ? '#B45309' : '#64748B'};">
+              ${escapeHtml(pinStatus)}
+            </span>
+          </div>
+          <div style="font-size:11.5px;color:#475569;margin-top:6px;line-height:1.55;">
+            <strong>Role:</strong> ${escapeHtml(u.role)} (${escapeHtml(cat)})<br/>
+            <strong>Department:</strong> ${escapeHtml(u.department || 'Operations')}<br/>
+            <strong>GPS Age:</strong> ${escapeHtml(gpsAgeText)} (${escapeHtml(recordedTime)})<br/>
+            <strong>Signal:</strong> ${accBadge ? `<span style="background:${accBadge.bg};color:${accBadge.color};padding:1px 5px;border-radius:5px;font-weight:700;font-size:10.5px;">${accBadge.icon} ${escapeHtml(accBadge.label)}</span>` : 'N/A'}<br/>
+            ${devStr ? `<strong>Source:</strong> ${escapeHtml(devStr)}<br/>` : ''}
+            ${u.latestLocation?.speed != null ? `<strong>Speed:</strong> ${Math.round(u.latestLocation.speed)} km/h<br/>` : ''}
+            ${u.activeShift ? `<strong>Shift Distance:</strong> ${escapeHtml(u.activeShift.totalDistanceKm || 0)} km` : ''}
+          </div>
+        </div>
+      `;
+    },
+    [getLiveGpsAgeSeconds]
+  );
+
+  // ─── 7. SYNCHRONIZE FILTERED MAP MARKERS WITH STACKED-PIN CLUSTERING & SPIDERFY ─
+  useEffect(() => {
+    const L = leafletRef.current;
+    const map = mapInstanceRef.current;
+    const layer = userLayerRef.current;
+    if (!mapsLoaded || !L || !map || !layer) return;
+
+    layer.clearLayers();
+
+    if (mode === 'ROUTE_HISTORY') {
+      return;
+    }
+
+    // 1. Cluster co-located users within 35 meters so stacked factory/office pins are never hidden
+    const withCoords = mapVisibleUsers.filter(
+      (u) => u.latestLocation?.latitude != null && u.latestLocation?.longitude != null
+    );
+
+    const clusters = [];
+    for (const u of withCoords) {
+      const lat = Number(u.latestLocation.latitude);
+      const lng = Number(u.latestLocation.longitude);
+      let placed = false;
+      for (const cl of clusters) {
+        if (haversineMeters(cl.centerLat, cl.centerLng, lat, lng) <= 35) {
+          cl.members.push(u);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        clusters.push({ centerLat: lat, centerLng: lng, members: [u] });
+      }
+    }
+
+    const renderSingleUserPin = (u, displayLat, displayLng) => {
+      const uId = u.userId;
+      const cat = u.roleCategory || getCategoryForRole(u.role);
+      const isSelected = selectedUserId === uId;
+      const pinStatus = u.overallStatus;
+
+      const icon = L.divIcon({
+        className: '',
+        iconSize: [38, 48],
+        iconAnchor: [19, 46],
+        popupAnchor: [0, -44],
+        html: buildPinSvgMarkup(cat, pinStatus, isSelected),
+      });
+
+      const marker = L.marker([displayLat, displayLng], {
+        icon,
+        zIndexOffset: isSelected ? 1000 : pinStatus === 'LIVE' ? 300 : 100,
+        title: `${u.name} - ${u.role} (${pinStatus})`,
+      }).addTo(layer);
+
+      marker.on('click', (ev) => {
+        L.DomEvent.stopPropagation(ev);
+        const freshUser = usersByIdRef.current.get(uId) || u;
+        setSelectedUserId(uId);
+        showAccuracyCircle(
+          Number(freshUser.latestLocation.latitude),
+          Number(freshUser.latestLocation.longitude),
+          freshUser.latestLocation?.accuracy || 15
+        );
+        if (freshUser.activeShift) {
+          drawShiftRouteOnMap(freshUser);
+        }
+        marker.bindPopup(buildUserPopupHtml(freshUser), { maxWidth: 280 }).openPopup();
+      });
+
+      // Punch-in 'S' pin for active shift (only when user is selected or in ACTIVE_SHIFTS mode to keep map clean)
+      const shift = u.activeShift;
+      const punchLat = shift?.punchInCoordinates?.latitude || shift?.punchInLatitude;
+      const punchLng = shift?.punchInCoordinates?.longitude || shift?.punchInLongitude;
+      if (punchLat != null && punchLng != null && (isSelected || mode === 'ACTIVE_SHIFTS')) {
+        const startIcon = L.divIcon({
+          className: '',
+          iconSize: [28, 34],
+          iconAnchor: [14, 34],
+          html: buildBadgePinMarkup('#16A34A', '#15803D', 'S', 28, 34),
+        });
+        L.marker([Number(punchLat), Number(punchLng)], {
+          icon: startIcon,
+          zIndexOffset: 80,
+          title: `Shift Punch-In: ${u.name}`,
+        })
+          .on('click', (ev) => {
+            L.DomEvent.stopPropagation(ev);
+            const freshUser = usersByIdRef.current.get(uId) || u;
+            setSelectedUserId(uId);
+            drawShiftRouteOnMap(freshUser);
+          })
+          .addTo(layer);
+      }
+    };
+
+    clusters.forEach((cl) => {
+      if (cl.members.length === 1) {
+        const u = cl.members[0];
+        renderSingleUserPin(u, Number(u.latestLocation.latitude), Number(u.latestLocation.longitude));
+        return;
+      }
+
+      const clusterKey = `${cl.centerLat.toFixed(4)},${cl.centerLng.toFixed(4)}`;
+      const containsSelected = cl.members.some((m) => m.userId === selectedUserId);
+      const isExpanded = expandedClusterKey === clusterKey || containsSelected;
+
+      if (isExpanded) {
+        // Center anchor dot showing exact shared coordinate
+        L.circleMarker([cl.centerLat, cl.centerLng], {
+          radius: 5,
+          fillColor: '#0284C7',
+          fillOpacity: 0.9,
+          color: '#FFFFFF',
+          weight: 2,
+          interactive: false,
+        }).addTo(layer);
+
+        // Spiderfy pins cleanly in screen-pixel space (always crisp 48px–62px radius regardless of zoom!)
+        const centerPt = map.latLngToContainerPoint([cl.centerLat, cl.centerLng]);
+        const count = cl.members.length;
+        const radiusPx = Math.min(72, 42 + count * 3.5);
+
+        cl.members.forEach((member, idx) => {
+          const angle = (2 * Math.PI * idx) / count - Math.PI / 2;
+          const targetPt = L.point(
+            centerPt.x + radiusPx * Math.cos(angle),
+            centerPt.y + radiusPx * Math.sin(angle)
+          );
+          const targetLatLng = map.containerPointToLatLng(targetPt);
+
+          // Dashed hairline leg from true coordinate to spiderfied pin
+          L.polyline(
+            [
+              [cl.centerLat, cl.centerLng],
+              [targetLatLng.lat, targetLatLng.lng],
+            ],
+            {
+              color: '#0284C7',
+              weight: 1.5,
+              opacity: 0.65,
+              dashArray: '4 4',
+              interactive: false,
+            }
+          ).addTo(layer);
+
+          renderSingleUserPin(member, targetLatLng.lat, targetLatLng.lng);
+        });
+      } else {
+        // Collapsed Cluster Badge with count & live status ring
+        const hasLive = cl.members.some((m) => m.overallStatus === 'LIVE');
+        const hasStale = cl.members.some((m) => m.overallStatus === 'STALE');
+        const ringColor = hasLive ? '#10B981' : hasStale ? '#F59E0B' : '#0284C7';
+        const previewNames = cl.members
+          .slice(0, 4)
+          .map((m) => m.name)
+          .join(', ');
+        const moreText = cl.members.length > 4 ? ` +${cl.members.length - 4} more` : '';
+
+        const clusterIcon = L.divIcon({
+          className: '',
+          iconSize: [44, 44],
+          iconAnchor: [22, 22],
+          html: `<div style="width:44px;height:44px;border-radius:50%;background:#0F172A;border:3.5px solid ${ringColor};color:#FFFFFF;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(15,23,42,0.4);cursor:pointer;">
+            ${cl.members.length}
+          </div>`,
+        });
+
+        const clusterMarker = L.marker([cl.centerLat, cl.centerLng], {
+          icon: clusterIcon,
+          zIndexOffset: hasLive ? 400 : 250,
+          title: `${cl.members.length} employees here: ${previewNames}${moreText} (click to expand)`,
+        }).addTo(layer);
+
+        clusterMarker.bindTooltip(
+          `<strong>${cl.members.length} employees at this spot</strong><br/>${escapeHtml(previewNames + moreText)}<br/><span style="color:#0284C7;font-size:10px;">Click to fan out pins</span>`,
+          { direction: 'top', offset: [0, -22] }
+        );
+
+        clusterMarker.on('click', (ev) => {
+          L.DomEvent.stopPropagation(ev);
+          setExpandedClusterKey(clusterKey);
+          const targetZoom = Math.max(map.getZoom(), 14);
+          map.setView([cl.centerLat, cl.centerLng], targetZoom, { animate: true });
+        });
+      }
+    });
+  }, [
+    mode,
+    mapsLoaded,
+    mapVisibleUsers,
+    selectedUserId,
+    expandedClusterKey,
+    zoomVersion,
+    drawShiftRouteOnMap,
+    showAccuracyCircle,
+    buildUserPopupHtml,
+  ]);
+
+  // ─── 8. MAP TOOLBAR CONTROLS (STRICTLY FILTERED FIT ALL!) ──────────────────
+  const fitAllMarkers = useCallback(() => {
+    const L = leafletRef.current;
+    const map = mapInstanceRef.current;
+    if (!mapsLoaded || !L || !map) return;
+
+    const pts = [];
+    mapVisibleUsers.forEach((u) => {
+      if (u.latestLocation?.latitude != null && u.latestLocation?.longitude != null) {
+        pts.push([Number(u.latestLocation.latitude), Number(u.latestLocation.longitude)]);
+      }
+      if (mode === 'ACTIVE_SHIFTS') {
+        const punchLat = u.activeShift?.punchInCoordinates?.latitude || u.activeShift?.punchInLatitude;
+        const punchLng = u.activeShift?.punchInCoordinates?.longitude || u.activeShift?.punchInLongitude;
+        if (punchLat != null && punchLng != null) {
+          pts.push([Number(punchLat), Number(punchLng)]);
+        }
+      }
+    });
+
+    if (pts.length > 0) {
+      map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 15 });
+    } else {
+      map.setView([23.0225, 72.5714], 11);
+    }
+  }, [mapsLoaded, mapVisibleUsers, mode]);
+
+  const centerOnHQ = () => {
+    if (!mapInstanceRef.current) return;
+    mapInstanceRef.current.setView([23.0225, 72.5714], 12, { animate: true });
+  };
+
+  // Smart grouped user list for the 7-Day History dropdown
   const groupedHistoryUsers = useMemo(() => {
     const withStats = allUsers.map((u) => {
       const ov = overview7d[u.userId] || { daysTracked: 0, pointsCount: 0, punchInsCount: 0 };
@@ -1827,7 +1907,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
     };
   }, [allUsers, overview7d]);
 
-  // Resolve human-readable address for the currently selected live user (cached)
+  // Resolve human-readable address for selected user via backend OpenStreetMap Nominatim (cached)
   useEffect(() => {
     const lat = selectedUser?.latestLocation?.latitude;
     const lng = selectedUser?.latestLocation?.longitude;
@@ -1864,6 +1944,21 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
     };
   }, [selectedUser?.latestLocation?.latitude, selectedUser?.latestLocation?.longitude]);
 
+  const handleSelectUserCard = (u) => {
+    const hasCoord = u.latestLocation?.latitude != null && u.latestLocation?.longitude != null;
+    setSelectedUserId(u.userId);
+    if (hasCoord && mapInstanceRef.current) {
+      const lat = Number(u.latestLocation.latitude);
+      const lng = Number(u.latestLocation.longitude);
+      const targetZoom = Math.max(mapInstanceRef.current.getZoom(), 14);
+      mapInstanceRef.current.setView([lat, lng], targetZoom, { animate: true });
+      showAccuracyCircle(lat, lng, u.latestLocation.accuracy || 15);
+    }
+    if (u.activeShift) {
+      drawShiftRouteOnMap(u);
+    }
+  };
+
   return (
     <div
       style={{
@@ -1877,7 +1972,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
         boxSizing: 'border-box',
       }}
     >
-      {/* ── 1. HEADER BANNER & SUMMARY METRICS ─────────────────────────────────── */}
+      {/* ── 1. HEADER BANNER & TRUTHFUL SUMMARY METRICS ─────────────────────── */}
       <div
         style={{
           display: 'flex',
@@ -1919,6 +2014,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
+                flexWrap: 'wrap',
               }}
             >
               {isHrPortal ? 'HR Live Map — Real-Time Tracking' : 'Super Admin Map — Real-Time Tracking'}
@@ -1928,23 +2024,24 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                   fontWeight: 700,
                   padding: '2px 8px',
                   borderRadius: '10px',
-                  background: '#EFF6FF',
-                  color: '#0284C7',
+                  background: '#ECFDF5',
+                  color: '#047857',
+                  border: '1px solid #A7F3D0',
                 }}
               >
-                ALL AUTHORIZED USERS
+                OPENSTREETMAP LIVE
               </span>
             </h2>
             <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748B' }}>
-              Authoritative live GPS telemetry, device presence, verified freshness & movement history
+              Authoritative multi-device GPS telemetry, verified accuracy, stacked-pin spiderfy &amp; 7-day movement history
             </p>
           </div>
         </div>
 
-        {/* Real-time Connection Indicator & Summary Badges */}
+        {/* Real-time Connection Indicator & Truthful Summary Badges */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '5px 10px', fontSize: '11.5px', color: '#0F172A', fontWeight: 600 }}>
-            👥 Trackable Users: <strong>{summaryMetrics.total}</strong>
+            👥 Staff: <strong>{summaryMetrics.total}</strong>
           </div>
           <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '5px 10px', fontSize: '11.5px', color: '#15803D', fontWeight: 600 }}>
             🟢 Live (&lt;2m): <strong>{summaryMetrics.live}</strong>
@@ -1955,7 +2052,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
           <div style={{ background: '#FEF2F2', border: '1px solid #FECDD3', borderRadius: '8px', padding: '5px 10px', fontSize: '11.5px', color: '#991B1B', fontWeight: 600 }}>
             🔴 Offline: <strong>{summaryMetrics.offline}</strong>
           </div>
-          <div style={{ background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '5px 10px', fontSize: '11.5px', color: '#475569', fontWeight: 600 }}>
+          <div style={{ background: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '5px 10px', fontSize: '11.5px', color: '#475569', fontWeight: 600 }}>
             ⚪ No GPS: <strong>{summaryMetrics.noLocation}</strong>
           </div>
 
@@ -1986,8 +2083,8 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
           </div>
 
           <button
-            onClick={fetchAllData}
-            title="Manual sync"
+            onClick={() => void fetchAllData({ forceOverview: true })}
+            title="Manual sync (scroll position preserved)"
             style={{
               background: '#F8FAFC',
               border: '1px solid #CBD5E1',
@@ -2002,7 +2099,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
               fontWeight: 600,
             }}
           >
-            <Lucide.RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            <Lucide.RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />
             <span>{lastRestSync || 'Sync'}</span>
           </button>
         </div>
@@ -2023,10 +2120,15 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
         }}
       >
         {[
-          { id: 'ALL_USERS', label: 'LIVE MAP', icon: '🗺️', badge: summaryMetrics.total, desc: 'Real-time tracking for every authorized user' },
-          { id: 'ACTIVE_SHIFTS', label: 'ACTIVE SHIFTS', icon: '🟢', badge: summaryMetrics.onShift, desc: 'Punched-in staff shift paths & distance' },
-          { id: 'ROUTE_HISTORY', label: 'LAST 7 DAYS HISTORY', icon: '📅', badge: '7D', desc: '7-day sales movement timeline, stops & playback' },
-          { id: 'DEVICE_SESSIONS', label: 'DEVICE SESSIONS', icon: '💻', badge: allUsers.reduce((acc, u) => acc + (u.sessions?.length || 0), 0), desc: 'Hardware presence & browser sessions' },
+          { id: 'ALL_USERS', label: 'LIVE MAP', icon: '🗺️', badge: summaryMetrics.total },
+          { id: 'ACTIVE_SHIFTS', label: 'ACTIVE SHIFTS', icon: '🟢', badge: summaryMetrics.onShift },
+          { id: 'ROUTE_HISTORY', label: 'LAST 7 DAYS HISTORY', icon: '📅', badge: '7D' },
+          {
+            id: 'DEVICE_SESSIONS',
+            label: 'DEVICE SESSIONS',
+            icon: '💻',
+            badge: `${summaryMetrics.onlineSessionsTotal} live / ${summaryMetrics.totalSessionsCount}`,
+          },
         ].map((tab) => {
           const isActive = mode === tab.id;
           return (
@@ -2034,6 +2136,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
               key={tab.id}
               onClick={() => {
                 setMode(tab.id);
+                setExpandedClusterKey(null);
                 clearAllOverlays();
                 if (tab.id === 'ROUTE_HISTORY') {
                   clearAllMapMarkers();
@@ -2064,7 +2167,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                     fontSize: '10.5px',
                     padding: '2px 7px',
                     borderRadius: '12px',
-                    background: isActive ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
+                    background: isActive ? 'rgba(255,255,255,0.22)' : '#E2E8F0',
                     color: isActive ? '#FFFFFF' : '#334155',
                     fontWeight: 700,
                   }}
@@ -2077,7 +2180,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
         })}
       </div>
 
-      {/* ── 3. MAIN WORKSPACE SPLIT VIEW ────────────────────────────────────── */}
+      {/* ── 3. MAIN WORKSPACE SPLIT VIEW ─────────────────────────────────────── */}
       <div
         style={{
           display: 'flex',
@@ -2101,27 +2204,24 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
             borderRadius: '12px',
             padding: '14px',
             gap: '10px',
-            zIndex: 100,
+            zIndex: 450,
             height: isMobile ? 'calc(100% - 24px)' : '100%',
             boxShadow: isMobile
-              ? '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)'
+              ? '0 10px 15px -3px rgba(0,0,0,0.1)'
               : '0 2px 4px rgba(0,0,0,0.02)',
             overflow: 'hidden',
           }}
         >
-          {/* ═══════════════════════════════════════════════════════════════════
-              MODE: ALL_USERS or ACTIVE_SHIFTS
-          ═══════════════════════════════════════════════════════════════════ */}
+          {/* ═══ MODE: ALL_USERS or ACTIVE_SHIFTS ═══ */}
           {(mode === 'ALL_USERS' || mode === 'ACTIVE_SHIFTS') && (
             <>
-              {/* Header Title & Actions */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>
                     {mode === 'ALL_USERS' ? 'Authorized Users Directory' : 'Active Shift Routes'}
                   </h3>
                   <span style={{ fontSize: '11px', color: '#64748B' }}>
-                    Showing {filteredUsers.length} of {allUsers.length} employees
+                    Showing {filteredUsers.length} of {allUsers.length} employees • Map synced to filter
                   </span>
                 </div>
                 <div style={{ display: 'flex', gap: '6px' }}>
@@ -2141,10 +2241,10 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                       gap: '4px',
                     }}
                   >
-                    <Lucide.Crosshair size={13} /> Fit All
+                    <Lucide.Crosshair size={13} /> Fit Filtered
                   </button>
                   <button
-                    onClick={fetchAllData}
+                    onClick={() => void fetchAllData({ forceOverview: true })}
                     style={{
                       background: '#F8FAFC',
                       border: '1px solid #E2E8F0',
@@ -2155,7 +2255,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                       cursor: 'pointer',
                     }}
                   >
-                    <Lucide.RefreshCw size={13} />
+                    <Lucide.RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />
                   </button>
                 </div>
               </div>
@@ -2197,7 +2297,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                 )}
               </div>
 
-              {/* Department Pills Bar */}
+              {/* Department Pills Bar (includes Back Office!) */}
               <div
                 style={{
                   display: 'flex',
@@ -2206,12 +2306,15 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                   paddingBottom: '2px',
                 }}
               >
-                {['All', 'Sales', 'Plant Head', 'HR', 'Dispatch', 'Production', 'QC', 'Store', 'Finance', 'Procurement', 'Admin'].map((dept) => {
+                {DEPARTMENT_PILLS.map((dept) => {
                   const isDeptActive = selectedDepartment === dept;
                   return (
                     <button
                       key={dept}
-                      onClick={() => setSelectedDepartment(dept)}
+                      onClick={() => {
+                        setSelectedDepartment(dept);
+                        setExpandedClusterKey(null);
+                      }}
                       style={{
                         padding: '3px 8px',
                         borderRadius: '12px',
@@ -2233,7 +2336,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
               {/* Status Filter Grid */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
                 {[
-                  { id: 'ALL', label: 'All', count: allUsers.length },
+                  { id: 'ALL', label: 'All', count: summaryMetrics.total },
                   { id: 'LIVE', label: '🟢 Live', count: summaryMetrics.live },
                   { id: 'STALE', label: '🟡 Stale', count: summaryMetrics.stale },
                   { id: 'OFFLINE', label: '🔴 Off', count: summaryMetrics.offline },
@@ -2241,7 +2344,10 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                 ].map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => setStatusFilter(tab.id)}
+                    onClick={() => {
+                      setStatusFilter(tab.id);
+                      setExpandedClusterKey(null);
+                    }}
                     style={{
                       background: statusFilter === tab.id ? '#EFF6FF' : '#F8FAFC',
                       border: `1px solid ${statusFilter === tab.id ? '#3B82F6' : '#E2E8F0'}`,
@@ -2259,7 +2365,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                 ))}
               </div>
 
-              {/* User List */}
+              {/* Scroll-Stable User List (NEVER unmounted during background refresh!) */}
               <div
                 style={{
                   flex: 1,
@@ -2270,7 +2376,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                   paddingRight: '2px',
                 }}
               >
-                {loading ? (
+                {initialLoading ? (
                   <div style={{ display: 'flex', justifyContent: 'center', padding: '40px', color: '#94A3B8' }}>
                     <Lucide.Loader2 className="animate-spin" size={24} />
                   </div>
@@ -2295,30 +2401,14 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                     const isSelected = selectedUserId === u.userId;
                     const cat = u.roleCategory || getCategoryForRole(u.role);
                     const cfg = ROLE_CONFIG[cat] || ROLE_CONFIG.Other;
-                    const hasCoord = Boolean(u.latestLocation?.latitude && u.latestLocation?.longitude);
                     const status = u.overallStatus;
-                    const gpsAgeSec = u.latestLocation?.gpsAgeSeconds;
+                    const gpsAgeSec = getLiveGpsAgeSeconds(u);
+                    const accBadge = formatAccuracyBadge(u.latestLocation?.accuracy);
 
                     return (
                       <div
                         key={u.userId}
-                        onClick={() => {
-                          setSelectedUserId(u.userId);
-                          if (hasCoord && mapInstanceRef.current) {
-                            mapInstanceRef.current.panTo({
-                              lat: Number(u.latestLocation.latitude),
-                              lng: Number(u.latestLocation.longitude),
-                            });
-                            showAccuracyCircle(
-                              Number(u.latestLocation.latitude),
-                              Number(u.latestLocation.longitude),
-                              u.latestLocation.accuracy || 15
-                            );
-                          }
-                          if (u.activeShift) {
-                            drawShiftRouteOnMap(u);
-                          }
-                        }}
+                        onClick={() => handleSelectUserCard(u)}
                         style={{
                           background: isSelected ? '#F0F9FF' : '#FFFFFF',
                           border: `1.5px solid ${isSelected ? '#0284C7' : '#E2E8F0'}`,
@@ -2328,13 +2418,12 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '6px',
-                          transition: 'all 0.15s ease',
+                          transition: 'border-color 0.15s ease, background 0.15s ease',
                           boxShadow: isSelected ? '0 2px 6px rgba(2, 132, 199, 0.15)' : 'none',
                         }}
                       >
-                        {/* Top Identity & Status Row */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                             <div
                               style={{
                                 width: '28px',
@@ -2346,12 +2435,13 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 fontSize: '13px',
+                                flexShrink: 0,
                               }}
                             >
                               {cfg.emoji}
                             </div>
-                            <div>
-                              <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {u.name}
                                 {u.employeeCode && (
                                   <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 500, marginLeft: '6px' }}>
@@ -2359,21 +2449,21 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                                   </span>
                                 )}
                               </div>
-                              <div style={{ fontSize: '11px', color: '#64748B', display: 'flex', gap: '6px' }}>
+                              <div style={{ fontSize: '11px', color: '#64748B', display: 'flex', gap: '5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 <span>{u.role}</span>
                                 <span>•</span>
-                                <span style={{ color: cfg.textColor, fontWeight: 600 }}>{cat}</span>
+                                <span style={{ color: cfg.textColor, fontWeight: 600 }}>{u.department || cat}</span>
                               </div>
                             </div>
                           </div>
 
-                          {/* Status Badge */}
                           <div
                             style={{
                               fontSize: '10px',
                               fontWeight: 700,
                               padding: '2px 8px',
                               borderRadius: '10px',
+                              flexShrink: 0,
                               background:
                                 status === 'LIVE'
                                   ? '#DCFCE7'
@@ -2413,7 +2503,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                           </div>
                         </div>
 
-                        {/* Telemetry & Truth Details + 1-Click 7-Day History Button */}
                         <div
                           style={{
                             display: 'flex',
@@ -2430,10 +2519,25 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
                             <Lucide.Clock size={12} color="#64748B" />
                             <span>{formatGpsAge(gpsAgeSec)}</span>
+                            {accBadge && (
+                              <span
+                                style={{
+                                  fontSize: '9.5px',
+                                  fontWeight: 700,
+                                  color: accBadge.color,
+                                  background: accBadge.bg,
+                                  border: `1px solid ${accBadge.border}`,
+                                  padding: '0px 5px',
+                                  borderRadius: '6px',
+                                }}
+                              >
+                                {accBadge.icon} {accBadge.label}
+                              </span>
+                            )}
                             {overview7d[u.userId]?.daysTracked > 0 && (
                               <span
                                 style={{
-                                  fontSize: '10px',
+                                  fontSize: '9.5px',
                                   fontWeight: 700,
                                   color: '#1D4ED8',
                                   background: '#DBEAFE',
@@ -2464,6 +2568,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                               display: 'flex',
                               alignItems: 'center',
                               gap: '3px',
+                              flexShrink: 0,
                             }}
                           >
                             <Lucide.Calendar size={11} /> 7-Day
@@ -2477,15 +2582,13 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
             </>
           )}
 
-          {/* ═══════════════════════════════════════════════════════════════════
-              MODE: ROUTE_HISTORY (LAST 7 DAYS / 14 DAYS / CUSTOM RANGE)
-          ═══════════════════════════════════════════════════════════════════ */}
+          {/* ═══ MODE: ROUTE_HISTORY (LAST 7 DAYS / 14 DAYS / CUSTOM) ═══ */}
           {mode === 'ROUTE_HISTORY' && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>
-                    Last 7 Days Sales Movement &amp; Stops
+                    Last 7 Days Movement &amp; Stops
                   </h3>
                   <span style={{ fontSize: '11px', color: '#64748B' }}>
                     Unified IST timeline across GPS pings, shifts, stops &amp; CRM leads
@@ -2515,7 +2618,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                 )}
               </div>
 
-              {/* Smart Grouped Staff Selector (Sales with active telemetry at top!) */}
               <div>
                 <label style={{ fontSize: '11px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>
                   Select Sales / Staff Member:
@@ -2525,9 +2627,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                   onChange={(e) => {
                     const val = e.target.value;
                     setSelectedHistoryEmployeeId(val);
-                    if (val) {
-                      void load7DayHistory(val);
-                    }
+                    if (val) void load7DayHistory(val);
                   }}
                   style={{
                     width: '100%',
@@ -2571,7 +2671,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                 </select>
               </div>
 
-              {/* Range Mode Pills: Last 7 Days | Last 14 Days | Custom */}
               <div style={{ display: 'flex', gap: '5px' }}>
                 {[
                   { id: '7D', label: 'Last 7 Days' },
@@ -2644,7 +2743,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                 </div>
               )}
 
-              {/* 7-Day Content Body */}
               {historyLoading ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px', color: '#64748B', gap: '8px', fontSize: '12px' }}>
                   <Lucide.Loader2 className="animate-spin" size={24} color="#2563EB" />
@@ -2657,7 +2755,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                 </div>
               ) : history7dData ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', flex: 1, paddingRight: '2px' }}>
-                  {/* 7-Day Summary KPI Strip */}
                   <div
                     style={{
                       display: 'grid',
@@ -2690,7 +2787,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                     </div>
                   </div>
 
-                  {/* All Days Combined Toggle */}
                   <button
                     onClick={() => selectHistoryDay('ALL')}
                     style={{
@@ -2713,7 +2809,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                     Show All {history7dData.range?.daysCount || 7} Days Combined (Color-Coded)
                   </button>
 
-                  {/* Interactive 7-Day Calendar Cards (newest day first for quick access) */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                     {[...history7dData.days].reverse().map((day) => {
                       const origIdx = history7dData.days.findIndex((d) => d.date === day.date);
@@ -2767,7 +2862,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                     })}
                   </div>
 
-                  {/* Single-Day Complete Roadmap Circle (Punch-In -> Stops & Leads -> Punch-Out) + Playback */}
                   {historyData && (historyData.points?.length > 0 || historyData.roadmapSteps?.length > 0) && (
                     <div
                       style={{
@@ -2780,7 +2874,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                         gap: '9px',
                       }}
                     >
-                      {/* Day Roadmap Header + Accuracy Quality Badge */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
                         <div>
                           <div style={{ fontSize: '12px', fontWeight: 800, color: '#0F172A' }}>
@@ -2796,7 +2889,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
 
                         {historyData.accuracyMetrics && (
                           <span
-                            title={`Median GPS accuracy: ±${historyData.accuracyMetrics.medianAccuracyMeters ?? '?'}m • High-accuracy fixes: ${historyData.accuracyMetrics.highAccuracyPercent}%${historyData.accuracyMetrics.filteredCoarsePoints > 0 ? ` • Filtered ${historyData.accuracyMetrics.filteredCoarsePoints} coarse IP pings` : ''}`}
                             style={{
                               fontSize: '9.5px',
                               fontWeight: 700,
@@ -2806,26 +2898,25 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                                 historyData.accuracyMetrics.qualityLabel === 'HIGH_GPS'
                                   ? '#DCFCE7'
                                   : historyData.accuracyMetrics.qualityLabel === 'MODERATE'
-                                    ? '#FEF3C7'
-                                    : '#F1F5F9',
+                                  ? '#FEF3C7'
+                                  : '#F1F5F9',
                               color:
                                 historyData.accuracyMetrics.qualityLabel === 'HIGH_GPS'
                                   ? '#166534'
                                   : historyData.accuracyMetrics.qualityLabel === 'MODERATE'
-                                    ? '#92400E'
-                                    : '#475569',
+                                  ? '#92400E'
+                                  : '#475569',
                             }}
                           >
                             {historyData.accuracyMetrics.qualityLabel === 'HIGH_GPS'
                               ? `🎯 GPS ±${historyData.accuracyMetrics.medianAccuracyMeters}m`
                               : historyData.accuracyMetrics.qualityLabel === 'MODERATE'
-                                ? `📡 ±${historyData.accuracyMetrics.medianAccuracyMeters}m`
-                                : '📍 Checkpoints'}
+                              ? `📡 ±${historyData.accuracyMetrics.medianAccuracyMeters}m`
+                              : '📍 Checkpoints'}
                           </span>
                         )}
                       </div>
 
-                      {/* Circle Closure / Shift Summary Pill */}
                       {historyData.dayCircle && (
                         <div
                           style={{
@@ -2835,25 +2926,18 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                             background: historyData.dayCircle.circleClosed ? '#ECFDF5' : '#F8FAFC',
                             border: `1px solid ${historyData.dayCircle.circleClosed ? '#A7F3D0' : '#E2E8F0'}`,
                             color: historyData.dayCircle.circleClosed ? '#065F46' : '#334155',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            gap: '6px',
                           }}
                         >
-                          <span>
-                            {historyData.dayCircle.circleClosed
-                              ? `✅ Full Day Circle Closed (returned within ${historyData.dayCircle.returnDistanceFromStartKm} km of Punch-In)`
-                              : historyData.session?.status === 'ACTIVE'
-                                ? '🟢 Shift In Progress (Punch-Out pending)'
-                                : historyData.dayCircle.returnDistanceFromStartKm != null
-                                  ? `📍 Ended ${historyData.dayCircle.returnDistanceFromStartKm} km from Punch-In`
-                                  : '📍 Single-location / Punch-In only'}
-                          </span>
+                          {historyData.dayCircle.circleClosed
+                            ? `✅ Full Day Circle Closed (returned within ${historyData.dayCircle.returnDistanceFromStartKm} km of Punch-In)`
+                            : historyData.session?.status === 'ACTIVE'
+                            ? '🟢 Shift In Progress (Punch-Out pending)'
+                            : historyData.dayCircle.returnDistanceFromStartKm != null
+                            ? `📍 Ended ${historyData.dayCircle.returnDistanceFromStartKm} km from Punch-In`
+                            : '📍 Single-location / Punch-In only'}
                         </div>
                       )}
 
-                      {/* Path Mode Toggle: Exact GPS Arrows vs Google Follow Roads */}
                       {historyData.points?.length >= 2 && (
                         <div style={{ display: 'flex', gap: '5px' }}>
                           <button
@@ -2892,7 +2976,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                               cursor: 'pointer',
                             }}
                           >
-                            🛣️ Follow Roads {roadRouteInfo?.loading ? '...' : ''}
+                            🛣️ Follow Roads (OSM) {roadRouteInfo?.loading ? '...' : ''}
                           </button>
                         </div>
                       )}
@@ -2903,7 +2987,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                         </div>
                       )}
 
-                      {/* Playback Bar */}
                       {historyData.points?.length > 1 && (
                         <div style={{ background: '#F8FAFC', borderRadius: '7px', padding: '7px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2933,9 +3016,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <button
                               onClick={() => {
-                                if (playbackIndex >= (historyData.points?.length || 1) - 1) {
-                                  setPlaybackIndex(0);
-                                }
+                                if (playbackIndex >= (historyData.points?.length || 1) - 1) setPlaybackIndex(0);
                                 setIsPlaying(!isPlaying);
                               }}
                               style={{
@@ -2972,26 +3053,14 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
 
                           {historyData.points[playbackIndex] && (
                             <div style={{ fontSize: '10px', color: '#64748B', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
-                              <span>
-                                🕒 <strong style={{ color: '#0F172A' }}>{new Date(historyData.points[playbackIndex].recordedAt).toLocaleTimeString()}</strong>
-                              </span>
-                              <span>
-                                🚀 <strong style={{ color: '#0284C7' }}>{Math.round(historyData.points[playbackIndex].speed || 0)} km/h</strong>
-                              </span>
-                              <span>
-                                🎯 <strong style={{ color: '#475569' }}>±{Math.round(historyData.points[playbackIndex].accuracy || 15)}m</strong>
-                              </span>
-                              {historyData.points[playbackIndex].batteryLevel != null && (
-                                <span>
-                                  🔋 <strong style={{ color: '#15803D' }}>{Math.round(historyData.points[playbackIndex].batteryLevel)}%</strong>
-                                </span>
-                              )}
+                              <span>🕒 <strong style={{ color: '#0F172A' }}>{new Date(historyData.points[playbackIndex].recordedAt).toLocaleTimeString()}</strong></span>
+                              <span>🚀 <strong style={{ color: '#0284C7' }}>{Math.round(historyData.points[playbackIndex].speed || 0)} km/h</strong></span>
+                              <span>🎯 <strong style={{ color: '#475569' }}>±{Math.round(historyData.points[playbackIndex].accuracy || 15)}m</strong></span>
                             </div>
                           )}
                         </div>
                       )}
 
-                      {/* Chronological Vertical Day-Circle Stepper: Punch-In -> Stops & Leads -> Punch-Out */}
                       {historyData.roadmapSteps && historyData.roadmapSteps.length > 0 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', marginTop: '2px' }}>
                           <div style={{ fontSize: '11px', fontWeight: 800, color: '#0F172A', marginBottom: '6px' }}>
@@ -3003,18 +3072,17 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                               step.type === 'PUNCH_IN'
                                 ? { bg: '#16A34A', light: '#F0FDF4', border: '#86EFAC', label: 'IN', text: '#166534' }
                                 : step.type === 'PUNCH_OUT'
-                                  ? { bg: '#DC2626', light: '#FEF2F2', border: '#FCA5A5', label: 'OUT', text: '#991B1B' }
-                                  : step.type === 'LAST_POSITION'
-                                    ? { bg: '#2563EB', light: '#EFF6FF', border: '#93C5FD', label: 'NOW', text: '#1E40AF' }
-                                    : step.type === 'LEAD'
-                                      ? { bg: '#7C3AED', light: '#F5F3FF', border: '#C4B5FD', label: 'L', text: '#5B21B6' }
-                                      : { bg: '#D97706', light: '#FFFBEB', border: '#FCD34D', label: String(step.stopNumber || idx), text: '#92400E' };
+                                ? { bg: '#DC2626', light: '#FEF2F2', border: '#FCA5A5', label: 'OUT', text: '#991B1B' }
+                                : step.type === 'LAST_POSITION'
+                                ? { bg: '#2563EB', light: '#EFF6FF', border: '#93C5FD', label: 'NOW', text: '#1E40AF' }
+                                : step.type === 'LEAD'
+                                ? { bg: '#7C3AED', light: '#F5F3FF', border: '#C4B5FD', label: 'L', text: '#5B21B6' }
+                                : { bg: '#D97706', light: '#FFFBEB', border: '#FCD34D', label: String(step.stopNumber || idx), text: '#92400E' };
 
                             const hasCoord = step.latitude != null && step.longitude != null;
 
                             return (
                               <div key={`${step.type}-${step.stepNumber}`} style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
-                                {/* Vertical Spine & Circle Node */}
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '26px', flexShrink: 0 }}>
                                   <div
                                     style={{
@@ -3028,45 +3096,32 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',
-                                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
                                       flexShrink: 0,
                                     }}
                                   >
                                     {badgeStyle.label}
                                   </div>
-                                  {!isLast && (
-                                    <div
-                                      style={{
-                                        width: '2px',
-                                        flex: 1,
-                                        minHeight: '14px',
-                                        background: '#CBD5E1',
-                                        margin: '2px 0',
-                                      }}
-                                    />
-                                  )}
+                                  {!isLast && <div style={{ width: '2px', flex: 1, minHeight: '14px', background: '#CBD5E1', margin: '2px 0' }} />}
                                 </div>
 
-                                {/* Step Detail Card */}
                                 <div
                                   onClick={() => {
-                                    if (hasCoord && mapInstanceRef.current) {
-                                      const pos = { lat: Number(step.latitude), lng: Number(step.longitude) };
-                                      mapInstanceRef.current.panTo(pos);
-                                      mapInstanceRef.current.setZoom(16);
-                                      if (infoWindowRef.current) {
-                                        infoWindowRef.current.setPosition(pos);
-                                        infoWindowRef.current.setContent(`
-                                          <div style="font-family: system-ui, sans-serif; padding: 6px; max-width: 240px;">
-                                            <div style="font-weight: 700; color: ${badgeStyle.text}; font-size: 13px;">${step.title}</div>
-                                            <div style="font-size: 11px; color: #475569; margin-top: 3px; line-height: 1.4;">
-                                              <strong>Time:</strong> ${new Date(step.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${step.endTime ? ` – ${new Date(step.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}<br/>
-                                              ${step.address ? `<strong>Location:</strong> ${step.address}` : `<strong>GPS:</strong> ${Number(step.latitude).toFixed(4)}, ${Number(step.longitude).toFixed(4)}`}
+                                    if (hasCoord && mapInstanceRef.current && leafletRef.current) {
+                                      const pos = [Number(step.latitude), Number(step.longitude)];
+                                      mapInstanceRef.current.setView(pos, 16, { animate: true });
+                                      leafletRef.current
+                                        .popup()
+                                        .setLatLng(pos)
+                                        .setContent(`
+                                          <div style="font-family:system-ui,sans-serif;max-width:240px;">
+                                            <div style="font-weight:700;color:${badgeStyle.text};font-size:13px;">${escapeHtml(step.title)}</div>
+                                            <div style="font-size:11px;color:#475569;margin-top:3px;line-height:1.4;">
+                                              <strong>Time:</strong> ${escapeHtml(new Date(step.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}${step.endTime ? ` – ${escapeHtml(new Date(step.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}` : ''}<br/>
+                                              ${step.address ? `<strong>Location:</strong> ${escapeHtml(step.address)}` : `<strong>GPS:</strong> ${Number(step.latitude).toFixed(4)}, ${Number(step.longitude).toFixed(4)}`}
                                             </div>
                                           </div>
-                                        `);
-                                        infoWindowRef.current.open(mapInstanceRef.current);
-                                      }
+                                        `)
+                                        .openOn(mapInstanceRef.current);
                                     }
                                   }}
                                   style={{
@@ -3090,19 +3145,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                                     </span>
                                   </div>
                                   {step.address && (
-                                    <div
-                                      style={{
-                                        fontSize: '9.8px',
-                                        color: '#475569',
-                                        marginTop: '2px',
-                                        lineHeight: 1.35,
-                                        display: '-webkit-box',
-                                        WebkitLineClamp: 2,
-                                        WebkitBoxOrient: 'vertical',
-                                        overflow: 'hidden',
-                                      }}
-                                      title={step.address}
-                                    >
+                                    <div style={{ fontSize: '10px', color: '#475569', marginTop: '2px', lineHeight: 1.35 }} title={step.address}>
                                       📍 {step.address}
                                     </div>
                                   )}
@@ -3123,22 +3166,20 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
               ) : (
                 <div style={{ textAlign: 'center', padding: '28px 12px', color: '#64748B', fontSize: '12px', background: '#F8FAFC', borderRadius: '8px', border: '1px dashed #CBD5E1' }}>
                   <Lucide.Calendar size={28} color="#2563EB" style={{ margin: '0 auto 8px auto', opacity: 0.85 }} />
-                  <div style={{ fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>Select a Sales Executive</div>
+                  <div style={{ fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>Select an Employee</div>
                   Pick any employee above (or click <strong>7-Day</strong> on any card) to inspect their last 7 days of routes, distances, field stops &amp; CRM leads.
                 </div>
               )}
             </>
           )}
 
-          {/* ═══════════════════════════════════════════════════════════════════
-              MODE: DEVICE_SESSIONS
-          ═══════════════════════════════════════════════════════════════════ */}
+          {/* ═══ MODE: DEVICE_SESSIONS (HONEST MULTI-DEVICE INVENTORY) ═══ */}
           {mode === 'DEVICE_SESSIONS' && (
             <>
               <div>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>Hardware & Web Presence</h3>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>Hardware &amp; Web Presence</h3>
                 <span style={{ fontSize: '11px', color: '#64748B' }}>
-                  Inventory of active browser sessions, mobile devices & last seen heartbeats
+                  {summaryMetrics.onlineSessionsTotal} online right now • {summaryMetrics.totalSessionsCount} total sessions across {allUsers.length} users (click a user to inspect all devices)
                 </span>
               </div>
 
@@ -3154,22 +3195,15 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
               >
                 {allUsers.map((u) => {
                   const s = extractAuthoritativeSession(u);
+                  const onlineCount = (u.sessions || []).filter((x) => x.status === 'ONLINE').length;
+                  const totalCount = (u.sessions || []).length;
+                  const isExpanded = expandedDeviceUserId === u.userId;
                   return (
                     <div
                       key={u.userId}
                       onClick={() => {
-                        setSelectedUserId(u.userId);
-                        if (u.latestLocation?.latitude && u.latestLocation?.longitude && mapInstanceRef.current) {
-                          mapInstanceRef.current.panTo({
-                            lat: Number(u.latestLocation.latitude),
-                            lng: Number(u.latestLocation.longitude),
-                          });
-                          showAccuracyCircle(
-                            Number(u.latestLocation.latitude),
-                            Number(u.latestLocation.longitude),
-                            u.latestLocation.accuracy || 20
-                          );
-                        }
+                        setExpandedDeviceUserId(isExpanded ? null : u.userId);
+                        handleSelectUserCard(u);
                       }}
                       style={{
                         background: selectedUserId === u.userId ? '#F0F9FF' : '#FFFFFF',
@@ -3179,26 +3213,73 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                         cursor: 'pointer',
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>{u.name}</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
+                            {u.name}
+                            <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 500, marginLeft: '6px' }}>
+                              ({totalCount} {totalCount === 1 ? 'device' : 'devices'})
+                            </span>
+                          </div>
                           <div style={{ fontSize: '11px', color: '#64748B' }}>
-                            {u.role} • {s?.deviceType || 'WEB'} ({s?.browser || s?.operatingSystem || 'Client'})
+                            {u.role} • {s ? `${s.deviceType} (${s.operatingSystem || 'OS'} / ${s.browser || 'Browser'})` : 'Never logged in'}
                           </div>
                         </div>
                         <span
                           style={{
                             fontSize: '10px',
                             fontWeight: 700,
-                            padding: '2px 6px',
+                            padding: '2px 7px',
                             borderRadius: '10px',
-                            background: s?.status === 'ONLINE' ? '#DCFCE7' : '#F1F5F9',
-                            color: s?.status === 'ONLINE' ? '#15803D' : '#64748B',
+                            flexShrink: 0,
+                            background: onlineCount > 0 ? '#DCFCE7' : '#F1F5F9',
+                            color: onlineCount > 0 ? '#15803D' : '#64748B',
                           }}
                         >
-                          {s?.status || 'OFFLINE'}
+                          {onlineCount > 0 ? `🟢 ${onlineCount} ONLINE` : 'OFFLINE'}
                         </span>
                       </div>
+
+                      {isExpanded && totalCount > 0 && (
+                        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                          {(u.sessions || []).slice(0, 6).map((sess) => {
+                            const accB = formatAccuracyBadge(sess.location?.accuracy);
+                            return (
+                              <div
+                                key={sess.sessionId}
+                                style={{
+                                  fontSize: '10.5px',
+                                  background: '#F8FAFC',
+                                  border: '1px solid #E2E8F0',
+                                  borderRadius: '6px',
+                                  padding: '5px 8px',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                }}
+                              >
+                                <div style={{ color: '#334155' }}>
+                                  <strong>{sess.deviceType}</strong> • {sess.operatingSystem || '?'} / {sess.browser || '?'}
+                                  <div style={{ fontSize: '9.5px', color: '#64748B' }}>
+                                    Seen {formatGpsAge(sess.heartbeatAgeSeconds)} • Perm: {sess.locationPermission}
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  {accB && (
+                                    <span style={{ fontSize: '9.5px', fontWeight: 700, background: accB.bg, color: accB.color, padding: '1px 5px', borderRadius: '5px' }}>
+                                      {accB.label}
+                                    </span>
+                                  )}
+                                  <span style={{ fontSize: '9.5px', fontWeight: 700, color: sess.status === 'ONLINE' ? '#15803D' : '#94A3B8' }}>
+                                    {sess.status}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -3207,7 +3288,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
           )}
         </div>
 
-        {/* ── 4. RIGHT MAP CANVAS & DETAIL CARD OVERLAY ───────────────────────── */}
+        {/* ── 4. RIGHT OPENSTREETMAP / LEAFLET CANVAS & DETAIL OVERLAY ────────── */}
         <div
           style={{
             flex: 1,
@@ -3224,12 +3305,44 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
               position: 'absolute',
               top: '12px',
               right: '12px',
-              zIndex: 10,
+              zIndex: 420,
               display: 'flex',
               gap: '6px',
+              flexWrap: 'wrap',
+              justifyContent: 'flex-end',
             }}
           >
-            {/* Follow User Toggle */}
+            {/* Tile Layer Switcher (Clean / OSM Street / Satellite) */}
+            <div
+              style={{
+                display: 'flex',
+                background: '#FFFFFF',
+                border: '1px solid #CBD5E1',
+                borderRadius: '8px',
+                padding: '2px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+              }}
+            >
+              {Object.values(MAP_TILE_LAYERS).map((layerCfg) => (
+                <button
+                  key={layerCfg.id}
+                  onClick={() => setTileLayerKey(layerCfg.id)}
+                  style={{
+                    background: tileLayerKey === layerCfg.id ? '#0F172A' : 'transparent',
+                    color: tileLayerKey === layerCfg.id ? '#FFFFFF' : '#334155',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '6px 9px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {layerCfg.label}
+                </button>
+              ))}
+            </div>
+
             <button
               onClick={() => setFollowUser(!followUser)}
               title={followUser ? 'Stop following user' : 'Continuously center on selected user'}
@@ -3238,7 +3351,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                 color: followUser ? '#FFFFFF' : '#0F172A',
                 border: '1px solid #CBD5E1',
                 borderRadius: '8px',
-                padding: '8px 12px',
+                padding: '7px 11px',
                 fontSize: '11.5px',
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -3253,12 +3366,12 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
 
             <button
               onClick={centerOnHQ}
-              title="Center on HQ"
+              title="Center on Ahmedabad HQ"
               style={{
                 background: '#FFFFFF',
                 border: '1px solid #CBD5E1',
                 borderRadius: '8px',
-                padding: '8px 12px',
+                padding: '7px 11px',
                 fontSize: '11.5px',
                 fontWeight: 600,
                 color: '#0F172A',
@@ -3273,34 +3386,13 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
             </button>
 
             <button
-              onClick={toggleTraffic}
-              title="Toggle Live Traffic"
-              style={{
-                background: showTraffic ? '#0F172A' : '#FFFFFF',
-                color: showTraffic ? '#FFFFFF' : '#0F172A',
-                border: '1px solid #CBD5E1',
-                borderRadius: '8px',
-                padding: '8px 12px',
-                fontSize: '11.5px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-              }}
-            >
-              <Lucide.Navigation size={14} /> Traffic
-            </button>
-
-            <button
               onClick={fitAllMarkers}
-              title="Fit Markers"
+              title="Fit currently filtered pins"
               style={{
                 background: '#FFFFFF',
                 border: '1px solid #CBD5E1',
                 borderRadius: '8px',
-                padding: '8px 12px',
+                padding: '7px 11px',
                 fontSize: '11.5px',
                 fontWeight: 600,
                 color: '#0F172A',
@@ -3314,14 +3406,13 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
               <Lucide.Crosshair size={14} /> Fit All
             </button>
 
-            {/* Toggle Drawer button */}
             <button
               onClick={() => setShowDrawer(!showDrawer)}
               style={{
                 background: '#FFFFFF',
                 border: '1px solid #CBD5E1',
                 borderRadius: '8px',
-                padding: '8px 12px',
+                padding: '7px 11px',
                 fontSize: '11.5px',
                 fontWeight: 600,
                 color: '#0F172A',
@@ -3344,14 +3435,14 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                 position: 'absolute',
                 bottom: '16px',
                 left: '16px',
-                zIndex: 20,
+                zIndex: 430,
                 maxWidth: '440px',
                 width: 'calc(100% - 32px)',
                 background: '#FFFFFF',
                 border: '1.5px solid #0284C7',
                 borderRadius: '12px',
                 padding: '14px',
-                boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)',
+                boxShadow: '0 10px 25px -5px rgba(0,0,0,0.18)',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '8px',
@@ -3384,20 +3475,22 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                       )}
                     </div>
                     <div style={{ fontSize: '11px', color: '#64748B' }}>
-                      {selectedUser.role} • {selectedUser.department || 'Operations'}
+                      {selectedUser.role} • {selectedUser.department || selectedUser.roleCategory || 'Operations'}
                     </div>
                   </div>
                 </div>
 
                 <button
-                  onClick={() => setSelectedUserId(null)}
+                  onClick={() => {
+                    setSelectedUserId(null);
+                    clearAccuracyCircle();
+                  }}
                   style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: '2px' }}
                 >
                   <Lucide.X size={16} />
                 </button>
               </div>
 
-              {/* Stale Warning Banner if position exceeds freshness threshold */}
               {selectedUser.overallStatus === 'STALE' && (
                 <div
                   style={{
@@ -3415,15 +3508,14 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                 >
                   <Lucide.AlertTriangle size={16} color="#D97706" style={{ flexShrink: 0 }} />
                   <div>
-                    <div>STALE GPS POSITION ({formatGpsAge(selectedUser.latestLocation?.gpsAgeSeconds)})</div>
+                    <div>STALE GPS POSITION ({formatGpsAge(getLiveGpsAgeSeconds(selectedUser))})</div>
                     <div style={{ fontSize: '10.5px', color: '#B45309', fontWeight: 400, marginTop: '2px' }}>
-                      Device has not transmitted fresh telemetry. Displayed coordinate is the last verified recording.
+                      Device has not transmitted fresh telemetry. Showing last verified coordinate.
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Coordinates & Accuracy Row */}
               {selectedUser.latestLocation ? (
                 <div
                   style={{
@@ -3443,25 +3535,29 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                     </strong>
                   </div>
                   <div>
-                    <span style={{ color: '#64748B', display: 'block', fontSize: '9.5px', fontWeight: 600 }}>ACCURACY</span>
-                    <strong style={{ color: '#0284C7' }}>
-                      ±{Math.round(selectedUser.latestLocation.accuracy || 10)}m
-                    </strong>
+                    <span style={{ color: '#64748B', display: 'block', fontSize: '9.5px', fontWeight: 600 }}>SIGNAL / ACCURACY</span>
+                    {(() => {
+                      const b = formatAccuracyBadge(selectedUser.latestLocation.accuracy);
+                      return b ? (
+                        <strong style={{ color: b.color }}>{b.icon} {b.label}</strong>
+                      ) : (
+                        <strong style={{ color: '#0284C7' }}>±10m</strong>
+                      );
+                    })()}
                   </div>
                   <div>
-                    <span style={{ color: '#64748B', display: 'block', fontSize: '9.5px', fontWeight: 600 }}>SPEED</span>
+                    <span style={{ color: '#64748B', display: 'block', fontSize: '9.5px', fontWeight: 600 }}>LAST UPDATED</span>
                     <strong style={{ color: '#16A34A' }}>
-                      {selectedUser.latestLocation.speed != null ? `${Math.round(selectedUser.latestLocation.speed)} km/h` : '0 km/h'}
+                      {formatGpsAge(getLiveGpsAgeSeconds(selectedUser))}
                     </strong>
                   </div>
                 </div>
               ) : (
                 <div style={{ padding: '8px', background: '#F8FAFC', borderRadius: '8px', fontSize: '11.5px', color: '#64748B', textAlign: 'center' }}>
-                  No GPS coordinates recorded for this account.
+                  No GPS coordinates recorded for this account yet.
                 </div>
               )}
 
-              {/* Resolved Human-Readable Address Banner */}
               {selectedUserAddress && (
                 <div
                   style={{
@@ -3482,7 +3578,6 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
                 </div>
               )}
 
-              {/* Actions Footer */}
               <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
                 {selectedUser.activeShift && (
                   <button
@@ -3530,7 +3625,7 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
             </div>
           )}
 
-          {/* Maps Error or Google Maps Container */}
+          {/* OpenStreetMap / Leaflet Map Container */}
           {mapsError ? (
             <div
               style={{
@@ -3543,10 +3638,10 @@ export default function SuperAdminLiveMapPage({ portalMode = 'SUPER_ADMIN' } = {
               }}
             >
               <Lucide.AlertTriangle size={24} style={{ marginRight: '8px' }} />
-              Failed to load Google Maps: {mapsError}
+              Failed to load OpenStreetMap: {mapsError}
             </div>
           ) : (
-            <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+            <div ref={mapContainerRef} style={{ width: '100%', height: '100%', zIndex: 1 }} />
           )}
         </div>
       </div>

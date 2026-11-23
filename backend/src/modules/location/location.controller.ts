@@ -69,6 +69,10 @@ export class LocationController {
     if (
       location &&
       !location.isSuspiciousJump &&
+      !location.filteredCoarseAccuracy &&
+      !location.filteredSynthetic &&
+      location.latitude != null &&
+      location.longitude != null &&
       this.locationGateway?.server
     ) {
       const wsPayload = {

@@ -24,7 +24,8 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c;
 }
 
-// Client browser detection
+// Client browser detection — check mobile OS tokens BEFORE generic Linux/macOS
+// because Android UAs always contain "Linux; Android ..." and iPadOS may contain "Macintosh".
 function parseUserAgent() {
   if (typeof window === 'undefined') return { browser: 'Server', os: 'Server', deviceType: 'DESKTOP' };
   const ua = window.navigator.userAgent;
@@ -32,21 +33,28 @@ function parseUserAgent() {
   let os = 'Unknown';
   let deviceType = 'DESKTOP';
 
-  if (/Windows/i.test(ua)) os = 'Windows';
-  else if (/Macintosh/i.test(ua)) os = 'macOS';
-  else if (/Linux/i.test(ua)) os = 'Linux';
-  else if (/Android/i.test(ua)) {
+  if (/Android/i.test(ua)) {
     os = 'Android';
-    deviceType = 'MOBILE';
+    deviceType = /Tablet|Tab\b/i.test(ua) || !/Mobile/i.test(ua) ? 'TABLET' : 'MOBILE';
   } else if (/iPhone|iPad|iPod/i.test(ua)) {
     os = 'iOS';
     deviceType = /iPad/i.test(ua) ? 'TABLET' : 'MOBILE';
+  } else if (/Windows/i.test(ua)) {
+    os = 'Windows';
+  } else if (/Macintosh/i.test(ua)) {
+    os = 'macOS';
+    if (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1) {
+      os = 'iOS';
+      deviceType = 'TABLET';
+    }
+  } else if (/Linux/i.test(ua)) {
+    os = 'Linux';
   }
 
-  if (/Chrome/i.test(ua)) browser = 'Chrome';
-  else if (/Firefox/i.test(ua)) browser = 'Firefox';
-  else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) browser = 'Safari';
-  else if (/Edge/i.test(ua)) browser = 'Edge';
+  if (/Edg\//i.test(ua) || /Edge/i.test(ua)) browser = 'Edge';
+  else if (/Chrome|CriOS/i.test(ua)) browser = 'Chrome';
+  else if (/Firefox|FxiOS/i.test(ua)) browser = 'Firefox';
+  else if (/Safari/i.test(ua)) browser = 'Safari';
 
   return { browser, os, deviceType };
 }
@@ -238,6 +246,11 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
       const { latitude, longitude, accuracy, altitude, speedMps, heading, force } = coords;
       const now = Date.now();
       const capturedMs = coords.timestamp || now;
+
+      // Drop ultra-coarse desktop/ISP IP triangulation (> 1000m) client-side so we don't spam bogus city centroids
+      if (accuracy != null && !isNaN(Number(accuracy)) && Number(accuracy) > 1000) {
+        return;
+      }
 
       if (!force && lastLocationRef.current) {
         const distance = getDistanceMeters(
@@ -435,10 +448,15 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
     [sendCoordinatePoint, setPermissionState],
   );
 
-  const startTracking = useCallback(() => {
+  const startTracking = useCallback((forceRestart = false) => {
     if (typeof window === 'undefined' || !window.navigator.geolocation) {
       setPermissionState('UNSUPPORTED');
       syncPermission('UNSUPPORTED');
+      return;
+    }
+
+    // Avoid duplicate immediate fixes & watcher thrashing when REST + Socket register milliseconds apart
+    if (watchIdRef.current !== null && !forceRestart) {
       return;
     }
 
@@ -447,6 +465,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
     // Clean any prior watchers
     if (watchIdRef.current !== null) {
       window.navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
     }
 
     // Immediate fix on start + flush any queued offline points
@@ -560,7 +579,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
           deviceType,
           browser,
           operatingSystem: os,
-          clientType: 'WEB',
+          clientType,
           locationPermission: permissionStateRef.current,
         },
         (res: any) => {

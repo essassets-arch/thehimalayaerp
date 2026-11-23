@@ -312,5 +312,113 @@ describe('Super Admin Real-Time Tracking & Truthful GPS Status Suite', () => {
       // Shift session point count incremented
       expect(mockShiftSessions[0].totalPointsCount).toBe(2);
     });
+
+    it('rejects >1000m desktop IP coordinates even on first session ping and does not corrupt active shift', async () => {
+      const user = { id: 'user-coarse-5' };
+      const session = { id: 'ds-5', sessionId: 'sess-5', userId: user.id };
+      mockSessions.push(session);
+
+      const activeShift = {
+        id: 'shift-5',
+        userId: user.id,
+        employeeId: 'emp-5',
+        companyId: 'comp-1',
+        status: 'ACTIVE',
+        punchInAt: new Date(),
+        totalDistanceKm: 0,
+        totalPointsCount: 1,
+      };
+      mockShiftSessions.push(activeShift);
+
+      const res = await locationService.updateLocation(user.id, 'comp-1', {
+        sessionId: session.sessionId,
+        latitude: 23.04,
+        longitude: 72.6666,
+        accuracy: 20000,
+        capturedAt: new Date().toISOString(),
+      });
+
+      expect(res.filteredCoarseAccuracy).toBe(true);
+      expect(mockLocations).toHaveLength(0);
+      expect(mockShiftPoints).toHaveLength(0);
+    });
+
+    it('prefers accurate mobile GPS over newer coarse desktop Wi-Fi ping within 12h', async () => {
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 2 * 3600 * 1000);
+      const tenMinsAgo = new Date(now.getTime() - 10 * 60 * 1000);
+
+      mockUsers.push({
+        id: 'user-multi-6',
+        name: 'Sales Two',
+        email: 'sales2@himalayaerp.com',
+        role: { name: 'Sales Executive', code: 'SALES_EXECUTIVE' },
+        employee: { id: 'emp-6', employeeCode: 'EMP-15', department: { id: 'd-1', name: 'Sales' } },
+      });
+
+      // Session 0 (newest lastSeenAt): Office Windows Desktop with coarse ±500m Wi-Fi location
+      mockSessions.push({
+        id: 'ds-desktop',
+        sessionId: 'sess-desktop',
+        userId: 'user-multi-6',
+        deviceId: 'dev-desktop',
+        deviceType: 'DESKTOP',
+        operatingSystem: 'Windows',
+        browser: 'Chrome',
+        lastSeenAt: tenMinsAgo,
+        locationPermission: 'GRANTED',
+        clientType: 'WEB',
+      });
+      mockLocations.push({
+        id: 'loc-desktop',
+        deviceSessionId: 'ds-desktop',
+        latitude: 23.0824,
+        longitude: 72.6783,
+        accuracy: 500,
+        capturedAt: tenMinsAgo,
+      });
+
+      // Session 1: Mobile phone in Surat with ±4m real GPS
+      mockSessions.push({
+        id: 'ds-mobile',
+        sessionId: 'sess-mobile',
+        userId: 'user-multi-6',
+        deviceId: 'dev-mobile',
+        deviceType: 'MOBILE',
+        operatingSystem: 'Android',
+        browser: 'Chrome',
+        lastSeenAt: twoHoursAgo,
+        locationPermission: 'GRANTED',
+        clientType: 'WEB',
+      });
+      mockLocations.push({
+        id: 'loc-mobile',
+        deviceSessionId: 'ds-mobile',
+        latitude: 21.1231,
+        longitude: 72.7752,
+        accuracy: 4,
+        capturedAt: twoHoursAgo,
+      });
+
+      const liveUsers = await locationService.getLiveUsers();
+      expect(liveUsers[0].latestLocation?.latitude).toBeCloseTo(21.1231, 4);
+      expect(liveUsers[0].latestLocation?.accuracy).toBe(4);
+      expect(liveUsers[0].latestLocation?.locationQuality).toBe('HIGH_GPS');
+    });
+
+    it('marks offline users with zero coordinates as NO_LOCATION instead of hiding them under OFFLINE', async () => {
+      mockUsers.push({
+        id: 'user-nogps-7',
+        name: 'Sales Six',
+        email: 'sales6@himalayaerp.com',
+        role: { name: 'Sales Executive', code: 'SALES_EXECUTIVE' },
+        employee: { id: 'emp-7', employeeCode: 'EMP-19', department: { id: 'd-1', name: 'Sales' } },
+      });
+
+      const liveUsers = await locationService.getLiveUsers();
+      expect(liveUsers[0].overallStatus).toBe('NO_LOCATION');
+      expect(liveUsers[0].gpsFreshness).toBe('NO_LOCATION');
+      expect(liveUsers[0].latestLocation).toBeNull();
+    });
   });
 });
