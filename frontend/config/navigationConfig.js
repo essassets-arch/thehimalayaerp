@@ -8,7 +8,7 @@ import {
   ArrowUpRight, BookOpen, Wallet, Building, Book, Notebook, Library, Scale, Landmark,
   Calculator, ShoppingBag, CalendarOff, Award, Files, MessageSquare, BellRing, Hash, Ruler, Grid,
   RotateCcw, Monitor, Server, ActivitySquare, Terminal, Eye, Navigation2,
-  BadgeCheck, FileCheck, FileSpreadsheet
+  BadgeCheck, FileCheck, FileSpreadsheet, Download
 } from 'lucide-react';
 
 export const navigationConfig = {
@@ -422,6 +422,7 @@ export const navigationConfig = {
     { id: 'business-reports', label: 'Business Reports', icon: FileText, path: '/super-admin/reports' },
 
     { type: 'badge', label: 'APPROVALS' },
+    { id: 'download-approvals', label: 'Download Approvals', icon: Download, path: '/super-admin/download-approvals' },
     { id: 'backoffice-report', label: 'Back Office Reports', icon: FileText, path: '/super-admin/backoffice-report' },
     { id: 'daily-reports', label: 'Daily Production Reports', icon: FileText, path: '/super-admin/daily-reports' },
     { id: 'purchase-indents', label: 'Purchase Order Approvals', icon: ClipboardCheck, path: '/super-admin/purchase-indents' },

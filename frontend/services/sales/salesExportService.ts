@@ -119,6 +119,7 @@ export function formatAddress(addr: unknown): string {
 export interface ExportLeadsOptions {
   mode?: 'summary' | 'item_level';
   filenamePrefix?: string;
+  downloadRequestId?: string;
 }
 
 export async function exportLeadsToCSV(
@@ -332,7 +333,9 @@ export async function exportLeadsToCSV(
 
   const csvContent = '\uFEFF' + [headers.map(sanitizeCSVValue).join(','), ...rows].join('\r\n');
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-  await safeSaveFile(blob, filename, 'text/csv;charset=utf-8');
+  await safeSaveFile(blob, filename, 'text/csv;charset=utf-8', {
+    downloadRequestId: options.downloadRequestId,
+  });
 
   return { success: true, count: rows.length, filename };
 }
@@ -344,6 +347,7 @@ export async function exportLeadsToCSV(
 export interface ExportOrdersOptions {
   mode?: 'summary' | 'item_level';
   filenamePrefix?: string;
+  downloadRequestId?: string;
 }
 
 export async function exportOrdersToCSV(
@@ -651,7 +655,9 @@ export async function exportOrdersToCSV(
 
   const csvContent = '\uFEFF' + [headers.map(sanitizeCSVValue).join(','), ...rows].join('\r\n');
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-  await safeSaveFile(blob, filename, 'text/csv;charset=utf-8');
+  await safeSaveFile(blob, filename, 'text/csv;charset=utf-8', {
+    downloadRequestId: options.downloadRequestId,
+  });
 
   return { success: true, count: rows.length, filename };
 }

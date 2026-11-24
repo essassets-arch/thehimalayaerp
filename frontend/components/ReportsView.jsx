@@ -18,7 +18,9 @@ import {
 } from 'lucide-react';
 import { useERP } from '../shared/context/ERPContext';
 import { apiClient } from '../lib/apiClient';
+import Swal from 'sweetalert2';
 import { exportSalesReportPDF, exportToCSV } from '../services/export.service';
+import { requestOrExecuteSalesDownload } from '../services/sales/downloadApprovalService';
 import { withErrorBoundary } from './ui/ErrorBoundary';
 import { resolveQuotationNumber, resolveQuotationCustomerName } from '../shared/utils/quotationUtils.js';
 
@@ -658,14 +660,18 @@ function ReportsViewInner({ leads = [], orders = [], payments = [], customers = 
     return Boolean(fDate && fDate >= TODAY_STR);
   });
 
-  // Contextual CSV Exporter
-  const handleExportCSV = () => {
+  // Contextual CSV Exporter (gated by Admin approval for Sales roles)
+  const handleExportCSV = async () => {
+    let data = [];
+    let filename = '';
+    let resourceLabel = 'Sales Report CSV';
+
     if (activeTab === 'leads') {
       if (myLeads.length === 0) {
-        alert('No leads data to export.');
+        Swal.fire({ icon: 'warning', title: 'No Data', text: 'No leads data to export.' });
         return;
       }
-      const data = myLeads.map(l => ({
+      data = myLeads.map(l => ({
         'Lead ID': resolveLeadNumber(l),
         'Company Name': l.companyName || l.projectName || '',
         'Contact Person': l.contactPerson || '',
@@ -676,13 +682,14 @@ function ReportsViewInner({ leads = [], orders = [], payments = [], customers = 
         'Salesperson': getSalespersonName(l),
         'Created Date': l.createdAt || l.date || ''
       }));
-      exportToCSV(data, `leads-report-${dateFrom}-to-${dateTo}.csv`);
+      filename = `leads-report-${dateFrom}-to-${dateTo}.csv`;
+      resourceLabel = `Sales Report — Leads CSV (${dateFrom} to ${dateTo})`;
     } else if (activeTab === 'quotations') {
       if (myQuotations.length === 0) {
-        alert('No quotations data to export.');
+        Swal.fire({ icon: 'warning', title: 'No Data', text: 'No quotations data to export.' });
         return;
       }
-      const data = myQuotations.map(q => ({
+      data = myQuotations.map(q => ({
         'Quotation ID': resolveQuotationNumber(q),
         'Lead ID': resolveLeadNumber(q.lead || q.leadNumber || q.leadId),
         'Customer Name': q.customerName || q.customer?.name || q.lead?.companyName || '',
@@ -691,13 +698,14 @@ function ReportsViewInner({ leads = [], orders = [], payments = [], customers = 
         'Status': q.status || 'Draft',
         'Salesperson': getSalespersonName(q)
       }));
-      exportToCSV(data, `quotations-report-${dateFrom}-to-${dateTo}.csv`);
+      filename = `quotations-report-${dateFrom}-to-${dateTo}.csv`;
+      resourceLabel = `Sales Report — Quotations CSV (${dateFrom} to ${dateTo})`;
     } else if (activeTab === 'sales' || activeTab === 'target') {
       if (myOrders.length === 0) {
-        alert('No orders data to export.');
+        Swal.fire({ icon: 'warning', title: 'No Data', text: 'No orders data to export.' });
         return;
       }
-      const data = myOrders.map(o => ({
+      data = myOrders.map(o => ({
         'Order ID': resolveOrderNumber(o),
         'Quotation Ref': resolveQuotationNumber(o.quotationNumber || o.quotationNo || o.quotation),
         'Lead Ref': resolveLeadNumber(o.leadNumber || o.leadNo || o.lead),
@@ -709,13 +717,14 @@ function ReportsViewInner({ leads = [], orders = [], payments = [], customers = 
         'Payment Status': o.payment?.status || (o.payment?.paidAmount >= (o.payment?.totalAmount || 0) ? 'Paid' : 'Pending'),
         'Salesperson': getSalespersonName(o)
       }));
-      exportToCSV(data, `orders-report-${dateFrom}-to-${dateTo}.csv`);
+      filename = `orders-report-${dateFrom}-to-${dateTo}.csv`;
+      resourceLabel = `Sales Report — Orders CSV (${dateFrom} to ${dateTo})`;
     } else if (activeTab === 'followups') {
       if (followUpLeads.length === 0) {
-        alert('No follow-up leads data to export.');
+        Swal.fire({ icon: 'warning', title: 'No Data', text: 'No follow-up leads data to export.' });
         return;
       }
-      const data = followUpLeads.map(l => ({
+      data = followUpLeads.map(l => ({
         'Lead ID': resolveLeadNumber(l),
         'Company Name': l.companyName || '',
         'Contact Person': l.contactPerson || '',
@@ -723,13 +732,14 @@ function ReportsViewInner({ leads = [], orders = [], payments = [], customers = 
         'Status': l.status || '',
         'Salesperson': getSalespersonName(l)
       }));
-      exportToCSV(data, `followups-report-${dateFrom}-to-${dateTo}.csv`);
+      filename = `followups-report-${dateFrom}-to-${dateTo}.csv`;
+      resourceLabel = `Sales Report — Follow-ups CSV (${dateFrom} to ${dateTo})`;
     } else if (activeTab === 'customers') {
       if (myCustomers.length === 0) {
-        alert('No customer data to export.');
+        Swal.fire({ icon: 'warning', title: 'No Data', text: 'No customer data to export.' });
         return;
       }
-      const data = myCustomers.map(c => ({
+      data = myCustomers.map(c => ({
         'Customer ID': getCleanCustomerCode(c) || c.name || c.customer_name || 'Customer',
         'Customer Name': c.name || c.customer_name || '',
         'Email': c.email || '',
@@ -738,10 +748,11 @@ function ReportsViewInner({ leads = [], orders = [], payments = [], customers = 
         'Total Revenue (INR)': Number(c.totalRevenue || c.total_spent || 0),
         'Outstanding Balance (INR)': Number(c.outstanding || 0)
       }));
-      exportToCSV(data, `customers-report-${dateFrom}-to-${dateTo}.csv`);
+      filename = `customers-report-${dateFrom}-to-${dateTo}.csv`;
+      resourceLabel = `Sales Report — Customers CSV (${dateFrom} to ${dateTo})`;
     } else {
       if (Array.isArray(salesSummaryData) && salesSummaryData.length > 0) {
-        exportToCSV(salesSummaryData.map(item => ({
+        data = salesSummaryData.map(item => ({
           Month: item.month,
           Orders: item.order_count,
           Customers: item.unique_customers,
@@ -750,9 +761,11 @@ function ReportsViewInner({ leads = [], orders = [], payments = [], customers = 
           ClosedRevenue: item.closed_revenue,
           PendingRevenue: item.pending_revenue,
           CancelledRevenue: item.cancelled_revenue
-        })), `sales-summary-${dateFrom}-to-${dateTo}.csv`);
+        }));
+        filename = `sales-summary-${dateFrom}-to-${dateTo}.csv`;
+        resourceLabel = `Sales Report — Summary CSV (${dateFrom} to ${dateTo})`;
       } else if (myOrders.length > 0) {
-        const data = myOrders.map(o => ({
+        data = myOrders.map(o => ({
           'Order ID': resolveOrderNumber(o),
           'Quotation Ref': resolveQuotationNumber(o.quotationNumber || o.quotationNo || o.quotation),
           'Lead Ref': resolveLeadNumber(o.leadNumber || o.leadNo || o.lead),
@@ -761,10 +774,76 @@ function ReportsViewInner({ leads = [], orders = [], payments = [], customers = 
           'Total Value': Number(o.payment?.totalAmount || o.totalAmount || o.grandTotal || o.totalValue || 0),
           'Status': o.status || ''
         }));
-        exportToCSV(data, `sales-orders-summary-${dateFrom}-to-${dateTo}.csv`);
+        filename = `sales-orders-summary-${dateFrom}-to-${dateTo}.csv`;
+        resourceLabel = `Sales Report — Orders Summary CSV (${dateFrom} to ${dateTo})`;
       } else {
-        alert("No sales summary data to export");
+        Swal.fire({ icon: 'warning', title: 'No Data', text: 'No sales summary data to export.' });
+        return;
       }
+    }
+
+    try {
+      const gate = await requestOrExecuteSalesDownload({
+        module: 'REPORTS_CSV',
+        exportType: activeTab || 'summary',
+        format: 'CSV',
+        resourceLabel,
+        recordCount: data.length,
+        filtersSnapshot: { activeTab, dateFrom, dateTo },
+        executeDownload: (downloadRequestId) =>
+          exportToCSV(data, filename, { downloadRequestId }),
+      });
+
+      if (gate.executed && !gate.bypassed) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Report Exported',
+          text: `Exported ${data.length} records to ${filename}. (Single-use Admin approval consumed.)`,
+          timer: 2600,
+          showConfirmButton: false,
+        });
+      }
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Export Blocked / Failed',
+        text: err?.message || 'Failed to export sales report.',
+      });
+    }
+  };
+
+  // PDF Report Exporter (gated by Admin approval for Sales roles)
+  const handleExportPDF = async () => {
+    try {
+      const gate = await requestOrExecuteSalesDownload({
+        module: 'REPORTS_PDF',
+        exportType: 'pdf',
+        format: 'PDF',
+        resourceLabel: `Sales Performance Report PDF (${dateFrom} to ${dateTo})`,
+        recordCount: myOrders.length,
+        filtersSnapshot: { dateFrom, dateTo },
+        executeDownload: (downloadRequestId) =>
+          exportSalesReportPDF(
+            { date_from: dateFrom, date_to: dateTo },
+            { downloadRequestId },
+          ),
+      });
+
+      if (gate.executed && !gate.bypassed) {
+        Swal.fire({
+          icon: 'success',
+          title: 'PDF Exported',
+          text: 'Sales Performance Report PDF downloaded. (Single-use Admin approval consumed.)',
+          timer: 2600,
+          showConfirmButton: false,
+        });
+      }
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Export Blocked / Failed',
+        text: err?.message || 'Failed to export sales PDF report.',
+      });
     }
   };
 
@@ -1217,7 +1296,7 @@ function ReportsViewInner({ leads = [], orders = [], payments = [], customers = 
 
         <div className="reports-export-group">
           <button
-            onClick={() => exportSalesReportPDF({ date_from: dateFrom, date_to: dateTo })}
+            onClick={handleExportPDF}
             className="reports-export-btn"
           >
             <Download size={13} color="#0284c7" />

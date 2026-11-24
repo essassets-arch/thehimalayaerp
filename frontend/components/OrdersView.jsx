@@ -14,6 +14,7 @@ import { useERPStore } from '@/store/erpStore';
 import { useSalesBackend } from '../shared/context/ERPContext.jsx';
 import styles from './OrdersView.module.css';
 import { exportOrdersToCSV } from '../services/sales/salesExportService';
+import { requestOrExecuteSalesDownload } from '../services/sales/downloadApprovalService';
 import { isTradingProduct, isPureTradingOrder } from '@/shared/utils/dispatchCategory';
 import { getOrderStatusLabel, isDeliveredOrder } from '@/shared/utils/orderStatusResolver';
 import { isCurrentUserCustomerBlind } from '@/shared/utils/customerPrivacy';
@@ -114,21 +115,39 @@ export default function OrdersView({
         });
         return;
       }
-      const res = await exportOrdersToCSV(targetOrders, {
-        mode,
-        filenamePrefix: filter !== 'All Orders' ? `Orders_${filter.replace(/\s+/g, '_')}` : 'Sales_Orders',
+
+      const gate = await requestOrExecuteSalesDownload({
+        module: 'ORDERS_CSV',
+        exportType: mode,
+        format: 'CSV',
+        resourceLabel:
+          mode === 'item_level'
+            ? 'Sales Orders — Item-Wise Detailed CSV'
+            : 'Sales Orders — Order Master Summary CSV',
+        recordCount: targetOrders.length,
+        filtersSnapshot: { filter, search },
+        executeDownload: (downloadRequestId) =>
+          exportOrdersToCSV(targetOrders, {
+            mode,
+            filenamePrefix: filter !== 'All Orders' ? `Orders_${filter.replace(/\s+/g, '_')}` : 'Sales_Orders',
+            downloadRequestId,
+          }),
       });
+
+      if (!gate.executed) return;
+
+      const res = gate.result;
       Swal.fire({
         icon: 'success',
         title: 'Orders Exported',
-        text: `Successfully exported ${res.count} ${mode === 'item_level' ? 'order line items' : 'orders'} to ${res.filename}!`,
-        timer: 2500,
+        text: `Successfully exported ${res.count} ${mode === 'item_level' ? 'order line items' : 'orders'} to ${res.filename}!${gate.bypassed ? '' : ' (Single-use Admin approval consumed.)'}`,
+        timer: 2800,
         showConfirmButton: false,
       });
     } catch (err) {
       Swal.fire({
         icon: 'error',
-        title: 'Export Failed',
+        title: 'Export Blocked / Failed',
         text: err?.message || 'Failed to export orders to CSV.',
       });
     } finally {

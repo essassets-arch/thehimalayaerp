@@ -16,6 +16,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { FilesService } from './files.service';
+import { SalesDownloadRequestsService } from '../sales-download-requests/sales-download-requests.service';
 import { createReadStream, existsSync } from 'fs';
 import { extname, resolve } from 'path';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -24,7 +25,10 @@ import { Public } from '../../common/decorators/public.decorator';
 @Controller('files')
 @UseGuards(JwtAuthGuard)
 export class FilesController {
-  constructor(private readonly filesService: FilesService) {}
+  constructor(
+    private readonly filesService: FilesService,
+    private readonly salesDownloadRequestsService: SalesDownloadRequestsService,
+  ) {}
 
   private sendFileOrFallback(
     resolved: any,
@@ -199,7 +203,13 @@ export class FilesController {
    * POST /api/v1/files/export-download
    */
   @Post('export-download')
-  async createExportDownload(@Body() body: any) {
+  async createExportDownload(@Body() body: any, @Req() req: any) {
+    await this.salesDownloadRequestsService.verifyExportDownloadAccess(
+      req?.user?.sub || req?.user?.id,
+      req?.user?.role,
+      body?.filename,
+      body?.downloadRequestId,
+    );
     return this.filesService.saveExportPayload(body);
   }
 

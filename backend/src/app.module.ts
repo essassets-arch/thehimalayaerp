@@ -65,6 +65,7 @@ import { LocationModule } from './modules/location/location.module';
 import { FilesModule } from './modules/files/files.module';
 import { BackOfficeModule } from './modules/back-office/back-office.module';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
+import { SalesDownloadRequestsModule } from './modules/sales-download-requests/sales-download-requests.module';
 
 @Module({
   imports: [
@@ -134,6 +135,7 @@ import { ComplaintsModule } from './modules/complaints/complaints.module';
     FilesModule,
     BackOfficeModule,
     ComplaintsModule,
+    SalesDownloadRequestsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -204,6 +204,8 @@ model User {
   employeeDailyLocationSummaries EmployeeDailyLocationSummary[]
   createdFinanceExpenses        FinanceExpense[]       @relation("FinanceExpenseCreatedBy")
   updatedFinanceExpenses        FinanceExpense[]       @relation("FinanceExpenseUpdatedBy")
+  salesDownloadRequests         SalesDownloadRequest[] @relation("SalesDownloadRequester")
+  reviewedSalesDownloads        SalesDownloadRequest[] @relation("SalesDownloadReviewer")
 }
 
 model RefreshSession {
@@ -4760,4 +4762,47 @@ model FinanceExpense {
   @@index([companyId, headerId])
   @@index([createdAt])
   @@map("finance_expenses")
+}
+
+enum DownloadRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DOWNLOADED
+  EXPIRED
+}
+
+model SalesDownloadRequest {
+  id              String                @id @default(uuid())
+  requestNo       String                @unique
+  companyId       String
+  requesterId     String
+  requesterName   String
+  requesterEmail  String
+  requesterRole   String
+  module          String
+  exportType      String
+  format          String
+  resourceLabel   String
+  recordCount     Int                   @default(0)
+  filtersSnapshot Json?
+  reason          String?               @db.Text
+  status          DownloadRequestStatus @default(PENDING)
+  reviewedById    String?
+  reviewedByName  String?
+  reviewedAt      DateTime?
+  reviewRemarks   String?               @db.Text
+  expiresAt       DateTime?
+  downloadedAt    DateTime?
+  downloadedFile  String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  requester       User                  @relation("SalesDownloadRequester", fields: [requesterId], references: [id])
+  reviewer        User?                 @relation("SalesDownloadReviewer", fields: [reviewedById], references: [id])
+
+  @@index([companyId, status, createdAt])
+  @@index([requesterId, module, status])
+  @@index([status, expiresAt])
+  @@map("sales_download_requests")
 }

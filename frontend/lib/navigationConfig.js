@@ -7,7 +7,7 @@ import {
   ListTodo, FileSignature, Car, UserCircle, Map, MapPin, History, Navigation, ArrowDownLeft,
   ArrowUpRight, BookOpen, Wallet, Building, Book, Notebook, Library, Scale, Landmark,
   Calculator, ShoppingBag, CalendarOff, Award, Files, MessageSquare, BellRing, Hash, Ruler, Grid,
-  DatabaseBackup, RotateCcw, Key, Monitor, Server, ActivitySquare, Terminal, Eye, Navigation2
+  DatabaseBackup, RotateCcw, Key, Monitor, Server, ActivitySquare, Terminal, Eye, Navigation2, Download
 } from 'lucide-react';
 
 export const navigationConfig = {
@@ -277,6 +277,7 @@ export const navigationConfig = {
     { id: 'business-reports', label: 'Business Reports', icon: FileText, path: '/super-admin/reports' },
     { id: 'exit-clearance', label: 'Exit Clearance (Read-Only)', icon: PackageCheck, path: '/super-admin/exit-clearance' },
     { id: 'salary-approvals', label: 'Salary Approvals', icon: CreditCard, path: '/super-admin/salary-approvals' },
+    { id: 'download-approvals', label: 'Download Approvals', icon: Download, path: '/super-admin/download-approvals' },
     { id: 'workflow', label: 'Workflow Monitor', icon: Activity, path: '/super-admin/workflow' },
     { id: 'users', label: 'Users', icon: Users, path: '/super-admin/users' },
     { id: 'employees', label: 'Employees', icon: UserCheck, path: '/super-admin/employees' },

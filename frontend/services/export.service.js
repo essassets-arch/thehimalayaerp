@@ -7,6 +7,7 @@ import { apiClient } from '../lib/apiClient';
 import { clientLogos } from './logosBase64';
 import { resolveQuotationTerms } from './sales/quotationTerms';
 import { isCurrentUserCustomerBlind } from '../shared/utils/customerPrivacy';
+import { useAuthStore } from '../store/authStore';
 
 export const isApkEnvironment = () => {
   if (typeof window === 'undefined') return false;
@@ -34,7 +35,7 @@ export const isApkEnvironment = () => {
  * - Mobile / Flutter WebViews / Hybrid Apps (Native JS bridge / Base64 Data URL)
  * Completely eliminates DioException 'No host specified in URI blob:https...'
  */
-export const safeSaveFile = async (data, filename, mimeType = 'application/octet-stream') => {
+export const safeSaveFile = async (data, filename, mimeType = 'application/octet-stream', options = {}) => {
   let blob;
   let rawData = '';
   let base64Payload = '';
@@ -99,10 +100,18 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
     ? window.location.origin
     : 'https://thehimalaya.cloud';
 
-  // 1. Prepare server-side download token URL (Enables native Android / iOS Download Manager & Flutter Dio download)
+  const downloadRequestId = options?.downloadRequestId;
+
+  // 1. Prepare server-side download token URL (Enables native Android / iOS Download Manager & Flutter Dio download,
+  //    and enforces server-side Sales data download Admin approval guard)
   try {
     if (base64Payload) {
-      const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('auth_token') || sessionStorage.getItem('token')) : null;
+      const storeToken = useAuthStore?.getState?.()?.accessToken;
+      const token =
+        storeToken ||
+        (typeof window !== 'undefined'
+          ? (localStorage.getItem('token') || localStorage.getItem('auth_token') || sessionStorage.getItem('token'))
+          : null);
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -113,19 +122,33 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
           filename: safeFilename,
           mimeType: resolvedMimeType,
           data: base64Payload,
+          ...(downloadRequestId ? { downloadRequestId } : {}),
         }),
       });
 
+      if (response.status === 403) {
+        let errMessage = 'Admin approval is required before downloading this data export.';
+        try {
+          const errJson = await response.json();
+          errMessage = errJson?.message || errJson?.error?.message || errMessage;
+        } catch {}
+        throw new Error(errMessage);
+      }
+
       if (response.ok) {
         const resJson = await response.json();
-        if (resJson && resJson.downloadUrl) {
-          absoluteDownloadUrl = resJson.downloadUrl.startsWith('http')
-            ? resJson.downloadUrl
-            : `${origin}${resJson.downloadUrl}`;
+        const dlUrl = resJson?.downloadUrl || resJson?.data?.downloadUrl;
+        if (dlUrl) {
+          absoluteDownloadUrl = dlUrl.startsWith('http')
+            ? dlUrl
+            : `${origin}${dlUrl}`;
         }
       }
     }
   } catch (apiErr) {
+    if (apiErr?.message && /admin approval|download blocked/i.test(apiErr.message)) {
+      throw apiErr;
+    }
     console.warn('Backend export-download notice:', apiErr);
   }
 
@@ -291,7 +314,7 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
   return true;
 };
 
-export const exportToCSV = async (data, filename = 'report.csv') => {
+export const exportToCSV = async (data, filename = 'report.csv', options = {}) => {
   if (!data || data.length === 0) {
     console.warn('No data to export');
     return;
@@ -313,13 +336,13 @@ export const exportToCSV = async (data, filename = 'report.csv') => {
 
   const csv = csvRows.join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
-  await safeSaveFile(blob, filename, 'text/csv;charset=utf-8');
+  await safeSaveFile(blob, filename, 'text/csv;charset=utf-8', options);
 };
 
 /**
  * Export data to Excel (.xls / .xlsx formatted HTML table)
  */
-export const exportToExcel = async (data, filename = 'report.xls') => {
+export const exportToExcel = async (data, filename = 'report.xls', options = {}) => {
   if (!data || data.length === 0) {
     alert('No data available to export to Excel');
     return;
@@ -351,13 +374,13 @@ export const exportToExcel = async (data, filename = 'report.xls') => {
 
   const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
   const name = filename.endsWith('.xls') || filename.endsWith('.xlsx') ? filename : `${filename}.xls`;
-  await safeSaveFile(blob, name, 'application/vnd.ms-excel;charset=utf-8');
+  await safeSaveFile(blob, name, 'application/vnd.ms-excel;charset=utf-8', options);
 };
 
 /**
  * Export Sales Report to PDF (100% Dynamic with Active Filters and Live Reporting Metrics)
  */
-export const exportSalesReportPDF = async (filters = {}) => {
+export const exportSalesReportPDF = async (filters = {}, options = {}) => {
   let salesData = null;
   const startDate = filters.startDate || filters.date_from || filters.from || '';
   const endDate = filters.endDate || filters.date_to || filters.to || '';
@@ -620,7 +643,7 @@ export const exportSalesReportPDF = async (filters = {}) => {
     );
   }
 
-  await safeSaveFile(doc, `sales-performance-report-${new Date().toISOString().split('T')[0]}.pdf`, 'application/pdf');
+  await safeSaveFile(doc, `sales-performance-report-${new Date().toISOString().split('T')[0]}.pdf`, 'application/pdf', options);
 };
 
 /**

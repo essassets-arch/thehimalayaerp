@@ -14,6 +14,7 @@ import { useERPStore, getLeadQuotationState, getLeadSampleState } from '../store
 import { displayEntityId } from '../store/idGenerator';
 import SalesOwnerBadge from './SalesOwnerBadge.jsx';
 import { exportLeadsToCSV } from '../services/sales/salesExportService';
+import { requestOrExecuteSalesDownload } from '../services/sales/downloadApprovalService';
 
 const parseAnyDate = (raw) => {
   if (!raw) return null;
@@ -644,21 +645,39 @@ export default function LeadsView({
         });
         return;
       }
-      const res = await exportLeadsToCSV(targetLeads, {
-        mode,
-        filenamePrefix: filter !== 'All' ? `Leads_${filter.replace(/\s+/g, '_')}` : 'Sales_Leads',
+
+      const gate = await requestOrExecuteSalesDownload({
+        module: 'LEADS_CSV',
+        exportType: mode,
+        format: 'CSV',
+        resourceLabel:
+          mode === 'item_level'
+            ? 'Sales Leads — Item-Wise Details CSV'
+            : 'Sales Leads — Lead Summary CSV',
+        recordCount: targetLeads.length,
+        filtersSnapshot: { filter, search },
+        executeDownload: (downloadRequestId) =>
+          exportLeadsToCSV(targetLeads, {
+            mode,
+            filenamePrefix: filter !== 'All' ? `Leads_${filter.replace(/\s+/g, '_')}` : 'Sales_Leads',
+            downloadRequestId,
+          }),
       });
+
+      if (!gate.executed) return;
+
+      const res = gate.result;
       Swal.fire({
         icon: 'success',
         title: 'Leads Exported',
-        text: `Successfully exported ${res.count} ${mode === 'item_level' ? 'lead line items' : 'leads'} to ${res.filename}!`,
-        timer: 2500,
+        text: `Successfully exported ${res.count} ${mode === 'item_level' ? 'lead line items' : 'leads'} to ${res.filename}!${gate.bypassed ? '' : ' (Single-use Admin approval consumed.)'}`,
+        timer: 2800,
         showConfirmButton: false,
       });
     } catch (err) {
       Swal.fire({
         icon: 'error',
-        title: 'Export Failed',
+        title: 'Export Blocked / Failed',
         text: err?.message || 'Failed to export leads to CSV.',
       });
     } finally {
