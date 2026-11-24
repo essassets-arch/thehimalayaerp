@@ -918,54 +918,11 @@ export default function DispatchOrdersPage() {
   const [selectedPodImage, setSelectedPodImage] = useState<string | null>(null);
   const [copiedOrder, setCopiedOrder] = useState<string | null>(null);
 
-  // Query 0: Products Map for Category lookups
-  const { data: productsMap = new Map<string, any>() } = useQuery<Map<string, any>>({
-    queryKey: ["products-master-map"],
-    queryFn: async () => {
-      try {
-        const res = await backendFetch<any>("/api/backend/products?limit=5000");
-        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
-        const map = new Map<string, any>();
-        list.forEach((p: any) => {
-          if (p.id) map.set(p.id, p);
-          if (p.sku) map.set(p.sku, p);
-        });
-        return map;
-      } catch {
-        return new Map();
-      }
-    },
-    staleTime: 5 * 60 * 1000,
-  });
+  // Backend queue endpoint already resolves dispatchCategory, customerName, salesExecutive & deliveryAddress
+  const productsMap = useMemo(() => new Map<string, any>(), []);
+  const usersMap = useMemo(() => new Map<string, string>(), []);
 
-  // Query 0b: Users Map for sales executive lookup
-  const { data: usersMap = new Map<string, string>() } = useQuery<Map<string, string>>({
-    queryKey: ["users-master-sales-map"],
-    queryFn: async () => {
-      try {
-        const res = await backendFetch<any>("/api/backend/users?limit=1000");
-        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : Array.isArray(res?.users) ? res.users : [];
-        const map = new Map<string, string>();
-        list.forEach((u: any) => {
-          if (u.id && u.name) {
-            map.set(String(u.id).toLowerCase(), String(u.name).trim());
-          }
-          if (u.email && u.name) {
-            map.set(String(u.email).toLowerCase(), String(u.name).trim());
-          }
-          if (u.username && u.name) {
-            map.set(String(u.username).toLowerCase(), String(u.name).trim());
-          }
-        });
-        return map;
-      } catch {
-        return new Map();
-      }
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Query 1: Pending Queue items
+  // Query 1: Single canonical server-computed Pending Dispatch Queue (replaces 9 parallel calls / 62.4 MB waterfall!)
   const {
     data: pendingItems = [],
     isLoading,
@@ -985,107 +942,19 @@ export default function DispatchOrdersPage() {
         return [];
       };
 
-      const isCategoryD2 = currentCategory === "D2" || currentCategory === "DISPATCH 2";
-      const [
-        workOrdersPayload,
-        readyForDispatchPayload,
-        readyHistoryPayload,
-        salesOrdersPayload,
-        finishedGoodsPayload,
-        queuePayload,
-        activeDispatchesPayload,
-      ] = await Promise.allSettled([
-        isCategoryD2
-          ? Promise.resolve([])
-          : backendFetch<any>(
-              "/api/backend/production/work-orders?status=READY_FOR_DISPATCH,SENT_TO_DISPATCH,QC_APPROVED,COMPLETED,DISPATCHED",
-              { cacheTtlMs: 0 }
-            ),
-        isCategoryD2
-          ? Promise.resolve([])
-          : backendFetch<any>("/api/backend/production/ready-for-dispatch", { cacheTtlMs: 0 }),
-        isCategoryD2
-          ? Promise.resolve([])
-          : backendFetch<any>("/api/backend/production/ready-for-dispatch-history", { cacheTtlMs: 0 }),
-        backendFetch<any>(
-          "/api/backend/sales/orders?limit=300&status=CONFIRMED,IN_PRODUCTION,READY_FOR_PRODUCTION,PLANT_APPROVED,SENT_TO_PLANT,READY_FOR_DISPATCH,COMPLETED,DISPATCHED,PARTIALLY_DISPATCHED",
-          { cacheTtlMs: 0 }
-        ),
-        isCategoryD2
-          ? Promise.resolve([])
-          : backendFetch<any>("/api/backend/production/finished-goods", { cacheTtlMs: 0 }),
-        backendFetch<any>(`/api/backend/logistics/dispatches/queue?category=${currentCategory}`, { cacheTtlMs: 0 }),
-        backendFetch<any>(`/api/backend/logistics/dispatches?category=${currentCategory}`, { cacheTtlMs: 0 }),
-      ]);
+      const queuePayload = await Promise.allSettled([
+        backendFetch<any>(`/api/backend/logistics/dispatches/queue?category=${currentCategory}`, { cacheTtlMs: 15000 }),
+      ]).then((r) => r[0]);
 
-      const workOrders: any[] =
-        workOrdersPayload.status === "fulfilled" ? extractArray(workOrdersPayload.value) : [];
-      const readyJobs: any[] =
-        readyForDispatchPayload.status === "fulfilled" ? extractArray(readyForDispatchPayload.value) : [];
-      const readyHistoryJobs: any[] =
-        readyHistoryPayload.status === "fulfilled" ? extractArray(readyHistoryPayload.value) : [];
-
-      const allProductionJobs = [...workOrders, ...readyJobs, ...readyHistoryJobs].filter((wo: any) => {
-        if (!wo || !wo.id) return false;
-        const prodStatus = String(wo.productionStatus || "").toUpperCase();
-        const woStatus = String(wo.status || "").toUpperCase();
-        if (
-          prodStatus === "DELIVERED" ||
-          prodStatus === "SHIPPED" ||
-          woStatus === "DELIVERED" ||
-          woStatus === "SHIPPED" ||
-          woStatus === "CLOSED" ||
-          woStatus === "CANCELLED" ||
-          Boolean(wo.dispatchedAt)
-        ) {
-          return false;
-        }
-
-        // Strict Production Check: Must be completed and sent to dispatch
-        // If the work order is currently in production or pending, it MUST NOT appear in dispatch!
-        if (
-          prodStatus === "IN_PRODUCTION" ||
-          woStatus === "IN_PRODUCTION" ||
-          prodStatus === "QC_FAILED" ||
-          prodStatus === "REWORK_IN_PROGRESS" ||
-          woStatus === "STARTED" ||
-          woStatus === "PARTIALLY_COMPLETED" ||
-          woStatus === "PLANNED" ||
-          woStatus === "MATERIAL_PENDING"
-        ) {
-          return false;
-        }
-
-        const isReadyForDispatch =
-          prodStatus === "READY_FOR_DISPATCH" ||
-          woStatus === "READY_FOR_DISPATCH" ||
-          prodStatus === "QC_APPROVED" ||
-          woStatus === "QC_APPROVED" ||
-          prodStatus === "DISPATCHED" ||
-          woStatus === "DISPATCHED" ||
-          woStatus === "COMPLETED" ||
-          Boolean(wo.sentToDispatchAt);
-
-        if (!isReadyForDispatch) {
-          return false;
-        }
-
-        return true;
-      });
-
-      let rawSalesOrders =
-        salesOrdersPayload.status === "fulfilled" ? extractArray(salesOrdersPayload.value) : [];
-
-
-
-      const rawFinishedGoods =
-        finishedGoodsPayload.status === "fulfilled" ? extractArray(finishedGoodsPayload.value) : [];
-
+      const workOrders: any[] = [];
+      const readyJobs: any[] = [];
+      const readyHistoryJobs: any[] = [];
+      const allProductionJobs: any[] = [];
+      let rawSalesOrders: any[] = [];
+      const rawFinishedGoods: any[] = [];
       const rawQueue =
         queuePayload.status === "fulfilled" ? extractArray(queuePayload.value) : [];
-
-      const rawActiveDispatches =
-        activeDispatchesPayload.status === "fulfilled" ? extractArray(activeDispatchesPayload.value) : [];
+      const rawActiveDispatches: any[] = [];
 
       // Calculate dispatched quantities per salesOrderItemId, workOrderId, and (salesOrderId+productId)
       const dispatchedBySalesOrderItem = new Map<string, number>();
@@ -1286,21 +1155,26 @@ export default function DispatchOrdersPage() {
         const orderHasPriorDispatches = ordersWithPriorDispatches.has(soKeyNorm) || (soIdLower ? ordersWithPriorDispatches.has(soIdLower) : false);
 
         items.forEach((qItem: any) => {
-          const qty = Number(qItem.approvedQuantity ?? qItem.dispatchableQuantity ?? qItem.reservedQuantity ?? 1);
+          const orderedQty = Number(qItem.orderedQuantity ?? qItem.approvedQuantity ?? qItem.dispatchableQuantity ?? qItem.reservedQuantity ?? 1);
           const pIdLower = String(qItem.productId || "").toLowerCase();
-          const fromActiveDispatches =
-            (qItem.salesOrderItemId ? dispatchedBySalesOrderItem.get(String(qItem.salesOrderItemId).toLowerCase()) : 0) ||
-            (soIdLower && pIdLower ? dispatchedBySalesOrderProduct.get(`${soIdLower}_${pIdLower}`) : 0) ||
-            (soKeyNorm && pIdLower ? dispatchedBySalesOrderProduct.get(`${soKeyNorm}_${pIdLower}`) : 0) ||
-            0;
+          const serverDispatched = qItem.dispatchedQuantity !== undefined ? Number(qItem.dispatchedQuantity || 0) : null;
+          const fromActiveDispatches = serverDispatched !== null
+            ? serverDispatched
+            : (qItem.salesOrderItemId ? dispatchedBySalesOrderItem.get(String(qItem.salesOrderItemId).toLowerCase()) : 0) ||
+              (soIdLower && pIdLower ? dispatchedBySalesOrderProduct.get(`${soIdLower}_${pIdLower}`) : 0) ||
+              (soKeyNorm && pIdLower ? dispatchedBySalesOrderProduct.get(`${soKeyNorm}_${pIdLower}`) : 0) ||
+              0;
 
-          const remaining = Math.max(0, qty - fromActiveDispatches);
+          const remaining = qItem.remainingQuantity !== undefined
+            ? Math.max(0, Number(qItem.remainingQuantity))
+            : Math.max(0, orderedQty - fromActiveDispatches);
           if (remaining <= 0 && fromActiveDispatches > 0) return;
 
           unifiedDirectDispatches.push({
             id: `alloc-${qItem.allocationId || qItem.id || Math.random()}`,
             itemType: (qItem.workOrderId || qOrder.workOrderId) ? "WORK_ORDER" : "TRADING_SALES_ORDER",
             orderNumber: soNumber,
+            orderDate: qOrder.orderDate || undefined,
             customerName,
             salesPersonName,
             projectName,
@@ -1308,7 +1182,7 @@ export default function DispatchOrdersPage() {
             productName: qItem.productName || "Direct Dispatch Item",
             productSku: qItem.productCode || qItem.sku,
             approvedQuantity: remaining,
-            orderedQuantity: qty,
+            orderedQuantity: orderedQty,
             dispatchedQuantity: fromActiveDispatches,
             remainingQuantity: remaining,
             isPartiallyDispatched: fromActiveDispatches > 0 && remaining > 0,
@@ -1777,21 +1651,28 @@ export default function DispatchOrdersPage() {
         return rem > 0;
       });
     },
-    refetchInterval: 15000,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
+    staleTime: 15000,
+    refetchInterval: 60000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
   });
 
-  // Query 2: History dispatches for inline history tab
+  // Query 2: History dispatches for inline history tab — ONLY fetched when activeTab === "history"
   const { data: historyDispatches = [], isLoading: isHistoryLoading, refetch: refetchHistory } = useQuery<HistoryDispatch[]>({
-    queryKey: ["delivery-history-dispatches"],
+    queryKey: ["delivery-history-dispatches", currentCategory],
     queryFn: async () => {
-      const payload = await backendFetch<any>("/api/backend/logistics/dispatches?status=DELIVERED");
+      const payload = await backendFetch<any>(
+        `/api/backend/logistics/dispatches?status=DELIVERED&category=${currentCategory}&page=1&limit=50`,
+        { cacheTtlMs: 30000 }
+      );
       if (Array.isArray(payload)) return payload;
       if (Array.isArray(payload?.data)) return payload.data;
       return [];
     },
-    refetchInterval: 30000,
+    enabled: activeTab === "history",
+    staleTime: 30000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
   });
 
   // Strict Filter for Pending items based on current portal (D1 vs D2)

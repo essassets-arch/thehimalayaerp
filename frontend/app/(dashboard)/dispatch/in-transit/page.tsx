@@ -461,7 +461,7 @@ export default function InTransitPage() {
     refetchOnWindowFocus: false,
   });
 
-  // Query 2: Delivered History Dispatches
+  // Query 2: Delivered History Dispatches — ONLY fetched when user switches to History tab (stops 6.2 MB/30s idle polling!)
   const {
     data: historyDispatches = [],
     isLoading: isHistoryLoading,
@@ -471,68 +471,34 @@ export default function InTransitPage() {
     queryFn: async () => {
       const cat = isDispatch2 ? "D2" : "D1";
       const payload = await backendFetch<any>(
-        `/api/backend/logistics/dispatches?status=DELIVERED&category=${cat}`,
-        { cacheTtlMs: 15000 }
+        `/api/backend/logistics/dispatches?status=DELIVERED&category=${cat}&page=1&limit=50`,
+        { cacheTtlMs: 30000 }
       );
       if (Array.isArray(payload)) return payload;
       if (Array.isArray(payload?.data)) return payload.data;
       if (Array.isArray(payload?.data?.data)) return payload.data.data;
       return [];
     },
-    refetchInterval: 30000,
-    staleTime: 15000,
+    enabled: activeTab === "history",
+    staleTime: 30000,
+    refetchInterval: false,
     refetchOnWindowFocus: false,
   });
 
-  // Query: Users Map for sales executive lookup
-  const { data: usersMap = new Map<string, string>() } = useQuery<Map<string, string>>({
-    queryKey: ["users-master-sales-map"],
-    queryFn: async () => {
-      try {
-        const res = await backendFetch<any>("/api/backend/users?limit=1000", { cacheTtlMs: 60000 });
-        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : Array.isArray(res?.users) ? res.users : [];
-        const map = new Map<string, string>();
-        list.forEach((u: any) => {
-          if (u.id && u.name) map.set(String(u.id).toLowerCase(), String(u.name).trim());
-          if (u.email && u.name) map.set(String(u.email).toLowerCase(), String(u.name).trim());
-          if (u.username && u.name) map.set(String(u.username).toLowerCase(), String(u.name).trim());
-        });
-        return map;
-      } catch {
-        return new Map();
-      }
-    },
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+  // Backend lean dispatch projection already includes customerName & salesOrder.salesExecutive — zero redundant master fetches!
+  const usersMap = React.useMemo(() => new Map<string, string>(), []);
+  const salesOrdersMap = React.useMemo(() => new Map<string, any>(), []);
 
-  // Query: Sales Orders Map for accurate customer and sales person lookup
-  const { data: salesOrdersMap = new Map<string, any>() } = useQuery<Map<string, any>>({
-    queryKey: ["sales-orders-master-map"],
-    queryFn: async () => {
-      try {
-        const res = await backendFetch<any>(
-          "/api/backend/sales/orders?limit=300&status=CONFIRMED,IN_PRODUCTION,READY_FOR_PRODUCTION,PLANT_APPROVED,SENT_TO_PLANT,READY_FOR_DISPATCH,COMPLETED,DISPATCHED,PARTIALLY_DISPATCHED",
-          { cacheTtlMs: 30000 }
-        );
-        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
-        const map = new Map<string, any>();
-        list.forEach((so: any) => {
-          if (!so) return;
-          if (so.id) map.set(String(so.id).toLowerCase(), so);
-          if (so.orderNumber) {
-            map.set(String(so.orderNumber).toLowerCase(), so);
-            map.set(normalizeKey(so.orderNumber), so);
-          }
-        });
-        return map;
-      } catch {
-        return new Map();
-      }
-    },
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+  // Parse localStorage metadata ONCE instead of inside every row render / search keystroke
+  const localMetaMap = React.useMemo<Record<string, any>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const rawMeta = localStorage.getItem("himalaya_dispatches_full_metadata");
+      return rawMeta ? JSON.parse(rawMeta) : {};
+    } catch {
+      return {};
+    }
+  }, [dispatches.length, historyDispatches.length]);
 
   const getResolvedMetadata = React.useCallback(
     (item: Dispatch) => {
@@ -543,21 +509,13 @@ export default function InTransitPage() {
         salesOrdersMap.get(normalizeKey(soNumber)) ||
         salesOrdersMap.get(soNumber.toLowerCase());
 
-      let localMeta: any = null;
-      if (typeof window !== "undefined") {
-        try {
-          const rawMeta = localStorage.getItem("himalaya_dispatches_full_metadata");
-          if (rawMeta) {
-            const parsed = JSON.parse(rawMeta);
-            localMeta =
-              parsed[soId] ||
-              parsed[normalizeKey(soNumber)] ||
-              parsed[soNumber.toLowerCase()] ||
-              parsed[String(item.dispatchNo || "").toLowerCase()] ||
-              parsed[normalizeKey(item.dispatchNo)];
-          }
-        } catch {}
-      }
+      const localMeta =
+        localMetaMap[soId] ||
+        localMetaMap[normalizeKey(soNumber)] ||
+        localMetaMap[soNumber.toLowerCase()] ||
+        localMetaMap[String(item.dispatchNo || "").toLowerCase()] ||
+        localMetaMap[normalizeKey(item.dispatchNo)] ||
+        null;
 
       const customerName = resolveCustomerName(
         (item as any).customerName,
@@ -577,7 +535,7 @@ export default function InTransitPage() {
 
       return { customerName, salesPersonName, matchedSo };
     },
-    [salesOrdersMap, usersMap]
+    [salesOrdersMap, usersMap, localMetaMap]
   );
 
   // Group & deduplicate by Sales Order: keep only the latest active dispatch per Sales Order

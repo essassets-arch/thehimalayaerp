@@ -49,4 +49,110 @@ describe('DispatchService queue tenant isolation', () => {
     });
     expect(finishedGoodsFindMany.mock.calls[0][0].where.product).toEqual({ companyId: 'tenant-a' });
   });
+
+  it('normalizes user.dispatchCategory "Category 1" to D1 so Dispatch 1 queue never returns empty', async () => {
+    const handedOffWorkOrder = {
+      id: 'work-order-d1',
+      workOrderNumber: 'WO-2026-00999',
+      status: 'READY_FOR_DISPATCH',
+      productionStatus: 'READY_FOR_DISPATCH',
+      sentToDispatchAt: new Date('2026-10-13T10:00:00Z'),
+      quantity: 10,
+      salesOrderItemId: 'soi-1',
+      salesOrderItem: {
+        id: 'soi-1',
+        productId: 'prod-1',
+        orderedQuantity: 10,
+        unit: 'PCS',
+        product: { id: 'prod-1', companyId: 'tenant-a', dispatchCategory: 'D1', isTrading: false },
+      },
+      productionPlan: {
+        salesOrder: {
+          id: 'so-1',
+          orderNumber: 'SO-2026-999',
+          status: 'READY_FOR_DISPATCH',
+          customer: { companyId: 'tenant-a', companyName: 'D1 Client' },
+        },
+      },
+    };
+    const service = new DispatchService({
+      user: { findUnique: jest.fn().mockResolvedValue({ id: 'u-d1', email: 'ravikant.t@himalayaerp.com', dispatchCategory: 'Category 1' }) },
+      salesOrderAllocation: { findMany: jest.fn().mockResolvedValue([]) },
+      workOrder: { findMany: jest.fn().mockResolvedValue([handedOffWorkOrder]) },
+      finishedGoods: { findMany: jest.fn().mockResolvedValue([]) },
+      salesOrder: { findMany: jest.fn().mockResolvedValue([]) },
+      dispatchItem: { groupBy: jest.fn().mockResolvedValue([]) },
+    } as any, {} as any, {} as any, {} as any);
+
+    const queue = await service.getDispatchQueue('u-d1', 'Dispatch Executive', 'tenant-a');
+    expect(Array.isArray(queue)).toBe(true);
+    expect(queue).toHaveLength(1);
+    expect((queue as any)[0].items[0].remainingQuantity).toBe(10);
+  });
+
+  it('batches finished-goods-history lookup in 1 query instead of N+1 findFirst queries', async () => {
+    const fgFindMany = jest.fn().mockResolvedValue([
+      { productId: 'p1', availableQuantity: 20, product: { sku: 'SKU-1' } },
+      { productId: 'p2', availableQuantity: 5, product: { sku: 'SKU-2' } },
+    ]);
+    const fgFindFirst = jest.fn();
+    const service = new DispatchService({
+      dispatch: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'd1',
+            dispatchNo: 'DISP-1',
+            salesOrderId: 'so1',
+            vehicleNumber: 'GJ01',
+            dispatchedAt: new Date(),
+            createdAt: new Date(),
+            createdById: 'u1',
+            salesOrder: { orderNumber: 'SO-1', customer: { companyName: 'Acme' } },
+            items: [
+              { id: 'i1', quantity: 4, salesOrderItem: { productId: 'p1', productNameSnapshot: 'Prod 1', product: { id: 'p1', name: 'Prod 1', sku: 'SKU-1', category: 'FRP', unit: 'PCS' } } },
+              { id: 'i2', quantity: 2, salesOrderItem: { productId: 'p2', productNameSnapshot: 'Prod 2', product: { id: 'p2', name: 'Prod 2', sku: 'SKU-2', category: 'FRP', unit: 'PCS' } } },
+            ],
+          },
+        ]),
+      },
+      stockHistory: { findMany: jest.fn().mockResolvedValue([]) },
+      finishedGoods: { findMany: fgFindMany, findFirst: fgFindFirst },
+      product: { findMany: jest.fn().mockResolvedValue([]) },
+    } as any, {} as any, {} as any, {} as any);
+
+    const res: any = await service.getFinishedGoodsHistory({ page: 1, limit: 10 });
+    expect(fgFindFirst).not.toHaveBeenCalled();
+    expect(fgFindMany).toHaveBeenCalledTimes(1);
+    expect(res.data).toHaveLength(2);
+    expect(res.pagination.total).toBe(2);
+    expect(res.data[0].quantityAfter).toBe(20);
+    expect(res.data[0].quantityBefore).toBe(24);
+  });
+
+  it('supports server-side pagination and slim select in listDispatches', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        id: 'd-1',
+        dispatchNo: 'DISP-101',
+        status: 'DELIVERED',
+        deliveryAddress: 'Ahmedabad',
+        salesOrder: { orderNumber: 'SO-101', customer: { companyName: 'Alpha Infra' } },
+        items: [],
+      },
+    ]);
+    const count = jest.fn().mockResolvedValue(451);
+    const service = new DispatchService({
+      dispatch: { findMany, count },
+    } as any, {} as any, {} as any, {} as any);
+
+    const result: any = await service.listDispatches('u1', 'SUPER_ADMIN', 'DELIVERED', 'D1', {
+      page: 2,
+      limit: 25,
+      search: 'Alpha',
+    });
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 25, take: 25 }));
+    expect(result.data).toHaveLength(1);
+    expect(result.pagination).toEqual({ page: 2, limit: 25, total: 451, totalPages: 19 });
+  });
 });

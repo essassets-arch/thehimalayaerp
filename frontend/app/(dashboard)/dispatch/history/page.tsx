@@ -572,6 +572,44 @@ function parseChecklist(checklistRaw: any): Record<string, any> {
   return {};
 }
 
+let _lsCacheTime = 0;
+let _lsQuotationsCache: any[] | null = null;
+let _lsOrdersCache: any[] | null = null;
+let _lsLeadsCache: any[] | null = null;
+let _lsFullMetaCache: Record<string, any> | null = null;
+
+function getCachedLocalStorageCaches() {
+  if (typeof window === "undefined") {
+    return { qtns: null, orders: null, leads: null, fullMeta: null };
+  }
+  const now = Date.now();
+  if (now - _lsCacheTime > 15000 || _lsFullMetaCache === null) {
+    _lsCacheTime = now;
+    try {
+      const rq = localStorage.getItem("himalaya_quotations");
+      _lsQuotationsCache = rq ? JSON.parse(rq) : [];
+    } catch { _lsQuotationsCache = []; }
+    try {
+      const ro = localStorage.getItem("himalaya_sales_orders");
+      _lsOrdersCache = ro ? JSON.parse(ro) : [];
+    } catch { _lsOrdersCache = []; }
+    try {
+      const rl = localStorage.getItem("himalaya_leads");
+      _lsLeadsCache = rl ? JSON.parse(rl) : [];
+    } catch { _lsLeadsCache = []; }
+    try {
+      const rm = localStorage.getItem("himalaya_dispatches_full_metadata");
+      _lsFullMetaCache = rm ? JSON.parse(rm) : {};
+    } catch { _lsFullMetaCache = {}; }
+  }
+  return {
+    qtns: _lsQuotationsCache,
+    orders: _lsOrdersCache,
+    leads: _lsLeadsCache,
+    fullMeta: _lsFullMetaCache,
+  };
+}
+
 function extractTransportationCost(order: any): number {
   if (!order) return 0;
   const directCost =
@@ -589,50 +627,43 @@ function extractTransportationCost(order: any): number {
   }
 
   try {
-    if (typeof window !== "undefined") {
-      const rawQuotations = localStorage.getItem("himalaya_quotations");
-      if (rawQuotations) {
-        const qtns = JSON.parse(rawQuotations);
-        const matchQ = qtns.find((q: any) =>
-          String(q.id) === String(order.sourceQuotationId || order.quotationId || order.sourceQuotation?.id) ||
-          String(q.quotationNumber) === String(order.orderNumber) ||
-          String(q.leadId) === String(order.leadId)
-        );
-        if (matchQ) {
-          const locCost = matchQ.expectedTransportationCost ?? matchQ.transportCharge ?? matchQ.freightAmount;
-          if (locCost !== undefined && locCost !== null && !isNaN(Number(locCost)) && Number(locCost) > 0)
-            return Number(locCost);
-        }
+    const { qtns, orders, leads } = getCachedLocalStorageCaches();
+    if (Array.isArray(qtns) && qtns.length > 0) {
+      const matchQ = qtns.find((q: any) =>
+        String(q.id) === String(order.sourceQuotationId || order.quotationId || order.sourceQuotation?.id) ||
+        String(q.quotationNumber) === String(order.orderNumber) ||
+        String(q.leadId) === String(order.leadId)
+      );
+      if (matchQ) {
+        const locCost = matchQ.expectedTransportationCost ?? matchQ.transportCharge ?? matchQ.freightAmount;
+        if (locCost !== undefined && locCost !== null && !isNaN(Number(locCost)) && Number(locCost) > 0)
+          return Number(locCost);
       }
+    }
 
-      const rawOrders = localStorage.getItem("himalaya_sales_orders");
-      if (rawOrders) {
-        const orders = JSON.parse(rawOrders);
-        const match = orders.find((o: any) =>
-          String(o.id) === String(order.id) ||
-          String(o.orderNumber) === String(order.orderNumber) ||
-          String(o.orderNo) === String(order.orderNumber)
-        );
-        if (match) {
-          const locCost =
-            match.expectedTransportationCost ??
-            match.transportCharge ??
-            match.freightAmount ??
-            match.transportationCost;
-          if (locCost !== undefined && locCost !== null && !isNaN(Number(locCost)) && Number(locCost) > 0)
-            return Number(locCost);
-        }
+    if (Array.isArray(orders) && orders.length > 0) {
+      const match = orders.find((o: any) =>
+        String(o.id) === String(order.id) ||
+        String(o.orderNumber) === String(order.orderNumber) ||
+        String(o.orderNo) === String(order.orderNumber)
+      );
+      if (match) {
+        const locCost =
+          match.expectedTransportationCost ??
+          match.transportCharge ??
+          match.freightAmount ??
+          match.transportationCost;
+        if (locCost !== undefined && locCost !== null && !isNaN(Number(locCost)) && Number(locCost) > 0)
+          return Number(locCost);
       }
+    }
 
-      const rawLeads = localStorage.getItem("himalaya_leads");
-      if (rawLeads) {
-        const leads = JSON.parse(rawLeads);
-        const matchL = leads.find((l: any) => String(l.id) === String(order.leadId || order.customer?.id));
-        if (matchL) {
-          const locCost = matchL.expectedTransportationCost ?? matchL.transportCharge;
-          if (locCost !== undefined && locCost !== null && !isNaN(Number(locCost)) && Number(locCost) > 0)
-            return Number(locCost);
-        }
+    if (Array.isArray(leads) && leads.length > 0) {
+      const matchL = leads.find((l: any) => String(l.id) === String(order.leadId || order.customer?.id));
+      if (matchL) {
+        const locCost = matchL.expectedTransportationCost ?? matchL.transportCharge;
+        if (locCost !== undefined && locCost !== null && !isNaN(Number(locCost)) && Number(locCost) > 0)
+          return Number(locCost);
       }
     }
   } catch {}
@@ -641,24 +672,19 @@ function extractTransportationCost(order: any): number {
 }
 
 function getLocalConsignmentSnapshot(dispatch: Dispatch): any {
-  if (typeof window === "undefined") return null;
-  try {
-    const rawFullMeta = localStorage.getItem("himalaya_dispatches_full_metadata");
-    if (rawFullMeta) {
-      const fullMetaMap = JSON.parse(rawFullMeta);
-      const keys = [
-        dispatch.salesOrder?.id ? String(dispatch.salesOrder.id).toLowerCase() : null,
-        dispatch.salesOrder?.orderNumber ? String(dispatch.salesOrder.orderNumber).toLowerCase() : null,
-        dispatch.dispatchNo ? String(dispatch.dispatchNo).toLowerCase() : null,
-        dispatch.id ? String(dispatch.id).toLowerCase() : null,
-      ].filter(Boolean);
+  const { fullMeta } = getCachedLocalStorageCaches();
+  if (!fullMeta) return null;
+  const keys = [
+    dispatch.salesOrder?.id ? String(dispatch.salesOrder.id).toLowerCase() : null,
+    dispatch.salesOrder?.orderNumber ? String(dispatch.salesOrder.orderNumber).toLowerCase() : null,
+    dispatch.dispatchNo ? String(dispatch.dispatchNo).toLowerCase() : null,
+    dispatch.id ? String(dispatch.id).toLowerCase() : null,
+  ].filter(Boolean);
 
-      for (const k of keys) {
-        if (fullMetaMap[k!]) return fullMetaMap[k!];
-        if (fullMetaMap[k!.replace(/[^a-z0-9]/g, "")]) return fullMetaMap[k!.replace(/[^a-z0-9]/g, "")];
-      }
-    }
-  } catch {}
+  for (const k of keys) {
+    if (fullMeta[k!]) return fullMeta[k!];
+    if (fullMeta[k!.replace(/[^a-z0-9]/g, "")]) return fullMeta[k!.replace(/[^a-z0-9]/g, "")];
+  }
   return null;
 }
 
@@ -698,84 +724,68 @@ export default function DeliveryHistoryPage() {
   };
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
-  // Pagination state
+  // Pagination + debounced search state (server-side SQL pagination — ~35 KB instead of 6.18 MB!)
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(10);
+  const [pageSize, setPageSize] = useState<number>(25);
+  const [debouncedSearch, setDebouncedSearch] = useState<string>("");
 
-  // Reset to first page when search filter or category view changes
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setCurrentPage(1);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, isDispatch2]);
+  }, [isDispatch2, pageSize]);
+
+  const effectiveLimit = pageSize >= 99999 ? 2000 : pageSize;
 
   const {
-    data: dispatches = [],
+    data: historyResponse,
     isLoading,
     isRefetching,
     error,
     refetch,
-  } = useQuery<Dispatch[]>({
-    queryKey: ["delivery-history-dispatches", isDispatch2 ? "D2" : "D1"],
+  } = useQuery<{ items: Dispatch[]; total: number; totalPages: number }>({
+    queryKey: ["delivery-history-dispatches", isDispatch2 ? "D2" : "D1", currentPage, effectiveLimit, debouncedSearch],
     queryFn: async () => {
       const cat = isDispatch2 ? "D2" : "D1";
+      const params = new URLSearchParams({
+        status: "DELIVERED",
+        category: cat,
+        page: String(currentPage),
+        limit: String(effectiveLimit),
+      });
+      if (debouncedSearch) params.set("search", debouncedSearch);
       const payload = await backendFetch<any>(
-        `/api/backend/logistics/dispatches?status=DELIVERED&category=${cat}`,
+        `/api/backend/logistics/dispatches?${params.toString()}`,
+        { cacheTtlMs: 15000 }
       );
-      if (Array.isArray(payload)) return payload;
-      if (Array.isArray(payload?.data)) return payload.data;
-      return [];
+      if (Array.isArray(payload)) {
+        return { items: payload, total: payload.length, totalPages: 1 };
+      }
+      const items = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.items) ? payload.items : [];
+      const total = Number(payload?.pagination?.total ?? items.length);
+      const totalPages = Number(payload?.pagination?.totalPages ?? Math.max(1, Math.ceil(total / effectiveLimit)));
+      return { items, total, totalPages };
     },
-    refetchInterval: 30000,
+    staleTime: 30000,
+    refetchInterval: 60000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev,
   });
 
-  // Query: Users Map for sales executive lookup
-  const { data: usersMap = new Map<string, string>() } = useQuery<Map<string, string>>({
-    queryKey: ["users-master-sales-map"],
-    queryFn: async () => {
-      try {
-        const res = await backendFetch<any>("/api/backend/users?limit=1000", { cacheTtlMs: 60000 });
-        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : Array.isArray(res?.users) ? res.users : [];
-        const map = new Map<string, string>();
-        list.forEach((u: any) => {
-          if (u.id && u.name) map.set(String(u.id).toLowerCase(), String(u.name).trim());
-          if (u.email && u.name) map.set(String(u.email).toLowerCase(), String(u.name).trim());
-          if (u.username && u.name) map.set(String(u.username).toLowerCase(), String(u.name).trim());
-        });
-        return map;
-      } catch {
-        return new Map();
-      }
-    },
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+  const dispatches = historyResponse?.items || [];
+  const serverTotalCount = historyResponse?.total ?? dispatches.length;
+  const serverTotalPages = historyResponse?.totalPages ?? 1;
 
-  // Query: Sales Orders Map for accurate customer and sales person lookup
-  const { data: salesOrdersMap = new Map<string, any>() } = useQuery<Map<string, any>>({
-    queryKey: ["sales-orders-master-map"],
-    queryFn: async () => {
-      try {
-        const res = await backendFetch<any>(
-          "/api/backend/sales/orders?limit=300&status=CONFIRMED,IN_PRODUCTION,READY_FOR_PRODUCTION,PLANT_APPROVED,SENT_TO_PLANT,READY_FOR_DISPATCH,COMPLETED,DISPATCHED,PARTIALLY_DISPATCHED",
-          { cacheTtlMs: 30000 }
-        );
-        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
-        const map = new Map<string, any>();
-        list.forEach((so: any) => {
-          if (!so) return;
-          if (so.id) map.set(String(so.id).toLowerCase(), so);
-          if (so.orderNumber) {
-            map.set(String(so.orderNumber).toLowerCase(), so);
-            map.set(normalizeKey(so.orderNumber), so);
-          }
-        });
-        return map;
-      } catch {
-        return new Map();
-      }
-    },
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+  // Backend lean dispatch projection already resolves customerName & salesExecutive — zero redundant master fetches!
+  const usersMap = useMemo(() => new Map<string, string>(), []);
+  const salesOrdersMap = useMemo(() => new Map<string, any>(), []);
 
   const getResolvedMetadata = useCallback(
     (item?: Dispatch | null) => {
@@ -787,21 +797,7 @@ export default function DeliveryHistoryPage() {
         salesOrdersMap.get(normalizeKey(soNumber)) ||
         salesOrdersMap.get(soNumber.toLowerCase());
 
-      let localMeta: any = null;
-      if (typeof window !== "undefined") {
-        try {
-          const rawMeta = localStorage.getItem("himalaya_dispatches_full_metadata");
-          if (rawMeta) {
-            const parsed = JSON.parse(rawMeta);
-            localMeta =
-              parsed[soId] ||
-              parsed[normalizeKey(soNumber)] ||
-              parsed[soNumber.toLowerCase()] ||
-              parsed[String(item.dispatchNo || "").toLowerCase()] ||
-              parsed[normalizeKey(item.dispatchNo)];
-          }
-        } catch {}
-      }
+      const localMeta = getLocalConsignmentSnapshot(item);
 
       const customerName = resolveDispatchCustomer(
         item.salesOrder,
@@ -842,109 +838,90 @@ export default function DeliveryHistoryPage() {
     return num.replace(/\s*-\s*/g, "-").replace(/\s+/g, "");
   };
 
+  // Server already filtered by category, status=DELIVERED, and search, and paginated by page/limit!
   const deliveredHistory = useMemo(() => {
-    const targetCat = isDispatch2 ? "D2" : "D1";
-    const categoryFiltered = dispatches.filter((d) => {
-      let cat = (d as any).dispatchCategory || (d as any).dispatch_category;
-      if (!cat) {
-        const items = (d as any).items || [];
-        const hasTrading = items.some((it: any) => isTradingProduct(it.salesOrderItem?.product || it.product || it));
-        cat = hasTrading ? "D2" : "D1";
-      }
-      const normCat = normalizeDispatchCategory(cat) || (isTradingProduct(d) ? "D2" : "D1");
-      return normCat === targetCat;
-    });
-
-    const sorted = [...categoryFiltered].sort((a, b) => {
+    return [...dispatches].sort((a, b) => {
       const tA = new Date(a.deliveredAt || a.dispatchedAt || a.createdAt || 0).getTime();
       const tB = new Date(b.deliveredAt || b.dispatchedAt || b.createdAt || 0).getTime();
       return tB - tA;
     });
+  }, [dispatches]);
 
-    if (!search.trim()) return sorted;
-    const lower = search.toLowerCase();
-    return sorted.filter(
-      (d) =>
-        d.dispatchNo?.toLowerCase().includes(lower) ||
-        d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
-        formatOrderDate(getSalesOrderDate(d.salesOrder)).toLowerCase().includes(lower) ||
-        (d.salesOrder?.customer?.companyName || (d as any).customerName || (d as any).customer?.name || "").toLowerCase().includes(lower) ||
-        d.invoiceNumber?.toLowerCase().includes(lower) ||
-        d.gatePassNumber?.toLowerCase().includes(lower) ||
-        (d.challanNumber || d.documentChecklist?.challanNumber || "").toLowerCase().includes(lower) ||
-        d.ewayBillNumber?.toLowerCase().includes(lower) ||
-        d.lrNumber?.toLowerCase().includes(lower) ||
-        d.receivedBy?.toLowerCase().includes(lower) ||
-        d.receiverPhone?.toLowerCase().includes(lower) ||
-        d.driverName?.toLowerCase().includes(lower) ||
-        d.vehicleNumber?.toLowerCase().includes(lower) ||
-        d.deliveryAddress?.toLowerCase().includes(lower)
-    );
-  }, [dispatches, search, isDispatch2]);
-
-  // Pagination calculation
-  const totalPages = pageSize >= 99999 ? 1 : Math.ceil(deliveredHistory.length / pageSize) || 1;
+  const totalPages = Math.max(1, serverTotalPages);
   const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const paginatedHistory = deliveredHistory;
 
-  const paginatedHistory = useMemo(() => {
-    if (pageSize >= 99999) return deliveredHistory;
-    const start = (safeCurrentPage - 1) * pageSize;
-    return deliveredHistory.slice(start, start + pageSize);
-  }, [deliveredHistory, safeCurrentPage, pageSize]);
+  // On-demand full CSV export (fetches full filtered dataset only when Export CSV is clicked!)
+  const handleExportCsv = async () => {
+    try {
+      const cat = isDispatch2 ? "D2" : "D1";
+      const params = new URLSearchParams({
+        status: "DELIVERED",
+        category: cat,
+        limit: "2000",
+      });
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      const payload = await backendFetch<any>(`/api/backend/logistics/dispatches?${params.toString()}`, { cacheTtlMs: 0 });
+      const rowsToExport: Dispatch[] = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : deliveredHistory;
+      if (!rowsToExport.length) return;
+      const exportRows = rowsToExport.map((d) => {
+        const challan = d.gatePassNumber || d.documentChecklist?.challanNumber || d.challanNumber || "—";
+        const invoice = d.invoiceNumber || d.documentChecklist?.invoiceNumber || "—";
+        const lr = d.lrNumber || d.ewayBillNumber || d.documentChecklist?.lrNumber || "—";
+        const totalWeight = d.totalWeight || d.documentChecklist?.totalWeight || "—";
+        const expectedDate = d.eta ? formatDateDisplay(d.eta) : (d.documentChecklist?.expectedDeliveryDate ? formatDateDisplay(d.documentChecklist.expectedDeliveryDate) : "—");
+        const freight = d.freightAmount !== null && d.freightAmount !== undefined ? `₹${d.freightAmount}` : "—";
+        const itemsCount = d.items?.reduce((sum, it) => sum + Number(it.quantity || 0), 0) || 0;
 
-  const handleExportCsv = () => {
-    if (!deliveredHistory.length) return;
-    const exportRows = deliveredHistory.map((d) => {
-      const challan = d.gatePassNumber || d.documentChecklist?.challanNumber || d.challanNumber || "—";
-      const invoice = d.invoiceNumber || d.documentChecklist?.invoiceNumber || "—";
-      const lr = d.lrNumber || d.ewayBillNumber || d.documentChecklist?.lrNumber || "—";
-      const totalWeight = d.totalWeight || d.documentChecklist?.totalWeight || "—";
-      const expectedDate = d.eta ? formatDateDisplay(d.eta) : (d.documentChecklist?.expectedDeliveryDate ? formatDateDisplay(d.documentChecklist.expectedDeliveryDate) : "—");
-      const freight = d.freightAmount !== null && d.freightAmount !== undefined ? `₹${d.freightAmount}` : "—";
-      const itemsCount = d.items?.reduce((sum, it) => sum + Number(it.quantity || 0), 0) || 0;
+        return {
+          "Dispatch Number": formatCleanNo(d.dispatchNo),
+          "Sales Order": formatCleanNo(d.salesOrder?.orderNumber),
+          "Sales Order Date": formatOrderDate(getSalesOrderDate(d.salesOrder)),
+          Customer: resolveDispatchCustomer(d),
+          "Invoice Number": invoice,
+          "Challan Number": challan,
+          "Total Quantity": itemsCount,
+          "Total Weight (Tons)": totalWeight,
+          "Vehicle Number": d.vehicleNumber || "—",
+          Driver: d.driverName || "—",
+          "Driver Phone": d.driverPhone || "—",
+          Transporter: d.transporterName || "—",
+          "LR / AWB Number": lr,
+          "Expected Delivery Date": expectedDate,
+          "Freight To Be Paid": freight,
+          "Delivery Address": resolveConsignmentAddress(d),
+          "Received By": d.receivedBy || "—",
+          "Receiver Mobile": d.receiverPhone || "—",
+          "Delivered Timestamp": d.deliveredAt ? new Date(d.deliveredAt).toLocaleString("en-IN") : "—",
+          Status: d.status || "DISPATCHED",
+        };
+      });
 
-      return {
-        "Dispatch Number": formatCleanNo(d.dispatchNo),
-        "Sales Order": formatCleanNo(d.salesOrder?.orderNumber),
-        "Sales Order Date": formatOrderDate(getSalesOrderDate(d.salesOrder)),
-        Customer: resolveDispatchCustomer(d),
-        "Invoice Number": invoice,
-        "Challan Number": challan,
-        "Total Quantity": itemsCount,
-        "Total Weight (Tons)": totalWeight,
-        "Vehicle Number": d.vehicleNumber || "—",
-        Driver: d.driverName || "—",
-        "Driver Phone": d.driverPhone || "—",
-        Transporter: d.transporterName || "—",
-        "LR / AWB Number": lr,
-        "Expected Delivery Date": expectedDate,
-        "Freight To Be Paid": freight,
-        "Delivery Address": resolveConsignmentAddress(d),
-        "Received By": d.receivedBy || "—",
-        "Receiver Mobile": d.receiverPhone || "—",
-        "Delivered Timestamp": d.deliveredAt ? new Date(d.deliveredAt).toLocaleString("en-IN") : "—",
-        Status: d.status || "DISPATCHED",
-      };
-    });
-
-    const headers = Object.keys(exportRows[0]);
-    const csvContent = [
-      headers.join(","),
-      ...exportRows.map((row) =>
-        headers.map((h) => `"${String((row as any)[h] ?? "").replace(/"/g, '""')}"`).join(",")
-      ),
-    ].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `dispatch_history_manifest_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
+      const headers = Object.keys(exportRows[0]);
+      const csvContent = [
+        headers.join(","),
+        ...exportRows.map((row) =>
+          headers.map((h) => `"${String((row as any)[h] ?? "").replace(/"/g, '""')}"`).join(",")
+        ),
+      ].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `dispatch_history_manifest_${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+    } catch {
+      toast.error("Failed to export dispatch history CSV.");
+    }
   };
 
-  // Metrics
-  const totalDispatchesCount = deliveredHistory.length;
-  const totalDeliveredCount = deliveredHistory.filter((d) => String(d.status).toUpperCase() === "DELIVERED").length;
+  // Metrics (use server total for accurate overall count across all pages)
+  const totalDispatchesCount = serverTotalCount;
+  const totalDeliveredCount = serverTotalCount;
   const totalWithDocCount = deliveredHistory.filter(
     (d) => Boolean(d.podUrl || d.documentUrl || d.dispatchDocumentUrl || d.documentChecklist?.documentUrl),
   ).length;
@@ -1502,7 +1479,7 @@ export default function DeliveryHistoryPage() {
             <PaginationControl
               currentPage={safeCurrentPage}
               totalPages={totalPages}
-              totalItems={deliveredHistory.length}
+              totalItems={serverTotalCount}
               pageSize={pageSize}
               pageSizeOptions={[10, 25, 50, 100, "all"]}
               showAllOption={true}

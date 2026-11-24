@@ -48,7 +48,7 @@ async function createBridgeResponse(upstream: Response): Promise<Response> {
   const body =
     upstream.status === 204 || upstream.status === 205 || upstream.status === 304
       ? null
-      : await upstream.arrayBuffer();
+      : upstream.body;
 
   return new Response(body, {
     status: upstream.status,
@@ -94,7 +94,7 @@ export async function forwardBackendRequest(
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), 25000);
 
     try {
       const fetchOptions: RequestInit = {

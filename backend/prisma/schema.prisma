@@ -1392,6 +1392,7 @@ model SalesOrderAllocation {
 
   @@index([salesOrderId])
   @@index([salesOrderItemId])
+  @@index([allocationType, reservedQuantity])
 }
 
 model CustomerComplaint {
@@ -2739,6 +2740,10 @@ model WorkOrder {
   @@index([workflowStateId])
   @@index([salesOrderItemId])
   @@index([productionStatus])
+  @@index([status])
+  @@index([productionPlanId])
+  @@index([sentToDispatchAt])
+  @@index([dispatchedAt])
 }
 
 model ProductionStatusHistory {
@@ -2898,6 +2903,11 @@ model Dispatch {
   workflowState WorkflowState? @relation("DispatchWorkflow", fields: [workflowStateId], references: [id])
 
   @@index([workflowStateId])
+  @@index([status, dispatchCategory, createdAt])
+  @@index([dispatchCategory, createdAt])
+  @@index([salesOrderId])
+  @@index([deliveredAt])
+  @@index([invoiceNumber])
 }
 
 model DispatchItem {
@@ -2910,6 +2920,7 @@ model DispatchItem {
   salesOrderItem   SalesOrderItem @relation(fields: [salesOrderItemId], references: [id])
 
   @@unique([dispatchId, salesOrderItemId])
+  @@index([salesOrderItemId])
 }
 
 model InvoiceItem {
@@ -3586,6 +3597,10 @@ model FinishedGoods {
   workOrder  WorkOrder   @relation(fields: [workOrderId], references: [id])
   product    Product     @relation(fields: [productId], references: [id])
   salesOrder SalesOrder? @relation(fields: [salesOrderId], references: [id])
+
+  @@index([productId, status])
+  @@index([salesOrderId])
+  @@index([status])
 }
 
 

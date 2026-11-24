@@ -57,6 +57,7 @@ interface SampleDispatchItem {
   driverName?: string;
   dispatchDate?: string;
   proofOfDelivery?: string;
+  hasProofOfDelivery?: boolean;
   category?: string;
   productType?: string;
   dispatchCategory?: string;
@@ -90,8 +91,30 @@ function SampleDispatchListContent() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  // View POD modal state
+  // View POD modal state (lazy-fetches full POD image via GET /sales/samples/:id when stripped from list!)
   const [viewPodUrl, setViewPodUrl] = useState<string | null>(null);
+  const handleViewPod = async (req: SampleDispatchItem) => {
+    if (req.proofOfDelivery) {
+      setViewPodUrl(req.proofOfDelivery);
+      return;
+    }
+    try {
+      const detail = await backendFetch<any>(`/api/backend/sales/samples/${req.cleanId}`, { cacheTtlMs: 30000 });
+      const pod =
+        detail?.proofOfDelivery ||
+        detail?.podImage ||
+        detail?.dispatchDetails?.proofOfDelivery ||
+        detail?.data?.proofOfDelivery ||
+        null;
+      if (pod) {
+        setViewPodUrl(pod);
+      } else {
+        toast.error('Proof of delivery file not available.');
+      }
+    } catch {
+      toast.error('Failed to load proof of delivery.');
+    }
+  };
 
   // Sync state with URL parameter ?status=xxx
   useEffect(() => {
@@ -322,6 +345,7 @@ function SampleDispatchListContent() {
           driverName: sample.driverName || sample.dispatchDetails?.driverName,
           dispatchDate: sample.dispatchDate || sample.dispatchDetails?.dispatchDate,
           proofOfDelivery: sample.proofOfDelivery || sample.podImage || sample.dispatchDetails?.proofOfDelivery || undefined,
+          hasProofOfDelivery: Boolean(sample.hasProofOfDelivery || sample.proofOfDelivery || sample.podImage || sample.dispatchDetails?.proofOfDelivery),
           category: sample.category,
           productType: isDispatch2 ? 'TRADING' : 'MANUFACTURING',
           dispatchCategory: isDispatch2 ? 'D2' : 'D1',
@@ -779,7 +803,7 @@ function SampleDispatchListContent() {
               ) : filteredRequests.length > 0 ? (
                 filteredRequests.map((req) => {
                   const isBusy = actionInProgress === req.id;
-                  const hasProof = Boolean(req.proofOfDelivery);
+                  const hasProof = Boolean(req.proofOfDelivery || req.hasProofOfDelivery);
                   return (
                     <tr key={req.id} className="hover:bg-slate-50 transition-colors group">
                       <td className="dsp-td">
@@ -961,7 +985,7 @@ function SampleDispatchListContent() {
                               {hasProof ? (
                                 <button
                                   type="button"
-                                  onClick={() => setViewPodUrl(req.proofOfDelivery || null)}
+                                  onClick={() => void handleViewPod(req)}
                                   style={{
                                     background: '#ecfdf5',
                                     border: '1px solid #a7f3d0',
@@ -1027,7 +1051,7 @@ function SampleDispatchListContent() {
         ) : filteredRequests.length > 0 ? (
           filteredRequests.map((req) => {
             const isBusy = actionInProgress === req.id;
-            const hasProof = Boolean(req.proofOfDelivery);
+            const hasProof = Boolean(req.proofOfDelivery || req.hasProofOfDelivery);
             return (
               <div key={req.id} className="dsp-card">
                 {/* Card Header */}
@@ -1189,7 +1213,7 @@ function SampleDispatchListContent() {
                       {hasProof ? (
                         <button
                           type="button"
-                          onClick={() => setViewPodUrl(req.proofOfDelivery || null)}
+                          onClick={() => void handleViewPod(req)}
                           style={{
                             flex: 1,
                             background: '#ecfdf5',

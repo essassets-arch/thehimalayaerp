@@ -71,70 +71,55 @@ export class DispatchTargetService {
   }
 
   async findAll() {
-    const targets = await this.prisma.dispatchTarget.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
-    const serialized = this.serializeBigInt(targets);
+    try {
+      const targets = await this.prisma.dispatchTarget.findMany({
+        orderBy: { createdAt: 'desc' },
+      });
+      const serialized = this.serializeBigInt(targets);
 
-    const enriched = await Promise.all(
-      serialized.map(async (t: any) => {
-        const start = new Date(t.startDate);
-        const end = new Date(t.endDate);
+      const enriched = await Promise.all(
+        serialized.map(async (t: any) => {
+          const start = new Date(t.startDate);
+          const end = new Date(t.endDate);
 
-        // Count dispatches fulfilled or active in this window
-        const dispatchesCount = await this.prisma.dispatch.count({
-          where: {
-            status: {
-              in: [
-                'DELIVERED',
-                'IN_TRANSIT',
-                'OUT_FOR_DELIVERY',
-                'DISPATCHED',
-                'READY_FOR_PICKUP',
-                'DISPATCH_CLOSED',
+          // Count dispatches fulfilled or active in this window
+          const dispatchesCount = await this.prisma.dispatch.count({
+            where: {
+              status: {
+                in: [
+                  'DELIVERED',
+                  'IN_TRANSIT',
+                  'OUT_FOR_DELIVERY',
+                  'DISPATCHED',
+                  'READY_FOR_PICKUP',
+                  'DISPATCH_CLOSED',
+                ],
+              },
+              OR: [
+                { deliveredAt: { gte: start, lte: end } },
+                { gateOutAt: { gte: start, lte: end } },
+                { readyAt: { gte: start, lte: end } },
+                { createdAt: { gte: start, lte: end } },
               ],
             },
-            OR: [
-              {
-                deliveredAt: {
-                  gte: start,
-                  lte: end,
-                },
-              },
-              {
-                gateOutAt: {
-                  gte: start,
-                  lte: end,
-                },
-              },
-              {
-                readyAt: {
-                  gte: start,
-                  lte: end,
-                },
-              },
-              {
-                createdAt: {
-                  gte: start,
-                  lte: end,
-                },
-              },
-            ],
-          },
-        });
+          });
 
-        const achieved = dispatchesCount;
-        const achievement =
-          t.quantityTarget > 0 ? (achieved / t.quantityTarget) * 100 : 0;
-        return {
-          ...t,
-          achieved,
-          achievement: Number(achievement.toFixed(1)),
-        };
-      }),
-    );
+          const achieved = dispatchesCount;
+          const achievement =
+            t.quantityTarget > 0 ? (achieved / t.quantityTarget) * 100 : 0;
+          return {
+            ...t,
+            achieved,
+            achievement: Number(achievement.toFixed(1)),
+          };
+        }),
+      );
 
-    return enriched;
+      return enriched;
+    } catch (err) {
+      console.warn('[DispatchTargetService.findAll] Fallback to empty list:', (err as Error)?.message);
+      return [];
+    }
   }
 
   async findOne(id: string) {

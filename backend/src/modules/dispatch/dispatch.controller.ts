@@ -57,15 +57,82 @@ export class DispatchController {
     @Headers() headers: Record<string, string>,
     @Query('status') status?: string,
     @Query('category') category?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('salesOrderId') salesOrderId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('compact') compact?: string,
   ) {
     const { userId } = this.extractAuthData(req, headers);
+    const hasPagination = page !== undefined && page !== '';
+    const options =
+      hasPagination || limit || search || salesOrderId || dateFrom || dateTo || compact
+        ? {
+            page: hasPagination ? Math.max(1, parseInt(page!, 10) || 1) : undefined,
+            limit: limit ? Math.min(2000, Math.max(1, parseInt(limit, 10) || 25)) : undefined,
+            search: search?.trim() || undefined,
+            salesOrderId: salesOrderId?.trim() || undefined,
+            dateFrom: dateFrom?.trim() || undefined,
+            dateTo: dateTo?.trim() || undefined,
+            compact: compact !== 'false',
+          }
+        : undefined;
     const dispatches = await this.dispatchService.listDispatches(
       userId,
       req.user?.role,
       status,
       category,
+      options,
     );
     return dispatches;
+  }
+
+  @Get('dashboard-summary')
+  @RequirePermissions('logistics.dispatches.read')
+  async getDashboardSummary(
+    @Req() req: any,
+    @Headers() headers: Record<string, string>,
+    @Query('category') category?: string,
+  ) {
+    const { userId } = this.extractAuthData(req, headers);
+    const companyId = this.extractAuthorizedTenant(req, headers);
+    return this.dispatchService.getDashboardSummary(
+      userId,
+      req.user?.role,
+      companyId,
+      category,
+    );
+  }
+
+  @Get('create-context')
+  @RequirePermissions('logistics.dispatches.read')
+  async getCreateContext(
+    @Req() req: any,
+    @Headers() headers: Record<string, string>,
+    @Query('category') category?: string,
+    @Query('salesOrderId') salesOrderId?: string,
+    @Query('orderNumber') orderNumber?: string,
+    @Query('workOrderId') workOrderId?: string,
+    @Query('workOrderIds') workOrderIds?: string,
+  ) {
+    const userId = req.user?.sub;
+    const companyId = this.extractAuthorizedTenant(req, headers);
+    return this.dispatchService.getCreateContext(
+      userId,
+      req.user?.role,
+      companyId,
+      {
+        category,
+        salesOrderId,
+        orderNumber,
+        workOrderId,
+        workOrderIds: workOrderIds
+          ? workOrderIds.split(',').map((s) => s.trim()).filter(Boolean)
+          : undefined,
+      },
+    );
   }
 
   @Get('queue')
@@ -74,23 +141,54 @@ export class DispatchController {
     @Req() req: any,
     @Headers() headers: Record<string, string>,
     @Query('category') category?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('onlyRemaining') onlyRemaining?: string,
   ) {
     const userId = req.user?.sub;
     const companyId = this.extractAuthorizedTenant(req, headers);
+    const hasPagination = page !== undefined && page !== '';
+    const options =
+      hasPagination || limit || search || onlyRemaining
+        ? {
+            page: hasPagination ? Math.max(1, parseInt(page!, 10) || 1) : undefined,
+            limit: limit ? Math.min(500, Math.max(1, parseInt(limit, 10) || 25)) : undefined,
+            search: search?.trim() || undefined,
+            onlyRemaining: onlyRemaining === 'true' || onlyRemaining === '1',
+          }
+        : undefined;
     const queue = await this.dispatchService.getDispatchQueue(
       userId,
       req.user?.role,
       companyId,
       category,
+      options,
     );
     return queue;
   }
 
   @Get('finished-goods-history')
   @RequirePermissions('logistics.dispatches.read')
-  async getFinishedGoodsHistory() {
-    const data = await this.dispatchService.getFinishedGoodsHistory();
-    return { success: true, data };
+  async getFinishedGoodsHistory(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    const hasPagination = page !== undefined && page !== '';
+    const options =
+      hasPagination || limit || search
+        ? {
+            page: hasPagination ? Math.max(1, parseInt(page!, 10) || 1) : undefined,
+            limit: limit ? Math.min(500, Math.max(1, parseInt(limit, 10) || 25)) : undefined,
+            search: search?.trim() || undefined,
+          }
+        : undefined;
+    const result = await this.dispatchService.getFinishedGoodsHistory(options);
+    if (Array.isArray(result)) {
+      return { success: true, data: result };
+    }
+    return { success: true, ...result };
   }
 
   @Get('next-invoice-number')

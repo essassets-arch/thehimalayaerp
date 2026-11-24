@@ -726,16 +726,7 @@ export default function CreateDispatchPage() {
     });
   }, [salesOrderId, orderNumber, salesOrderItemId, workOrderId, deliveryAddressParam, invoiceNumberParam, initializeContext]);
 
-  // Fetch existing dispatches for duplicate Invoice + Challan validation
-  const { data: existingDispatches = EMPTY_ARRAY } = useQuery<any[]>({
-    queryKey: ["dispatches-duplicate-check"],
-    queryFn: async () => {
-      const res = await backendFetch<any>("/api/backend/logistics/dispatches").catch(() => []);
-      return Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
-    },
-  });
-
-  // Fetch next suggested unique invoice number and all existing invoice numbers
+  // Fetch next suggested unique invoice number and all existing invoice numbers (5 KB — replaces 6.54 MB full dispatches duplicate check!)
   const { data: invoiceMeta, refetch: refetchInvoiceMeta } = useQuery<{
     nextInvoiceNumber: string;
     existingInvoices: string[];
@@ -745,8 +736,14 @@ export default function CreateDispatchPage() {
       const res = await backendFetch<any>("/api/backend/logistics/dispatches/next-invoice-number").catch(() => null);
       return res || null;
     },
-    staleTime: 5000,
+    staleTime: 15000,
+    refetchOnWindowFocus: false,
   });
+
+  const existingDispatches = React.useMemo<any[]>(() => {
+    const list = invoiceMeta?.existingInvoices || [];
+    return list.map((inv) => ({ invoiceNumber: inv }));
+  }, [invoiceMeta]);
 
   const handleGenerateUniqueInvoice = () => {
     if (invoiceMeta?.nextInvoiceNumber) {
@@ -764,133 +761,37 @@ export default function CreateDispatchPage() {
     }
   };
 
-  // Fetch products to retrieve correct dispatchCategory for synthetic items
-  const { data: products = EMPTY_ARRAY } = useQuery<any[]>({
-    queryKey: ["products-list-create-dispatch"],
-    queryFn: async () => {
-      const res = await backendFetch<any>("/api/backend/products?limit=1000").catch(() => []);
-      return Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
-    },
-  });
+  // Product metadata is embedded directly in /create-context items (eliminates /products?limit=1000!)
+  const productsMap = React.useMemo(() => new Map<string, any>(), []);
 
-  const productsMap = React.useMemo(() => {
-    const map = new Map<string, any>();
-    products.forEach((p) => {
-      if (p.id) map.set(p.id, p);
-      if (p.sku) map.set(p.sku, p);
-    });
-    return map;
-  }, [products]);
-
-  // Fetch the complete pending queue so multiple compatible lines can be consolidated
+  // Fetch single canonical create-context payload (replaces 11 parallel endpoints totaling 62.9 MB!)
   const {
     data: workOrders = EMPTY_ARRAY,
     isLoading,
     error,
   } = useQuery<WorkOrder[]>({
-    queryKey: ["pending-dispatch-work-orders-create", workOrderId, salesOrderId, orderNumber, workOrderIdsParam, salesOrderItemId],
+    queryKey: ["pending-dispatch-work-orders-create", isDispatch2 ? "D2" : "D1", workOrderId, salesOrderId, orderNumber, workOrderIdsParam, salesOrderItemId],
     queryFn: async () => {
-      const extractArray = (res: any): any[] => {
-        if (!res) return [];
-        if (Array.isArray(res)) return res;
-        if (Array.isArray(res?.data)) return res.data;
-        if (Array.isArray(res?.data?.data)) return res.data.data;
-        if (Array.isArray(res?.data?.items)) return res.data.items;
-        if (Array.isArray(res?.items)) return res.items;
-        return [];
-      };
+      const params = new URLSearchParams({
+        category: isDispatch2 ? "D2" : "D1",
+      });
+      if (salesOrderId) params.set("salesOrderId", salesOrderId);
+      if (orderNumber) params.set("orderNumber", orderNumber);
+      if (workOrderId) params.set("workOrderId", workOrderId);
+      if (workOrderIdsParam) params.set("workOrderIds", workOrderIdsParam);
 
-      const [
-        readyForDispatchPayload,
-        readyHistoryPayload,
-        finishedGoodsPayload,
-        queuePayload,
-        allSalesOrdersPayload,
-        dispatchesPayload,
-      ] = await Promise.allSettled([
-        isDispatch2 ? Promise.resolve([]) : backendFetch<any>("/api/backend/production/ready-for-dispatch", { cacheTtlMs: 15000 }),
-        isDispatch2 ? Promise.resolve([]) : backendFetch<any>("/api/backend/production/ready-for-dispatch-history", { cacheTtlMs: 15000 }),
-        isDispatch2 ? Promise.resolve([]) : backendFetch<any>("/api/backend/production/finished-goods", { cacheTtlMs: 15000 }),
-        backendFetch<any>(`/api/backend/logistics/dispatches/queue?category=${isDispatch2 ? "D2" : "D1"}`, { cacheTtlMs: 15000 }),
-        backendFetch<any>(
-          "/api/backend/sales/orders?limit=300&status=CONFIRMED,IN_PRODUCTION,READY_FOR_PRODUCTION,PLANT_APPROVED,SENT_TO_PLANT,READY_FOR_DISPATCH,COMPLETED,DISPATCHED,PARTIALLY_DISPATCHED",
-          { cacheTtlMs: 15000 }
-        ),
-        backendFetch<any>(`/api/backend/logistics/dispatches?category=${isDispatch2 ? "D2" : "D1"}&limit=500`, { cacheTtlMs: 15000 }),
-      ]);
+      const ctx = await backendFetch<any>(
+        `/api/backend/logistics/dispatches/create-context?${params.toString()}`,
+        { cacheTtlMs: 15000 }
+      ).catch(() => null);
 
-      const rawReady: any[] =
-        readyForDispatchPayload.status === "fulfilled" ? extractArray(readyForDispatchPayload.value) : [];
-      const rawHistory: any[] =
-        readyHistoryPayload.status === "fulfilled" ? extractArray(readyHistoryPayload.value) : [];
-      const rawFinishedGoods: any[] =
-        finishedGoodsPayload.status === "fulfilled" ? extractArray(finishedGoodsPayload.value) : [];
-      const rawQueue: any[] =
-        queuePayload.status === "fulfilled" ? extractArray(queuePayload.value) : [];
-      const rawSalesOrders: any[] =
-        allSalesOrdersPayload.status === "fulfilled" ? extractArray(allSalesOrdersPayload.value) : [];
-      let rawDispatches: any[] =
-        dispatchesPayload.status === "fulfilled" ? extractArray(dispatchesPayload.value) : [];
-
-      // Fetch targeted dispatches if salesOrderId or orderNumber is specified
-      if (salesOrderId || orderNumber) {
-        const targetRef = salesOrderId || orderNumber;
-        try {
-          const soDispatchesRes = await backendFetch<any>(`/api/backend/logistics/dispatches?salesOrderId=${encodeURIComponent(targetRef!)}&limit=500`).catch(() => null);
-          const soDispatches = extractArray(soDispatchesRes);
-          soDispatches.forEach((d: any) => {
-            if (d && d.id && !rawDispatches.some((exist: any) => exist.id === d.id)) {
-              rawDispatches.push(d);
-            }
-          });
-        } catch {}
-      }
-
-      // 1. Direct Sales Order Lookup if salesOrderId or orderNumber param is provided
+      const rawReady: any[] = [];
+      const rawHistory: any[] = [];
+      const rawFinishedGoods: any[] = [];
+      const rawQueue: any[] = Array.isArray(ctx?.queue) ? ctx.queue : [];
+      const rawSalesOrders: any[] = ctx?.directSalesOrder ? [ctx.directSalesOrder] : [];
+      const rawDispatches: any[] = [];
       let combinedSalesOrders = [...rawSalesOrders];
-      if (salesOrderId || orderNumber) {
-        const targetRef = salesOrderId || orderNumber;
-        try {
-          const directRes = await backendFetch<any>(`/api/backend/sales/orders/${encodeURIComponent(targetRef!)}`).catch(() => null);
-          const directSo = directRes?.data?.data || directRes?.data || directRes;
-          if (directSo && directSo.id) {
-            const alreadyInList = combinedSalesOrders.some((o: any) => o.id === directSo.id || normalizeKey(o.orderNumber) === normalizeKey(directSo.orderNumber));
-            if (!alreadyInList) {
-              combinedSalesOrders.unshift(directSo);
-            } else {
-              const idx = combinedSalesOrders.findIndex((o: any) => o.id === directSo.id || normalizeKey(o.orderNumber) === normalizeKey(directSo.orderNumber));
-              if (idx >= 0) combinedSalesOrders[idx] = directSo;
-            }
-            if (Array.isArray(directSo.dispatches)) {
-              directSo.dispatches.forEach((d: any) => {
-                if (d && d.id && !rawDispatches.some((exist: any) => exist.id === d.id)) {
-                  rawDispatches.push(d);
-                }
-              });
-            }
-          }
-        } catch {}
-
-        if (orderNumber) {
-          try {
-            const byNoRes = await backendFetch<any>(`/api/backend/sales/orders/lookup/by-number?orderNumber=${encodeURIComponent(orderNumber)}`).catch(() => null);
-            const byNoSo = byNoRes?.data?.data || byNoRes?.data || byNoRes;
-            if (byNoSo && byNoSo.id) {
-              const alreadyInList = combinedSalesOrders.some((o: any) => o.id === byNoSo.id || normalizeKey(o.orderNumber) === normalizeKey(byNoSo.orderNumber));
-              if (!alreadyInList) {
-                combinedSalesOrders.unshift(byNoSo);
-              }
-              if (Array.isArray(byNoSo.dispatches)) {
-                byNoSo.dispatches.forEach((d: any) => {
-                  if (d && d.id && !rawDispatches.some((exist: any) => exist.id === d.id)) {
-                    rawDispatches.push(d);
-                  }
-                });
-              }
-            }
-          } catch {}
-        }
-      }
 
       // Merge local store sales orders if available
       if (typeof window !== "undefined") {

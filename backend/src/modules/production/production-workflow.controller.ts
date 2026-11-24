@@ -165,21 +165,43 @@ export class ProductionWorkflowController {
     'admin.planthead.read',
   )
   @Get('production/all-stock')
-  async getAllStock(@Req() req: any) {
+  async getAllStock(
+    @Req() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+  ) {
     try {
       const companyId = req.headers['x-company-id'] || req.user?.companyId;
       const userId = req.user?.sub || req.user?.id;
       const role = req.user?.role;
+      const hasPagination = page !== undefined && page !== '';
       const result = await this.workflowService.getAllStock(
         companyId,
         userId,
         role,
+        undefined,
+        undefined,
+        hasPagination || limit || search || status
+          ? {
+              page: hasPagination ? Math.max(1, parseInt(page!, 10) || 1) : undefined,
+              limit:
+                limit && limit !== 'all'
+                  ? Math.min(500, Math.max(1, parseInt(limit, 10) || 25))
+                  : undefined,
+              search: search?.trim() || undefined,
+              status: status?.trim() || undefined,
+            }
+          : undefined,
       );
       return {
         success: true,
         data: result.items,
         items: result.items,
         total: result.total,
+        ...(result.pagination ? { pagination: result.pagination } : {}),
+        ...(result.summary ? { summary: result.summary } : {}),
       };
     } catch (err: any) {
       console.error('[getAllStock Error]', err);
@@ -218,30 +240,58 @@ export class ProductionWorkflowController {
     'logistics.dispatches.read',
   )
   @Get('production/finished-goods')
-  async getFinishedGoods(@Req() req: any, @Query('scope') scope?: string) {
+  async getFinishedGoods(
+    @Req() req: any,
+    @Query('scope') scope?: string,
+    @Query('includeCatalog') includeCatalog?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
     try {
       const companyId = req.headers['x-company-id'] || req.user?.companyId;
       const userId = req.user?.sub || req.user?.id;
       const role = req.user?.role;
       if (scope === 'all-stock') {
+        const hasPagination = page !== undefined && page !== '';
         const result = await this.workflowService.getAllStock(
           companyId,
           userId,
           role,
+          undefined,
+          undefined,
+          hasPagination || limit || search
+            ? {
+                page: hasPagination ? Math.max(1, parseInt(page!, 10) || 1) : undefined,
+                limit: limit && limit !== 'all' ? Math.min(500, Math.max(1, parseInt(limit, 10) || 25)) : undefined,
+                search: search?.trim() || undefined,
+              }
+            : undefined,
         );
         return {
           success: true,
           data: result.items,
           items: result.items,
           total: result.total,
+          ...(result.pagination ? { pagination: result.pagination } : {}),
         };
       }
-      const data = await this.workflowService.getFinishedGoods(
+      const hasPagination = page !== undefined && page !== '';
+      const result = await this.workflowService.getFinishedGoods(
         companyId,
         userId,
         role,
+        {
+          includeCatalog: includeCatalog === 'true' || includeCatalog === '1',
+          page: hasPagination ? Math.max(1, parseInt(page!, 10) || 1) : undefined,
+          limit: limit ? Math.min(500, Math.max(1, parseInt(limit, 10) || 25)) : undefined,
+          search: search?.trim() || undefined,
+        },
       );
-      return { success: true, data };
+      if (Array.isArray(result)) {
+        return { success: true, data: result };
+      }
+      return { success: true, ...result };
     } catch (err: any) {
       console.error('[getFinishedGoods Error]', err);
       return { success: true, data: [] };
@@ -584,11 +634,27 @@ export class ProductionWorkflowController {
     'finance.invoices.read',
     'sales.orders.read',
   )
-  async getReadyForDispatchHistory(@Req() req: any) {
-    const data = await this.workflowService.getReadyForDispatchHistory(
+  async getReadyForDispatchHistory(
+    @Req() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    const hasPagination = page !== undefined && page !== '';
+    const result = await this.workflowService.getReadyForDispatchHistory(
       this.getDispatchTenant(req),
+      hasPagination || limit || search
+        ? {
+            page: hasPagination ? Math.max(1, parseInt(page!, 10) || 1) : undefined,
+            limit: limit ? Math.min(500, Math.max(1, parseInt(limit, 10) || 50)) : undefined,
+            search: search?.trim() || undefined,
+          }
+        : undefined,
     );
-    return { success: true, data };
+    if (Array.isArray(result)) {
+      return { success: true, data: result };
+    }
+    return { success: true, ...result };
   }
 
   @Post('production/send-to-dispatch')

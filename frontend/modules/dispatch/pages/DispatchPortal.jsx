@@ -65,6 +65,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
   const [backendFinishedGoods, setBackendFinishedGoods] = useState([]);
   const [backendReturns, setBackendReturns] = useState([]);
   const [backendDispatchQueue, setBackendDispatchQueue] = useState([]);
+  const [dashboardSummary, setDashboardSummary] = useState(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [fgStockTab, setFgStockTab] = useState('all');
 
@@ -165,37 +166,52 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     lastFetchTimeRef.current = now;
     setDashboardLoading(true);
     try {
-      const isD2 = effectiveDispatchCat === 'D2' || effectiveDispatchCat === 'DISPATCH 2';
       const catParam = effectiveDispatchCat ? `?category=${effectiveDispatchCat}` : '';
-      const [dispatchesRes, workOrdersRes, readyHistoryRes, returnsRes, replacementsRes, finishedGoodsRes, queueRes] = await Promise.allSettled([
-        backendFetch(`/api/backend/logistics/dispatches${catParam}`, { cacheTtlMs: 15000 }),
-        isD2 ? Promise.resolve([]) : backendFetch('/api/backend/production/work-orders?status=READY_FOR_DISPATCH,COMPLETED,DISPATCHED', { cacheTtlMs: 15000 }),
-        isD2 ? Promise.resolve([]) : backendFetch('/api/backend/production/ready-for-dispatch-history', { cacheTtlMs: 15000 }),
-        backendFetch('/api/backend/sales-returns', { cacheTtlMs: 15000 }),
-        backendFetch('/api/backend/replacements', { cacheTtlMs: 15000 }),
-        isD2 ? Promise.resolve([]) : backendFetch('/api/backend/production/finished-goods', { cacheTtlMs: 15000 }),
+
+      // Fast path: Dashboard view uses ONE aggregated summary endpoint (< 20 KB vs 51 MB!)
+      if (currentView === 'dashboard') {
+        const summaryRes = await backendFetch(
+          `/api/backend/logistics/dispatches/dashboard-summary${catParam}`,
+          { cacheTtlMs: force ? 0 : 15000 }
+        ).catch(() => null);
+
+        if (summaryRes && summaryRes.counts) {
+          setDashboardSummary(summaryRes);
+          if (Array.isArray(summaryRes.recentDispatches)) {
+            setBackendDispatches(summaryRes.recentDispatches);
+          }
+          if (Array.isArray(summaryRes.recentQueue)) {
+            setBackendDispatchQueue(summaryRes.recentQueue);
+          }
+          return;
+        }
+      }
+
+      // Lean view-scoped fetches for non-dashboard subviews
+      const needsFinishedGoods = currentView === 'finished-goods';
+      const needsReturns = currentView === 'returns' || currentView === 'dashboard';
+      const needsReplacements = currentView === 'replacements' || currentView === 'history' || currentView === 'dashboard';
+
+      const [dispatchesRes, returnsRes, replacementsRes, finishedGoodsRes, queueRes] = await Promise.allSettled([
+        backendFetch(`/api/backend/logistics/dispatches${catParam ? `${catParam}&limit=100` : '?limit=100'}`, { cacheTtlMs: 15000 }),
+        needsReturns ? backendFetch('/api/backend/sales-returns', { cacheTtlMs: 15000 }) : Promise.resolve([]),
+        needsReplacements ? backendFetch('/api/backend/replacements', { cacheTtlMs: 15000 }) : Promise.resolve([]),
+        needsFinishedGoods ? backendFetch('/api/backend/production/finished-goods?page=1&limit=50', { cacheTtlMs: 15000 }) : Promise.resolve([]),
         backendFetch(`/api/backend/logistics/dispatches/queue${catParam}`, { cacheTtlMs: 15000 }),
       ]);
 
-      if (dispatchesRes.status === 'fulfilled' && Array.isArray(dispatchesRes.value)) {
-        setBackendDispatches(dispatchesRes.value);
+      if (dispatchesRes.status === 'fulfilled') {
+        const val = dispatchesRes.value;
+        const list = Array.isArray(val) ? val : Array.isArray(val?.data) ? val.data : [];
+        setBackendDispatches(list);
       }
-      const fetchedWos = workOrdersRes.status === 'fulfilled' && Array.isArray(workOrdersRes.value) ? workOrdersRes.value : [];
-      const historyWosVal = readyHistoryRes.status === 'fulfilled' ? readyHistoryRes.value : null;
-      const fetchedHistoryWos = Array.isArray(historyWosVal)
-        ? historyWosVal
-        : Array.isArray(historyWosVal?.data)
-        ? historyWosVal.data
-        : Array.isArray(historyWosVal?.data?.data)
-        ? historyWosVal.data.data
-        : [];
-      const allReadyWos = [...fetchedWos, ...fetchedHistoryWos];
-      setBackendReadyWorkOrders(allReadyWos);
       if (returnsRes.status === 'fulfilled' && Array.isArray(returnsRes.value)) {
         setBackendReturns(returnsRes.value);
       }
-      if (queueRes.status === 'fulfilled' && Array.isArray(queueRes.value)) {
-        setBackendDispatchQueue(queueRes.value);
+      if (queueRes.status === 'fulfilled') {
+        const val = queueRes.value;
+        const list = Array.isArray(val) ? val : Array.isArray(val?.data) ? val.data : [];
+        setBackendDispatchQueue(list);
       }
       if (finishedGoodsRes.status === 'fulfilled') {
         const val = finishedGoodsRes.value;
@@ -1476,21 +1492,30 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     const scopedReturns = filterOrdersByDispatch(backendReturns);
     const scopedReplacements = filterOrdersByDispatch(replacementDispatches);
 
-    // Accurate Dynamic KPI Calculations from live backend & ERP state
-    const readyCount = scopedQueueOrders.length > 0
+    // Accurate Dynamic KPI Calculations from lightweight backend dashboard-summary (falls back to scoped arrays)
+    const summaryCounts = dashboardSummary?.counts || null;
+    const readyCount = summaryCounts
+      ? Number(summaryCounts.pendingQueue || 0)
+      : scopedQueueOrders.length > 0
       ? scopedQueueOrders.length
       : (scopedReadyWorkOrders.length || qcPassed.length || 0);
     
     const inTransitDispatches = scopedDispatches.filter(d => ['IN_TRANSIT', 'In Transit'].includes(d.status || d.dispatchStatus));
-    const inTransitCount = inTransitDispatches.length || filteredOrders.filter(o => ['IN_TRANSIT', 'In Transit'].includes(o.status || o.workflowStatus)).length || 0;
+    const inTransitCount = summaryCounts
+      ? Number(summaryCounts.inTransit || 0)
+      : (inTransitDispatches.length || filteredOrders.filter(o => ['IN_TRANSIT', 'In Transit'].includes(o.status || o.workflowStatus)).length || 0);
     
     const outDeliveryDispatches = scopedDispatches.filter(d => ['OUT_FOR_DELIVERY', 'Out for Delivery'].includes(d.status || d.dispatchStatus));
     const outDeliveryCount = outDeliveryDispatches.length || filteredOrders.filter(o => ['OUT_FOR_DELIVERY', 'Out for Delivery'].includes(o.status || o.workflowStatus)).length || 0;
     
     const deliveredDispatches = scopedDispatches.filter(d => ['DELIVERED', 'Delivered'].includes(d.status || d.dispatchStatus));
-    const deliveredCount = deliveredDispatches.length || filteredOrders.filter(o => ['DELIVERED', 'Delivered'].includes(o.status || o.workflowStatus)).length || 0;
+    const deliveredCount = summaryCounts
+      ? Number(summaryCounts.delivered || 0)
+      : (deliveredDispatches.length || filteredOrders.filter(o => ['DELIVERED', 'Delivered'].includes(o.status || o.workflowStatus)).length || 0);
     
-    const returnsCount = scopedReturns.length + scopedReplacements.length;
+    const returnsCount = summaryCounts
+      ? Number(summaryCounts.returns || 0) + Number(summaryCounts.replacements || 0)
+      : (scopedReturns.length + scopedReplacements.length);
 
     // Today's Performance calculation
     const plannedDispatches = readyCount + inTransitCount + outDeliveryCount + deliveredCount;

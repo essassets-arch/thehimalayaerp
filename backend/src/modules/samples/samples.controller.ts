@@ -358,7 +358,21 @@ export class SamplesController {
   async findAll(@Request() req, @Headers() headers) {
     const { companyId, userId, role } = this.extractAuthData(req, headers);
     const result = await this.samplesService.findAll(companyId, userId, role);
-    return this.mapSampleStatus(result);
+    const mapped = this.mapSampleStatus(result);
+    if (!Array.isArray(mapped)) return mapped;
+    // Strip heavy inline base64 POD blobs (>500 chars or data: URIs) from list responses;
+    // full proofOfDelivery is fetched on-demand via GET /sales/samples/:id.
+    return mapped.map((item: any) => {
+      const pod = item?.proofOfDelivery;
+      const hasPod = Boolean(pod && String(pod).trim().length > 0);
+      const isInlineHeavy =
+        typeof pod === 'string' && (pod.startsWith('data:') || pod.length > 500);
+      return {
+        ...item,
+        hasProofOfDelivery: hasPod,
+        ...(isInlineHeavy ? { proofOfDelivery: null } : {}),
+      };
+    });
   }
 
   @RequirePermissions('admin.samples.read', 'logistics.dispatches.read')

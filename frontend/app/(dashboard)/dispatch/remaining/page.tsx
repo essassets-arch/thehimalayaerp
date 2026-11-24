@@ -207,26 +207,7 @@ export default function RemainingDispatchPage() {
   const [search, setSearch] = useState("");
   const [copiedOrder, setCopiedOrder] = useState<string | null>(null);
 
-  // Query 0: Products Master Map
-  const { data: productsMap = new Map<string, any>() } = useQuery<Map<string, any>>({
-    queryKey: ["products-master-map"],
-    queryFn: async () => {
-      try {
-        const res = await backendFetch<any>("/api/backend/products");
-        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
-        const map = new Map<string, any>();
-        list.forEach((p: any) => {
-          if (p.id) map.set(p.id, p);
-        });
-        return map;
-      } catch {
-        return new Map();
-      }
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Query 1: Fetch all data to compute remaining quantities accurately
+  // Single canonical server-side query for partially-dispatched remaining orders (eliminates 17.6 MB 5-call waterfall!)
   const {
     data: allRemainingItems = [],
     isLoading,
@@ -234,187 +215,56 @@ export default function RemainingDispatchPage() {
     error,
     refetch,
   } = useQuery<RemainingDispatchItem[]>({
-    queryKey: ["remaining-dispatch-items"],
+    queryKey: ["remaining-dispatch-items", userDispatchCat],
     queryFn: async () => {
-      const extractArray = (res: any): any[] => {
-        if (!res) return [];
-        if (Array.isArray(res)) return res;
-        if (Array.isArray(res?.data)) return res.data;
-        if (Array.isArray(res?.data?.data)) return res.data.data;
-        if (Array.isArray(res?.data?.items)) return res.data.items;
-        if (Array.isArray(res?.items)) return res.items;
-        return [];
-      };
-
-      const [
-        workOrdersPayload,
-        readyForDispatchPayload,
-        salesOrdersPayload,
-        activeDispatchesPayload,
-      ] = await Promise.allSettled([
-        backendFetch<any>("/api/backend/production/work-orders"),
-        backendFetch<any>("/api/backend/production/ready-for-dispatch"),
-        backendFetch<any>("/api/backend/sales/orders"),
-        backendFetch<any>("/api/backend/logistics/dispatches"),
-      ]);
-
-      const workOrders: any[] =
-        workOrdersPayload.status === "fulfilled" ? extractArray(workOrdersPayload.value) : [];
-      const readyJobs: any[] =
-        readyForDispatchPayload.status === "fulfilled" ? extractArray(readyForDispatchPayload.value) : [];
-      const rawSalesOrders: any[] =
-        salesOrdersPayload.status === "fulfilled" ? extractArray(salesOrdersPayload.value) : [];
-      const rawActiveDispatches: any[] =
-        activeDispatchesPayload.status === "fulfilled" ? extractArray(activeDispatchesPayload.value) : [];
-
-      // 1. Calculate dispatched quantities per salesOrderItemId, workOrderId, and (salesOrderId+productId)
-      const dispatchedBySalesOrderItem = new Map<string, number>();
-      const dispatchedByWorkOrder = new Map<string, number>();
-      const dispatchedBySalesOrderProduct = new Map<string, number>();
-
-      rawActiveDispatches.forEach((d: any) => {
-        const st = String(d.status || "").toUpperCase();
-        if (["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED"].includes(st)) {
-          if (Array.isArray(d.items)) {
-            d.items.forEach((it: any) => {
-              const q = Number(it.quantity || 0);
-              if (it.salesOrderItemId) {
-                const k = String(it.salesOrderItemId).toLowerCase();
-                dispatchedBySalesOrderItem.set(k, (dispatchedBySalesOrderItem.get(k) || 0) + q);
-              }
-              if (it.workOrderId) {
-                const k = String(it.workOrderId).toLowerCase();
-                dispatchedByWorkOrder.set(k, (dispatchedByWorkOrder.get(k) || 0) + q);
-              }
-              if (d.salesOrderId && it.productId) {
-                const k = `${String(d.salesOrderId).toLowerCase()}_${String(it.productId).toLowerCase()}`;
-                dispatchedBySalesOrderProduct.set(k, (dispatchedBySalesOrderProduct.get(k) || 0) + q);
-              }
-            });
-          }
-        }
-      });
+      const res = await backendFetch<any>(
+        `/api/backend/logistics/dispatches/queue?category=${userDispatchCat}&onlyRemaining=true`,
+        { cacheTtlMs: 15000 }
+      );
+      const queueOrders: any[] = Array.isArray(res)
+        ? res
+        : Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.items)
+        ? res.items
+        : [];
 
       const remainingResults: RemainingDispatchItem[] = [];
-      const processedIds = new Set<string>();
-
-      // 2. Process Work Orders
-      const allJobs = [...workOrders, ...readyJobs];
-      allJobs.forEach((wo) => {
-        if (!wo || !wo.id) return;
-        const key = `wo-${wo.id}`;
-        if (processedIds.has(key)) return;
-        processedIds.add(key);
-
-        const salesOrder = wo.productionPlan?.salesOrder || wo.salesOrder;
-        const customer = salesOrder?.customer || wo.customer;
-        const address = formatAddress(salesOrder, customer);
-        const item = wo.salesOrderItem;
-
-        const totalOrdered = Number(item?.orderedQuantity || wo.quantity || 0);
-        if (totalOrdered <= 0) return;
-
-        const fromDispatchItems =
-          item?.dispatchItems?.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0) || 0;
-        const fromActiveDispatches =
-          (wo.id ? dispatchedByWorkOrder.get(String(wo.id).toLowerCase()) : 0) ||
-          (wo.salesOrderItemId ? dispatchedBySalesOrderItem.get(String(wo.salesOrderItemId).toLowerCase()) : 0) ||
-          0;
-        const alreadyDispatched = Math.max(fromDispatchItems, fromActiveDispatches);
-        const remaining = Math.max(0, totalOrdered - alreadyDispatched);
-
-        // Include partially dispatched items (ordered > alreadyDispatched > 0)
-        // Also if remaining > 0 and alreadyDispatched > 0
-        if (alreadyDispatched > 0 && remaining > 0) {
-          const soNumber =
-            salesOrder?.orderNumber ||
-            wo.salesOrderNumber ||
-            wo.workOrderNumber ||
-            "SO-REMAINING";
-          const prodName =
-            item?.productNameSnapshot ||
-            item?.product?.name ||
-            wo.productName ||
-            wo.product ||
-            "Finished Manufacturing Product";
-
-          remainingResults.push({
-            id: key,
-            itemType: "WORK_ORDER",
-            orderNumber: soNumber,
-            customerName: customer?.companyName || customer?.name || "Client",
-            deliveryAddress: address || "—",
-            productName: prodName,
-            productSku: item?.product?.sku || wo.productCode,
-            orderedQuantity: totalOrdered,
-            dispatchedQuantity: alreadyDispatched,
-            remainingQuantity: remaining,
-            unit: item?.unit || wo.unit || "Pcs",
-            workOrderId: wo.id,
-            salesOrderId: salesOrder?.id,
-            salesOrderItemId: item?.id,
-            productId: item?.productId || wo.productId,
-            workOrderNumber: wo.workOrderNumber,
-            dispatchCategory:
-              item?.product?.dispatchCategory ||
-              productsMap.get(item?.productId || "")?.dispatchCategory ||
-              "D1",
-          });
-        }
-      });
-
-      // 3. Process Sales Orders
-      rawSalesOrders.forEach((so) => {
-        if (!so || !so.id) return;
-        const items = Array.isArray(so.items) ? so.items : Array.isArray(so.orderItems) ? so.orderItems : [];
-        items.forEach((item: any, idx: number) => {
-          const key = `so-${so.id}-${item.id || idx}`;
-          if (processedIds.has(key)) return;
-          processedIds.add(key);
-
-          const totalOrdered = Number(item.orderedQuantity || item.quantity || 0);
-          if (totalOrdered <= 0) return;
-
-          const fromDispatchItems = Array.isArray(item.dispatchItems)
-            ? item.dispatchItems.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0)
-            : 0;
-          const fromActiveDispatches =
-            (item.id ? dispatchedBySalesOrderItem.get(String(item.id).toLowerCase()) : 0) ||
-            (so.id && item.productId
-              ? dispatchedBySalesOrderProduct.get(`${String(so.id).toLowerCase()}_${String(item.productId).toLowerCase()}`)
-              : 0) ||
-            0;
-          const alreadyDispatched = Math.max(fromDispatchItems, fromActiveDispatches);
-          const remaining = Math.max(0, totalOrdered - alreadyDispatched);
-
-          if (alreadyDispatched > 0 && remaining > 0) {
+      for (const order of queueOrders) {
+        const items = Array.isArray(order?.items) ? order.items : [];
+        for (const it of items) {
+          const ordered = Number(it.orderedQuantity ?? it.approvedQuantity ?? 0);
+          const dispatched = Number(it.dispatchedQuantity ?? 0);
+          const remaining = Number(it.remainingQuantity ?? Math.max(0, ordered - dispatched));
+          if (dispatched > 0 && remaining > 0) {
             remainingResults.push({
-              id: key,
-              itemType: "TRADING_SALES_ORDER",
-              orderNumber: so.orderNumber || so.orderId || "SO-REMAINING",
-              customerName: so.customerName || so.customer?.companyName || "Client",
-              deliveryAddress: formatAddress(so, so.customer),
-              productName: item.productNameSnapshot || item.productName || item.name || "Trading Product",
-              productSku: item.product?.sku || item.sku,
-              orderedQuantity: totalOrdered,
-              dispatchedQuantity: alreadyDispatched,
+              id: `${order.salesOrderId || order.id}-${it.salesOrderItemId || it.workOrderId || it.productId}`,
+              itemType: it.workOrderId ? "WORK_ORDER" : "TRADING_SALES_ORDER",
+              orderNumber: order.orderNo || order.orderId || "SO-REMAINING",
+              customerName: order.customerName || "Client",
+              deliveryAddress: order.deliveryAddress || "—",
+              productName: it.productName || "Product Item",
+              productSku: it.productCode || "",
+              orderedQuantity: ordered,
+              dispatchedQuantity: dispatched,
               remainingQuantity: remaining,
-              unit: item.unit || "Pcs",
-              salesOrderId: so.id,
-              salesOrderItemId: item.id,
-              productId: item.productId,
-              dispatchCategory:
-                item.product?.dispatchCategory ||
-                productsMap.get(item.productId || "")?.dispatchCategory ||
-                "D1",
+              unit: it.unit || "PCS",
+              workOrderId: it.workOrderId || undefined,
+              salesOrderId: order.salesOrderId || undefined,
+              salesOrderItemId: it.salesOrderItemId || undefined,
+              productId: it.productId || undefined,
+              workOrderNumber: it.workOrderNumber || order.workOrderNumber || undefined,
+              dispatchCategory: it.dispatchCategory || order.dispatchCategory || userDispatchCat,
             });
           }
-        });
-      });
-
+        }
+      }
       return remainingResults;
     },
-    refetchInterval: 15000,
+    staleTime: 15000,
+    refetchInterval: 60000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
   });
 
   // Filter by category and search term
