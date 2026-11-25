@@ -1092,15 +1092,6 @@ export default function HRPortal() {
       </div>
     );
   };
-              <p style={{ fontSize: '12.5px', color: '#5E6B82', textAlign: 'center', marginTop: '24px' }}>
-                Select an alert from the notification list to inspect employee's corporate details and initiate follow-up actions.
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   const renderActiveView = () => {
     switch (view) {
