@@ -45,9 +45,10 @@ export const createMockPrismaService = () => ({
     deleteMany: jest.fn(),
   },
   refreshSession: {
-    findMany: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
+    findMany: jest.fn().mockResolvedValue([]),
+    create: jest.fn().mockResolvedValue({}),
+    update: jest.fn().mockResolvedValue({}),
+    updateMany: jest.fn().mockResolvedValue({ count: 0 }),
   },
   elevationSession: {
     findUnique: jest.fn(),

@@ -30,6 +30,7 @@ export class SessionSecurityService {
   private readonly logger = new Logger(SessionSecurityService.name);
 
   private readonly revokedSessionIds = new Map<string, number>();
+  private readonly sessionRevokeReasons = new Map<string, string>();
   private readonly userRevokedBefore = new Map<string, number>();
   private readonly sessionLastActive = new Map<string, number>();
   private readonly activeUserCache = new Map<
@@ -64,6 +65,7 @@ export class SessionSecurityService {
       for (const [sid, ts] of this.revokedSessionIds.entries()) {
         if (now - ts > REVOKED_ENTRY_MAX_AGE_MS) {
           this.revokedSessionIds.delete(sid);
+          this.sessionRevokeReasons.delete(sid);
         }
       }
     }
@@ -93,12 +95,22 @@ export class SessionSecurityService {
     this.sessionLastActive.set(sessionId, Date.now());
   }
 
-  markSessionRevoked(sessionId?: string | null): void {
+  markSessionRevoked(
+    sessionId?: string | null,
+    reason?: string,
+    userId?: string,
+  ): void {
     if (!sessionId) return;
     const now = Date.now();
     this.revokedSessionIds.set(sessionId, now);
+    if (reason) {
+      this.sessionRevokeReasons.set(sessionId, reason);
+    }
     this.sessionDbCache.set(sessionId, { revoked: true, checkedAt: now });
     this.sessionLastActive.delete(sessionId);
+    if (reason) {
+      this.emitForceLogout({ sessionId, userId, reason });
+    }
     this.pruneStaleEntries(now);
   }
 
@@ -126,9 +138,12 @@ export class SessionSecurityService {
 
     // 1. Instant in-memory session kill check (O(1))
     if (sessionId && this.revokedSessionIds.has(sessionId)) {
+      const reason =
+        this.sessionRevokeReasons.get(sessionId) ||
+        'Your session was terminated. Please sign in again.';
       throw new UnauthorizedException({
         code: 'SESSION_REVOKED',
-        message: 'Your session was terminated by an administrator. Please sign in again.',
+        message: reason,
       });
     }
 

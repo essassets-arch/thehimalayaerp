@@ -77,10 +77,12 @@ async function performBackendFetch<T = unknown>(
   // If 401 — check whether the session was explicitly revoked before attempting silent refresh
   if (res.status === 401) {
     let forceRevoked = false;
+    let revokedMsg = '';
     try {
       const cloned = res.clone();
       const bodyJson = await cloned.json();
       const errCode = bodyJson?.error?.code || bodyJson?.code || '';
+      revokedMsg = bodyJson?.error?.message || bodyJson?.message || '';
       if (errCode === 'SESSION_REVOKED' || errCode === 'ACCOUNT_DISABLED') {
         forceRevoked = true;
       }
@@ -93,7 +95,10 @@ async function performBackendFetch<T = unknown>(
       pendingReads.clear();
       useAuthStore.getState().logout?.();
       if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-        window.location.href = '/login?reason=session_revoked';
+        const query = revokedMsg
+          ? `/login?reason=session_revoked&msg=${encodeURIComponent(revokedMsg)}`
+          : '/login?reason=session_revoked';
+        window.location.href = query;
       }
     } else {
       const refreshed = await tryRefreshToken();

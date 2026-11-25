@@ -190,6 +190,37 @@ export class AuthService {
       user.role.code,
     );
 
+    // Enforce single active session per user credential (disallow multiple simultaneous logins)
+    try {
+      const priorSessions = await this.prisma.refreshSession.findMany({
+        where: {
+          userId: user.id,
+          revokedAt: null,
+        },
+        select: { id: true },
+      });
+
+      if (priorSessions && priorSessions.length > 0) {
+        const revokeTime = new Date();
+        const priorIds = priorSessions.map((s) => s.id);
+
+        await this.prisma.refreshSession.updateMany({
+          where: { id: { in: priorIds } },
+          data: { revokedAt: revokeTime },
+        });
+
+        for (const s of priorSessions) {
+          this.sessionSecurity?.markSessionRevoked(
+            s.id,
+            'Your account was signed in on another device. Multiple logins are not permitted.',
+            user.id,
+          );
+        }
+      }
+    } catch (sessionErr: any) {
+      // Non-fatal fallback to ensure user can still log in if session cleanup fails
+    }
+
     const sessionId = randomUUID();
     const tokens = await this.getTokens(
       user.id,
