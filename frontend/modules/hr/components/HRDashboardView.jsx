@@ -279,13 +279,13 @@ export default function HRDashboardView({
       const late = Number(s.lateCount ?? s.late ?? 0);
       const abs = Number(s.absentCount ?? s.absent ?? 0);
       const wfh = Number(s.wfhCount ?? s.halfDayCount ?? s.wfh ?? 0);
-      const rate = totalStaffCount > 0 
-        ? ((pres / Math.max(1, totalStaffCount)) * 100).toFixed(1) 
+      const rate = activeStaffCount > 0 
+        ? ((pres / Math.max(1, activeStaffCount)) * 100).toFixed(1) 
         : (s.attendancePercentage !== undefined ? Number(s.attendancePercentage).toFixed(1) : (pres > 0 ? '100.0' : '0.0'));
       return { presentCount: pres, lateCount: late, absentCount: abs, attendanceRate: rate, wfhCount: wfh };
     }
     return { presentCount: 0, lateCount: 0, absentCount: 0, attendanceRate: '0.0', wfhCount: 0 };
-  }, [dashboardMetrics, liveData.attendanceSummary, totalStaffCount]);
+  }, [dashboardMetrics, liveData.attendanceSummary, activeStaffCount]);
 
   // Pending Leaves count
   const pendingLeavesList = useMemo(() => {
@@ -391,8 +391,13 @@ export default function HRDashboardView({
     }
     if (allEmployees.length === 0) return [];
     
+    const activeStaff = allEmployees.filter(e => {
+      const st = String(e.status || e.employmentStatus || '').toUpperCase();
+      return e.isActive !== false && e.active !== false && st !== 'INACTIVE' && st !== 'TERMINATED' && st !== 'RESIGNED' && st !== 'RETIRED';
+    });
+
     const deptCountMap = {};
-    allEmployees.forEach(emp => {
+    activeStaff.forEach(emp => {
       const rawDept = typeof emp.department === 'object' ? (emp.department?.name || 'Operations') : (emp.department || 'Operations');
       let deptName = (rawDept || 'Operations').trim() || 'General';
       const lower = deptName.toLowerCase();
@@ -408,7 +413,7 @@ export default function HRDashboardView({
       deptCountMap[deptName] = (deptCountMap[deptName] || 0) + 1;
     });
 
-    const total = Math.max(1, allEmployees.length);
+    const total = Math.max(1, activeStaff.length);
     return Object.entries(deptCountMap)
       .sort((a, b) => b[1] - a[1])
       .map(([name, count], idx) => ({
@@ -1271,13 +1276,13 @@ export default function HRDashboardView({
               <div style={{ background: 'rgba(14, 165, 233, 0.06)', padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(14, 165, 233, 0.15)' }}>
                 <span style={{ color: '#64748b', display: 'block' }}>Slips Generated</span>
                 <strong style={{ fontSize: '14px', color: '#0ea5e9' }}>
-                  {slipsGeneratedCount} / {totalStaffCount}
+                  {slipsGeneratedCount} / {activeStaffCount}
                 </strong>
               </div>
               <div style={{ background: 'rgba(16, 185, 129, 0.06)', padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
                 <span style={{ color: '#64748b', display: 'block' }}>Salaries Disbursed</span>
                 <strong style={{ fontSize: '14px', color: '#10b981' }}>
-                  {salariesDisbursedCount} / {totalStaffCount}
+                  {salariesDisbursedCount} / {activeStaffCount}
                 </strong>
               </div>
             </div>

@@ -1273,9 +1273,10 @@ export class EmployeesService {
       );
     });
 
-    // Department workforce distribution
+    // Department workforce distribution (Strictly Active Staff)
+    const activeEmployees = employees.filter((e) => activeStatuses.includes(e.status));
     const deptMap: Record<string, number> = {};
-    employees.forEach((emp) => {
+    activeEmployees.forEach((emp) => {
       let dName = (emp.department?.name || 'Unassigned').trim();
       const lower = dName.toLowerCase();
       if (lower === 'sales' || lower === 'sales department') dName = 'Sales Department';
@@ -1298,7 +1299,7 @@ export class EmployeesService {
       .map(([name, count], idx) => ({
         name,
         count,
-        percentage: totalStaff > 0 ? Number(((count / totalStaff) * 100).toFixed(1)) : 0,
+        percentage: activeStaff > 0 ? Number(((count / activeStaff) * 100).toFixed(1)) : 0,
         color: DEPT_COLORS[idx % DEPT_COLORS.length],
       }));
 
@@ -1321,17 +1322,26 @@ export class EmployeesService {
     const presentStatuses = ['PRESENT', 'PUNCHED_IN', 'HALF_DAY'];
     const presentToday = todayAttendance.filter((a) => presentStatuses.includes(a.status)).length;
     const lateToday = todayAttendance.filter((a) => a.lateMinutes > 0).length;
-    const absentToday = todayAttendance.filter((a) => a.status === 'ABSENT').length;
     const onLeaveToday = todayAttendance.filter((a) => a.status === 'PAID_LEAVE' || a.status === 'UNPAID_LEAVE').length;
     const halfDayToday = todayAttendance.filter((a) => a.status === 'HALF_DAY').length;
     const overtimeToday = todayAttendance.filter((a) => a.overtimeMinutes > 0).length;
-    const attendanceRate = totalStaff > 0 ? Number(((presentToday / totalStaff) * 100).toFixed(1)) : 0;
 
-    // Previous days missing checkouts
+    // Active staff not checked in or on leave are counted as absent
+    const recordedAbsent = todayAttendance.filter((a) => a.status === 'ABSENT').length;
+    const absentToday = Math.max(recordedAbsent, Math.max(0, activeStaff - presentToday - onLeaveToday));
+
+    // Attendance rate strictly against active staff
+    const attendanceRate = activeStaff > 0 ? Number(((presentToday / activeStaff) * 100).toFixed(1)) : 0;
+
+    // Previous days missing checkouts strictly within current month
+    const monthStart = new Date(Date.UTC(yearNum, monthNum - 1, 1, 0, 0, 0));
     const missingCheckouts = await this.prisma.attendance.count({
       where: {
         companyId: compId,
-        attendanceDate: { lt: todayStart },
+        attendanceDate: {
+          gte: monthStart,
+          lt: todayStart,
+        },
         punchInAt: { not: null },
         punchOutAt: null,
       },
@@ -1455,7 +1465,7 @@ export class EmployeesService {
       }
       netPayableTotal = grossTotal;
     }
-    const payrollReadyPercentage = totalStaff > 0 ? Math.min(100, Math.round((slipsGeneratedCount / totalStaff) * 100)) : 0;
+    const payrollReadyPercentage = activeStaff > 0 ? Math.min(100, Math.round((slipsGeneratedCount / activeStaff) * 100)) : 0;
 
     // Real 6-Month historical outlay trend
     const recent6Months: Array<{ month: number; year: number; label: string; fullLabel: string }> = [];
