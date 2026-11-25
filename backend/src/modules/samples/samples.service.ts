@@ -315,9 +315,7 @@ export class SamplesService {
       andClauses.push(scope);
     }
     if (companyId) {
-      andClauses.push({
-        OR: [{ companyId }, { companyId: null }],
-      });
+      andClauses.push({ companyId });
     }
     const samples = await this.prisma.sampleRequest.findMany({
       where: { AND: andClauses },

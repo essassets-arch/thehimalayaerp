@@ -238,7 +238,7 @@ export class CustomersService {
       : [];
 
     const andConditions: Prisma.CustomerWhereInput[] = [
-      ...(companyId ? [{ OR: [{ companyId }, { companyId: null }] }] : []),
+      ...(companyId ? [{ companyId }] : []),
       { deletedAt: null },
     ];
 
