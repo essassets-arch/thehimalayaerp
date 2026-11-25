@@ -11,7 +11,10 @@ export function useQuotations(showToast, autoLoad = true) {
   const loadQuotations = useCallback(async () => {
     try {
       const result = await backendFetch('/api/backend/crm/quotations?includeDeleted=true');
-      setQuotations((Array.isArray(result) ? result : result?.data || []).map(normalizeQuotation));
+      const rawList = Array.isArray(result)
+        ? result
+        : (Array.isArray(result?.items) ? result.items : (Array.isArray(result?.data) ? result.data : []));
+      setQuotations(rawList.map(normalizeQuotation).filter(Boolean));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       Swal.fire({ icon: 'error', title: 'Unable to Load Quotations', text: message });

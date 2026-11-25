@@ -79,6 +79,14 @@ export function getQuotationSalesScope(
       { lead: { salesExecutiveId: userId } },
       { lead: { createdById: userId } },
       { lead: { assignedToId: userId } },
+      { salesOrder: { salesExecutiveId: userId } },
+      { salesOrder: { createdById: userId } },
+      { sourceSalesOrders: { some: { salesExecutiveId: userId } } },
+      { sourceSalesOrders: { some: { createdById: userId } } },
+      { parentQuotation: { salesExecutiveId: userId } },
+      { parentQuotation: { createdById: userId } },
+      { childQuotations: { some: { salesExecutiveId: userId } } },
+      { childQuotations: { some: { createdById: userId } } },
     ],
   };
 }

@@ -81,25 +81,40 @@ export class QuotationsService {
   ) {
     const scope = getQuotationSalesScope(userId, role);
     const pagination = parsePaginationParams(paginationQuery, 50, 100);
-    const where: any = {
-      ...scope,
-      ...(includeDeleted ? {} : { deletedAt: null }),
-      ...(companyId ? { companyId } : {}),
-      ...(search
-        ? {
-            OR: [
-              { quotationNumber: { contains: search, mode: 'insensitive' } },
-              { lead: { companyName: { contains: search, mode: 'insensitive' } } },
-            ],
-          }
-        : {}),
-    };
+
+    const andClauses: any[] = [];
+    if (scope && Object.keys(scope).length > 0) {
+      andClauses.push(scope);
+    }
+    if (!includeDeleted) {
+      andClauses.push({ deletedAt: null });
+    }
+    if (companyId) {
+      andClauses.push({
+        OR: [{ companyId }, { companyId: null }],
+      });
+    }
+    if (search && search.trim()) {
+      const q = search.trim();
+      andClauses.push({
+        OR: [
+          { quotationNumber: { contains: q, mode: 'insensitive' } },
+          { lead: { companyName: { contains: q, mode: 'insensitive' } } },
+          { lead: { projectName: { contains: q, mode: 'insensitive' } } },
+          { siteInchargeName: { contains: q, mode: 'insensitive' } },
+          { remarks: { contains: q, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    const where: any = andClauses.length > 0 ? { AND: andClauses } : {};
 
     const [quotations, total] = await Promise.all([
       this.prisma.quotation.findMany({
         where,
-        skip: pagination.skip,
-        take: pagination.take,
+        ...(pagination.hasExplicitPagination
+          ? { skip: pagination.skip, take: pagination.take }
+          : {}),
         include: {
           workflowState: { select: { id: true, code: true, name: true } },
           salesExecutive: SALES_EXECUTIVE_SELECT,
@@ -280,13 +295,21 @@ export class QuotationsService {
     includeDeleted: boolean = false,
   ) {
     const scope = getQuotationSalesScope(userId, role);
+    const andClauses: any[] = [{ id }];
+    if (scope && Object.keys(scope).length > 0) {
+      andClauses.push(scope);
+    }
+    if (!includeDeleted) {
+      andClauses.push({ deletedAt: null });
+    }
+    if (companyId) {
+      andClauses.push({
+        OR: [{ companyId }, { companyId: null }],
+      });
+    }
+
     const quotation = await this.prisma.quotation.findFirst({
-      where: {
-        id,
-        ...scope,
-        ...(includeDeleted ? {} : { deletedAt: null }),
-        ...(companyId ? { companyId } : {}),
-      },
+      where: { AND: andClauses },
       include: {
         workflowState: true,
         salesExecutive: SALES_EXECUTIVE_SELECT,
@@ -920,13 +943,18 @@ export class QuotationsService {
   ) {
     return this.prisma.$transaction(async (tx) => {
       const scope = getSalesScope(userId, role, 'Quotation');
+      const andClauses: any[] = [{ id }, { deletedAt: null }];
+      if (scope && Object.keys(scope).length > 0) {
+        andClauses.push(scope);
+      }
+      if (companyId) {
+        andClauses.push({
+          OR: [{ companyId }, { companyId: null }],
+        });
+      }
+
       const quotation = await tx.quotation.findFirst({
-        where: {
-          id,
-          ...scope,
-          deletedAt: null,
-          ...(companyId ? { companyId } : {}),
-        },
+        where: { AND: andClauses },
         include: { workflowState: true },
       });
       if (!quotation) throw new NotFoundException('Quotation not found');

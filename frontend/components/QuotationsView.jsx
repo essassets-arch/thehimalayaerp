@@ -692,7 +692,9 @@ export default function QuotationsView({
   const restoreQuoteFn = onRestoreQuotation || salesBackend?.restoreQuotation;
 
   const isQuotationDeleted = (q) =>
-    Boolean(q?.deletedAt) || q?.status === 'Deleted' || q?.status === 'DELETED' || (typeof q?.remarks === 'string' && q.remarks.toLowerCase().includes('deleted'));
+    Boolean(q?.deletedAt) ||
+    String(q?.status || '').toUpperCase() === 'DELETED' ||
+    String(q?.workflowState?.code || '').toUpperCase() === 'DELETED';
 
   const handleDeleteQuotationClick = (q) => {
     const qNum = resolveQuotationNumber(q).replace(/^#/, '');
@@ -883,6 +885,9 @@ export default function QuotationsView({
     const searchString = typeof search === 'string' ? search.toLowerCase() : '';
     const matchesSearch = !searchString ||
       custName.toLowerCase().includes(searchString) ||
+      (q.groupName && String(q.groupName).toLowerCase().includes(searchString)) ||
+      (q.siteInchargeName && String(q.siteInchargeName).toLowerCase().includes(searchString)) ||
+      (q.remarks && String(q.remarks).toLowerCase().includes(searchString)) ||
       qItems.toLowerCase().includes(searchString) ||
       qNum.toLowerCase().includes(searchString) ||
       String(q.id || '').toLowerCase().includes(searchString);
