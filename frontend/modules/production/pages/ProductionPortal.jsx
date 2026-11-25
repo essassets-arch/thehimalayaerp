@@ -1923,8 +1923,7 @@ export default function ProductionPortal() {
 
     const rejectedQty = workOrders
       .filter(wo => [STATUS.QC_FAILED, STATUS.REWORK, 'QC Failed', 'Rework', 'QC_FAILED'].includes(wo.status))
-      .reduce((sum, wo) => sum + (Number(wo.rejectedQty || wo.reworkQty || wo.quantity || 0)), 0) +
-      mockReworkItems.reduce((sum, rw) => sum + (rw.reworkQty || 0), 0);
+      .reduce((sum, wo) => sum + (Number(wo.rejectedQty || wo.reworkQty || wo.quantity || 0)), 0);
 
     const finishedGoods = workOrders
       .filter(wo => wo.status === 'QC Passed')

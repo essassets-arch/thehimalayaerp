@@ -103,8 +103,8 @@ export class ProductionWorkflowController {
     'production.view',
     'production.read',
   )
-  async getDashboard(@Query() query: any) {
-    return this.workflowService.getGlobalSummaryReport(query);
+  async getDashboard(@Query() query: any, @Req() req: any) {
+    return this.workflowService.getGlobalSummaryReport(query, req?.user?.companyId);
   }
 
   @Get('production-workflow/dashboard')
@@ -119,8 +119,8 @@ export class ProductionWorkflowController {
     'production.view',
     'production.read',
   )
-  async getDashboardWorkflowAlias(@Query() query: any) {
-    return this.workflowService.getGlobalSummaryReport(query);
+  async getDashboardWorkflowAlias(@Query() query: any, @Req() req: any) {
+    return this.workflowService.getGlobalSummaryReport(query, req?.user?.companyId);
   }
 
   @RequirePermissions('production.productionworkflow.read')

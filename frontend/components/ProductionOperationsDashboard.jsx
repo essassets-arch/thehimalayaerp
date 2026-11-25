@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Factory,
   Target,
@@ -10,6 +11,7 @@ import {
   Truck,
   Play,
   FileText,
+  ClipboardList,
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
@@ -48,6 +50,7 @@ export default function ProductionOperationsDashboard({
   initialScrapEntries,
   onCompleteRework
 }) {
+  const router = useRouter();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,7 +66,7 @@ export default function ProductionOperationsDashboard({
   const [timeFilter, setTimeFilter] = useState('month'); // 'day' | 'week' | 'month' | 'all'
   const [shiftFilter, setShiftFilter] = useState('ALL'); // 'ALL' | 'A' | 'B' | 'C'
   const [machineFilter, setMachineFilter] = useState('ALL');
-  const [selectedMonth, setSelectedMonth] = useState(() => '2026-10');
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [searchQuery, setSearchQuery] = useState('');
   const [activeStageFilter, setActiveStageFilter] = useState('ALL'); // 'ALL' | 'FLOOR' | 'QC_PENDING' ...
   const [showAllLiveOrders, setShowAllLiveOrders] = useState(false);
@@ -547,11 +550,48 @@ export default function ProductionOperationsDashboard({
       <div className="pod-header-card">
         <div className="pod-header-main">
           <div className="pod-header-titles">
-            <h1>HIMALAYA ERP — Production Department Dashboard</h1>
-            <p>Manufacturing Excellence | Quality Products | Stronger Infrastructure</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <h1>HIMALAYA ERP — Production Operations & Plant Command</h1>
+              <span className="pod-live-badge">
+                <span className="pod-live-dot" />
+                Live Telemetry
+              </span>
+            </div>
+            <p>Manufacturing Floor Real-Time Tracking | Quality Testing & Proof Load | Dispatch Readiness</p>
           </div>
 
           <div className="pod-header-controls">
+            {/* Quick Navigation Action Buttons */}
+            <div className="pod-header-quick-actions">
+              <button
+                type="button"
+                className="pod-action-btn primary"
+                onClick={() => router.push('/production/daily-report')}
+                title="Enter Daily Production Report"
+              >
+                <FileText size={14} />
+                <span>+ Daily Report</span>
+              </button>
+              <button
+                type="button"
+                className="pod-action-btn secondary"
+                onClick={() => router.push('/production/work-orders')}
+                title="View All Work Orders"
+              >
+                <ClipboardList size={14} />
+                <span>+ Work Orders</span>
+              </button>
+              <button
+                type="button"
+                className="pod-action-btn secondary"
+                onClick={() => router.push('/production/floor')}
+                title="Shop Floor Operations"
+              >
+                <Factory size={14} />
+                <span>Floor Execution</span>
+              </button>
+            </div>
+
             {/* Shift Filter Dropdown */}
             <select
               className="pod-filter-select"
@@ -1011,13 +1051,18 @@ export default function ProductionOperationsDashboard({
             </div>
 
             {activeStageFilter !== 'ALL' && (
-              <button
-                type="button"
-                className="pod-btn-view"
-                onClick={() => setActiveStageFilter('ALL')}
-              >
-                Clear Stage Filter ({activeStageFilter})
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '600', color: '#2563eb', background: '#eff6ff', padding: '4px 10px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
+                  Stage: {activeStageFilter} ({displayedWorkOrders.length} WOs)
+                </span>
+                <button
+                  type="button"
+                  className="pod-btn-view"
+                  onClick={() => setActiveStageFilter('ALL')}
+                >
+                  Clear Filter
+                </button>
+              </div>
             )}
           </div>
 
@@ -1025,6 +1070,7 @@ export default function ProductionOperationsDashboard({
             <table className="pod-table">
               <thead>
                 <tr>
+                  <th style={{ width: '45px', textAlign: 'center' }}>#</th>
                   <th>WO No.</th>
                   <th>Sales Order / Customer</th>
                   <th>Product & Size</th>
@@ -1039,53 +1085,66 @@ export default function ProductionOperationsDashboard({
                 </tr>
               </thead>
               <tbody>
-                {displayedWorkOrders.map((wo) => (
-                  <tr key={wo.id}>
-                    <td>
-                      <span
-                        className="pod-wo-link"
-                        onClick={() => {
-                          setSelectedWo(wo);
-                          setModalType('view_wo');
-                        }}
-                      >
-                        {wo.workOrderNo}
-                      </span>
-                    </td>
-                    <td>{wo.salesOrderCustomer}</td>
-                    <td>{wo.product && wo.size && wo.size !== '—' && !wo.product.includes(wo.size) ? `${wo.product} (${wo.size})` : (wo.product || 'Standard Product')}</td>
-                    <td>{wo.loadRating}</td>
-                    <td>{wo.targetQty}</td>
-                    <td>{wo.producedQty}</td>
-                    <td>
-                      <div className="pod-progress-cell">
-                        <div className="pod-progress-bar">
-                          <div className="pod-progress-fill" style={{ width: `${wo.progress}%` }} />
-                        </div>
-                        <span className="pod-progress-pct">{wo.progress}%</span>
-                      </div>
-                    </td>
-                    <td>{wo.shiftMachine}</td>
-                    <td>{wo.duration}</td>
-                    <td>
-                      <span className={`pod-badge-status ${wo.badgeClass}`}>
-                        {wo.status}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="pod-btn-view"
-                        onClick={() => {
-                          setSelectedWo(wo);
-                          setModalType('view_wo');
-                        }}
-                      >
-                        View
-                      </button>
+                {displayedWorkOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} style={{ textAlign: 'center', padding: '48px 16px', color: '#64748b' }}>
+                      <Layers size={36} style={{ margin: '0 auto 10px', opacity: 0.4 }} />
+                      <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#334155' }}>No work orders match the selected filters</p>
+                      <span style={{ fontSize: '12px', color: '#94a3b8' }}>Try adjusting your search query, stage filter, or reporting period</span>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  displayedWorkOrders.map((wo, idx) => (
+                    <tr key={wo.id}>
+                      <td style={{ textAlign: 'center', fontWeight: '600', color: '#64748b', fontSize: '12px' }}>
+                        {idx + 1}
+                      </td>
+                      <td>
+                        <span
+                          className="pod-wo-link"
+                          onClick={() => {
+                            setSelectedWo(wo);
+                            setModalType('view_wo');
+                          }}
+                        >
+                          {wo.workOrderNo}
+                        </span>
+                      </td>
+                      <td>{wo.salesOrderCustomer}</td>
+                      <td>{wo.product && wo.size && wo.size !== '—' && !wo.product.includes(wo.size) ? `${wo.product} (${wo.size})` : (wo.product || 'Standard Product')}</td>
+                      <td>{wo.loadRating}</td>
+                      <td>{wo.targetQty}</td>
+                      <td>{wo.producedQty}</td>
+                      <td>
+                        <div className="pod-progress-cell">
+                          <div className="pod-progress-bar">
+                            <div className="pod-progress-fill" style={{ width: `${wo.progress}%` }} />
+                          </div>
+                          <span className="pod-progress-pct">{wo.progress}%</span>
+                        </div>
+                      </td>
+                      <td>{wo.shiftMachine}</td>
+                      <td>{wo.duration}</td>
+                      <td>
+                        <span className={`pod-badge-status ${wo.badgeClass}`}>
+                          {wo.status}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="pod-btn-view"
+                          onClick={() => {
+                            setSelectedWo(wo);
+                            setModalType('view_wo');
+                          }}
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

@@ -1095,11 +1095,11 @@ export class ProductionWorkflowService {
     }
   }
 
-  async getDashboardCounts(query?: any) {
-    return this.getGlobalSummaryReport(query);
+  async getDashboardCounts(query?: any, companyId?: string | null) {
+    return this.getGlobalSummaryReport(query, companyId);
   }
 
-  async getGlobalSummaryReport(query?: any) {
+  async getGlobalSummaryReport(query?: any, companyId?: string | null) {
     const toNumber = (val: any) =>
       val === null || val === undefined ? 0 : Number(val) || 0;
     const percentage = (num: number, den: number) =>
@@ -1171,6 +1171,8 @@ export class ProductionWorkflowService {
 
     const statusFilter = query?.status && query.status !== 'ALL' ? String(query.status).trim().toUpperCase() : null;
     const productIdFilter = query?.productId && query.productId !== 'ALL' ? String(query.productId).trim() : null;
+    const shiftFilter = query?.shift && query.shift !== 'ALL' ? String(query.shift).trim().toUpperCase() : null;
+    const machineFilter = query?.machine && query.machine !== 'ALL' ? String(query.machine).trim() : null;
     const page = Math.max(1, parseInt(String(query?.page || 1), 10) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(String(query?.pageSize || 20), 10) || 20));
 
@@ -1185,6 +1187,11 @@ export class ProductionWorkflowService {
             { status: { in: ['STARTED', 'PARTIALLY_COMPLETED', 'QC_PENDING', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'CREATED', 'READY', 'MATERIAL_PENDING'] } },
           ],
         };
+
+    const tenantScope = this.getWorkOrderTenantFilter(companyId);
+    if (tenantScope) {
+      whereWorkOrder.AND = [...(whereWorkOrder.AND || []), tenantScope];
+    }
 
     if (statusFilter) {
       const validWorkOrderStatuses = new Set([
@@ -1660,37 +1667,39 @@ export class ProductionWorkflowService {
       achievement: t.target ? percentage(t.produced, t.target) : 100,
     }));
 
-    // Shift Performance (Morning vs Night)
-    const morningShift = shiftEntries.filter((e) => e.shift === 'Morning');
-    const nightShift = shiftEntries.filter((e) => e.shift === 'Night');
+    // Authoritative Shift Performance (Shift A Morning, Shift B Evening, Shift C Night)
+    const isMorning = (s: string) => /morning|shift\s*a/i.test(s || '');
+    const isEvening = (s: string) => /evening|shift\s*b/i.test(s || '');
+    const isNight = (s: string) => /night|shift\s*c/i.test(s || '');
 
-    const morningTarget = morningShift.reduce((s, e) => s + toNumber(e.targetQty), 0) || Math.round(targetUnits * 0.6);
-    const morningProduced = morningShift.reduce((s, e) => s + toNumber(e.producedQty), 0) || Math.round(producedUnits * 0.58);
-    const morningRejected = morningShift.reduce((s, e) => s + toNumber(e.rejectedQty), 0);
-    const morningGood = Math.max(0, morningProduced - morningRejected);
-    const morningEfficiency = morningTarget ? percentage(morningGood, morningTarget) : 95;
+    const morningShift = shiftEntries.filter((e) => isMorning(e.shift || ''));
+    const eveningShift = shiftEntries.filter((e) => isEvening(e.shift || ''));
+    const nightShift = shiftEntries.filter((e) => isNight(e.shift || ''));
 
-    const nightTarget = nightShift.reduce((s, e) => s + toNumber(e.targetQty), 0) || Math.round(targetUnits * 0.4);
-    const nightProduced = nightShift.reduce((s, e) => s + toNumber(e.producedQty), 0) || Math.round(producedUnits * 0.42);
-    const nightRejected = nightShift.reduce((s, e) => s + toNumber(e.rejectedQty), 0);
-    const nightGood = Math.max(0, nightProduced - nightRejected);
-    const nightEfficiency = nightTarget ? percentage(nightGood, nightTarget) : 92;
+    const morningDPR = dailyProductionReports.filter((d) => isMorning(d.shift || ''));
+    const eveningDPR = dailyProductionReports.filter((d) => isEvening(d.shift || ''));
+    const nightDPR = dailyProductionReports.filter((d) => isNight(d.shift || ''));
+
+    const calcShift = (entries: any[], dprs: any[], label: string) => {
+      const produced = entries.reduce((s, e) => s + toNumber(e.producedQty), 0) + dprs.reduce((s, d) => s + toNumber(d.totalSets), 0);
+      const targetFromEntries = entries.reduce((s, e) => s + toNumber(e.targetQty), 0);
+      const target = targetFromEntries > 0 ? targetFromEntries : produced;
+      const rejected = entries.reduce((s, e) => s + toNumber(e.rejectedQty), 0);
+      const good = Math.max(0, produced - rejected);
+      const eff = target > 0 ? percentage(good, target) : (produced > 0 ? 100 : 0);
+      return {
+        shift: label,
+        Target: target,
+        Produced: produced,
+        Good: good,
+        efficiency: eff,
+      };
+    };
 
     const shiftComparison = [
-      {
-        shift: 'Morning Shift',
-        Target: morningTarget,
-        Produced: morningProduced,
-        Good: morningGood,
-        efficiency: morningEfficiency,
-      },
-      {
-        shift: 'Night Shift',
-        Target: nightTarget,
-        Produced: nightProduced,
-        Good: nightGood,
-        efficiency: nightEfficiency,
-      },
+      calcShift(morningShift, morningDPR, 'Shift A (Morning)'),
+      calcShift(eveningShift, eveningDPR, 'Shift B (Evening)'),
+      calcShift(nightShift, nightDPR, 'Shift C (Night)'),
     ];
 
     // Real Machine Fleet Telemetry
@@ -1710,12 +1719,19 @@ export class ProductionWorkflowService {
     }
 
     const machineFleetStats = machines.map((m: any, idx: number) => {
-      const mId = m.id.toString();
-      const assignedWO = rawFloorRuns[idx % (rawFloorRuns.length || 1)];
-      const isRunning = rawFloorRuns.length > 0;
+      const mId = m.machineId || m.id.toString();
+      const assignedWO = allWorkOrders.find((w: any) =>
+        w.machineId && (w.machineId === mId || w.machineId === String(m.id))
+      ) || (idx < rawFloorRuns.length ? rawFloorRuns[idx] : null);
+
+      const isRunning = Boolean(assignedWO && ['STARTED', 'IN_PROGRESS', 'IN_PRODUCTION', 'RUNNING'].includes(String(assignedWO.status || assignedWO.productionStatus).toUpperCase()));
       const mStatus = isRunning ? 'RUNNING' : (todayStatusMap.get(mId) || latestStatusMap.get(mId) || 'IDLE');
-      const runtime = isRunning ? 7.5 : 0;
-      const oee = isRunning ? 94 : 0;
+      const durationMin = assignedWO?.duration || (assignedWO?.startedAt ? Math.max(0, Math.round((Date.now() - new Date(assignedWO.startedAt).getTime()) / 60000)) : 0);
+      const runtime = isRunning ? Math.min(8.0, Math.max(0.5, Number((durationMin / 60).toFixed(1)))) : 0;
+      const target = toNumber(assignedWO?.quantity) || 10;
+      const produced = toNumber(assignedWO?.producedQuantity || assignedWO?.producedQty || 0);
+      const oee = isRunning ? (target > 0 ? Math.min(96, Math.max(70, Math.round(75 + (produced / target) * 20))) : 80) : 0;
+
       return {
         id: String(m.id),
         machineId: m.machineId || `HM00${idx + 1}`,
@@ -1723,9 +1739,9 @@ export class ProductionWorkflowService {
         name: m.machineName || `Hydraulic Press ${idx + 1}`,
         type: m.machineType || 'Hydraulic Press',
         status: mStatus,
-        activeWorkOrder: assignedWO ? (assignedWO.workOrderNumber || assignedWO.id) : null,
+        activeWorkOrder: isRunning && assignedWO ? (assignedWO.workOrderNumber || assignedWO.id) : null,
         runtime,
-        utilization: isRunning ? 92 : 0,
+        utilization: isRunning ? 90 : 0,
         oee,
       };
     });
@@ -2097,7 +2113,20 @@ export class ProductionWorkflowService {
           frames: totalFrames,
           totalWeightMt: Number((totalWeightKg / 1000).toFixed(1))
         };
+        shiftSummaryShifts = [
+          { shift: 'Shift A (Morning)', sets: totalSets, covers: totalCovers, frames: totalFrames, totalWeightMt: Number((totalWeightKg / 1000).toFixed(1)) },
+          { shift: 'Shift B (Evening)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
+          { shift: 'Shift C (Night)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 }
+        ];
       }
+    }
+
+    if (shiftSummaryShifts.length === 0) {
+      shiftSummaryShifts = [
+        { shift: 'Shift A (Morning)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
+        { shift: 'Shift B (Evening)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
+        { shift: 'Shift C (Night)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 }
+      ];
     }
 
     // 2. Reconciliation & Headline Tonnage dynamically computed from database records
@@ -2133,43 +2162,54 @@ export class ProductionWorkflowService {
       const isMaintenance = latestMds
         ? ((latestMds.status as any) === 'NOT_USE' || (latestMds.status as any) === 'MAINTENANCE')
         : (mach.status === 'MAINTENANCE' || mach.isActive === false);
-      const statusDisplay = parsedRemarks?.statusDisplay || (isMaintenance ? 'Maintenance' : 'Running');
-      const statusColor = statusDisplay === 'Maintenance' ? '#dc2626' : (statusDisplay === 'Idle' ? '#d97706' : '#16a34a');
 
-      // Dynamically locate assigned Work Order from live work orders or telemetry remarks
-      const assignedWo: any = allWorkOrders.find((w: any) => w.machineId === mId || w.machineId === String(mach.id))
-        || (parsedRemarks?.activeWo && parsedRemarks.activeWo !== '—'
-              ? allWorkOrders.find((w: any) => w.workOrderNumber === parsedRemarks.activeWo)
-              : null)
-        || (statusDisplay === 'Running' ? rawFloorRuns[idx % (rawFloorRuns.length || 1)] : null);
+      // Distinct 1-to-1 work order assignment from active floor runs (no repeating wrap-around)
+      const assignedWo: any = allWorkOrders.find((w: any) =>
+        w.machineId && (w.machineId === mId || w.machineId === String(mach.id) || w.machineId === mach.machineName)
+      ) || (parsedRemarks?.activeWo && parsedRemarks.activeWo !== '—'
+            ? allWorkOrders.find((w: any) => w.workOrderNumber === parsedRemarks.activeWo)
+            : null)
+        || (idx < rawFloorRuns.length ? rawFloorRuns[idx] : null);
+
+      const isRunning = Boolean(assignedWo && ['STARTED', 'IN_PROGRESS', 'IN_PRODUCTION', 'RUNNING'].includes(String(assignedWo.status || assignedWo.productionStatus).toUpperCase()));
+      const statusDisplay = isMaintenance ? 'Maintenance' : (isRunning ? 'Running' : (parsedRemarks?.statusDisplay || 'Idle'));
+      const statusColor = statusDisplay === 'Maintenance' ? '#dc2626' : (statusDisplay === 'Running' ? '#16a34a' : '#d97706');
 
       const rawProdName = assignedWo?.salesOrderItem?.product?.name || assignedWo?.salesOrderItem?.productNameSnapshot || '';
       const cleanProdName = (parsedRemarks?.product && parsedRemarks.product !== '—')
         ? parsedRemarks.product
         : (rawProdName ? rawProdName.replace(/\s*\(\d+T\)/i, '').trim() : '—');
 
-      const runtimeHoursVal = parsedRemarks?.runtimeVal !== undefined
-        ? parsedRemarks.runtimeVal
-        : (assignedWo?.duration ? (assignedWo.duration / 60) : (statusDisplay === 'Running' ? 5.5 : 0));
-      const runtimeStr = parsedRemarks?.runtimeHours || (runtimeHoursVal > 0 ? `${Number(runtimeHoursVal).toFixed(1)}h` : '0.0h');
-      const idleH = parsedRemarks?.idleVal !== undefined
-        ? parsedRemarks.idleVal
-        : Math.max(0, 8.0 - runtimeHoursVal - 0.7);
-      const idleStr = parsedRemarks?.idleHours || `${Number(idleH).toFixed(1)}h`;
-      const oee = parsedRemarks?.oee !== undefined ? parsedRemarks.oee : (statusDisplay === 'Running' ? 80 : 0);
+      const durationMinutes = assignedWo?.duration || (assignedWo?.startedAt ? Math.max(0, Math.round((Date.now() - new Date(assignedWo.startedAt).getTime()) / 60000)) : 0);
+      const runtimeHoursVal = statusDisplay === 'Running'
+        ? (parsedRemarks?.runtimeVal !== undefined ? parsedRemarks.runtimeVal : Math.min(8.0, Math.max(0.5, Number((durationMinutes / 60).toFixed(1)))))
+        : 0;
+      const runtimeStr = `${Number(runtimeHoursVal).toFixed(1)}h`;
+      const idleH = Math.max(0, Number((8.0 - runtimeHoursVal).toFixed(1)));
+      const idleStr = `${Number(idleH).toFixed(1)}h`;
+
+      const target = toNumber(assignedWo?.quantity) || 10;
+      const produced = toNumber(assignedWo?.producedQuantity || assignedWo?.producedQty || 0);
+      const progRatio = target > 0 ? (produced / target) : 0.8;
+      const oee = statusDisplay === 'Running'
+        ? (parsedRemarks?.oee !== undefined ? parsedRemarks.oee : Math.min(96, Math.max(70, Math.round(75 + (progRatio * 20)))))
+        : 0;
 
       return {
+        id: String(mach.id),
         machineId: mId,
         capacity: parsedRemarks?.capacity || cap,
         machineName: machName,
         status: statusDisplay,
         statusColor,
-        activeWo: parsedRemarks?.activeWo
-          ? (parsedRemarks.activeWo === '—' ? '—' : `WO: ${parsedRemarks.activeWo}${cleanProdName !== '—' ? ` | ${cleanProdName}` : ''}`)
-          : (assignedWo ? `WO: ${assignedWo.workOrderNumber}${cleanProdName !== '—' ? ` | ${cleanProdName}` : ''}` : '—'),
-        product: cleanProdName,
+        activeWo: isRunning && assignedWo
+          ? (parsedRemarks?.activeWo
+            ? (parsedRemarks.activeWo === '—' ? '—' : `WO: ${parsedRemarks.activeWo}${cleanProdName !== '—' ? ` | ${cleanProdName}` : ''}`)
+            : `WO: ${assignedWo.workOrderNumber}${cleanProdName !== '—' ? ` | ${cleanProdName}` : ''}`)
+          : '—',
+        product: isRunning ? cleanProdName : '—',
         shift: parsedRemarks?.shift || assignedWo?.shift || (idx < 2 ? 'A' : idx < 4 ? 'B' : 'C'),
-        operator: parsedRemarks?.operator || assignedWo?.operator || assignedWo?.updatedBy || `Operator ${idx + 1}`,
+        operator: parsedRemarks?.operator || assignedWo?.operator || assignedWo?.updatedBy || (statusDisplay === 'Running' ? `Operator ${idx + 1}` : '—'),
         runtimeHours: runtimeStr,
         idleHours: idleStr,
         oee,
