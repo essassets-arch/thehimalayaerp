@@ -100,7 +100,7 @@ export class CustomersService {
     const [leads, quotations, samples, orders] = await Promise.all([
       this.prisma.lead.findMany({
         where: {
-          companyId,
+          ...(companyId ? { OR: [{ companyId }, { companyId: null }] } : {}),
           OR: [
             { salesExecutiveId: userId },
             { assignedToId: userId },
@@ -238,7 +238,7 @@ export class CustomersService {
       : [];
 
     const andConditions: Prisma.CustomerWhereInput[] = [
-      { companyId },
+      ...(companyId ? [{ OR: [{ companyId }, { companyId: null }] }] : []),
       { deletedAt: null },
     ];
 

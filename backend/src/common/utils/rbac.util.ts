@@ -62,7 +62,18 @@ export function getLeadSalesScope(
   if (!isSalespersonScopedRole(role)) return {};
   if (!userId)
     throw new UnauthorizedException('User ID required for sales scoping');
-  return { OR: [{ salesExecutiveId: userId }, { createdById: userId }] };
+  return {
+    OR: [
+      { salesExecutiveId: userId },
+      { createdById: userId },
+      { assignedToId: userId },
+      { quotations: { some: { salesExecutiveId: userId } } },
+      { quotations: { some: { createdById: userId } } },
+      { sampleRequests: { some: { salesExecutiveId: userId } } },
+      { sampleRequests: { some: { createdById: userId } } },
+      { followUps: { some: { createdById: userId } } },
+    ],
+  };
 }
 
 export function getQuotationSalesScope(
@@ -98,20 +109,14 @@ export function getOrderSalesScope(
   if (!isSalespersonScopedRole(role)) return {};
   if (!userId)
     throw new UnauthorizedException('User ID required for sales scoping');
-  // An explicit order owner is authoritative; legacy orders fall back to their origin.
   return {
     OR: [
       { salesExecutiveId: userId },
-      {
-        salesExecutiveId: null,
-        OR: [
-          { createdById: userId },
-          { quotation: { salesExecutiveId: userId } },
-          { quotation: { createdById: userId } },
-          { sourceQuotation: { salesExecutiveId: userId } },
-          { sourceQuotation: { createdById: userId } },
-        ],
-      },
+      { createdById: userId },
+      { quotation: { salesExecutiveId: userId } },
+      { quotation: { createdById: userId } },
+      { sourceQuotation: { salesExecutiveId: userId } },
+      { sourceQuotation: { createdById: userId } },
     ],
   };
 }
@@ -205,7 +210,12 @@ export function getFollowUpSalesScope(
   if (!userId)
     throw new UnauthorizedException('User ID required for sales scoping');
   return {
-    OR: [{ lead: { salesExecutiveId: userId } }, { createdById: userId }],
+    OR: [
+      { createdById: userId },
+      { lead: { salesExecutiveId: userId } },
+      { lead: { createdById: userId } },
+      { lead: { assignedToId: userId } },
+    ],
   };
 }
 

@@ -540,8 +540,7 @@ export default function LeadsView({
       l.status === 'Deleted' ||
       l.status === 'DELETED' ||
       l.leadStatus === 'DELETED' ||
-      l.workflowState?.code === 'DELETED' ||
-      (typeof l.remarks === 'string' && l.remarks.toLowerCase().startsWith('deleted'));
+      l.workflowState?.code === 'DELETED';
   };
 
   const filteredLeads = leads.filter(lead => {

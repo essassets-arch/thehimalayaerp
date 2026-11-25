@@ -126,7 +126,7 @@ export class SalesRemindersController {
     // Fetch all for counts
     const allReminders = await this.prisma.followUp.findMany({
       where: {
-        companyId: String(companyId),
+        ...(companyId ? { OR: [{ companyId: String(companyId) }, { companyId: null }] } : {}),
         ...scope,
         ...moduleWhere,
       },
@@ -436,7 +436,7 @@ export class SalesRemindersController {
         : undefined;
 
     const whereClause: any = {
-      companyId: String(companyId),
+      ...(companyId ? { OR: [{ companyId: String(companyId) }, { companyId: null }] } : {}),
       ...(status ? { status } : {}),
       ...scope,
     };

@@ -30,31 +30,43 @@ export class LeadsService {
   ) {
     const scope = getSalesScope(userId, role, 'Lead');
     const pagination = parsePaginationParams(paginationQuery, 50, 100);
-    const where: any = {
-      ...scope,
-      ...(includeDeleted ? {} : { deletedAt: null }),
-      ...(companyId ? { companyId } : {}),
-      ...(search
-        ? {
-            OR: [
-              { leadNumber: { contains: search, mode: 'insensitive' } },
-              { companyName: { contains: search, mode: 'insensitive' } },
-              { contactPerson: { contains: search, mode: 'insensitive' } },
-              { projectName: { contains: search, mode: 'insensitive' } },
-              { groupName: { contains: search, mode: 'insensitive' } },
-              { phone: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
-              { gstNumber: { contains: search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-    };
+
+    const andClauses: any[] = [];
+    if (scope && Object.keys(scope).length > 0) {
+      andClauses.push(scope);
+    }
+    if (!includeDeleted) {
+      andClauses.push({ deletedAt: null });
+    }
+    if (companyId) {
+      andClauses.push({
+        OR: [{ companyId }, { companyId: null }],
+      });
+    }
+    if (search && search.trim()) {
+      const q = search.trim();
+      andClauses.push({
+        OR: [
+          { leadNumber: { contains: q, mode: 'insensitive' } },
+          { companyName: { contains: q, mode: 'insensitive' } },
+          { contactPerson: { contains: q, mode: 'insensitive' } },
+          { projectName: { contains: q, mode: 'insensitive' } },
+          { groupName: { contains: q, mode: 'insensitive' } },
+          { phone: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+          { gstNumber: { contains: q, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    const where: any = andClauses.length > 0 ? { AND: andClauses } : {};
 
     const [items, total] = await Promise.all([
       this.prisma.lead.findMany({
         where,
-        skip: pagination.skip,
-        take: pagination.take,
+        ...(pagination.hasExplicitPagination
+          ? { skip: pagination.skip, take: pagination.take }
+          : {}),
         include: {
           workflowState: { select: { id: true, code: true, name: true } },
           salesExecutive: { select: { id: true, name: true, email: true } },
@@ -98,13 +110,17 @@ export class LeadsService {
     role?: string,
   ) {
     const scope = getSalesScope(userId, role, 'Lead');
+    const andClauses: any[] = [{ id }, { deletedAt: null }];
+    if (scope && Object.keys(scope).length > 0) {
+      andClauses.push(scope);
+    }
+    if (companyId) {
+      andClauses.push({
+        OR: [{ companyId }, { companyId: null }],
+      });
+    }
     const lead = await this.prisma.lead.findFirst({
-      where: {
-        id,
-        ...scope,
-        deletedAt: null,
-        ...(companyId ? { companyId } : {}),
-      },
+      where: { AND: andClauses },
       include: {
         workflowState: true,
         salesExecutive: { select: { id: true, name: true, email: true } },
@@ -573,12 +589,17 @@ export class LeadsService {
     role?: string,
   ) {
     const scope = getSalesScope(userId, role, 'Lead');
+    const andClauses: any[] = [{ id }];
+    if (scope && Object.keys(scope).length > 0) {
+      andClauses.push(scope);
+    }
+    if (companyId) {
+      andClauses.push({
+        OR: [{ companyId }, { companyId: null }],
+      });
+    }
     const lead = await this.prisma.lead.findFirst({
-      where: {
-        id,
-        ...scope,
-        ...(companyId ? { companyId } : {}),
-      },
+      where: { AND: andClauses },
       include: {
         quotations: true,
       },
@@ -649,13 +670,17 @@ export class LeadsService {
     role?: string,
   ) {
     const scope = getSalesScope(userId, role, 'Lead');
+    const andClauses: any[] = [{ id }, { deletedAt: null }];
+    if (scope && Object.keys(scope).length > 0) {
+      andClauses.push(scope);
+    }
+    if (companyId) {
+      andClauses.push({
+        OR: [{ companyId }, { companyId: null }],
+      });
+    }
     const lead = await this.prisma.lead.findFirst({
-      where: {
-        id,
-        ...scope,
-        deletedAt: null,
-        ...(companyId ? { companyId } : {}),
-      },
+      where: { AND: andClauses },
       include: {
         quotations: {
           where: { deletedAt: null },

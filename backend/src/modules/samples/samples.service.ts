@@ -310,8 +310,17 @@ export class SamplesService {
 
   async findAll(companyId: string, userId?: string, role?: string) {
     const scope = getSampleSalesScope(userId, role);
+    const andClauses: any[] = [{ deletedAt: null }];
+    if (scope && Object.keys(scope).length > 0) {
+      andClauses.push(scope);
+    }
+    if (companyId) {
+      andClauses.push({
+        OR: [{ companyId }, { companyId: null }],
+      });
+    }
     const samples = await this.prisma.sampleRequest.findMany({
-      where: { companyId, deletedAt: null, ...scope },
+      where: { AND: andClauses },
       include: {
         salesExecutive: { select: { id: true, name: true, email: true } },
         items: {
