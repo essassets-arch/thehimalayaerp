@@ -320,10 +320,13 @@ export default function HRDashboardView({
     });
     return fromClearances.length > 0 ? fromClearances : fromEmployees;
   }, [dashboardMetrics, allExitClearances, allEmployees]);
-  const exitsCount = dashboardMetrics?.exits?.pendingCount ?? activeExitsList.length;
+  const exitsCount = dashboardMetrics?.exits?.pendingCount ?? activeExitsList.filter(e => e.status !== 'Cleared').length;
   const pendingHrExitsCount = useMemo(() => {
-    return activeExitsList.filter(ex => ex.status === 'In Progress' || ex.status === 'PENDING' || !ex.approval?.finalHrStatus).length;
-  }, [activeExitsList]);
+    if (dashboardMetrics?.exits?.pendingCount !== undefined) {
+      return dashboardMetrics.exits.pendingCount;
+    }
+    return activeExitsList.filter(ex => (ex.status === 'In Progress' || ex.status === 'PENDING') && ex.status !== 'Cleared').length;
+  }, [dashboardMetrics, activeExitsList]);
 
   // Onboarding count (Drafts + Pending Recruitment + New Joinees)
   const onboardingCount = useMemo(() => {
@@ -391,7 +394,17 @@ export default function HRDashboardView({
     const deptCountMap = {};
     allEmployees.forEach(emp => {
       const rawDept = typeof emp.department === 'object' ? (emp.department?.name || 'Operations') : (emp.department || 'Operations');
-      const deptName = (rawDept || 'Operations').trim() || 'General';
+      let deptName = (rawDept || 'Operations').trim() || 'General';
+      const lower = deptName.toLowerCase();
+      if (lower === 'sales' || lower === 'sales department') deptName = 'Sales Department';
+      else if (lower === 'production' || lower === 'production department') deptName = 'Production Department';
+      else if (lower === 'hr' || lower === 'hr department' || lower === 'human resources') deptName = 'HR Department';
+      else if (lower === 'super admin' || lower === 'super admin department') deptName = 'Super Admin Department';
+      else if (lower === 'dispatch' || lower === 'dispatch department') deptName = 'Dispatch Department';
+      else if (lower === 'finance' || lower === 'finance department') deptName = 'Finance Department';
+      else if (lower === 'store' || lower === 'store department') deptName = 'Store Department';
+      else if (lower === 'data analytics') deptName = 'Data Analytics';
+
       deptCountMap[deptName] = (deptCountMap[deptName] || 0) + 1;
     });
 
@@ -950,15 +963,15 @@ export default function HRDashboardView({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>🚪 Exits in Progress</span>
-            <span style={{ fontSize: '11px', color: '#ec4899', fontWeight: '700', background: 'rgba(236, 72, 153, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
-              {exitsCount} Pending
+            <span style={{ fontSize: '11px', color: exitsCount > 0 ? '#ec4899' : '#10b981', fontWeight: '700', background: exitsCount > 0 ? 'rgba(236, 72, 153, 0.1)' : 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+              {exitsCount > 0 ? `${exitsCount} Pending` : 'All Cleared'}
             </span>
           </div>
           <h2 style={{ fontSize: '26px', fontWeight: '800', margin: '8px 0 4px 0', color: '#0f172a' }}>
             {exitsCount}
           </h2>
           <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '500' }}>
-            {pendingHrExitsCount > 0 ? `${pendingHrExitsCount} awaiting HR` : 'All clear'}
+            {exitsCount > 0 ? `${pendingHrExitsCount} awaiting HR` : `${allExitClearances.length || activeExitsList.length || 0} total cleared`}
           </div>
         </div>
 
@@ -1171,7 +1184,7 @@ export default function HRDashboardView({
                 <ResponsiveChartWrapper minHeight={Math.max(180, departmentWorkforce.length * 34)}>
                   <BarChart layout="vertical" data={departmentWorkforce} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                     <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" tick={{ fontSize: 12, fill: '#334155', fontWeight: 600 }} axisLine={false} tickLine={false} width={90} />
+                    <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#334155', fontWeight: 600 }} axisLine={false} tickLine={false} width={135} />
                     <Tooltip 
                       contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', fontSize: '12px' }}
                       formatter={(val) => [`${val} staff`, 'Workforce']}

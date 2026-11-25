@@ -1276,7 +1276,17 @@ export class EmployeesService {
     // Department workforce distribution
     const deptMap: Record<string, number> = {};
     employees.forEach((emp) => {
-      const dName = emp.department?.name || 'Unassigned';
+      let dName = (emp.department?.name || 'Unassigned').trim();
+      const lower = dName.toLowerCase();
+      if (lower === 'sales' || lower === 'sales department') dName = 'Sales Department';
+      else if (lower === 'production' || lower === 'production department') dName = 'Production Department';
+      else if (lower === 'hr' || lower === 'hr department' || lower === 'human resources') dName = 'HR Department';
+      else if (lower === 'super admin' || lower === 'super admin department') dName = 'Super Admin Department';
+      else if (lower === 'dispatch' || lower === 'dispatch department') dName = 'Dispatch Department';
+      else if (lower === 'finance' || lower === 'finance department') dName = 'Finance Department';
+      else if (lower === 'store' || lower === 'store department') dName = 'Store Department';
+      else if (lower === 'data analytics') dName = 'Data Analytics';
+
       deptMap[dName] = (deptMap[dName] || 0) + 1;
     });
     const DEPT_COLORS = [
