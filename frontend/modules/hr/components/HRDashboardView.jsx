@@ -937,9 +937,10 @@ export default function HRDashboardView({
 
         {/* Monthly Payroll */}
         <div 
-          onClick={() => onNavigate ? onNavigate('/hr/payroll') : null}
+          onClick={() => onNavigate ? onNavigate('/hr/salary/prepare') : (window.location.href = '/hr/salary/prepare')}
           className="hr-kpi-card"
-          style={{ borderLeft: '4px solid #8b5cf6' }}
+          style={{ borderLeft: '4px solid #8b5cf6', cursor: 'pointer' }}
+          title="Click to open Salary & Payroll Preparation"
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>💰 Monthly Payroll</span>
@@ -1308,13 +1309,13 @@ export default function HRDashboardView({
           {/* Action CTAs */}
           <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
             <button 
-              onClick={() => onNavigate ? onNavigate('/hr/payroll') : null}
+              onClick={() => onNavigate ? onNavigate('/hr/salary/prepare') : (window.location.href = '/hr/salary/prepare')}
               style={{ flex: 1, padding: '9px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
             >
               [ Prepare Payroll ]
             </button>
             <button 
-              onClick={() => onNavigate ? onNavigate('/hr/payroll') : null}
+              onClick={() => onNavigate ? onNavigate('/hr/salary/prepare') : (window.location.href = '/hr/salary/prepare')}
               style={{ flex: 1, padding: '9px', background: '#f1f5f9', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
             >
               [ View Payroll ]
