@@ -1720,7 +1720,7 @@ export class ProductionWorkflowService {
 
     const machineFleetStats = machines.map((m: any, idx: number) => {
       const mId = m.machineId || m.id.toString();
-      const assignedWO = allWorkOrders.find((w: any) =>
+      const assignedWO: any = allWorkOrders.find((w: any) =>
         w.machineId && (w.machineId === mId || w.machineId === String(m.id))
       ) || (idx < rawFloorRuns.length ? rawFloorRuns[idx] : null);
 
@@ -1729,7 +1729,7 @@ export class ProductionWorkflowService {
       const durationMin = assignedWO?.duration || (assignedWO?.startedAt ? Math.max(0, Math.round((Date.now() - new Date(assignedWO.startedAt).getTime()) / 60000)) : 0);
       const runtime = isRunning ? Math.min(8.0, Math.max(0.5, Number((durationMin / 60).toFixed(1)))) : 0;
       const target = toNumber(assignedWO?.quantity) || 10;
-      const produced = toNumber(assignedWO?.producedQuantity || assignedWO?.producedQty || 0);
+      const produced = toNumber((assignedWO as any)?.producedQuantity || (assignedWO as any)?.producedQty || 0);
       const oee = isRunning ? (target > 0 ? Math.min(96, Math.max(70, Math.round(75 + (produced / target) * 20))) : 80) : 0;
 
       return {
@@ -2189,7 +2189,7 @@ export class ProductionWorkflowService {
       const idleStr = `${Number(idleH).toFixed(1)}h`;
 
       const target = toNumber(assignedWo?.quantity) || 10;
-      const produced = toNumber(assignedWo?.producedQuantity || assignedWo?.producedQty || 0);
+      const produced = toNumber((assignedWo as any)?.producedQuantity || (assignedWo as any)?.producedQty || 0);
       const progRatio = target > 0 ? (produced / target) : 0.8;
       const oee = statusDisplay === 'Running'
         ? (parsedRemarks?.oee !== undefined ? parsedRemarks.oee : Math.min(96, Math.max(70, Math.round(75 + (progRatio * 20)))))
@@ -2417,7 +2417,7 @@ export class ProductionWorkflowService {
       const custName = so?.customer?.companyName || so?.customer?.name || w.customer || 'Valued Client';
       const target = toNumber(w.quantity) || 10;
       const shiftProduced = (w.shiftEntries || []).reduce((sum: number, se: any) => sum + toNumber(se.producedQty), 0);
-      const producedQty = toNumber(w.producedQuantity) || toNumber(w.producedQty) || shiftProduced || (['COMPLETED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED'].includes(w.status) ? target : 0);
+      const producedQty = toNumber((w as any).producedQuantity) || toNumber((w as any).producedQty) || shiftProduced || (['COMPLETED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED'].includes(w.status) ? target : 0);
       const progress = target > 0 ? Math.min(100, Math.round((producedQty / target) * 100)) : 0;
       const stClass = classifyWorkOrder(w);
       const statusLabel = stClass === 'FLOOR' ? 'Floor Run' : stClass === 'QC_PENDING' ? 'QC Testing' : stClass === 'QC_FAILED' ? 'Rework' : stClass === 'READY_FOR_DISPATCH' ? 'Ready for Dispatch' : stClass === 'DONE' ? 'Dispatched' : 'Pending';
