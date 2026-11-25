@@ -94,7 +94,7 @@ export const useAuthStore = create<AuthState>()(
             localStorage.setItem('erpUser', JSON.stringify(user));
 
             // Sync cookies for server/middleware/proxy route accessibility
-            const maxAge = 7 * 24 * 60 * 60; // 7 days
+            const maxAge = 30 * 24 * 60 * 60; // 30 days
             document.cookie = `accessToken=${accessToken}; path=/; max-age=${maxAge}; SameSite=Lax`;
             document.cookie = `token=${accessToken}; path=/; max-age=${maxAge}; SameSite=Lax`;
             document.cookie = `himalaya_token=${accessToken}; path=/; max-age=${maxAge}; SameSite=Lax`;
@@ -121,7 +121,7 @@ export const useAuthStore = create<AuthState>()(
             sessionStorage.setItem('himalaya_token', token);
             localStorage.setItem('token', token);
             localStorage.setItem('himalaya_token', token);
-            const maxAge = 7 * 24 * 60 * 60;
+            const maxAge = 30 * 24 * 60 * 60; // 30 days
             document.cookie = `accessToken=${token}; path=/; max-age=${maxAge}; SameSite=Lax`;
             document.cookie = `token=${token}; path=/; max-age=${maxAge}; SameSite=Lax`;
             document.cookie = `himalaya_token=${token}; path=/; max-age=${maxAge}; SameSite=Lax`;

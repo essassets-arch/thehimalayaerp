@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       const accessToken = data.accessToken;
       const user = data.user;
       if (accessToken) {
-        const maxAge = 7 * 24 * 60 * 60;
+        const maxAge = 30 * 24 * 60 * 60; // 30 days
         nextResponse.cookies.set('accessToken', accessToken, { path: '/', httpOnly: false, sameSite: 'lax', maxAge });
         nextResponse.cookies.set('token', accessToken, { path: '/', httpOnly: false, sameSite: 'lax', maxAge });
         nextResponse.cookies.set('himalaya_token', accessToken, { path: '/', httpOnly: false, sameSite: 'lax', maxAge });

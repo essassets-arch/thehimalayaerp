@@ -17,9 +17,9 @@ export default () => {
     jwt: {
       accessSecret: accessSecret || 'himalaya_erp_jwt_secret_dev_minimum_length_32_chars',
       accessExpiresIn:
-        process.env.JWT_ACCESS_EXPIRES_IN || process.env.JWT_EXPIRES_IN || '1d',
+        process.env.JWT_ACCESS_EXPIRES_IN || process.env.JWT_EXPIRES_IN || '30d',
       refreshSecret: process.env.JWT_REFRESH_SECRET || 'refresh-secret-dev-minimum-length-32-chars',
-      refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+      refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
     },
     frontendUrl: process.env.FRONTEND_URL,
     bcryptRounds: parseInt(process.env.BCRYPT_ROUNDS || '12', 10),

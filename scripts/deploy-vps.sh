@@ -33,6 +33,10 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
+# Ensure 30-day session lifetime in .env
+sed -i -E 's/^JWT_ACCESS_EXPIRES_IN=.*/JWT_ACCESS_EXPIRES_IN=30d/' .env 2>/dev/null || true
+sed -i -E 's/^JWT_REFRESH_EXPIRES_IN=.*/JWT_REFRESH_EXPIRES_IN=30d/' .env 2>/dev/null || true
+
 # Check available memory and swap on Linux
 if [ -f /proc/meminfo ]; then
     swap_total=$(grep -i SwapTotal /proc/meminfo | awk '{print $2}')

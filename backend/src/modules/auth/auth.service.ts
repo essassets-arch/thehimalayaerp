@@ -303,12 +303,12 @@ export class AuthService {
       this.configService.get<string>('jwt.accessSecret') || 'secret';
     const accessExpiresIn = (this.configService.get<string>(
       'jwt.accessExpiresIn',
-    ) || '15m') as unknown as number;
+    ) || '30d') as unknown as number;
     const refreshSecret =
       this.configService.get<string>('jwt.refreshSecret') || 'secret';
     const refreshExpiresIn = (this.configService.get<string>(
       'jwt.refreshExpiresIn',
-    ) || '7d') as unknown as number;
+    ) || '30d') as unknown as number;
     const sid = sessionId || randomUUID();
 
     const [accessToken, refreshToken] = await Promise.all([
@@ -354,7 +354,7 @@ export class AuthService {
     const decoded = this.jwtService.decode<JwtPayload>(refreshToken);
     const exp = decoded?.exp
       ? decoded.exp * 1000
-      : Date.now() + 7 * 24 * 60 * 60 * 1000;
+      : Date.now() + 30 * 24 * 60 * 60 * 1000;
     const expiresAt = new Date(exp);
 
     await this.prisma.refreshSession.create({
