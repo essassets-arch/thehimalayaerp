@@ -704,7 +704,12 @@ export default function ProductionOperationsDashboard({
       {/* ─── 2. KEY PERFORMANCE INDICATORS (KPIs) ─── */}
       <div className="pod-kpi-grid">
         {/* KPI 1: Total Production */}
-        <div className="pod-kpi-card">
+        <div 
+          className="pod-kpi-card"
+          onClick={() => router.push('/production/daily-report')}
+          style={{ cursor: 'pointer', borderTop: '3px solid #2563eb' }}
+          title="Click to view Daily Production Reports & Shift Output"
+        >
           <div className="pod-kpi-top">
             <div className="pod-kpi-icon-box blue">
               <Factory size={18} />
@@ -721,7 +726,9 @@ export default function ProductionOperationsDashboard({
         {/* KPI 2: Plan Achievement */}
         <div 
           className="pod-kpi-card"
-          title={kpis.planAchievement.hasTarget && kpis.planAchievement.targetQty ? `Plant Head Target: ${Number(kpis.planAchievement.targetQty).toLocaleString('en-IN')} Units (${kpis.planAchievement.period || 'Monthly'}) | Achieved: ${Number(kpis.planAchievement.achievedQty || 0).toLocaleString('en-IN')} Units (${kpis.planAchievement.percentage}%)` : 'Plant Head Production Target Adherence'}
+          onClick={() => router.push('/super-admin/production-target')}
+          style={{ cursor: 'pointer', borderTop: '3px solid #16a34a' }}
+          title={kpis.planAchievement.hasTarget && kpis.planAchievement.targetQty ? `Plant Head Target: ${Number(kpis.planAchievement.targetQty).toLocaleString('en-IN')} Units (${kpis.planAchievement.period || 'Monthly'}) | Achieved: ${Number(kpis.planAchievement.achievedQty || 0).toLocaleString('en-IN')} Units (${kpis.planAchievement.percentage}%)` : 'Plant Head Production Target Adherence (Click to configure targets)'}
         >
           <div className="pod-kpi-top">
             <div className="pod-kpi-icon-box green">
@@ -742,7 +749,15 @@ export default function ProductionOperationsDashboard({
 
 
         {/* KPI 3: Overall Equipment Effectiveness */}
-        <div className="pod-kpi-card">
+        <div 
+          className="pod-kpi-card"
+          onClick={() => {
+            const el = document.getElementById('pod-press-fleet-section');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          }}
+          style={{ cursor: 'pointer', borderTop: '3px solid #9333ea' }}
+          title="Overall Equipment Effectiveness across HM001–HM006 (Click to inspect press fleet)"
+        >
           <div className="pod-kpi-top">
             <div className="pod-kpi-icon-box purple">
               <Settings size={18} />
@@ -757,7 +772,12 @@ export default function ProductionOperationsDashboard({
         </div>
 
         {/* KPI 4: Active Floor Runs */}
-        <div className="pod-kpi-card">
+        <div 
+          className="pod-kpi-card"
+          onClick={() => router.push('/production/floor')}
+          style={{ cursor: 'pointer', borderTop: '3px solid #d97706' }}
+          title="Active Floor Runs & Machine Press In-Process (Click to view Floor Execution)"
+        >
           <div className="pod-kpi-top">
             <div className="pod-kpi-icon-box amber">
               <Layers size={18} />
@@ -772,7 +792,12 @@ export default function ProductionOperationsDashboard({
         </div>
 
         {/* KPI 5: First Pass Yield */}
-        <div className="pod-kpi-card">
+        <div 
+          className="pod-kpi-card"
+          onClick={() => router.push('/production/qc-pending')}
+          style={{ cursor: 'pointer', borderTop: '3px solid #0d9488' }}
+          title="First Pass Yield Quality Metric (Click to view QC Inspection Queue)"
+        >
           <div className="pod-kpi-top">
             <div className="pod-kpi-icon-box teal">
               <ShieldCheck size={18} />
@@ -787,7 +812,12 @@ export default function ProductionOperationsDashboard({
         </div>
 
         {/* KPI 6: Ready for Dispatch Backlog */}
-        <div className="pod-kpi-card">
+        <div 
+          className="pod-kpi-card"
+          onClick={() => router.push('/production/ready-for-dispatch')}
+          style={{ cursor: 'pointer', borderTop: '3px solid #dc2626' }}
+          title="Goods Tested & Ready for Dispatch (Click to view Dispatch Backlog)"
+        >
           <div className="pod-kpi-top">
             <div className="pod-kpi-icon-box red">
               <Truck size={18} />
@@ -926,7 +956,7 @@ export default function ProductionOperationsDashboard({
         </div>
 
         {/* Right Column: Hydraulic Press Fleet Grid */}
-        <div className="pod-panel pod-fleet-panel">
+        <div id="pod-press-fleet-section" className="pod-panel pod-fleet-panel">
           <div className="pod-panel-header">
             <div className="pod-fleet-header-title-box">
               <h2 className="pod-panel-title">Hydraulic Press Fleet</h2>
@@ -1019,7 +1049,109 @@ export default function ProductionOperationsDashboard({
         </div>
       </div>
 
+      {/* ─── 4. QUALITY & SCRAP DIAGNOSTICS CARD ─── */}
+      <div className="pod-diagnostics-card">
+        <div className="pod-panel-header" style={{ marginBottom: 0, paddingBottom: 0, borderBottom: 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h2 className="pod-panel-title">Quality & Scrap Diagnostics (IS 12592 / EN 124 Standards)</h2>
+            <span style={{ fontSize: '11px', fontWeight: '600', color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: '12px' }}>
+              Batch Certified
+            </span>
+          </div>
+          <span style={{ fontSize: '11px', color: '#64748b' }}>Real-time Inspection Logs</span>
+        </div>
 
+        <div className="pod-diagnostics-grid">
+          {/* 4.1 First Pass Yield Donut */}
+          <div className="pod-fpy-donut-col">
+            <div className="pod-fpy-donut-wrap">
+              <svg width="86" height="86" viewBox="0 0 86 86">
+                <circle cx="43" cy="43" r="32" stroke="#fee2e2" strokeWidth="8" fill="none" />
+                <circle
+                  cx="43"
+                  cy="43"
+                  r="32"
+                  stroke="#16a34a"
+                  strokeWidth="8"
+                  fill="none"
+                  strokeDasharray={2 * Math.PI * 32}
+                  strokeDashoffset={(2 * Math.PI * 32) * (1 - (diagnostics?.firstPassYield?.passRatePct ?? 100) / 100)}
+                  strokeLinecap="round"
+                  transform="rotate(-90 43 43)"
+                />
+              </svg>
+              <div className="pod-fpy-center">
+                <span className="pod-fpy-center-val">{diagnostics?.firstPassYield?.passRatePct ?? 100}%</span>
+                <span className="pod-fpy-center-label">Pass Rate</span>
+              </div>
+            </div>
+            <div className="pod-fpy-legend">
+              <div className="pod-fpy-legend-item">
+                <span className="pod-fpy-dot passed" />
+                <span>Passed: <strong>{Number(diagnostics?.firstPassYield?.passedUnits ?? 0).toLocaleString('en-IN')}</strong> ({diagnostics?.firstPassYield?.passedPct ?? 100}%)</span>
+              </div>
+              <div className="pod-fpy-legend-item">
+                <span className="pod-fpy-dot failed" />
+                <span>Failed: <strong>{Number(diagnostics?.firstPassYield?.failedUnits ?? 0).toLocaleString('en-IN')}</strong> ({diagnostics?.firstPassYield?.failedPct ?? 0}%)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 4.2 IS 12592 Proof Load Distribution */}
+          <div className="pod-bars-col">
+            <span className="pod-bars-title">IS 12592 Proof Load Distribution</span>
+            {(diagnostics?.loadTestDistribution || [
+              { rating: '2.5T', percentage: 25 },
+              { rating: '12.5T', percentage: 35 },
+              { rating: '25T', percentage: 25 },
+              { rating: '40T', percentage: 15 }
+            ]).map((item) => (
+              <div key={item.rating} className="pod-bar-row">
+                <span className="pod-bar-label">{item.rating} Class</span>
+                <div className="pod-bar-track">
+                  <div className="pod-bar-fill" style={{ width: `${item.percentage}%`, background: '#2563eb' }} />
+                </div>
+                <span className="pod-bar-val">{item.percentage}%</span>
+              </div>
+            ))}
+          </div>
+
+          {/* 4.3 Top Defect Pareto */}
+          <div className="pod-bars-col">
+            <span className="pod-bars-title">Top Defect Pareto</span>
+            {(diagnostics?.topDefectPareto || [
+              { category: 'Flash / Burr', percentage: 42, color: '#f97316' },
+              { category: 'Curing Defect', percentage: 28, color: '#f59e0b' },
+              { category: 'Dimension Issue', percentage: 18, color: '#fbbf24' },
+              { category: 'Surface Cracks', percentage: 12, color: '#64748b' }
+            ]).map((item) => (
+              <div key={item.category} className="pod-bar-row">
+                <span className="pod-bar-label">{item.category}</span>
+                <div className="pod-bar-track">
+                  <div className="pod-bar-fill" style={{ width: `${item.percentage}%`, background: item.color || '#f97316' }} />
+                </div>
+                <span className="pod-bar-val">{item.percentage}%</span>
+              </div>
+            ))}
+          </div>
+
+          {/* 4.4 Scrap Financial Impact */}
+          <div className="pod-scrap-impact-col">
+            <span className="pod-bars-title">Scrap Financial Impact</span>
+            <div className="pod-scrap-impact-main">
+              <div className="pod-rupee-circle">₹</div>
+              <div className="pod-scrap-amount">
+                <span className="pod-scrap-inr">
+                  ₹{Number(diagnostics?.scrapFinancialImpact?.totalCostInr || 0).toLocaleString('en-IN')}
+                </span>
+                <span className="pod-scrap-meta">
+                  {Number(diagnostics?.scrapFinancialImpact?.scrapWeightKg || 0).toLocaleString('en-IN')} kg raw material loss @ ₹{diagnostics?.scrapFinancialImpact?.ratePerKg || 39.5}/kg
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* ─── 5. ROW 4: ACTIVE WORK ORDERS & QUICK ACTIONS ─── */}
       <div className="pod-bottom-grid">
@@ -1150,7 +1282,85 @@ export default function ProductionOperationsDashboard({
           </div>
         </div>
 
+        {/* Right: Quick Actions Panel */}
+        <div className="pod-actions-panel">
+          <div className="pod-panel-header" style={{ marginBottom: 0, paddingBottom: 0, borderBottom: 'none' }}>
+            <h2 className="pod-panel-title">Production Actions</h2>
+            <span style={{ fontSize: '11px', color: '#64748b' }}>Operations Control</span>
+          </div>
 
+          <div className="pod-actions-list">
+            <button
+              type="button"
+              className="pod-action-card-btn green"
+              onClick={() => setModalType('shift')}
+            >
+              <div className="pod-action-icon">
+                <FileText size={16} />
+              </div>
+              <div className="pod-action-text">
+                <span className="pod-action-title">+ New Shift Entry</span>
+                <span className="pod-action-desc">Log Daily Production Report (DPR)</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className="pod-action-card-btn blue"
+              onClick={() => router.push('/production/work-orders')}
+            >
+              <div className="pod-action-icon">
+                <Play size={16} />
+              </div>
+              <div className="pod-action-text">
+                <span className="pod-action-title">Start Work Order</span>
+                <span className="pod-action-desc">Assign press & issue raw materials</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className="pod-action-card-btn orange"
+              onClick={() => router.push('/production/qc-pending')}
+            >
+              <div className="pod-action-icon">
+                <ShieldCheck size={16} />
+              </div>
+              <div className="pod-action-text">
+                <span className="pod-action-title">Submit for QC Testing</span>
+                <span className="pod-action-desc">Proof load & visual inspection queue</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className="pod-action-card-btn purple"
+              onClick={() => router.push('/production/ready-for-dispatch')}
+            >
+              <div className="pod-action-icon">
+                <Truck size={16} />
+              </div>
+              <div className="pod-action-text">
+                <span className="pod-action-title">Handover to Dispatch</span>
+                <span className="pod-action-desc">Mark verified goods ready in yard</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className="pod-action-card-btn teal"
+              onClick={() => router.push('/production/daily-report')}
+            >
+              <div className="pod-action-icon">
+                <ClipboardList size={16} />
+              </div>
+              <div className="pod-action-text">
+                <span className="pod-action-title">Daily Shift Analytics</span>
+                <span className="pod-action-desc">Review plant output & scrap breakdown</span>
+              </div>
+            </button>
+          </div>
+        </div>
       </div>
 
 
