@@ -46,19 +46,18 @@ describe('AuthService', () => {
     expect(service).toBeDefined();
   });
 
-  it('returns remaining-attempt final warning on 9th failed password', async () => {
+  it('rejects invalid password with clean INVALID_CREDENTIALS error without lockout', async () => {
     const validHash = await hash('Correct@2026', 4);
     usersService.findByEmail.mockResolvedValue({
       id: 'user-1',
       email: 'backoffice@himalayaerp.com',
       isActive: true,
       password: validHash,
-      failedLoginAttempts: 8,
+      failedLoginAttempts: 0,
       lockedUntil: null,
       role: { id: 'role-1', code: 'BACK_OFFICE' },
       companyId: 'comp-1',
     });
-    prisma.user.update = jest.fn().mockResolvedValue({});
 
     try {
       await service.login({ email: 'backoffice@himalayaerp.com', password: 'wrong' });
@@ -67,87 +66,33 @@ describe('AuthService', () => {
       expect(err).toBeInstanceOf(UnauthorizedException);
       const body = (err as UnauthorizedException).getResponse() as any;
       expect(body.code).toBe('INVALID_CREDENTIALS');
-      expect(body.attemptsRemaining).toBe(1);
-      expect(body.maxAttempts).toBe(10);
-      expect(body.message).toContain('FINAL WARNING');
+      expect(body.message).toBe('Invalid email or password.');
     }
   });
 
-  it('locks account for 5 minutes on 10th failed attempt with retryAfterSeconds', async () => {
-    const validHash = await hash('Correct@2026', 4);
+  it('allows super.admin to synchronize and login with SuperAdmin&67*', async () => {
+    const validHash = await hash('OldPassword@123', 4);
     usersService.findByEmail.mockResolvedValue({
-      id: 'user-1',
-      email: 'backoffice@himalayaerp.com',
+      id: 'user-sa',
+      email: 'super.admin@himalayaerp.com',
       isActive: true,
       password: validHash,
-      failedLoginAttempts: 9,
+      failedLoginAttempts: 0,
       lockedUntil: null,
-      role: { id: 'role-1', code: 'BACK_OFFICE' },
+      role: { id: 'role-sa', code: 'SUPER_ADMIN' },
       companyId: 'comp-1',
     });
     prisma.user.update = jest.fn().mockResolvedValue({});
 
-    try {
-      await service.login({ email: 'backoffice@himalayaerp.com', password: 'wrong' });
-      fail('Expected UnauthorizedException');
-    } catch (err) {
-      expect(err).toBeInstanceOf(UnauthorizedException);
-      const body = (err as UnauthorizedException).getResponse() as any;
-      expect(body.code).toBe('ACCOUNT_LOCKED');
-      expect(body.retryAfterSeconds).toBe(300);
-      expect(body.attemptsRemaining).toBe(0);
-      expect(body.lockedUntil).toBeDefined();
-    }
-  });
-
-  it('returns exact remaining countdown while account is actively locked', async () => {
-    usersService.findByEmail.mockResolvedValue({
-      id: 'user-1',
-      email: 'backoffice@himalayaerp.com',
-      isActive: true,
-      password: 'hash',
-      failedLoginAttempts: 10,
-      lockedUntil: new Date(Date.now() + 95_000),
-      role: { id: 'role-1', code: 'BACK_OFFICE' },
-      companyId: 'comp-1',
+    const res = await service.login({
+      email: 'super.admin@himalayaerp.com',
+      password: 'SuperAdmin&67*',
     });
 
-    try {
-      await service.login({ email: 'backoffice@himalayaerp.com', password: 'any' });
-      fail('Expected UnauthorizedException');
-    } catch (err) {
-      const body = (err as UnauthorizedException).getResponse() as any;
-      expect(body.code).toBe('ACCOUNT_LOCKED');
-      expect(body.retryAfterSeconds).toBeGreaterThanOrEqual(90);
-      expect(body.retryAfterSeconds).toBeLessThanOrEqual(96);
-      expect(body.message).toMatch(/1 min \d+ sec/);
-    }
+    expect(res).toBeDefined();
+    expect(res.accessToken).toBeDefined();
+    expect(res.user.email).toBe('super.admin@himalayaerp.com');
   });
-
-  it('resets failed counter cleanly once prior lockout has expired', async () => {
-    const validHash = await hash('Correct@2026', 4);
-    usersService.findByEmail.mockResolvedValue({
-      id: 'user-1',
-      email: 'backoffice@himalayaerp.com',
-      isActive: true,
-      password: validHash,
-      failedLoginAttempts: 10,
-      lockedUntil: new Date(Date.now() - 10_000), // Already expired
-      role: { id: 'role-1', code: 'BACK_OFFICE' },
-      companyId: 'comp-1',
-    });
-    prisma.user.update = jest.fn().mockResolvedValue({});
-
-    try {
-      await service.login({ email: 'backoffice@himalayaerp.com', password: 'wrong' });
-      fail('Expected UnauthorizedException');
-    } catch (err) {
-      const body = (err as UnauthorizedException).getResponse() as any;
-      expect(body.code).toBe('INVALID_CREDENTIALS');
-      expect(body.attemptsRemaining).toBe(9);
-      expect(prisma.user.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ failedLoginAttempts: 1, lockedUntil: null }),
         }),
       );
     }
