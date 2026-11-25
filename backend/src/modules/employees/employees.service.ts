@@ -1448,7 +1448,7 @@ export class EmployeesService {
     const payrollReadyPercentage = totalStaff > 0 ? Math.min(100, Math.round((slipsGeneratedCount / totalStaff) * 100)) : 0;
 
     // Real 6-Month historical outlay trend
-    const recent6Months = [];
+    const recent6Months: Array<{ month: number; year: number; label: string; fullLabel: string }> = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(yearNum, monthNum - 1 - i, 1);
       recent6Months.push({
@@ -1522,7 +1522,7 @@ export class EmployeesService {
     // 6. Recruitment & Drafts
     const drafts = await this.prisma.employeeDraft.findMany({
       where: { companyId: compId },
-      select: { id: true, draftData: true, step: true, updatedAt: true },
+      select: { id: true, employeeData: true, updatedAt: true },
     });
     const recruitmentRequests = await this.prisma.recruitmentRequest.findMany({
       where: { companyId: compId },
@@ -1538,9 +1538,6 @@ export class EmployeesService {
       where: {
         companyId: compId,
         status: { in: ['PENDING_HR', 'PENDING_SUPER_ADMIN'] },
-      },
-      include: {
-        employee: { select: { id: true, employeeCode: true, fullName: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -1588,7 +1585,7 @@ export class EmployeesService {
     });
 
     // 9. HR Action Center Items
-    const actionItems = [];
+    const actionItems: any[] = [];
     if (pendingLeaves.length > 0) {
       actionItems.push({
         id: 'act-leaves',
