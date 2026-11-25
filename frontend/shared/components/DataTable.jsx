@@ -104,7 +104,7 @@ export default function DataTable({
                     }
                   }
                   
-                  const rawResult = col.render ? col.render(row) : (col.cell ? col.cell({ row: { original: row }, getValue: () => value }) : value);
+                  const rawResult = col.render ? col.render(row, rowIdx) : (col.cell ? col.cell({ row: { original: row, index: rowIdx }, getValue: () => value }) : value);
                   const renderedCell = formatCellValue(rawResult);
 
                   return (

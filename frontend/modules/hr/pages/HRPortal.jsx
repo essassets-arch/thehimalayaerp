@@ -399,7 +399,12 @@ export default function HRPortal() {
       const anyNum = str.match(/(\d+)/);
       return anyNum ? 10000 + parseInt(anyNum[1], 10) : 999999;
     };
-    const activeStaffData = [...rawStaffData].sort((a, b) => parseEmpNum(a.employeeCode) - parseEmpNum(b.employeeCode));
+    const activeStaffData = [...rawStaffData]
+      .sort((a, b) => parseEmpNum(a.employeeCode) - parseEmpNum(b.employeeCode))
+      .map((emp, index) => ({
+        ...emp,
+        srNo: index + 1
+      }));
 
     return (
       <div className="app-card">
@@ -432,6 +437,16 @@ export default function HRPortal() {
 
         <DataTable 
           columns={[
+            { 
+              header: '#', 
+              accessor: 'srNo',
+              nowrap: true,
+              render: (row, idx) => (
+                <span style={{ fontWeight: '700', color: '#64748b', fontSize: '12.5px', fontFamily: 'monospace' }}>
+                  {row.srNo ?? ((idx !== undefined ? idx + 1 : 1))}
+                </span>
+              )
+            },
             { 
               header: 'Code', 
               accessor: 'employeeCode',
