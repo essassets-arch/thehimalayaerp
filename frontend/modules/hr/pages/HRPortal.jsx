@@ -57,15 +57,6 @@ export default function HRPortal() {
   const [dbEmployees, setDbEmployees] = useState([]);
   const [inspectEmployeeId, setInspectEmployeeId] = useState(null);
 
-  const defaultRoster = useMemo(() => [
-    { id: 'EMP-1', employeeCode: 'EMP-1', name: 'Sales Eleven', department: 'Sales Department', designation: 'Sales Executive', dateOfJoining: '2023-01-15', reportingManager: 'Plant Head / HR Manager', status: 'ACTIVE' },
-    { id: 'EMP-001', employeeCode: 'EMP-001', name: 'Aarav Sharma', department: 'Operations', designation: 'Operations Manager', dateOfJoining: '2022-01-10', reportingManager: 'Plant Head', status: 'ACTIVE' },
-    { id: 'EMP-002', employeeCode: 'EMP-002', name: 'Ramanathan Swamy', department: 'Operations', designation: 'Operations Lead', dateOfJoining: '2022-04-10', reportingManager: 'Plant Head', status: 'ACTIVE' },
-    { id: 'EMP-003', employeeCode: 'EMP-003', name: 'Priya Patel', department: 'Human Resources', designation: 'HR Executive', dateOfJoining: '2023-02-01', reportingManager: 'HR Manager', status: 'ACTIVE' },
-    { id: 'EMP-004', employeeCode: 'EMP-004', name: 'Vikram Singh', department: 'Quality Control', designation: 'QC Specialist', dateOfJoining: '2022-08-20', reportingManager: 'Quality Head', status: 'ACTIVE' },
-    { id: 'EMP-005', employeeCode: 'EMP-005', name: 'Neha Shah', department: 'Finance', designation: 'Senior Accountant', dateOfJoining: '2021-03-15', reportingManager: 'VP Finance', status: 'ACTIVE' },
-  ], []);
-
   const loadEmployees = async () => {
     try {
       const res = await employeesService.listEmployees({ page: 1, pageSize: 1000, limit: 1000 });
@@ -83,26 +74,20 @@ export default function HRPortal() {
 
   const employees = useMemo(() => {
     if (dbEmployees.length > 0) {
-      const mappedDb = dbEmployees.map(emp => ({
+      return dbEmployees.map(emp => ({
         id: emp.employeeCode || emp.id,
         dbId: emp.id,
         employeeCode: emp.employeeCode || emp.id,
-        name: emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
-        department: typeof emp.department === 'object' ? (emp.department?.name || 'Sales Department') : (emp.department || 'Sales Department'),
-        designation: emp.jobTitle || emp.role || 'Sales Executive',
-        dateOfJoining: emp.joiningDate ? emp.joiningDate.split('T')[0] : (emp.createdAt ? emp.createdAt.split('T')[0] : '2023-01-15'),
-        reportingManager: emp.reportingManager?.fullName || emp.reportingManagerName || (typeof emp.reportingManager === 'string' ? emp.reportingManager : 'Plant Head / HR Manager'),
+        name: emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Staff Member',
+        department: typeof emp.department === 'object' ? (emp.department?.name || 'Operations') : (emp.department || 'Operations'),
+        designation: emp.jobTitle || emp.role || 'Staff Member',
+        dateOfJoining: emp.joiningDate ? emp.joiningDate.split('T')[0] : (emp.createdAt ? emp.createdAt.split('T')[0] : ''),
+        reportingManager: emp.reportingManager?.fullName || emp.reportingManagerName || (typeof emp.reportingManager === 'string' ? emp.reportingManager : 'N/A'),
         status: emp.status || 'ACTIVE'
       }));
-
-      const hasSales11 = mappedDb.some(e => e.id === 'EMP-1' || e.employeeCode === 'EMP-1' || e.name === 'Sales Eleven');
-      if (!hasSales11) {
-        return [defaultRoster[0], ...mappedDb];
-      }
-      return mappedDb;
     }
-    return defaultRoster;
-  }, [dbEmployees, defaultRoster]);
+    return [];
+  }, [dbEmployees]);
 
   const [directoryEmployees, setDirectoryEmployees] = useState([]);
   const [directoryError, setDirectoryError] = useState('');
@@ -203,7 +188,7 @@ export default function HRPortal() {
   // Exit clearance state
   const [showExitModal, setShowExitModal] = useState(false);
   const [selectedExitRecord, setSelectedExitRecord] = useState(null);
-  const [exitForm, setExitForm] = useState({ empId: 'EMP-001', effectiveDate: '2026-06-01' });
+  const [exitForm, setExitForm] = useState({ empId: '', effectiveDate: new Date().toISOString().slice(0, 10) });
 
   // Selected Alert state for Inspector
   const [selectedAlert, setSelectedAlert] = useState(null);
@@ -550,7 +535,7 @@ export default function HRPortal() {
         <div className="card-top-bar" style={{ flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h2 className="card-heading">Leave Request Applications</h2>
-            <span style={{ fontSize: '11px', color: '#5E6B82' }}>📅 Date: 2026-06-10</span>
+            <span style={{ fontSize: '11px', color: '#5E6B82' }}>📅 Today: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
           </div>
         </div>
 
@@ -568,7 +553,7 @@ export default function HRPortal() {
           searchQuery={globalSearch}
           searchField="empName"
           actions={(row) => {
-            const isPending = row.status === 'PH Pending' || row.status === 'Pending';
+            const isPending = row.status === 'PH Pending' || row.status === 'Pending' || row.status === 'PENDING_HR';
             return (
               <div style={{ display: 'flex', gap: '8px' }}>
                 {isPending ? (
@@ -602,120 +587,64 @@ export default function HRPortal() {
 
   // 7. EXIT CLEARANCE
   const renderExitClearance = () => {
-    const defaultExitClearances = [
-      {
-        empId: 'EMP-005',
-        name: 'Neha Shah',
-        department: 'Finance',
-        effectiveDate: '2026-06-30',
-        empDetails: {
-          id: 'EMP-005',
-          name: 'Neha Shah',
-          designation: 'Senior Accountant',
-          department: 'Finance',
-          dateOfJoining: '2021-03-15',
-          resignationDate: '2026-05-30',
-          lastWorkingDay: '2026-06-30',
-          noticePeriod: '30',
-          noticeServed: '30',
-          reportingManager: 'Anil Kumar (VP Finance)'
-        },
-        clearance: {
-          workHandover: 'Completed',
-          assetsReturned: 'Yes',
-          financeDues: 'Cleared',
-          adminClearance: 'Cleared',
-          managerClearance: 'Cleared',
-          exitInterview: 'Done',
-          leaveBalance: '5',
-          fullAndFinal: 'Completed'
-        },
-        assets: {
-          laptopPc: true,
-          monitor: true,
-          keyboardMouse: true,
-          mobileCharger: true,
-          idCard: true,
-          keys: true,
-          headsetDisk: false,
-          documentsFiles: true,
-          other: 'Access token returned'
-        },
-        approval: {
-          remarks: 'Handover complete. All financial ledger access revoked.',
-          empSignature: 'Neha Shah',
-          empSigDate: '2026-06-30',
-          mgrSignature: 'Anil Kumar',
-          mgrSigDate: '2026-06-30',
-          hrSignature: 'Raman HR',
-          hrSigDate: '2026-06-30',
-          finalHrStatus: 'Cleared',
-          hrSignOff: 'Raman HR',
-          hrSignOffDate: '2026-06-30',
-          companyStamp: 'Himalaya Enterprises - HR Seal'
-        },
-        checkpoints: { IT: true, Finance: true, Store: true, HR: true },
-        progress: 100,
-        status: 'Cleared'
+    const exitingEmployees = employees.filter(e => ['RESIGNED', 'TERMINATED', 'RETIRED'].includes(e.status) || e.status === 'INACTIVE');
+    const dynamicExitFallbacks = exitingEmployees.map(e => ({
+      empId: e.employeeCode || e.id,
+      name: e.name,
+      department: e.department,
+      effectiveDate: e.dateOfJoining || new Date().toISOString().split('T')[0],
+      empDetails: {
+        id: e.employeeCode || e.id,
+        name: e.name,
+        designation: e.designation,
+        department: e.department,
+        dateOfJoining: e.dateOfJoining,
+        resignationDate: new Date().toISOString().split('T')[0],
+        lastWorkingDay: new Date().toISOString().split('T')[0],
+        noticePeriod: '30',
+        noticeServed: '0',
+        reportingManager: e.reportingManager || 'Plant Head / HR'
       },
-      {
-        empId: 'EMP-002',
-        name: 'Ramanathan Swamy',
-        department: 'Operations',
-        effectiveDate: '2026-07-15',
-        empDetails: {
-          id: 'EMP-002',
-          name: 'Ramanathan Swamy',
-          designation: 'Operations Lead',
-          department: 'Operations',
-          dateOfJoining: '2022-04-10',
-          resignationDate: '2026-06-15',
-          lastWorkingDay: '2026-07-15',
-          noticePeriod: '30',
-          noticeServed: '30',
-          reportingManager: 'Plant Manager'
-        },
-        clearance: {
-          workHandover: 'Pending',
-          assetsReturned: 'Yes',
-          financeDues: 'Pending',
-          adminClearance: 'Cleared',
-          managerClearance: 'Pending',
-          exitInterview: 'Pending',
-          leaveBalance: '8',
-          fullAndFinal: 'Pending'
-        },
-        assets: {
-          laptopPc: true,
-          monitor: false,
-          keyboardMouse: true,
-          mobileCharger: true,
-          idCard: true,
-          keys: true,
-          headsetDisk: true,
-          documentsFiles: true,
-          other: ''
-        },
-        approval: {
-          remarks: 'Notice period underway. Store handover pending.',
-          empSignature: 'Ramanathan Swamy',
-          empSigDate: '2026-06-15',
-          mgrSignature: '',
-          mgrSigDate: '',
-          hrSignature: 'HR Team',
-          hrSigDate: '2026-06-15',
-          finalHrStatus: 'Pending',
-          hrSignOff: '',
-          hrSignOffDate: '',
-          companyStamp: 'Himalaya Enterprises - HR Seal'
-        },
-        checkpoints: { IT: true, Finance: false, Store: true, HR: false },
-        progress: 50,
-        status: 'In Progress'
-      }
-    ];
+      clearance: {
+        workHandover: 'Pending',
+        assetsReturned: 'Pending',
+        financeDues: 'Pending',
+        adminClearance: 'Pending',
+        managerClearance: 'Pending',
+        exitInterview: 'Pending',
+        leaveBalance: '0',
+        fullAndFinal: 'Pending'
+      },
+      assets: {
+        laptopPc: false,
+        monitor: false,
+        keyboardMouse: false,
+        mobileCharger: false,
+        idCard: false,
+        keys: false,
+        headsetDisk: false,
+        documentsFiles: false,
+        other: ''
+      },
+      approval: {
+        remarks: 'Offboarding process initiated',
+        empSignature: e.name,
+        empSigDate: new Date().toISOString().split('T')[0],
+        mgrSignature: '',
+        mgrSigDate: '',
+        hrSignature: user?.name || 'HR Team',
+        hrSigDate: new Date().toISOString().split('T')[0],
+        finalHrStatus: 'Pending',
+        hrSignOff: '',
+        hrSignOffDate: '',
+        companyStamp: 'Himalaya Enterprises - HR Seal'
+      },
+      checkpoints: { IT: false, Finance: false, Store: false, HR: false },
+      progress: 0,
+      status: 'In Progress'
+    }));
 
-    const activeExitList = (exitClearances && exitClearances.length > 0) ? exitClearances : defaultExitClearances;
+    const activeExitList = (exitClearances && exitClearances.length > 0) ? exitClearances : dynamicExitFallbacks;
 
     const totalExits = activeExitList.length;
     const clearedExits = activeExitList.filter(e => e.status === 'Cleared').length;
@@ -994,12 +923,12 @@ export default function HRPortal() {
         <div className="card-top-bar" style={{ flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h2 className="card-heading">Corporate Staff Monthly Payroll</h2>
-            <span style={{ fontSize: '11px', color: '#5E6B82' }}>📅 Date: 2026-06-10</span>
+            <span style={{ fontSize: '11px', color: '#5E6B82' }}>📅 Active Date: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
           </div>
           <button 
             className="action-btn"
             style={{ background: 'var(--color-primary)', border: 'none', padding: '8px 16px', borderRadius: '6px', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}
-            onClick={() => showToast('Salaries disbursed successfully for June 2026!')}
+            onClick={() => showToast(`Salaries disbursement workflow ready for ${new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}!`)}
           >
             Disburse Salaries
           </button>
@@ -1011,13 +940,12 @@ export default function HRPortal() {
             { header: 'Name', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
             { header: 'Department', accessor: 'department' },
             { header: 'Designation', accessor: 'role' },
-            { header: 'Base Salary', accessor: 'salary', render: (row) => `₹${(row.salary || 30000).toLocaleString('en-IN')}` },
+            { header: 'Base Salary', accessor: 'salary', render: (row) => `₹${Number(row.baseSalary || row.salary || row.payroll?.grossEarnings || 0).toLocaleString('en-IN')}` },
             { 
               header: 'Leaves Deductions', 
               accessor: 'id', 
               render: (row) => {
-                const pendingCount = leaves.filter(l => l.empId === row.id && l.status === 'Approved').length || 0;
-                const deduction = pendingCount * 1500;
+                const deduction = Number(row.payroll?.leaveDeductions || 0);
                 return deduction > 0 ? <span style={{ color: '#ef4444' }}>-₹{deduction.toLocaleString('en-IN')}</span> : '₹0';
               } 
             },
@@ -1025,10 +953,9 @@ export default function HRPortal() {
               header: 'Net Payable', 
               accessor: 'id', 
               render: (row) => {
-                const pendingCount = leaves.filter(l => l.empId === row.id && l.status === 'Approved').length || 0;
-                const deduction = pendingCount * 1500;
-                const base = row.salary || 30000;
-                const net = Math.max(0, base - deduction);
+                const base = Number(row.baseSalary || row.salary || row.payroll?.grossEarnings || 0);
+                const deduction = Number(row.payroll?.leaveDeductions || 0) + Number(row.payroll?.totalDeductions || 0);
+                const net = Number(row.payroll?.netPayable || Math.max(0, base - deduction));
                 return <strong style={{ color: '#16a34a' }}>₹{net.toLocaleString('en-IN')}</strong>;
               } 
             }
@@ -1044,47 +971,70 @@ export default function HRPortal() {
 
   // 9. HR NOTIFICATIONS
   const renderNotifications = () => {
-    const alerts = [
-      { id: 'AL-01', title: 'Leave Application Pending', message: 'Ramanathan Swamy has applied for a 3-day leave starting 18-Jun-2026.', date: '10-Jun-2026', type: 'Leave', empId: 'EMP-002' },
-      { id: 'AL-02', title: 'Exit Process Checkpoint', message: 'Neha Shah clearance checkpoint is in progress. 75% completed.', date: '01-Jun-2026', type: 'Exit', empId: 'EMP-005' }
-    ];
+    const alerts = [];
+    leaves.filter(l => l.status === 'Pending' || l.status === 'PENDING' || l.status === 'PENDING_HR' || l.status === 'PH Pending').forEach(l => {
+      alerts.push({
+        id: `AL-L-${l.id}`,
+        title: 'Leave Application Pending',
+        message: `${l.empName || 'Employee'} applied for ${l.duration || 1}-day leave (${l.startDate || ''} to ${l.endDate || ''}).`,
+        date: l.startDate || 'Recent',
+        type: 'Leave',
+        empId: l.empId || l.employeeId
+      });
+    });
+    (exitClearances || []).filter(ex => ex.status !== 'Cleared').forEach(ex => {
+      alerts.push({
+        id: `AL-E-${ex.empId || ex.id}`,
+        title: 'Exit Process Checkpoint',
+        message: `${ex.name || 'Staff member'} clearance checkpoint is in progress (${ex.progress || 0}% completed).`,
+        date: ex.effectiveDate || 'Recent',
+        type: 'Exit',
+        empId: ex.empId || ex.id
+      });
+    });
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ fontSize: '18px', fontWeight: '800' }}>HR Action Alerts & System Alerts</h2>
-          <span style={{ fontSize: '12px', color: '#5E6B82' }}>📅 Date: 2026-06-10</span>
+          <span style={{ fontSize: '12px', color: '#5E6B82' }}>📅 Today: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
         </div>
 
         <div className="hr-notifications-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'stretch' }}>
           {/* Alerts List */}
           <div className="app-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #DCE5F0', paddingBottom: '12px', marginBottom: '16px' }}>
-              <span style={{ fontSize: '12px' }}>Unread (0) | All Alerts ({alerts.length})</span>
+              <span style={{ fontSize: '12px' }}>Active Alerts ({alerts.length})</span>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {alerts.map(al => (
-                <div 
-                  key={al.id} 
-                  onClick={() => setSelectedAlert(al)}
-                  style={{ 
-                    padding: '12px', 
-                    borderRadius: '8px', 
-                    border: '1px solid #DCE5F0', 
-                    background: selectedAlert?.id === al.id ? 'rgba(14,165,233,0.05)' : '#ffffff',
-                    borderColor: selectedAlert?.id === al.id ? '#0ea5e9' : '#DCE5F0',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '13px' }}>{al.title}</strong>
-                    <span style={{ fontSize: '10px', color: '#5E6B82' }}>{al.date}</span>
+              {alerts.length > 0 ? (
+                alerts.map(al => (
+                  <div 
+                    key={al.id} 
+                    onClick={() => setSelectedAlert(al)}
+                    style={{ 
+                      padding: '12px', 
+                      borderRadius: '8px', 
+                      border: '1px solid #DCE5F0', 
+                      background: selectedAlert?.id === al.id ? 'rgba(14,165,233,0.05)' : '#ffffff',
+                      borderColor: selectedAlert?.id === al.id ? '#0ea5e9' : '#DCE5F0',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <strong style={{ fontSize: '13px' }}>{al.title}</strong>
+                      <span style={{ fontSize: '10px', color: '#5E6B82' }}>{al.date}</span>
+                    </div>
+                    <p style={{ fontSize: '12px', color: '#475569', margin: 0 }}>{al.message}</p>
                   </div>
-                  <p style={{ fontSize: '12px', color: '#475569', margin: 0 }}>{al.message}</p>
+                ))
+              ) : (
+                <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+                  No active HR alerts requiring attention.
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
@@ -1093,18 +1043,18 @@ export default function HRPortal() {
             <h3 className="card-heading" style={{ marginBottom: '14px' }}>Detailed Staff Profile Inspector</h3>
             {selectedAlert ? (
               (() => {
-                const emp = employees.find(e => e.id === selectedAlert.empId);
+                const emp = employees.find(e => e.id === selectedAlert.empId || e.employeeCode === selectedAlert.empId);
                 if (!emp) return <span style={{ color: '#5E6B82' }}>Employee profile not found.</span>;
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '13px' }}>
                     <div style={{ background: '#F5FAFE', padding: '12px', borderRadius: '8px', border: '1px solid #DCE5F0' }}>
                       <span style={{ fontSize: '10px', color: '#5E6B82', display: 'block' }}>Roster Member</span>
-                      <strong>{emp.name} ({emp.id})</strong>
+                      <strong>{emp.name} ({emp.id || emp.employeeCode})</strong>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                       <div>
                         <span style={{ fontSize: '10px', color: '#5E6B82' }}>Designation</span>
-                        <p style={{ fontWeight: 'bold' }}>{emp.role}</p>
+                        <p style={{ fontWeight: 'bold' }}>{emp.designation || emp.role || 'Staff Member'}</p>
                       </div>
                       <div>
                         <span style={{ fontSize: '10px', color: '#5E6B82' }}>Department</span>
@@ -1112,11 +1062,11 @@ export default function HRPortal() {
                       </div>
                       <div>
                         <span style={{ fontSize: '10px', color: '#5E6B82' }}>Base Pay</span>
-                        <p style={{ fontWeight: 'bold' }}>₹{emp.salary.toLocaleString('en-IN')}</p>
+                        <p style={{ fontWeight: 'bold' }}>₹{Number(emp.salary || emp.baseSalary || 0).toLocaleString('en-IN')}</p>
                       </div>
                       <div>
-                        <span style={{ fontSize: '10px', color: '#5E6B82' }}>Attendance</span>
-                        <p style={{ fontWeight: 'bold', color: '#16a34a' }}>{emp.attendance || 95}%</p>
+                        <span style={{ fontSize: '10px', color: '#5E6B82' }}>Status</span>
+                        <p style={{ fontWeight: 'bold', color: '#16a34a' }}>{emp.status || 'ACTIVE'}</p>
                       </div>
                     </div>
                     <button 
@@ -1133,6 +1083,15 @@ export default function HRPortal() {
                 );
               })()
             ) : (
+              <p style={{ fontSize: '12.5px', color: '#5E6B82', textAlign: 'center', marginTop: '24px' }}>
+                Select an alert from the notification list to inspect employee's corporate details and initiate follow-up actions.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
               <p style={{ fontSize: '12.5px', color: '#5E6B82', textAlign: 'center', marginTop: '24px' }}>
                 Select an alert from the notification list to inspect employee's corporate details and initiate follow-up actions.
               </p>

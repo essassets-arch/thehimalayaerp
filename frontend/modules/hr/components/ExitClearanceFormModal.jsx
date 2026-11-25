@@ -122,18 +122,21 @@ export default function ExitClearanceFormModal({ isOpen, onClose, onSubmit, empl
       if (targetEmp) {
         setSelectedEmpId(targetEmp.id || targetEmp.employeeCode);
         populateFromEmp(targetEmp);
+      } else if (employees.length > 0) {
+        setSelectedEmpId(employees[0].id || employees[0].employeeCode);
+        populateFromEmp(employees[0]);
       } else {
         setEmpDetails({
-          name: 'Sales Eleven',
-          id: 'EMP-1',
-          designation: 'Sales Executive',
-          department: 'Sales Department',
-          dateOfJoining: '2023-01-15',
+          name: '',
+          id: '',
+          designation: '',
+          department: '',
+          dateOfJoining: '',
           resignationDate: todayStr,
           lastWorkingDay: calculateLastWorkingDay(todayStr, '30'),
           noticePeriod: '30',
-          noticeServed: '30',
-          reportingManager: 'Plant Head / HR Manager'
+          noticeServed: '0',
+          reportingManager: ''
         });
       }
 
@@ -162,7 +165,7 @@ export default function ExitClearanceFormModal({ isOpen, onClose, onSubmit, empl
 
       setApproval({
         remarks: '',
-        empSignature: targetEmp?.name || 'Sales Eleven',
+        empSignature: targetEmp?.name || (employees.length > 0 ? employees[0]?.name : '') || '',
         empSigDate: todayStr,
         mgrSignature: '',
         mgrSigDate: '',

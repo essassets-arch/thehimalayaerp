@@ -1225,4 +1225,510 @@ export class EmployeesService {
     });
     return { success: true };
   }
+
+  async getDashboardMetrics(query: any, user: any) {
+    const compId = this.companyId(user);
+    const now = new Date();
+    const monthNum = query?.month ? parseInt(String(query.month), 10) : (now.getMonth() + 1);
+    const yearNum = query?.year ? parseInt(String(query.year), 10) : now.getFullYear();
+
+    // IST Today range (UTC+5:30)
+    const istOffsetMs = 330 * 60000;
+    const istNow = new Date(now.getTime() + istOffsetMs);
+    const todayStr = istNow.toISOString().slice(0, 10);
+    const todayStart = new Date(`${todayStr}T00:00:00.000+05:30`);
+    const todayEnd = new Date(`${todayStr}T23:59:59.999+05:30`);
+
+    const activeStatuses = ['ACTIVE', 'ON_PROBATION', 'CONFIRMED', 'ON_LEAVE'];
+    const exitStatuses = ['RESIGNED', 'TERMINATED', 'RETIRED'];
+
+    // 1. Fetch workforce with active salary structure
+    const employees = await this.prisma.employee.findMany({
+      where: { companyId: compId },
+      include: {
+        department: true,
+        workLocation: true,
+        salaryStructures: {
+          where: { isActive: true },
+          orderBy: { effectiveFrom: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: { fullName: 'asc' },
+    });
+
+    const totalStaff = employees.length;
+    const activeStaff = employees.filter((e) => activeStatuses.includes(e.status)).length;
+    const inactiveStaff = employees.filter((e) => !activeStatuses.includes(e.status)).length;
+    const onProbation = employees.filter((e) => e.status === 'ON_PROBATION').length;
+
+    // New joinees in selected month
+    const newJoinees = employees.filter((e) => {
+      if (!e.joiningDate) return false;
+      const jd = new Date(e.joiningDate);
+      return (
+        !isNaN(jd.getTime()) &&
+        jd.getUTCFullYear() === yearNum &&
+        jd.getUTCMonth() + 1 === monthNum
+      );
+    });
+
+    // Department workforce distribution
+    const deptMap: Record<string, number> = {};
+    employees.forEach((emp) => {
+      const dName = emp.department?.name || 'Unassigned';
+      deptMap[dName] = (deptMap[dName] || 0) + 1;
+    });
+    const DEPT_COLORS = [
+      '#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899',
+      '#6366f1', '#06b6d4', '#14b8a6', '#f97316', '#84cc16'
+    ];
+    const departments = Object.entries(deptMap)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count], idx) => ({
+        name,
+        count,
+        percentage: totalStaff > 0 ? Number(((count / totalStaff) * 100).toFixed(1)) : 0,
+        color: DEPT_COLORS[idx % DEPT_COLORS.length],
+      }));
+
+    // 2. Fetch today's attendance
+    const todayAttendance = await this.prisma.attendance.findMany({
+      where: {
+        companyId: compId,
+        attendanceDate: {
+          gte: todayStart,
+          lte: todayEnd,
+        },
+      },
+      include: {
+        employee: {
+          select: { id: true, employeeCode: true, fullName: true, department: { select: { name: true } } },
+        },
+      },
+    });
+
+    const presentStatuses = ['PRESENT', 'PUNCHED_IN', 'HALF_DAY'];
+    const presentToday = todayAttendance.filter((a) => presentStatuses.includes(a.status)).length;
+    const lateToday = todayAttendance.filter((a) => a.lateMinutes > 0).length;
+    const absentToday = todayAttendance.filter((a) => a.status === 'ABSENT').length;
+    const onLeaveToday = todayAttendance.filter((a) => a.status === 'PAID_LEAVE' || a.status === 'UNPAID_LEAVE').length;
+    const halfDayToday = todayAttendance.filter((a) => a.status === 'HALF_DAY').length;
+    const overtimeToday = todayAttendance.filter((a) => a.overtimeMinutes > 0).length;
+    const attendanceRate = totalStaff > 0 ? Number(((presentToday / totalStaff) * 100).toFixed(1)) : 0;
+
+    // Previous days missing checkouts
+    const missingCheckouts = await this.prisma.attendance.count({
+      where: {
+        companyId: compId,
+        attendanceDate: { lt: todayStart },
+        punchInAt: { not: null },
+        punchOutAt: null,
+      },
+    });
+
+    // Attendance regularization requests pending
+    const pendingAttendanceReqs = await this.prisma.manualAttendanceRequest.findMany({
+      where: {
+        employee: { companyId: compId },
+        status: 'PENDING',
+      },
+      include: {
+        employee: { select: { id: true, employeeCode: true, fullName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // 3. Leaves
+    const leaveRequests = await this.prisma.leaveRequest.findMany({
+      where: { companyId: compId },
+      include: {
+        employee: { select: { id: true, employeeCode: true, fullName: true } },
+        department: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const pendingLeaves = leaveRequests.filter((l) =>
+      ['PENDING_HR', 'PENDING_PLANT_HEAD', 'PENDING_SUPER_ADMIN'].includes(l.status),
+    );
+    const approvedThisMonth = leaveRequests.filter(
+      (l) =>
+        l.status === 'APPROVED' &&
+        l.approvedAt &&
+        new Date(l.approvedAt).getUTCMonth() + 1 === monthNum &&
+        new Date(l.approvedAt).getUTCFullYear() === yearNum,
+    ).length;
+    const rejectedThisMonth = leaveRequests.filter(
+      (l) =>
+        l.status === 'REJECTED' &&
+        l.updatedAt &&
+        new Date(l.updatedAt).getUTCMonth() + 1 === monthNum &&
+        new Date(l.updatedAt).getUTCFullYear() === yearNum,
+    ).length;
+
+    const leaveStatusData = [
+      { name: 'Approved', value: leaveRequests.filter((l) => l.status === 'APPROVED').length, color: '#10b981' },
+      { name: 'Pending', value: pendingLeaves.length, color: '#f59e0b' },
+      { name: 'Rejected', value: leaveRequests.filter((l) => l.status === 'REJECTED').length, color: '#ef4444' },
+    ];
+
+    const leaveTypeCounts: Record<string, number> = {};
+    leaveRequests.forEach((l) => {
+      const t = l.leaveType || 'General Leave';
+      leaveTypeCounts[t] = (leaveTypeCounts[t] || 0) + 1;
+    });
+    const totalLeavesCount = Math.max(1, leaveRequests.length);
+    const LEAVE_TYPE_COLORS = ['#0ea5e9', '#ef4444', '#10b981', '#8b5cf6', '#f59e0b', '#06b6d4'];
+    const leaveTypesData = Object.entries(leaveTypeCounts).map(([type, count], idx) => ({
+      type,
+      count,
+      percentage: Number(((count / totalLeavesCount) * 100).toFixed(0)),
+      color: LEAVE_TYPE_COLORS[idx % LEAVE_TYPE_COLORS.length],
+    }));
+
+    const recentLeaves = leaveRequests.slice(0, 5).map((l) => ({
+      id: l.id,
+      empName: l.employee?.fullName || 'Staff Member',
+      leaveType: l.leaveType,
+      startDate: l.fromDate ? l.fromDate.toISOString().slice(0, 10) : '',
+      endDate: l.toDate ? l.toDate.toISOString().slice(0, 10) : '',
+      duration: l.totalDays,
+      status: l.status,
+      reason: l.reason,
+    }));
+
+    // 4. Payroll Records for Selected Month + Real 6-Month Historical Outlay Trend
+    const payrollRecords = await this.prisma.payrollRecord.findMany({
+      where: {
+        companyId: compId,
+        payrollPeriod: {
+          month: monthNum,
+          year: yearNum,
+        },
+      },
+      include: {
+        payrollPeriod: true,
+        salarySlip: true,
+      },
+    });
+
+    let grossTotal = 0;
+    let leaveDeductionsTotal = 0;
+    let otherDeductionsTotal = 0;
+    let netPayableTotal = 0;
+    let slipsGeneratedCount = 0;
+    let salariesDisbursedCount = 0;
+
+    if (payrollRecords.length > 0) {
+      for (const pr of payrollRecords) {
+        const g = Number(pr.grossEarnings || 0);
+        const l = Number(pr.leaveDeduction || 0);
+        const o = Number(pr.totalDeductions || 0) - l;
+        const n = Number(pr.netPayable || 0);
+        grossTotal += g;
+        leaveDeductionsTotal += Math.max(0, l);
+        otherDeductionsTotal += Math.max(0, o);
+        netPayableTotal += n;
+        if (pr.salarySlip) slipsGeneratedCount++;
+        if (pr.status === 'PAID') salariesDisbursedCount++;
+      }
+    } else {
+      // If payroll period hasn't been generated yet, compute from active employee salary structures
+      for (const emp of employees) {
+        if (activeStatuses.includes(emp.status)) {
+          const st = emp.salaryStructures?.[0];
+          if (st) {
+            grossTotal += Number(st.grossSalary || st.basicSalary || 0);
+          }
+        }
+      }
+      netPayableTotal = grossTotal;
+    }
+    const payrollReadyPercentage = totalStaff > 0 ? Math.min(100, Math.round((slipsGeneratedCount / totalStaff) * 100)) : 0;
+
+    // Real 6-Month historical outlay trend
+    const recent6Months = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(yearNum, monthNum - 1 - i, 1);
+      recent6Months.push({
+        month: d.getMonth() + 1,
+        year: d.getFullYear(),
+        label: d.toLocaleString('en-US', { month: 'short' }),
+        fullLabel: d.toLocaleString('en-US', { month: 'long', year: 'numeric' }),
+      });
+    }
+
+    const sixMonthsHistory = await this.prisma.payrollRecord.findMany({
+      where: {
+        companyId: compId,
+        payrollPeriod: {
+          OR: recent6Months.map((m) => ({ month: m.month, year: m.year })),
+        },
+      },
+      select: {
+        grossEarnings: true,
+        netPayable: true,
+        payrollPeriod: { select: { month: true, year: true } },
+      },
+    });
+
+    const payrollTrendData = recent6Months.map((m) => {
+      const matching = sixMonthsHistory.filter(
+        (r) => r.payrollPeriod?.month === m.month && r.payrollPeriod?.year === m.year,
+      );
+      if (matching.length > 0) {
+        const grossSum = matching.reduce((s, r) => s + Number(r.grossEarnings || 0), 0);
+        const netSum = matching.reduce((s, r) => s + Number(r.netPayable || 0), 0);
+        return {
+          month: m.label,
+          gross: Number((grossSum / 100000).toFixed(1)),
+          net: Number((netSum / 100000).toFixed(1)),
+        };
+      }
+      if (m.month === monthNum && m.year === yearNum && grossTotal > 0) {
+        return {
+          month: m.label,
+          gross: Number((grossTotal / 100000).toFixed(1)),
+          net: Number((netPayableTotal / 100000).toFixed(1)),
+        };
+      }
+      return {
+        month: m.label,
+        gross: 0,
+        net: 0,
+      };
+    });
+
+    // 5. Exits & Offboarding
+    const exitingEmployees = employees.filter((e) =>
+      exitStatuses.includes(e.status) || e.status === 'INACTIVE',
+    );
+    const exitsList = exitingEmployees.map((e) => ({
+      empId: e.employeeCode || e.id,
+      name: e.fullName,
+      department: e.department?.name || 'Operations',
+      status: e.status === 'RESIGNED' ? 'In Progress' : 'Cleared',
+      progress: e.status === 'RESIGNED' ? 50 : 100,
+      effectiveDate: e.updatedAt ? e.updatedAt.toISOString().slice(0, 10) : todayStr,
+      checkpoints: {
+        IT: e.status !== 'RESIGNED',
+        Finance: e.status !== 'RESIGNED',
+        Store: e.status !== 'RESIGNED',
+        HR: e.status !== 'RESIGNED',
+      },
+    }));
+
+    // 6. Recruitment & Drafts
+    const drafts = await this.prisma.employeeDraft.findMany({
+      where: { companyId: compId },
+      select: { id: true, draftData: true, step: true, updatedAt: true },
+    });
+    const recruitmentRequests = await this.prisma.recruitmentRequest.findMany({
+      where: { companyId: compId },
+      select: { id: true, indentNumber: true, designation: true, vacancies: true, status: true },
+    });
+    const openRecruitment = recruitmentRequests.filter((r) =>
+      ['OPEN', 'PENDING', 'IN_PROGRESS', 'HR_PROCESSING'].includes(r.status),
+    );
+    const onboardingCount = drafts.length + openRecruitment.length + newJoinees.length;
+
+    // 7. Expenses
+    const pendingExpenses = await this.prisma.expense.findMany({
+      where: {
+        companyId: compId,
+        status: { in: ['PENDING_HR', 'PENDING_SUPER_ADMIN'] },
+      },
+      include: {
+        employee: { select: { id: true, employeeCode: true, fullName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const pendingExpensesCount = pendingExpenses.length;
+    const pendingExpensesTotal = pendingExpenses.reduce((s, ex) => s + Number(ex.amount || 0), 0);
+
+    // 8. Recent Activity / Audit Logs
+    const recentAuditLogs = await this.prisma.auditLog.findMany({
+      where: {
+        companyId: compId,
+        entityType: {
+          in: ['Employee', 'EmployeeDraft', 'EmployeeDocument', 'PayrollRecord', 'LeaveRequest', 'Attendance', 'Expense', 'SalaryStructure'],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 8,
+    });
+
+    const recentActivities = recentAuditLogs.map((log) => {
+      const d = new Date(log.createdAt);
+      const timeStr = !isNaN(d.getTime())
+        ? d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false })
+        : 'Recent';
+      let category = 'HR';
+      let badgeColor = '#0ea5e9';
+      const entityStr = String(log.entityType || '').toUpperCase();
+      const actionStr = String(log.action || '').toUpperCase();
+      if (entityStr.includes('LEAVE') || actionStr.includes('LEAVE')) {
+        category = 'Leave'; badgeColor = '#10b981';
+      } else if (entityStr.includes('PAYROLL') || entityStr.includes('SALARY')) {
+        category = 'Payroll'; badgeColor = '#8b5cf6';
+      } else if (entityStr.includes('ATTENDANCE') || actionStr.includes('PUNCH')) {
+        category = 'Attendance'; badgeColor = '#06b6d4';
+      } else if (entityStr.includes('EXPENSE')) {
+        category = 'Expense'; badgeColor = '#f59e0b';
+      } else if (entityStr.includes('EMPLOYEE')) {
+        category = 'Onboarding'; badgeColor = '#0ea5e9';
+      }
+      return {
+        time: timeStr,
+        text: `${log.action.replace(/_/g, ' ')} (${log.entityType})`,
+        category,
+        badgeColor,
+      };
+    });
+
+    // 9. HR Action Center Items
+    const actionItems = [];
+    if (pendingLeaves.length > 0) {
+      actionItems.push({
+        id: 'act-leaves',
+        title: `${pendingLeaves.length} Leave Request${pendingLeaves.length > 1 ? 's' : ''}`,
+        subtitle: `${pendingLeaves.length} require immediate HR approval`,
+        priority: 'high',
+        type: 'Leave',
+        actionText: 'Review',
+        path: '/hr/leave-approvals',
+      });
+    }
+    if (exitsList.filter((e) => e.status !== 'Cleared').length > 0) {
+      const pendingExitsCount = exitsList.filter((e) => e.status !== 'Cleared').length;
+      actionItems.push({
+        id: 'act-exits',
+        title: `${pendingExitsCount} Exit Clearance${pendingExitsCount > 1 ? 's' : ''}`,
+        subtitle: `${pendingExitsCount} awaiting department sign-off`,
+        priority: 'high',
+        type: 'Exit',
+        actionText: 'Open',
+        path: '/hr/exit-clearance',
+      });
+    }
+    if (onboardingCount > 0) {
+      actionItems.push({
+        id: 'act-onboarding',
+        title: `${onboardingCount} Employee Onboarding${onboardingCount > 1 ? 's' : ''}`,
+        subtitle: `${drafts.length} drafts, ${openRecruitment.length} requisitions, ${newJoinees.length} new hires`,
+        priority: 'medium',
+        type: 'Onboarding',
+        actionText: 'Review',
+        path: '/hr/register-staff',
+      });
+    }
+    if (pendingAttendanceReqs.length > 0) {
+      actionItems.push({
+        id: 'act-attendance',
+        title: `${pendingAttendanceReqs.length} Attendance Correction${pendingAttendanceReqs.length > 1 ? 's' : ''}`,
+        subtitle: 'Manual shift punch & regularization requests',
+        priority: 'high',
+        type: 'Attendance',
+        actionText: 'Review',
+        path: '/hr/attendance-requests',
+      });
+    }
+    if (pendingExpensesCount > 0) {
+      actionItems.push({
+        id: 'act-expenses',
+        title: `${pendingExpensesCount} Pending Expense Claim${pendingExpensesCount > 1 ? 's' : ''}`,
+        subtitle: `Totaling ₹${Math.round(pendingExpensesTotal).toLocaleString('en-IN')}`,
+        priority: 'medium',
+        type: 'Expense',
+        actionText: 'Review',
+        path: '/hr/expense-management',
+      });
+    }
+
+    return {
+      period: {
+        month: monthNum,
+        year: yearNum,
+        monthName: new Date(yearNum, monthNum - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' }),
+      },
+      workforce: {
+        totalStaff,
+        activeStaff,
+        inactiveStaff,
+        onProbation,
+        newJoineesCount: newJoinees.length,
+        newJoinees: newJoinees.map((e) => ({
+          id: e.id,
+          employeeCode: e.employeeCode,
+          fullName: e.fullName,
+          department: e.department?.name,
+          joiningDate: e.joiningDate,
+        })),
+        departments,
+      },
+      attendance: {
+        today: {
+          targetDate: todayStr,
+          present: presentToday,
+          late: lateToday,
+          absent: absentToday,
+          onLeave: onLeaveToday,
+          halfDay: halfDayToday,
+          attendanceRate,
+          missingCheckouts,
+          overtime: overtimeToday,
+        },
+        breakdown: [
+          { name: 'Present', count: presentToday, color: '#10b981' },
+          { name: 'Late', count: lateToday, color: '#f59e0b' },
+          { name: 'Absent', count: absentToday, color: '#ef4444' },
+          { name: 'On Leave', count: onLeaveToday, color: '#8b5cf6' },
+          { name: 'Half Day', count: halfDayToday, color: '#0ea5e9' },
+        ],
+        exceptions: [
+          ...(lateToday > 0 ? [{ type: 'Late Check-ins', count: lateToday, severity: 'warning', detail: 'Grace limit exceeded (+15 mins)' }] : []),
+          ...(missingCheckouts > 0 ? [{ type: 'Missing Check-outs', count: missingCheckouts, severity: 'danger', detail: 'Punches unverified from previous days' }] : []),
+          ...(overtimeToday > 0 ? [{ type: 'Overtime', count: overtimeToday, severity: 'info', detail: 'Extended shift hours recorded' }] : []),
+          ...(pendingAttendanceReqs.length > 0 ? [{ type: 'Correction Requests', count: pendingAttendanceReqs.length, severity: 'danger', detail: 'Manual punch & regularizations' }] : []),
+        ],
+      },
+      leaves: {
+        pendingCount: pendingLeaves.length,
+        approvedThisMonth,
+        rejectedThisMonth,
+        statusBreakdown: leaveStatusData,
+        typesBreakdown: leaveTypesData,
+        recentLeaves,
+      },
+      payroll: {
+        grossTotal,
+        leaveDeductionsTotal,
+        otherDeductionsTotal,
+        netPayableTotal,
+        slipsGeneratedCount,
+        salariesDisbursedCount,
+        payrollReadyPercentage,
+        outlayTrend: payrollTrendData,
+      },
+      exits: {
+        totalExits: exitsList.length,
+        pendingCount: exitsList.filter((e) => e.status !== 'Cleared').length,
+        clearedCount: exitsList.filter((e) => e.status === 'Cleared').length,
+        list: exitsList,
+      },
+      onboarding: {
+        totalCount: onboardingCount,
+        draftsCount: drafts.length,
+        openRequisitionsCount: openRecruitment.length,
+        newJoineesCount: newJoinees.length,
+      },
+      expenses: {
+        pendingCount: pendingExpensesCount,
+        pendingTotal: pendingExpensesTotal,
+      },
+      actionItems,
+      recentActivities,
+    };
+  }
 }

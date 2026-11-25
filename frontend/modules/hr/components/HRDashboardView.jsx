@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import ResponsiveChartWrapper from '../../../shared/components/ResponsiveChartWrapper';
 import { backendFetch } from '@/lib/backendFetch';
+import { employeesService } from '../../../services/hr/employeesService';
 
 // Curated harmonious color palette for departments
 const DEPT_COLORS = [
@@ -69,6 +70,8 @@ export default function HRDashboardView({
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const [dashboardMetrics, setDashboardMetrics] = useState(null);
+
   // Live telemetry state fetched directly from backend
   const [liveData, setLiveData] = useState({
     attendanceSummary: null,
@@ -113,6 +116,7 @@ export default function HRDashboardView({
     setIsRefreshing(true);
     try {
       const [
+        dashRes,
         empRes,
         attSummaryRes,
         attReqsRes,
@@ -122,6 +126,7 @@ export default function HRDashboardView({
         draftsRes,
         expensesRes
       ] = await Promise.allSettled([
+        safeFetch(() => employeesService.getDashboardMetrics({ month: selectedMonthIndex, year: selectedYear }), null),
         safeFetch(() => backendFetch('/api/backend/hr/employees?page=1&limit=200'), []),
         safeFetch(() => backendFetch('/api/backend/attendance/summary'), null),
         safeFetch(() => backendFetch('/api/backend/attendance-requests/pending'), []),
@@ -135,8 +140,12 @@ export default function HRDashboardView({
           }
         }, []),
         safeFetch(() => backendFetch('/api/backend/hr/employees/drafts'), []),
-        safeFetch(() => backendFetch('/api/backend/expenses'), [])
+        safeFetch(() => backendFetch('/api/backend/expenses/pending'), [])
       ]);
+
+      if (dashRes.status === 'fulfilled' && dashRes.value) {
+        setDashboardMetrics(dashRes.value);
+      }
 
       const parsedEmployees = empRes.status === 'fulfilled' && empRes.value
         ? (Array.isArray(empRes.value) ? empRes.value : (empRes.value?.items || empRes.value?.data || []))
@@ -204,8 +213,11 @@ export default function HRDashboardView({
   }, [expenses, liveData.liveExpenses]);
 
   const allExitClearances = useMemo(() => {
+    if (dashboardMetrics?.exits?.list && dashboardMetrics.exits.list.length > 0) {
+      return dashboardMetrics.exits.list;
+    }
     return Array.isArray(exitClearances) ? exitClearances : [];
-  }, [exitClearances]);
+  }, [dashboardMetrics, exitClearances]);
 
   const allAuditLogs = useMemo(() => {
     if (Array.isArray(auditLogs) && auditLogs.length > 0) return auditLogs;
@@ -230,26 +242,37 @@ export default function HRDashboardView({
   }, [allEmployees, searchQuery]);
 
   // ── 1. DYNAMIC KPI CALCULATIONS ──
-  const totalStaffCount = allEmployees.length;
-  const activeStaffCount = useMemo(() => {
-    return allEmployees.filter(e => {
+  const totalStaffCount = dashboardMetrics?.workforce?.totalStaff ?? allEmployees.length;
+  const activeStaffCount = dashboardMetrics?.workforce?.activeStaff ?? (
+    allEmployees.filter(e => {
       const st = String(e.status || e.employmentStatus || '').toUpperCase();
-      return e.isActive !== false && e.active !== false && st !== 'INACTIVE' && st !== 'TERMINATED' && st !== 'RESIGNED';
-    }).length;
-  }, [allEmployees]);
+      return e.isActive !== false && e.active !== false && st !== 'INACTIVE' && st !== 'TERMINATED' && st !== 'RESIGNED' && st !== 'RETIRED';
+    }).length
+  );
 
   // New joinees this month
   const newJoineesThisMonth = useMemo(() => {
+    if (dashboardMetrics?.workforce?.newJoinees) return dashboardMetrics.workforce.newJoinees;
     return allEmployees.filter(e => {
       const dateStr = e.joiningDate || e.dateOfJoining || e.createdAt;
       if (!dateStr) return false;
       const d = new Date(dateStr);
       return !isNaN(d.getTime()) && (d.getMonth() + 1) === selectedMonthIndex && d.getFullYear() === selectedYear;
     });
-  }, [allEmployees, selectedMonthIndex, selectedYear]);
+  }, [dashboardMetrics, allEmployees, selectedMonthIndex, selectedYear]);
 
   // Attendance metrics
   const { presentCount, lateCount, absentCount, attendanceRate, wfhCount } = useMemo(() => {
+    if (dashboardMetrics?.attendance?.today) {
+      const t = dashboardMetrics.attendance.today;
+      return {
+        presentCount: Number(t.present || 0),
+        lateCount: Number(t.late || 0),
+        absentCount: Number(t.absent || 0),
+        attendanceRate: Number(t.attendanceRate || 0).toFixed(1),
+        wfhCount: Number(t.halfDay || 0)
+      };
+    }
     if (liveData.attendanceSummary) {
       const s = liveData.attendanceSummary;
       const pres = Number(s.presentToday ?? s.presentCount ?? s.present ?? s.currentlyPunchedIn ?? 0);
@@ -261,20 +284,17 @@ export default function HRDashboardView({
         : (s.attendancePercentage !== undefined ? Number(s.attendancePercentage).toFixed(1) : (pres > 0 ? '100.0' : '0.0'));
       return { presentCount: pres, lateCount: late, absentCount: abs, attendanceRate: rate, wfhCount: wfh };
     }
-    // Fallback based on active staff and leaves
-    const pres = Math.max(0, activeStaffCount);
-    const rate = totalStaffCount > 0 ? ((pres / Math.max(1, totalStaffCount)) * 100).toFixed(1) : '100.0';
-    return { presentCount: pres, lateCount: 0, absentCount: 0, attendanceRate: rate, wfhCount: 0 };
-  }, [liveData.attendanceSummary, totalStaffCount, activeStaffCount]);
+    return { presentCount: 0, lateCount: 0, absentCount: 0, attendanceRate: '0.0', wfhCount: 0 };
+  }, [dashboardMetrics, liveData.attendanceSummary, totalStaffCount]);
 
   // Pending Leaves count
   const pendingLeavesList = useMemo(() => {
     return allLeaves.filter(l => {
       const st = String(l?.status || '').toUpperCase();
-      return st === 'PENDING' || st === 'PH PENDING' || st === 'PH_PENDING' || st === 'APPLIED';
+      return st === 'PENDING' || st === 'PH PENDING' || st === 'PH_PENDING' || st === 'PENDING_HR' || st === 'APPLIED';
     });
   }, [allLeaves]);
-  const pendingLeavesCount = pendingLeavesList.length;
+  const pendingLeavesCount = dashboardMetrics?.leaves?.pendingCount ?? pendingLeavesList.length;
 
   // Pending Expenses count
   const pendingExpensesList = useMemo(() => {
@@ -283,10 +303,13 @@ export default function HRDashboardView({
       return st === 'PENDING' || st === 'PENDING_HR' || st === 'PENDING_SUPER_ADMIN';
     });
   }, [allExpenses]);
-  const pendingExpensesCount = pendingExpensesList.length;
+  const pendingExpensesCount = dashboardMetrics?.expenses?.pendingCount ?? pendingExpensesList.length;
 
   // Exit Clearances & Inactive / Notice Staff
   const activeExitsList = useMemo(() => {
+    if (dashboardMetrics?.exits?.list && dashboardMetrics.exits.list.length > 0) {
+      return dashboardMetrics.exits.list;
+    }
     const fromClearances = allExitClearances.filter(ex => {
       const st = String(ex.status || '').toUpperCase();
       return st !== 'CLEARED' && st !== 'COMPLETED';
@@ -296,32 +319,38 @@ export default function HRDashboardView({
       return st === 'INACTIVE' || st === 'RESIGNED' || st === 'TERMINATED' || st === 'NOTICE_PERIOD';
     });
     return fromClearances.length > 0 ? fromClearances : fromEmployees;
-  }, [allExitClearances, allEmployees]);
-  const exitsCount = activeExitsList.length;
+  }, [dashboardMetrics, allExitClearances, allEmployees]);
+  const exitsCount = dashboardMetrics?.exits?.pendingCount ?? activeExitsList.length;
   const pendingHrExitsCount = useMemo(() => {
     return activeExitsList.filter(ex => ex.status === 'In Progress' || ex.status === 'PENDING' || !ex.approval?.finalHrStatus).length;
   }, [activeExitsList]);
 
   // Onboarding count (Drafts + Pending Recruitment + New Joinees)
   const onboardingCount = useMemo(() => {
+    if (dashboardMetrics?.onboarding?.totalCount !== undefined) {
+      return dashboardMetrics.onboarding.totalCount;
+    }
     const draftsCount = Array.isArray(liveData.drafts) ? liveData.drafts.length : 0;
     const pendingRecruit = (Array.isArray(liveData.recruitmentRequests) ? liveData.recruitmentRequests : []).filter(r => {
       const st = String(r.status || '').toUpperCase();
-      return st === 'OPEN' || st === 'PENDING' || st === 'IN_PROGRESS';
+      return st === 'OPEN' || st === 'PENDING' || st === 'IN_PROGRESS' || st === 'HR_PROCESSING';
     }).length;
     return draftsCount + pendingRecruit + newJoineesThisMonth.length;
-  }, [liveData.drafts, liveData.recruitmentRequests, newJoineesThisMonth]);
+  }, [dashboardMetrics, liveData.drafts, liveData.recruitmentRequests, newJoineesThisMonth]);
 
   // ── 2. ATTENDANCE BREAKDOWN & EXCEPTIONS DATA ──
   const attendanceBreakdown = useMemo(() => {
+    if (dashboardMetrics?.attendance?.breakdown && dashboardMetrics.attendance.breakdown.length > 0) {
+      return dashboardMetrics.attendance.breakdown;
+    }
     return [
       { name: 'Present', count: presentCount, color: '#10b981' },
       { name: 'Late', count: lateCount, color: '#f59e0b' },
       { name: 'Absent', count: absentCount, color: '#ef4444' },
       { name: 'On Leave', count: pendingLeavesCount, color: '#8b5cf6' },
-      { name: 'Work From Home', count: wfhCount, color: '#0ea5e9' }
+      { name: 'Half Day', count: wfhCount, color: '#0ea5e9' }
     ];
-  }, [presentCount, lateCount, absentCount, pendingLeavesCount, wfhCount]);
+  }, [dashboardMetrics, presentCount, lateCount, absentCount, pendingLeavesCount, wfhCount]);
 
   const pendingAttendanceReqsCount = useMemo(() => {
     return allAttendanceRequests.filter(r => {
@@ -331,26 +360,32 @@ export default function HRDashboardView({
   }, [allAttendanceRequests]);
 
   const attendanceExceptions = useMemo(() => {
+    if (dashboardMetrics?.attendance?.exceptions && dashboardMetrics.attendance.exceptions.length > 0) {
+      return dashboardMetrics.attendance.exceptions;
+    }
     const items = [];
     if (lateCount > 0) {
       items.push({ type: 'Late Check-ins', count: lateCount, severity: 'warning', detail: 'Grace limit exceeded (+15 mins)' });
     }
-    const missingPunch = liveData.attendanceSummary?.missingCheckouts || 0;
+    const missingPunch = liveData.attendanceSummary?.missingPunchOut ?? liveData.attendanceSummary?.missingCheckouts ?? 0;
     if (missingPunch > 0) {
-      items.push({ type: 'Missing Check-outs', count: missingPunch, severity: 'danger', detail: 'Punches unverified yesterday' });
+      items.push({ type: 'Missing Check-outs', count: missingPunch, severity: 'danger', detail: 'Punches unverified from previous days' });
     }
     const ot = liveData.attendanceSummary?.overtimeCount || 0;
     if (ot > 0) {
-      items.push({ type: 'Overtime', count: ot, severity: 'info', detail: '> 2 hours pre-approved OT' });
+      items.push({ type: 'Overtime', count: ot, severity: 'info', detail: 'Extended shift hours recorded' });
     }
     if (pendingAttendanceReqsCount > 0) {
       items.push({ type: 'Correction Requests', count: pendingAttendanceReqsCount, severity: 'danger', detail: 'Manual punch & regularizations' });
     }
     return items;
-  }, [lateCount, liveData.attendanceSummary, pendingAttendanceReqsCount]);
+  }, [dashboardMetrics, lateCount, liveData.attendanceSummary, pendingAttendanceReqsCount]);
 
   // ── 3. DYNAMIC DEPARTMENT WORKFORCE ──
   const departmentWorkforce = useMemo(() => {
+    if (dashboardMetrics?.workforce?.departments && dashboardMetrics.workforce.departments.length > 0) {
+      return dashboardMetrics.workforce.departments;
+    }
     if (allEmployees.length === 0) return [];
     
     const deptCountMap = {};
@@ -361,23 +396,21 @@ export default function HRDashboardView({
     });
 
     const total = Math.max(1, allEmployees.length);
-    const sortedDepts = Object.entries(deptCountMap)
+    return Object.entries(deptCountMap)
       .sort((a, b) => b[1] - a[1])
-      .map(([name, count], idx) => {
-        const percentage = Number(((count / total) * 100).toFixed(1));
-        return {
-          name,
-          count,
-          percentage,
-          color: DEPT_COLORS[idx % DEPT_COLORS.length]
-        };
-      });
-
-    return sortedDepts;
-  }, [allEmployees]);
+      .map(([name, count], idx) => ({
+        name,
+        count,
+        percentage: Number(((count / total) * 100).toFixed(1)),
+        color: DEPT_COLORS[idx % DEPT_COLORS.length]
+      }));
+  }, [dashboardMetrics, allEmployees]);
 
   // ── 4. DYNAMIC HR ACTION ITEMS ──
   const actionItems = useMemo(() => {
+    if (dashboardMetrics?.actionItems && dashboardMetrics.actionItems.length > 0) {
+      return dashboardMetrics.actionItems;
+    }
     const list = [];
     if (pendingLeavesCount > 0) {
       list.push({
@@ -435,10 +468,22 @@ export default function HRDashboardView({
       });
     }
     return list;
-  }, [pendingLeavesCount, exitsCount, pendingHrExitsCount, onboardingCount, pendingAttendanceReqsCount, pendingExpensesCount]);
+  }, [dashboardMetrics, pendingLeavesCount, exitsCount, pendingHrExitsCount, onboardingCount, pendingAttendanceReqsCount, pendingExpensesCount]);
 
   // ── 5. DYNAMIC PAYROLL SUMMARY DATA ──
   const { grossTotal, leaveDeductionsTotal, otherDeductionsTotal, netPayableTotal, slipsGeneratedCount, salariesDisbursedCount, payrollReadyPercentage } = useMemo(() => {
+    if (dashboardMetrics?.payroll) {
+      const p = dashboardMetrics.payroll;
+      return {
+        grossTotal: Number(p.grossTotal || 0),
+        leaveDeductionsTotal: Number(p.leaveDeductionsTotal || 0),
+        otherDeductionsTotal: Number(p.otherDeductionsTotal || 0),
+        netPayableTotal: Number(p.netPayableTotal || 0),
+        slipsGeneratedCount: Number(p.slipsGeneratedCount || 0),
+        salariesDisbursedCount: Number(p.salariesDisbursedCount || 0),
+        payrollReadyPercentage: Number(p.payrollReadyPercentage || 0)
+      };
+    }
     const overviewList = liveData.payrollOverview;
     if (overviewList.length > 0) {
       let gross = 0;
@@ -451,13 +496,13 @@ export default function HRDashboardView({
       overviewList.forEach(p => {
         const pr = p.payroll || p;
         const g = Number(pr.grossEarnings || pr.grossSalary || pr.baseSalary || pr.salary || 0);
-        const l = Number(pr.leaveDeductions || pr.lopDeductions || 0);
-        const o = Number(pr.totalDeductions || pr.otherDeductions || 0);
-        const n = Number(pr.netPayable || (g - (l + o)) || 0);
+        const l = Number(pr.leaveDeductions || pr.lopDeductions || pr.leaveDeduction || 0);
+        const o = Number(pr.totalDeductions || pr.otherDeductions || 0) - l;
+        const n = Number(pr.netPayable || (g - (l + Math.max(0, o))) || 0);
         
         gross += g;
         leaveDeds += l;
-        otherDeds += o;
+        otherDeds += Math.max(0, o);
         net += n;
 
         const st = String(pr.status || p.status || '').toUpperCase();
@@ -477,49 +522,44 @@ export default function HRDashboardView({
       };
     }
 
-    // Fallback calculated from employee salaries
     let fallbackGross = 0;
     allEmployees.forEach(e => {
-      const sal = Number(e.salary || e.basicSalary || e.payroll?.grossEarnings || 0);
+      const sal = Number(e.salary || e.basicSalary || e.baseSalary || e.payroll?.grossEarnings || 0);
       fallbackGross += sal;
     });
-    const fallbackLeaveDeds = Math.round(fallbackGross * 0.034);
-    const fallbackOtherDeds = Math.round(fallbackGross * 0.038);
-    const fallbackNet = fallbackGross > 0 ? (fallbackGross - (fallbackLeaveDeds + fallbackOtherDeds)) : 0;
     return {
       grossTotal: fallbackGross,
-      leaveDeductionsTotal: fallbackLeaveDeds,
-      otherDeductionsTotal: fallbackOtherDeds,
-      netPayableTotal: fallbackNet,
+      leaveDeductionsTotal: 0,
+      otherDeductionsTotal: 0,
+      netPayableTotal: fallbackGross,
       slipsGeneratedCount: 0,
       salariesDisbursedCount: 0,
       payrollReadyPercentage: 0
     };
-  }, [liveData.payrollOverview, allEmployees, totalStaffCount]);
+  }, [dashboardMetrics, liveData.payrollOverview, allEmployees, totalStaffCount]);
 
   // 6-Month Payroll Outlay Trend Data
   const payrollTrendData = useMemo(() => {
+    if (dashboardMetrics?.payroll?.outlayTrend && dashboardMetrics.payroll.outlayTrend.length > 0) {
+      return dashboardMetrics.payroll.outlayTrend;
+    }
     const months = generateRecentMonths(6).reverse();
     return months.map((m, idx) => {
       const monthAbbr = m.split(' ')[0].substring(0, 3);
-      // Trend scaled smoothly toward current net payable total
-      const factor = 0.90 + (idx * 0.02);
-      const netVal = netPayableTotal > 0 
-        ? Number(((netPayableTotal * factor) / 100000).toFixed(1)) 
-        : 0;
-      const grossVal = grossTotal > 0 
-        ? Number(((grossTotal * factor) / 100000).toFixed(1)) 
-        : 0;
+      const isCurrentMonth = idx === months.length - 1;
       return {
         month: monthAbbr,
-        gross: grossVal,
-        net: netVal
+        gross: isCurrentMonth && grossTotal > 0 ? Number((grossTotal / 100000).toFixed(1)) : 0,
+        net: isCurrentMonth && netPayableTotal > 0 ? Number((netPayableTotal / 100000).toFixed(1)) : 0
       };
     });
-  }, [netPayableTotal, grossTotal]);
+  }, [dashboardMetrics, netPayableTotal, grossTotal]);
 
   // ── 6. DYNAMIC LEAVE ANALYTICS ──
   const leaveStatusData = useMemo(() => {
+    if (dashboardMetrics?.leaves?.statusBreakdown && dashboardMetrics.leaves.statusBreakdown.length > 0) {
+      return dashboardMetrics.leaves.statusBreakdown;
+    }
     if (allLeaves.length === 0) {
       return [
         { name: 'Approved', value: 0, color: '#10b981' },
@@ -541,13 +581,16 @@ export default function HRDashboardView({
       data.push({ name: 'PH Pending', value: phPending, color: '#8b5cf6' });
     }
     return data;
-  }, [allLeaves, pendingLeavesCount]);
+  }, [dashboardMetrics, allLeaves, pendingLeavesCount]);
 
   const leaveTypesData = useMemo(() => {
+    if (dashboardMetrics?.leaves?.typesBreakdown && dashboardMetrics.leaves.typesBreakdown.length > 0) {
+      return dashboardMetrics.leaves.typesBreakdown;
+    }
     if (allLeaves.length === 0) return [];
     const typeCountMap = {};
     allLeaves.forEach(l => {
-      const rawType = l.leaveType || l.type || l.reason || 'Casual Leave';
+      const rawType = l.leaveType || l.type || l.reason || 'General Leave';
       const cleanType = String(rawType).trim();
       typeCountMap[cleanType] = (typeCountMap[cleanType] || 0) + 1;
     });
@@ -560,15 +603,18 @@ export default function HRDashboardView({
       percentage: Number(((count / total) * 100).toFixed(0)),
       color: colors[i % colors.length]
     }));
-  }, [allLeaves]);
+  }, [dashboardMetrics, allLeaves]);
 
   // ── 7. DYNAMIC RECENT HR ACTIVITY LOG ──
   const recentActivities = useMemo(() => {
+    if (dashboardMetrics?.recentActivities && dashboardMetrics.recentActivities.length > 0) {
+      return dashboardMetrics.recentActivities;
+    }
     if (allAuditLogs.length > 0) {
       return allAuditLogs.slice(0, 5).map(log => {
         const d = log.createdAt ? new Date(log.createdAt) : new Date();
         const timeStr = !isNaN(d.getTime()) 
-          ? d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) 
+          ? d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false }) 
           : 'Recent';
         
         let category = 'HR';
@@ -582,20 +628,19 @@ export default function HRDashboardView({
 
         return {
           time: timeStr,
-          text: log.remarks || `${log.action || 'HR action'} by ${log.actorUserId || log.user || 'HR Manager'}`,
+          text: log.remarks || `${(log.action || 'HR action').replace(/_/g, ' ')} by ${log.actorUserId || log.user || 'HR Staff'}`,
           category,
           badgeColor
         };
       });
     }
 
-    // Dynamic events generated from active data timestamps
+    // Dynamic events generated from active data
     const dynamicEvents = [];
-    const now = new Date();
     if (pendingLeavesList.length > 0) {
       dynamicEvents.push({
-        time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-        text: `${pendingLeavesList.length} leave application${pendingLeavesList.length > 1 ? 's' : ''} submitted for HR review`,
+        time: 'Today',
+        text: `${pendingLeavesList.length} leave application${pendingLeavesList.length > 1 ? 's' : ''} awaiting HR review`,
         category: 'Leave',
         badgeColor: '#10b981'
       });
@@ -610,7 +655,7 @@ export default function HRDashboardView({
     }
     if (allEmployees.length > 0) {
       const latestEmp = allEmployees[0];
-      const name = latestEmp.name || latestEmp.fullName || latestEmp.firstName || 'New Staff';
+      const name = latestEmp.name || latestEmp.fullName || latestEmp.firstName || 'Staff';
       dynamicEvents.push({
         time: 'Recent',
         text: `Employee record verified for ${name}`,
@@ -620,14 +665,14 @@ export default function HRDashboardView({
     }
     if (exitsCount > 0) {
       dynamicEvents.push({
-        time: 'Recent',
-        text: `${exitsCount} active resignation clearance checkpoint${exitsCount > 1 ? 's' : ''} in tracking`,
+        time: 'Active',
+        text: `${exitsCount} active resignation clearance${exitsCount > 1 ? 's' : ''} in tracking`,
         category: 'Exit',
         badgeColor: '#f59e0b'
       });
     }
     return dynamicEvents;
-  }, [allAuditLogs, pendingLeavesList, slipsGeneratedCount, selectedMonth, allEmployees, exitsCount]);
+  }, [dashboardMetrics, allAuditLogs, pendingLeavesList, slipsGeneratedCount, selectedMonth, allEmployees, exitsCount]);
 
   return (
     <div className="hr-dash-wrapper">

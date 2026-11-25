@@ -58,4 +58,6 @@ export const employeesService = {
     backendFetch<any[]>(`${base}/managers${excludeId ? `?excludeId=${encodeURIComponent(excludeId)}` : ''}`, { cacheTtlMs: 0 }),
   getNextEmployeeCode: () =>
     backendFetch<{ employeeCode: string }>(`${base}/next-code`, { cacheTtlMs: 0 }),
+  getDashboardMetrics: (params: Record<string, unknown> = {}) =>
+    backendFetch<any>(`/api/backend/hr/dashboard?${query(params)}`, { cacheTtlMs: 0 }),
 };

@@ -68,6 +68,12 @@ export class EmployeesController {
     return dto;
   }
 
+  @Get('dashboard')
+  @RequirePermissions('hr.employees.read', 'hr.read')
+  dashboard(@Query() query: any, @Req() req: any) {
+    return this.employees.getDashboardMetrics(query, req.user);
+  }
+
   @Get('employees')
   @RequirePermissions('hr.employees.read')
   list(@Query() query: EmployeeQueryDto, @Req() req: any) {

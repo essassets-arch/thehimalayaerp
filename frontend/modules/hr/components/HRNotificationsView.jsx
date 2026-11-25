@@ -366,82 +366,96 @@ export default function HRNotificationsView() {
     }
   };
 
-  // Pre-configured rich HR approval alerts linked to staff members
-  const initialAlerts = [
-    {
-      id: 'AL-101',
-      title: 'Leave Application Pending Approval',
-      message: 'Ramanathan Swamy has submitted a 3-day Casual Leave request starting 18-Jun-2026.',
-      date: 'Today, 10:45 AM',
-      type: 'LEAVE',
-      severity: 'WARNING',
-      employeeCode: 'EMP-001',
-      empName: 'Ramanathan Swamy',
-      details: {
-        leaveType: 'Casual Leave',
-        startDate: '18-Jun-2026',
-        endDate: '20-Jun-2026',
-        days: 3,
-        reason: 'Family event in native hometown',
-        substitute: 'Raj Patel'
-      }
-    },
-    {
-      id: 'AL-102',
-      title: 'Manual Attendance Override Request',
-      message: 'Raj Patel submitted a punch-in correction request for 17-Aug-2026 (Forgot Selfie Punch).',
-      date: 'Today, 09:15 AM',
-      type: 'ATTENDANCE',
-      severity: 'INFO',
-      employeeCode: 'EMP-002',
-      empName: 'Raj Patel',
-      details: {
-        requestDate: '17-Aug-2026',
-        requestedPunchIn: '09:00 AM',
-        requestedPunchOut: '05:30 PM',
-        reason: 'Biometric device camera timeout at security gate',
-        supervisorApproved: true
-      }
-    },
-    {
-      id: 'AL-103',
-      title: 'Exit Process Clearance Checkpoint',
-      message: 'Neha Shah clearance checkpoint is in progress. 75% departmental clearance completed.',
-      date: 'Yesterday, 04:20 PM',
-      type: 'EXIT',
-      severity: 'CRITICAL',
-      employeeCode: 'EMP-005',
-      empName: 'Neha Shah',
-      details: {
-        resignationDate: '01-May-2026',
-        lastWorkingDay: '30-Jun-2026',
-        clearanceProgress: '75%',
-        pendingDepts: ['IT Assets Return', 'Store No-Dues']
-      }
-    },
-    {
-      id: 'AL-104',
-      title: 'Payroll Bank Details Verification',
-      message: 'Amit Sharma updated Bank IFSC & Account Number for salary credit.',
-      date: '15-Aug-2026',
-      type: 'PAYROLL',
-      severity: 'SUCCESS',
-      employeeCode: 'EMP-003',
-      empName: 'Amit Sharma',
-      details: {
-        bankName: 'HDFC Bank Ltd',
-        accountNumber: '•••• •••• 9842',
-        ifscCode: 'HDFC0000128',
-        verificationStatus: 'Pending HR Sign-off'
-      }
-    }
-  ];
+  // Live HR Action Center alerts fetched from real pending approval queues
+  const [alerts, setAlerts] = useState([]);
+  const [loadingAlerts, setLoadingAlerts] = useState(false);
 
-  const [alerts, setAlerts] = useState(initialAlerts);
+  const fetchActionAlerts = useCallback(async () => {
+    try {
+      setLoadingAlerts(true);
+      const [leavesRes, attRes] = await Promise.allSettled([
+        apiClient.get('/leaves?status=PENDING&limit=25'),
+        apiClient.get('/attendance-requests?status=PENDING&limit=25')
+      ]);
+
+      const liveAlerts = [];
+
+      if (leavesRes.status === 'fulfilled') {
+        const leaveItems = Array.isArray(leavesRes.value) 
+          ? leavesRes.value 
+          : (leavesRes.value?.items || leavesRes.value?.data || []);
+        leaveItems.forEach((lv, idx) => {
+          const emp = lv.employee || {};
+          const empName = emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || lv.employeeName || 'Staff Member';
+          const empCode = emp.employeeCode || emp.id || `EMP-${idx + 1}`;
+          liveAlerts.push({
+            id: `LV-${lv.id || idx}`,
+            realRequestId: lv.id,
+            title: 'Leave Application Pending Approval',
+            message: `${empName} has submitted a ${lv.days || 1}-day ${lv.leaveType || 'Leave'} request starting ${lv.startDate ? new Date(lv.startDate).toLocaleDateString('en-GB') : 'recently'}.`,
+            date: lv.createdAt ? new Date(lv.createdAt).toLocaleDateString('en-GB') : 'Pending',
+            type: 'LEAVE',
+            severity: 'WARNING',
+            employeeCode: empCode,
+            empName,
+            details: {
+              leaveType: lv.leaveType || 'Casual Leave',
+              startDate: lv.startDate ? new Date(lv.startDate).toLocaleDateString('en-GB') : '—',
+              endDate: lv.endDate ? new Date(lv.endDate).toLocaleDateString('en-GB') : '—',
+              days: lv.days || 1,
+              reason: lv.reason || 'Personal reasons',
+              substitute: lv.handoverTo || lv.substitute || '—'
+            }
+          });
+        });
+      }
+
+      if (attRes.status === 'fulfilled') {
+        const attItems = Array.isArray(attRes.value)
+          ? attRes.value
+          : (attRes.value?.items || attRes.value?.data || []);
+        attItems.forEach((ar, idx) => {
+          const emp = ar.employee || {};
+          const empName = emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || ar.employeeName || 'Staff Member';
+          const empCode = emp.employeeCode || emp.id || `EMP-${idx + 1}`;
+          liveAlerts.push({
+            id: `ATT-${ar.id || idx}`,
+            realRequestId: ar.id,
+            title: 'Manual Attendance Override Request',
+            message: `${empName} submitted an attendance correction request for ${ar.date ? new Date(ar.date).toLocaleDateString('en-GB') : 'recent date'}.`,
+            date: ar.createdAt ? new Date(ar.createdAt).toLocaleDateString('en-GB') : 'Pending',
+            type: 'ATTENDANCE',
+            severity: 'INFO',
+            employeeCode: empCode,
+            empName,
+            details: {
+              requestDate: ar.date ? new Date(ar.date).toLocaleDateString('en-GB') : '—',
+              requestedPunchIn: ar.punchIn || ar.requestedPunchIn || '—',
+              requestedPunchOut: ar.punchOut || ar.requestedPunchOut || '—',
+              reason: ar.reason || 'Biometric/punch correction',
+              supervisorApproved: !!ar.supervisorApproved
+            }
+          });
+        });
+      }
+
+      setAlerts(liveAlerts);
+    } catch (err) {
+      console.warn('Failed to load HR action alerts:', err);
+    } finally {
+      setLoadingAlerts(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchActionAlerts();
+  }, [fetchActionAlerts]);
 
   useEffect(() => {
     if (alerts.length > 0 && !selectedAlert) {
       setSelectedAlert(alerts[0]);
+    } else if (alerts.length === 0) {
+      setSelectedAlert(null);
     }
   }, [alerts, selectedAlert]);
 

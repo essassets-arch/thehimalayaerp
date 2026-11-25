@@ -181,6 +181,19 @@ export class SuperAdminController {
   }
 
   @Get('analytics/hr')
+  @Roles(
+    'Super Admin',
+    'Admin',
+    'SUPER_ADMIN',
+    'ADMIN',
+    'HR',
+    'HR_MANAGER',
+    'HR_EXECUTIVE',
+    'Director',
+    'DIRECTOR',
+    'Plant Head',
+    'PLANT_HEAD',
+  )
   async getHrAnalytics(@Query() query: any, @CurrentUser() user: any) {
     return this.superAdminService.getHrAnalytics(query, user.companyId);
   }
