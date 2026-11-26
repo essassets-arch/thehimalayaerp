@@ -27,13 +27,15 @@ export type ForwardBackendRequestOptions = {
  * Node's fetch transparently decompresses upstream responses but may retain the
  * original content-encoding/content-length headers. Returning that Response
  * directly from a Next.js route makes the browser try to decompress the body a
- * second time. Rebuild the response and forward only representation-safe
- * headers.
+ * second time. In addition, forwarding content-length alongside a streaming
+ * ReadableStream causes a Transfer-Encoding: chunked + Content-Length collision
+ * (RFC 7230 violation / HPE_INVALID_TRANSFER_ENCODING / net::ERR_FAILED in Chrome).
+ * Rebuild the response and forward only representation-safe headers.
  */
 async function createBridgeResponse(upstream: Response): Promise<Response> {
   const headers = new Headers();
 
-  for (const name of ['content-type', 'content-disposition', 'content-length', 'cache-control', 'location', 'retry-after', 'x-request-id']) {
+  for (const name of ['content-type', 'content-disposition', 'cache-control', 'location', 'retry-after', 'x-request-id']) {
     const value = upstream.headers.get(name);
     if (value) {
       headers.set(name, value);
@@ -93,8 +95,9 @@ export async function forwardBackendRequest(
       headers['Authorization'] = 'Bearer ' + token;
     }
 
+    const isDownload = path.includes('/download') || path.includes('/export') || path.includes('/reports');
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
+    const timeout = setTimeout(() => controller.abort(), isDownload ? 180000 : 35000);
 
     try {
       const fetchOptions: RequestInit = {
