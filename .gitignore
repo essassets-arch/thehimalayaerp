@@ -55,6 +55,7 @@ scratch/
 *.xlsx
 *.sql
 *.sql.gz
+!scripts/*.sql
 
 # Browser test build directories & Playwright artifacts
 frontend/.next-browser-test*/
