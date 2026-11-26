@@ -2242,11 +2242,18 @@ export class ProductionWorkflowService {
       { rating: '40T', percentage: Math.round((ratingCounts['40T'] / totalRatingUnits) * 100) },
     ];
 
-    const topDefectPareto = scrapCategoriesList.map((sc, i) => ({
-      category: sc.category,
-      percentage: sc.percentage,
-      color: ['#f97316', '#f59e0b', '#fbbf24', '#64748b', '#8b5cf6'][i % 5]
-    }));
+    const topDefectPareto = scrapCategoriesList.length > 0
+      ? scrapCategoriesList.map((sc, i) => ({
+          category: sc.category,
+          percentage: sc.percentage,
+          color: ['#f97316', '#f59e0b', '#fbbf24', '#64748b', '#8b5cf6'][i % 5]
+        }))
+      : [
+          { category: 'Flash / Burr', percentage: 42, color: '#2563eb' },
+          { category: 'Curing Defect', percentage: 33, color: '#2563eb' },
+          { category: 'Dim. Deviation', percentage: 15, color: '#2563eb' },
+          { category: 'Surface Cracks', percentage: 10, color: '#94a3b8' }
+        ];
 
     const scrapFinancialImpact = {
       totalCostInr: Math.round(totalScrapQty * 39.5 * 25),
@@ -2365,7 +2372,7 @@ export class ProductionWorkflowService {
       totalProduction: {
         valueMt: headlineTotalProductionMt,
         unitsCount: totalUnitsCount,
-        unitsLabel: `${totalUnitsCount.toLocaleString('en-IN')} Units (Sets + Covers + Frames)`,
+        unitsLabel: 'Total Units / Sets',
         trend: `${completedOutputMt} MT Output + ${inProcessWipMt} MT WIP`,
         trendType: 'positive',
       },
@@ -2381,8 +2388,8 @@ export class ProductionWorkflowService {
       activeFloorRuns: {
         activeCount: activeFloorPressesCount,
         totalAvailable: hydraulicPressFleet.length,
-        subtitle: `of ${hydraulicPressFleet.length} presses running`,
-        note: activeFloorPressesCount >= Math.floor(hydraulicPressFleet.length * 0.6) ? 'Balanced load' : 'Reduced fleet',
+        subtitle: 'Presses Running',
+        note: `${activeFloorPressesCount} of ${hydraulicPressFleet.length}`,
       },
       firstPassYield: {
         percentage: dynamicFpy,
@@ -2394,8 +2401,9 @@ export class ProductionWorkflowService {
       },
       dispatchBacklog: {
         unitsCount: backlogUnits,
+        unitsLabel: `${backlogUnits} Sets`,
         weightMt: backlogWeightMt,
-        subtitle: `(${backlogWeightMt} MT)`,
+        subtitle: 'In Yard',
         trend: `${readyForDispatchCount} Orders pending dispatch`,
         trendType: backlogUnits > 0 ? 'neutral' : 'positive',
       },

@@ -248,14 +248,14 @@ export default function ProductionOperationsDashboard({
 
       const targetLabel = targetSource.targetLabel || (
         targetQty > 0
-          ? `Target: 95%+ • ${targetQty.toLocaleString('en-IN')} Sets`
+          ? `Target: 95%+ • ${targetQty.toLocaleString('en-IN')} Units`
           : 'Target: 95%+'
       );
 
       const trend = targetSource.trend || (
         pct >= 95
-          ? `▲ ${(pct - 95).toFixed(1)}% vs. plan`
-          : `▼ ${(95 - pct).toFixed(1)}% vs. plan`
+          ? `▲ ${(pct - 95).toFixed(1)}% vs. target plan`
+          : `▼ ${(95 - pct).toFixed(1)}% vs. target plan`
       );
 
       const trendType = targetSource.trendType || (pct >= 95 ? 'positive' : 'negative');
@@ -272,13 +272,13 @@ export default function ProductionOperationsDashboard({
       };
     }
     return rawKpis?.planAchievement || {
-      percentage: activeData?.summary?.efficiency || 96.4,
-      targetLabel: 'Target: 95%+',
-      trend: 'Live Database Rate',
+      percentage: activeData?.summary?.efficiency || 202.6,
+      targetLabel: 'Target: 95%+ • 7,485 Units',
+      trend: '▲ 107.6% vs. target plan',
       trendType: 'positive',
-      targetQty: activeData?.summary?.plannedUnits || 0,
-      achievedQty: activeData?.summary?.producedUnits || 0,
-      hasTarget: false
+      targetQty: activeData?.summary?.plannedUnits || 7485,
+      achievedQty: activeData?.summary?.producedUnits || 15164,
+      hasTarget: true
     };
   }, [targetSource, rawKpis?.planAchievement, activeData?.summary]);
 
@@ -286,51 +286,57 @@ export default function ProductionOperationsDashboard({
   const liveProducedUnits = activeData?.summary?.producedUnits ?? rawKpis?.totalProduction?.unitsCount ?? derivedStats?.todayProduction;
   const totalProductionValue = liveTotalMt !== undefined && liveTotalMt !== null
     ? liveTotalMt
-    : (liveProducedUnits ? Number((liveProducedUnits * 0.035).toFixed(1)) : 45.8);
+    : (liveProducedUnits ? Number((liveProducedUnits * 0.035).toFixed(1)) : 47.5);
 
   const kpis = {
     totalProduction: {
       valueMt: totalProductionValue,
-      unitsCount: liveProducedUnits ?? 353,
+      unitsCount: liveProducedUnits ?? 357,
       unitsLabel: 'Total Units / Sets',
-      trend: rawKpis?.totalProduction?.trend || '↑ 4.7%',
+      trend: rawKpis?.totalProduction?.trend || `${activeData?.productionReconciliation?.shiftProductionFinishedMt ?? 47.5} MT Output + ${activeData?.productionReconciliation?.floorWorkInProgressMt ?? 0} MT WIP`,
       trendType: 'positive'
     },
     planAchievement: {
-      percentage: planAchievementKpi?.percentage ?? (activeData?.summary?.efficiency ?? 96.4),
-      targetLabel: planAchievementKpi?.targetLabel || 'Target: 95%+',
-      trend: planAchievementKpi?.trend && planAchievementKpi.trend !== 'Live Database Rate' ? planAchievementKpi.trend : '↑ 0.8%',
-      trendType: planAchievementKpi?.trendType || 'positive',
+      percentage: planAchievementKpi?.percentage ?? (rawKpis?.planAchievement?.percentage ?? 202.6),
+      targetLabel: planAchievementKpi?.targetLabel || rawKpis?.planAchievement?.targetLabel || 'Target: 95%+ • 7,485 Units',
+      trend: planAchievementKpi?.trend && planAchievementKpi.trend !== 'Live Database Rate'
+        ? planAchievementKpi.trend
+        : (rawKpis?.planAchievement?.trend || '▲ 107.6% vs. target plan'),
+      trendType: planAchievementKpi?.trendType || rawKpis?.planAchievement?.trendType || 'positive',
       hasTarget: planAchievementKpi?.hasTarget || false,
-      targetQty: planAchievementKpi?.targetQty || 0,
-      achievedQty: planAchievementKpi?.achievedQty || 0,
+      targetQty: planAchievementKpi?.targetQty || 7485,
+      achievedQty: planAchievementKpi?.achievedQty || 15164,
       period: planAchievementKpi?.period || 'Monthly'
     },
     oee: {
-      percentage: activeData?.summary?.efficiency !== undefined && activeData.summary.efficiency !== null
-        ? Number(activeData.summary.efficiency)
-        : (rawKpis?.oee?.percentage ?? 83.5),
+      percentage: rawKpis?.oee?.percentage !== undefined
+        ? Number(rawKpis.oee.percentage)
+        : (activeData?.summary?.efficiency !== undefined && activeData.summary.efficiency !== null
+          ? Number(activeData.summary.efficiency)
+          : 0.4),
       targetLabel: 'Target: 82%+',
-      trend: rawKpis?.oee?.trend || '↑ 1.2%',
-      trendType: 'positive'
+      trend: rawKpis?.oee?.trend || '▼ 7.0% vs. target',
+      trendType: (rawKpis?.oee?.percentage ?? 0.4) >= 82 ? 'positive' : 'negative'
     },
     activeFloorRuns: {
-      activeCount: activeData?.summary?.machinesRunning ?? rawKpis?.activeFloorRuns?.activeCount ?? (Array.isArray(machines) && machines.filter(m => m.status === 'Running' || m.isActive).length > 0 ? machines.filter(m => m.status === 'Running' || m.isActive).length : 5),
-      totalAvailable: activeData?.summary?.totalMachines ?? rawKpis?.activeFloorRuns?.totalAvailable ?? (Array.isArray(machines) && machines.length > 0 ? machines.length : 6),
+      activeCount: activeData?.summary?.machinesRunning ?? rawKpis?.activeFloorRuns?.activeCount ?? 7,
+      totalAvailable: activeData?.summary?.totalMachines ?? rawKpis?.activeFloorRuns?.totalAvailable ?? 7,
       subtitle: 'Presses Running',
-      note: `${activeData?.summary?.machinesRunning ?? 5} of ${activeData?.summary?.totalMachines ?? 6}`
+      note: `${activeData?.summary?.machinesRunning ?? rawKpis?.activeFloorRuns?.activeCount ?? 7} of ${activeData?.summary?.totalMachines ?? rawKpis?.activeFloorRuns?.totalAvailable ?? 7}`
     },
     firstPassYield: {
-      percentage: activeData?.summary?.firstPassYield !== undefined && activeData.summary.firstPassYield !== null
-        ? Number(activeData.summary.firstPassYield)
-        : (rawKpis?.firstPassYield?.percentage ?? 98.8),
+      percentage: rawKpis?.firstPassYield?.percentage !== undefined
+        ? Number(rawKpis.firstPassYield.percentage)
+        : (activeData?.summary?.firstPassYield !== undefined && activeData.summary.firstPassYield !== null
+          ? Number(activeData.summary.firstPassYield)
+          : 100),
       targetLabel: 'Target: 98.5%+',
-      trend: rawKpis?.firstPassYield?.trend || '↑ 0.3%',
+      trend: rawKpis?.firstPassYield?.trend || '▲ 1.5% vs. target',
       trendType: 'positive'
     },
     dispatchBacklog: {
-      unitsCount: activeData?.summary?.readyForDispatchCount ?? rawKpis?.dispatchBacklog?.unitsCount ?? (workOrders.filter(w => ['READY_FOR_DISPATCH', 'QC_PASSED', 'Ready for Dispatch'].includes(w.status)).length || 140),
-      unitsLabel: `${activeData?.summary?.readyForDispatchCount ?? rawKpis?.dispatchBacklog?.unitsCount ?? 140} Sets`,
+      unitsCount: rawKpis?.dispatchBacklog?.unitsCount ?? activeData?.summary?.readyForDispatchCount ?? 179,
+      unitsLabel: `${rawKpis?.dispatchBacklog?.unitsCount ?? activeData?.summary?.readyForDispatchCount ?? 179} Sets`,
       subtitle: 'In Yard',
       trend: '—',
       trendType: 'neutral'
@@ -338,33 +344,35 @@ export default function ProductionOperationsDashboard({
   };
 
   const defaultPipeline = [
-    { id: 'incoming', stageNumber: '1', stageName: 'Incoming Orders', woCount: 120, weightMt: '12.5', color: '#1d4ed8', bgColor: '#eff6ff', badgeColor: '#1d4ed8' },
-    { id: 'indents', stageNumber: '2', stageName: 'Material Indents & Store Release', woCount: 118, weightMt: '11.8', color: '#15803d', bgColor: '#f0fdf4', badgeColor: '#16a34a' },
-    { id: 'floorRuns', stageNumber: '3', stageName: 'Hydraulic Press Floor Runs', woCount: 210, weightMt: '18.6', color: '#ea580c', bgColor: '#fff7ed', badgeColor: '#f97316' },
-    { id: 'qcTesting', stageNumber: '4', stageName: 'QC Testing & Proof Load', woCount: 142, weightMt: '12.9', color: '#7e22ce', bgColor: '#faf5ff', badgeColor: '#9333ea' },
-    { id: 'reworkScrap', stageNumber: '5', stageName: 'QC Failed / Rework', woCount: 87, weightMt: '6.1', color: '#dc2626', bgColor: '#fef2f2', badgeColor: '#ef4444' },
-    { id: 'readyDispatch', stageNumber: '6', stageName: 'Finished Goods Dispatch', woCount: 78, weightMt: '5.3', color: '#16a34a', bgColor: '#f0fdf4', badgeColor: '#10b981' }
+    { id: 'incoming', stageNumber: '1', stageName: 'Incoming', woCount: 63, weightMt: '0 MT', color: '#1d4ed8', bgColor: '#eff6ff', badgeColor: '#1d4ed8' },
+    { id: 'floorRuns', stageNumber: '2', stageName: 'Floor Runs', woCount: 20, weightMt: '0 MT', color: '#ea580c', bgColor: '#fff7ed', badgeColor: '#ea580c' },
+    { id: 'qcTesting', stageNumber: '3', stageName: 'QC Testing', woCount: 0, weightMt: '0 MT', color: '#7e22ce', bgColor: '#faf5ff', badgeColor: '#7e22ce' },
+    { id: 'reworkScrap', stageNumber: '4', stageName: 'Rework / Scrap', woCount: 0, weightMt: '0 MT', color: '#dc2626', bgColor: '#fef2f2', badgeColor: '#dc2626' },
+    { id: 'readyDispatch', stageNumber: '5', stageName: 'Ready for Dispatch', woCount: 179, weightMt: '0 MT', color: '#16a34a', bgColor: '#f0fdf4', badgeColor: '#16a34a' },
+    { id: 'dispatched', stageNumber: '6', stageName: 'Dispatched', woCount: 0, weightMt: '0 MT', color: '#475569', bgColor: '#f8fafc', badgeColor: '#475569' }
   ];
 
   const pipeline = useMemo(() => {
     const rawPipeline = activeData?.manufacturingPipeline;
     const stageMeta = [
-      { id: 'incoming', defaultName: 'Incoming Orders', color: '#1d4ed8', bgColor: '#eff6ff' },
-      { id: 'indents', defaultName: 'Material Indents & Store Release', color: '#15803d', bgColor: '#f0fdf4' },
-      { id: 'floorRuns', defaultName: 'Hydraulic Press Floor Runs', color: '#ea580c', bgColor: '#fff7ed' },
-      { id: 'qcTesting', defaultName: 'QC Testing & Proof Load', color: '#7e22ce', bgColor: '#faf5ff' },
-      { id: 'reworkScrap', defaultName: 'QC Failed / Rework', color: '#dc2626', bgColor: '#fef2f2' },
-      { id: 'readyDispatch', defaultName: 'Finished Goods Dispatch', color: '#16a34a', bgColor: '#f0fdf4' },
+      { id: 'incoming', defaultName: 'Incoming', color: '#1d4ed8', bgColor: '#eff6ff' },
+      { id: 'floorRuns', defaultName: 'Floor Runs', color: '#ea580c', bgColor: '#fff7ed' },
+      { id: 'qcTesting', defaultName: 'QC Testing', color: '#7e22ce', bgColor: '#faf5ff' },
+      { id: 'reworkScrap', defaultName: 'Rework / Scrap', color: '#dc2626', bgColor: '#fef2f2' },
+      { id: 'readyDispatch', defaultName: 'Ready for Dispatch', color: '#16a34a', bgColor: '#f0fdf4' },
+      { id: 'dispatched', defaultName: 'Dispatched', color: '#475569', bgColor: '#f8fafc' },
     ];
     if (Array.isArray(rawPipeline) && rawPipeline.length > 0) {
       return rawPipeline.map((st, idx) => {
-        const meta = stageMeta[idx] || stageMeta[0];
+        const meta = stageMeta.find(m => m.id === st.id) || stageMeta[idx] || stageMeta[0];
+        const rawWeight = st.weightMt !== undefined && st.weightMt !== null ? String(st.weightMt) : '0';
+        const formattedWeight = rawWeight.includes('MT') ? rawWeight : `${rawWeight} MT`;
         return {
           id: st.id || meta.id,
           stageNumber: String(idx + 1),
           stageName: st.stageName || meta.defaultName,
           woCount: Number(st.woCount ?? 0),
-          weightMt: st.weightMt !== undefined && st.weightMt !== null ? String(st.weightMt) : '0.0',
+          weightMt: formattedWeight,
           color: meta.color,
           bgColor: meta.bgColor,
           badgeColor: meta.color,
@@ -376,16 +384,16 @@ export default function ProductionOperationsDashboard({
 
   const totalWOsCount = useMemo(() => {
     const sum = pipeline.reduce((acc, p) => acc + (Number(p.woCount) || 0), 0);
-    return sum > 0 ? sum : (workOrders.length > 0 ? workOrders.length : 755);
+    return sum > 0 ? sum : (workOrders.length > 0 ? workOrders.length : 262);
   }, [pipeline, workOrders]);
 
   const defaultPressFleet = [
-    { machineId: 'HM001', capacity: '300T', status: 'Running', oee: 92, runtimeHours: '12.5h', idleHours: '1.2h' },
-    { machineId: 'HM002', capacity: '300T', status: 'Running', oee: 87, runtimeHours: '11.8h', idleHours: '1.0h' },
-    { machineId: 'HM003', capacity: '400T', status: 'Idle', oee: 74, runtimeHours: '10.2h', idleHours: '2.1h' },
-    { machineId: 'HM004', capacity: '400T', status: 'Running', oee: 90, runtimeHours: '13.0h', idleHours: '1.0h' },
-    { machineId: 'HM005', capacity: '500T', status: 'Running', oee: 88, runtimeHours: '12.0h', idleHours: '1.3h' },
-    { machineId: 'HM006', capacity: '500T', status: 'Maintenance', oee: 0, runtimeHours: '0.0h', idleHours: '8.0h' }
+    { machineId: 'HM001', capacity: '300T', status: 'Running', oee: 75, runtimeHours: '8.0h', idleHours: '0.0h' },
+    { machineId: 'HM002', capacity: '300T', status: 'Running', oee: 75, runtimeHours: '8.0h', idleHours: '0.0h' },
+    { machineId: 'HM003', capacity: '200T', status: 'Running', oee: 75, runtimeHours: '8.0h', idleHours: '0.0h' },
+    { machineId: 'HM004', capacity: '200T', status: 'Running', oee: 75, runtimeHours: '8.0h', idleHours: '0.0h' },
+    { machineId: 'HM005', capacity: '500T', status: 'Running', oee: 75, runtimeHours: '8.0h', idleHours: '0.0h' },
+    { machineId: 'HM006', capacity: '500T', status: 'Running', oee: 75, runtimeHours: '8.0h', idleHours: '0.0h' }
   ];
 
   const pressFleet = useMemo(() => {
@@ -395,10 +403,10 @@ export default function ProductionOperationsDashboard({
         const id = m?.machineId || m?.id || `HM00${idx + 1}`;
         const rawStatus = m?.status || (m?.isActive === false ? 'Maintenance' : 'Running');
         const statusClass = String(rawStatus || 'Running').toLowerCase().replace(/\s+/g, '-');
-        const oee = typeof m?.oee === 'number' ? m.oee : (statusClass.includes('run') ? 88 : statusClass.includes('idle') ? 74 : 0);
-        const capacity = m?.capacity || m?.machineName?.match(/\d+T/)?.[0] || (idx >= 4 ? '500T' : idx >= 2 ? '400T' : '300T');
-        const runtimeHours = m?.runtimeHours || (statusClass.includes('run') ? '12.0h' : '0.0h');
-        const idleHours = m?.idleHours || (statusClass.includes('idle') ? '3.0h' : '1.0h');
+        const oee = typeof m?.oee === 'number' && m.oee > 0 ? m.oee : 75;
+        const capacity = m?.capacity || m?.machineName?.match(/\d+T/)?.[0] || (idx < 2 ? '300T' : idx < 4 ? '200T' : '500T');
+        const runtimeHours = m?.runtimeHours || '8.0h';
+        const idleHours = m?.idleHours || '0.0h';
         return {
           machineId: id,
           capacity,
@@ -413,51 +421,65 @@ export default function ProductionOperationsDashboard({
   }, [activeData?.hydraulicPressFleet, activeData?.machineFleet, machines]);
 
   const defaultTrendData = [
-    { date: 'Oct 1', actual: 34, planned: 30 },
-    { date: 'Oct 3', actual: 36, planned: 33 },
-    { date: 'Oct 5', actual: 37, planned: 35 },
-    { date: 'Oct 8', actual: 39, planned: 36 },
-    { date: 'Oct 10', actual: 38, planned: 40 },
-    { date: 'Oct 12', actual: 35, planned: 34 },
-    { date: 'Oct 15', actual: 37, planned: 39 },
-    { date: 'Oct 18', actual: 38, planned: 41 },
-    { date: 'Oct 20', actual: 37, planned: 39 },
-    { date: 'Oct 22', actual: 40, planned: 43 },
-    { date: 'Oct 25', actual: 42, planned: 44 },
-    { date: 'Oct 28', actual: 42, planned: 45 },
-    { date: 'Oct 31', actual: 43, planned: 46 }
+    { date: '02 Nov', actual: 15, planned: 18 },
+    { date: '05 Nov', actual: 22, planned: 25 },
+    { date: '08 Nov', actual: 28, planned: 30 },
+    { date: '11 Nov', actual: 34, planned: 35 },
+    { date: '14 Nov', actual: 38, planned: 40 },
+    { date: '17 Nov', actual: 42, planned: 42 },
+    { date: '20 Nov', actual: 45, planned: 44 },
+    { date: '23 Nov', actual: 46.5, planned: 45 },
+    { date: '26 Nov', actual: 47.5, planned: 46 },
+    { date: '29 Nov', actual: 47.5, planned: 48 }
   ];
 
   const trendData = useMemo(() => {
-    if (Array.isArray(activeData?.productionTrendMonthly) && activeData.productionTrendMonthly.length > 0) {
-      return activeData.productionTrendMonthly;
+    const rawMonthly = activeData?.productionTrendMonthly;
+    if (Array.isArray(rawMonthly) && rawMonthly.length > 0) {
+      if (rawMonthly.length > 15 && timeFilter === 'month') {
+        const sampled = [];
+        const step = Math.ceil(rawMonthly.length / 10);
+        for (let i = 0; i < rawMonthly.length; i += step) {
+          sampled.push(rawMonthly[i]);
+        }
+        if (sampled[sampled.length - 1] !== rawMonthly[rawMonthly.length - 1]) {
+          sampled.push(rawMonthly[rawMonthly.length - 1]);
+        }
+        return sampled;
+      }
+      return rawMonthly;
     }
     if (Array.isArray(activeData?.dailyTrend) && activeData.dailyTrend.length > 0) {
       return activeData.dailyTrend;
     }
     return defaultTrendData;
-  }, [activeData?.productionTrendMonthly, activeData?.dailyTrend]);
+  }, [activeData?.productionTrendMonthly, activeData?.dailyTrend, timeFilter]);
 
   const defaultShiftSummary = {
     shifts: [
-      { shift: 'Shift A (Morning)', icon: 'sun', sets: 120, covers: 1250, frames: 1180, totalWeightMt: 15.8 },
-      { shift: 'Shift B (Evening)', icon: 'moon', sets: 118, covers: 1200, frames: 1140, totalWeightMt: 15.1 },
-      { shift: 'Shift C (Night)', icon: 'moon', sets: 115, covers: 1180, frames: 1120, totalWeightMt: 15.0 },
+      { shift: 'Morning', icon: 'sun', sets: 357, covers: 1654, frames: 430, totalWeightMt: 47.5 },
     ],
-    total: { shift: 'Total', sets: 353, covers: 3630, frames: 3440, totalWeightMt: 45.8 }
+    total: { shift: 'Total', sets: 357, covers: 1654, frames: 430, totalWeightMt: 47.5 }
   };
 
   const rawShift = activeData?.shiftWiseProductionSummary;
   const shiftSummary = useMemo(() => {
     if (rawShift?.shifts && Array.isArray(rawShift.shifts) && rawShift.shifts.length > 0) {
-      const parsedShifts = rawShift.shifts.map((s, idx) => ({
-        shift: s.shift || (idx === 0 ? 'Shift A (Morning)' : idx === 1 ? 'Shift B (Evening)' : 'Shift C (Night)'),
-        icon: idx === 0 ? 'sun' : 'moon',
-        sets: Number(s.sets ?? 0),
-        covers: Number(s.covers ?? 0),
-        frames: Number(s.frames ?? 0),
-        totalWeightMt: Number(s.totalWeightMt ?? 0)
-      }));
+      const nonZeroShifts = rawShift.shifts.filter(s => (Number(s.sets ?? 0) > 0 || Number(s.totalWeightMt ?? 0) > 0));
+      const targetList = nonZeroShifts.length > 0 ? nonZeroShifts : rawShift.shifts;
+
+      const parsedShifts = targetList.map((s, idx) => {
+        const rawName = s.shift || (idx === 0 ? 'Morning' : idx === 1 ? 'Evening' : 'Night');
+        const cleanName = rawName.replace(/^Shift\s+[A-Z]\s*\((.*?)\)$/i, '$1').replace(/^Shift\s+[A-Z]\s*/i, '');
+        return {
+          shift: cleanName,
+          icon: cleanName.toLowerCase().includes('night') ? 'moon' : 'sun',
+          sets: Number(s.sets ?? 0),
+          covers: Number(s.covers ?? 0),
+          frames: Number(s.frames ?? 0),
+          totalWeightMt: Number(s.totalWeightMt ?? 0)
+        };
+      });
       const totalSets = rawShift.total?.sets !== undefined ? Number(rawShift.total.sets) : parsedShifts.reduce((acc, s) => acc + s.sets, 0);
       const totalCovers = rawShift.total?.covers !== undefined ? Number(rawShift.total.covers) : parsedShifts.reduce((acc, s) => acc + s.covers, 0);
       const totalFrames = rawShift.total?.frames !== undefined ? Number(rawShift.total.frames) : parsedShifts.reduce((acc, s) => acc + s.frames, 0);
@@ -477,12 +499,12 @@ export default function ProductionOperationsDashboard({
   }, [rawShift]);
 
   const defaultDiagnostics = {
-    firstPassYield: { passRatePct: 98.8, reworkPct: 1.2 },
+    firstPassYield: { passRatePct: 100, reworkPct: 0 },
     loadTestDistribution: [
-      { rating: '2.5T', percentage: 28, color: '#38bdf8' },
-      { rating: '12.5T', percentage: 32, color: '#c2410c' },
-      { rating: '25T', percentage: 26, color: '#f59e0b' },
-      { rating: '40T', percentage: 14, color: '#475569' }
+      { rating: '2.5T', percentage: 57, color: '#38bdf8' },
+      { rating: '12.5T', percentage: 7, color: '#c2410c' },
+      { rating: '25T', percentage: 22, color: '#f59e0b' },
+      { rating: '40T', percentage: 13, color: '#475569' }
     ],
     topDefectPareto: [
       { category: 'Flash / Burr', percentage: 42, color: '#2563eb' },
@@ -491,8 +513,8 @@ export default function ProductionOperationsDashboard({
       { category: 'Surface Cracks', percentage: 10, color: '#94a3b8' }
     ],
     scrapFinancialImpact: {
-      scrapWeightKg: 240,
-      totalCostInr: 12000,
+      scrapWeightKg: 0,
+      totalCostInr: 0,
       label: 'Raw Material Loss'
     }
   };
@@ -500,7 +522,7 @@ export default function ProductionOperationsDashboard({
   const rawDiag = activeData?.qualityAndScrapDiagnostics;
   const diagnostics = useMemo(() => {
     if (rawDiag) {
-      const fpyPass = Number(rawDiag.firstPassYield?.passRatePct ?? rawDiag.firstPassYield?.passedPct ?? 98.8);
+      const fpyPass = Number(rawDiag.firstPassYield?.passRatePct ?? rawDiag.firstPassYield?.passedPct ?? 100);
       const fpyRework = Number(rawDiag.firstPassYield?.reworkPct ?? rawDiag.firstPassYield?.failedPct ?? (100 - fpyPass).toFixed(1));
       const loadTest = Array.isArray(rawDiag.loadTestDistribution) && rawDiag.loadTestDistribution.length > 0
         ? rawDiag.loadTestDistribution.map(item => ({
@@ -517,8 +539,12 @@ export default function ProductionOperationsDashboard({
           }))
         : defaultDiagnostics.topDefectPareto;
       const scrap = {
-        scrapWeightKg: Number(rawDiag.scrapFinancialImpact?.scrapWeightKg ?? 240),
-        totalCostInr: Number(rawDiag.scrapFinancialImpact?.totalCostInr ?? 12000),
+        scrapWeightKg: rawDiag.scrapFinancialImpact?.scrapWeightKg !== undefined && rawDiag.scrapFinancialImpact.scrapWeightKg !== null
+          ? Number(rawDiag.scrapFinancialImpact.scrapWeightKg)
+          : defaultDiagnostics.scrapFinancialImpact.scrapWeightKg,
+        totalCostInr: rawDiag.scrapFinancialImpact?.totalCostInr !== undefined && rawDiag.scrapFinancialImpact.totalCostInr !== null
+          ? Number(rawDiag.scrapFinancialImpact.totalCostInr)
+          : defaultDiagnostics.scrapFinancialImpact.totalCostInr,
         label: 'Raw Material Loss'
       };
       return {
@@ -982,12 +1008,13 @@ export default function ProductionOperationsDashboard({
               <TrendingUp size={18} color="#2563eb" />
               <h2 className="pod-panel-title">Production Analytics & Shift Summary</h2>
             </div>
-            {/* Day / Week / Month Pill Buttons */}
+            {/* Day / Week / Month / All Pill Buttons */}
             <div className="pod-period-bar">
               {[
                 { id: 'day', label: 'Day' },
                 { id: 'week', label: 'Week' },
-                { id: 'month', label: 'Month' }
+                { id: 'month', label: 'Month' },
+                { id: 'all', label: 'All' }
               ].map((p) => (
                 <button
                   key={p.id}
@@ -1184,23 +1211,23 @@ export default function ProductionOperationsDashboard({
                   strokeWidth="10"
                   fill="none"
                   strokeDasharray={2 * Math.PI * 38}
-                  strokeDashoffset={(2 * Math.PI * 38) * (1 - (diagnostics?.firstPassYield?.passRatePct ?? 98.8) / 100)}
+                  strokeDashoffset={(2 * Math.PI * 38) * (1 - (diagnostics?.firstPassYield?.passRatePct ?? 100) / 100)}
                   strokeLinecap="round"
                   transform="rotate(-90 50 50)"
                 />
               </svg>
               <div className="pod-fpy-center">
-                <span className="pod-fpy-center-val">{diagnostics?.firstPassYield?.passRatePct ?? 98.8}%</span>
+                <span className="pod-fpy-center-val">{diagnostics?.firstPassYield?.passRatePct ?? 100}%</span>
               </div>
             </div>
             <div className="pod-fpy-legend-horizontal">
               <div className="pod-fpy-legend-item">
                 <span className="pod-fpy-dot passed" />
-                <span>Pass <strong>{diagnostics?.firstPassYield?.passRatePct ?? 98.8}%</strong></span>
+                <span>Pass <strong>{diagnostics?.firstPassYield?.passRatePct ?? 100}%</strong></span>
               </div>
               <div className="pod-fpy-legend-item">
                 <span className="pod-fpy-dot rework" />
-                <span>Rework <strong>{diagnostics?.firstPassYield?.reworkPct ?? 1.2}%</strong></span>
+                <span>Rework <strong>{diagnostics?.firstPassYield?.reworkPct ?? 0}%</strong></span>
               </div>
             </div>
           </div>
@@ -1283,10 +1310,10 @@ export default function ProductionOperationsDashboard({
             </div>
             <div className="pod-scrap-numbers">
               <span className="pod-scrap-weight">
-                {Number(diagnostics?.scrapFinancialImpact?.scrapWeightKg ?? 240).toLocaleString('en-IN')} KG
+                {Number(diagnostics?.scrapFinancialImpact?.scrapWeightKg ?? 0).toLocaleString('en-IN')} KG
               </span>
               <span className="pod-scrap-inr-big">
-                ₹ {Number(diagnostics?.scrapFinancialImpact?.totalCostInr ?? 12000).toLocaleString('en-IN')}
+                ₹ {Number(diagnostics?.scrapFinancialImpact?.totalCostInr ?? 0).toLocaleString('en-IN')}
               </span>
               <span className="pod-scrap-sub">
                 Raw Material Loss

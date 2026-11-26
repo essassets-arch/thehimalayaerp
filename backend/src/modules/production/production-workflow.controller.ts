@@ -97,11 +97,17 @@ export class ProductionWorkflowController {
     'production.qc.read',
     'production.productionworkflow.read',
     'production.reports.read',
+    'production.dashboard.read',
+    'production.plan.read',
+    'production.workorders.read',
     'admin.planthead.read',
     'planthead.read',
     'plant-head.read',
     'production.view',
     'production.read',
+    'production.all',
+    'superadmin.read',
+    'super_admin',
   )
   async getDashboard(@Query() query: any, @Req() req: any) {
     return this.workflowService.getGlobalSummaryReport(query, req?.user?.companyId);
@@ -113,23 +119,42 @@ export class ProductionWorkflowController {
     'production.qc.read',
     'production.productionworkflow.read',
     'production.reports.read',
+    'production.dashboard.read',
+    'production.plan.read',
+    'production.workorders.read',
     'admin.planthead.read',
     'planthead.read',
     'plant-head.read',
     'production.view',
     'production.read',
+    'production.all',
     'superadmin.read',
     'super_admin',
-    'production.all',
   )
   async getDashboardWorkflowAlias(@Query() query: any, @Req() req: any) {
     return this.workflowService.getGlobalSummaryReport(query, req?.user?.companyId);
   }
 
-  @RequirePermissions('production.productionworkflow.read')
   @Get('production/reports/summary')
-  async getReportsSummary(@Query() query: any) {
-    return this.workflowService.getGlobalSummaryReport(query);
+  @RequirePermissions(
+    'production.floor.read',
+    'production.qc.read',
+    'production.productionworkflow.read',
+    'production.reports.read',
+    'production.dashboard.read',
+    'production.plan.read',
+    'production.workorders.read',
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'production.view',
+    'production.read',
+    'production.all',
+    'superadmin.read',
+    'super_admin',
+  )
+  async getReportsSummary(@Query() query: any, @Req() req: any) {
+    return this.workflowService.getGlobalSummaryReport(query, req?.user?.companyId);
   }
 
   // ==========================================
