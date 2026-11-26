@@ -38,8 +38,8 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Install OpenSSL and curl for runtime Prisma engine and container health check
-RUN apk add --no-cache openssl ca-certificates curl
+# Install OpenSSL, curl, and postgresql16-client for runtime Prisma engine, health checks, and native pg_dump
+RUN apk add --no-cache openssl ca-certificates curl postgresql16-client
 
 ENV NODE_ENV=production
 ENV PORT=4000

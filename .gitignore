@@ -56,6 +56,7 @@ scratch/
 *.sql
 *.sql.gz
 !scripts/*.sql
+!backend/prisma/migrations/**/*.sql
 
 # Browser test build directories & Playwright artifacts
 frontend/.next-browser-test*/

@@ -93,8 +93,4 @@ describe('AuthService', () => {
     expect(res.accessToken).toBeDefined();
     expect(res.user.email).toBe('super.admin@himalayaerp.com');
   });
-        }),
-      );
-    }
-  });
 });

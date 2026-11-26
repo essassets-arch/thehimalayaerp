@@ -4806,3 +4806,108 @@ model SalesDownloadRequest {
   @@index([status, expiresAt])
   @@map("sales_download_requests")
 }
+
+// ─── SUPER ADMIN DATABASE BACKUP MODULE ───────────────────────────────
+
+model BackupConfig {
+  id                    String    @id @default(uuid())
+  key                   String    @unique @default("default")
+  isEnabled             Boolean   @default(true)
+  scheduleTime          String    @default("23:00") // 11:00 PM IST
+  timezone              String    @default("Asia/Kolkata")
+  retentionDays         Int       @default(30)
+  chunkSizeMb           Int       @default(20) // Email attachment split threshold
+  encryptionAlgorithm   String    @default("aes-256-gcm")
+  encryptionKeyId       String    @default("himalaya-key-v1")
+  smtpHost              String?
+  smtpPort              Int?      @default(587)
+  smtpSecure            Boolean?  @default(false)
+  smtpUser              String?
+  smtpPasswordEncrypted String?
+  smtpFrom              String?
+  lastRunDateIst        String?
+  lastExecutionAt       DateTime?
+  lastStatus            String?
+  updatedAt             DateTime  @updatedAt
+  createdAt             DateTime  @default(now())
+
+  @@map("backup_configs")
+}
+
+model BackupRecipient {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  name            String?
+  isActive        Boolean   @default(true)
+  verifiedAt      DateTime?
+  lastDeliveredAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("backup_recipients")
+}
+
+model BackupHistory {
+  id                   String                  @id @default(uuid())
+  executionId          String                  @unique
+  scheduledOccurrence  String?
+  filename             String
+  sizeBytes            BigInt
+  checksumSha256       String
+  encryptionAlgorithm  String                  @default("aes-256-gcm")
+  encryptionKeyId      String                  @default("himalaya-key-v1")
+  encryptionSalt       String?
+  encryptionIv         String
+  encryptionTag        String?
+  executionType        String                  @default("SCHEDULED") // SCHEDULED, MANUAL, MISSED_RECOVERY, DR_TEST
+  status               String                  @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, FAILED
+  chunksCount          Int                     @default(1)
+  storagePath          String?
+  startedAt            DateTime                @default(now())
+  completedAt          DateTime?
+  durationMs           Int?
+  verifiedAt           DateTime?
+  verificationResult   String?
+  errorMessage         String?                 @db.Text
+  metadata             Json?
+  deliveries           BackupDeliveryHistory[]
+
+  @@index([status, startedAt])
+  @@index([scheduledOccurrence])
+  @@map("backup_histories")
+}
+
+model BackupDeliveryHistory {
+  id             String        @id @default(uuid())
+  backupId       String
+  recipientEmail String
+  recipientId    String?
+  status         String        @default("PENDING") // PENDING, SENT, FAILED
+  partsDelivered Int           @default(1)
+  partsTotal     Int           @default(1)
+  messageId      String?
+  sentAt         DateTime?
+  errorMessage   String?       @db.Text
+  createdAt      DateTime      @default(now())
+
+  backup         BackupHistory @relation(fields: [backupId], references: [id], onDelete: Cascade)
+
+  @@index([backupId, status])
+  @@index([recipientEmail])
+  @@map("backup_delivery_histories")
+}
+
+model BackupAuditEvent {
+  id         String   @id @default(uuid())
+  action     String   // CONFIG_UPDATED, RECIPIENT_ADDED, RECIPIENT_UPDATED, RECIPIENT_DELETED, MANUAL_TRIGGER, BACKUP_DOWNLOADED, RETENTION_CLEANUP
+  actorEmail String
+  actorRole  String
+  ipAddress  String?
+  userAgent  String?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@map("backup_audit_events")
+}
+

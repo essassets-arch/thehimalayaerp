@@ -55,6 +55,7 @@ import { DispatchTargetModule } from './modules/dispatch-target/dispatch-target.
 import { PlantHeadModule } from './modules/plant-head/plant-head.module';
 import { StoreReportsModule } from './modules/store-reports/store-reports.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
+import { DatabaseBackupModule } from './modules/database-backup/database-backup.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { ExpenseModule } from './modules/expense/expense.module';
 import { LeaveModule } from './modules/leave/leave.module';
@@ -125,6 +126,7 @@ import { SalesDownloadRequestsModule } from './modules/sales-download-requests/s
     PlantHeadModule,
     StoreReportsModule,
     SuperAdminModule,
+    DatabaseBackupModule,
     ProfileModule,
     ExpenseModule,
     LeaveModule,

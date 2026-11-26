@@ -433,6 +433,7 @@ export const navigationConfig = {
     { id: 'customer-complaints', label: 'Customer Complaints', icon: MessageSquare, path: '/super-admin/customer-complaints' },
 
     { type: 'badge', label: 'BUSINESS MANAGEMENT' },
+    { id: 'database-backups', label: 'Database Backups', icon: Database, path: '/super-admin/database-backups' },
     { id: 'users', label: 'Users & Roles', icon: Users, path: '/super-admin/users' },
     { id: 'sessions', label: 'Active Sessions', icon: Monitor, path: '/super-admin/sessions' },
     { id: 'employees', label: 'Employees', icon: UserCheck, path: '/super-admin/employees' },
