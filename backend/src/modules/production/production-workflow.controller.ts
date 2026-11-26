@@ -118,6 +118,9 @@ export class ProductionWorkflowController {
     'plant-head.read',
     'production.view',
     'production.read',
+    'superadmin.read',
+    'super_admin',
+    'production.all',
   )
   async getDashboardWorkflowAlias(@Query() query: any, @Req() req: any) {
     return this.workflowService.getGlobalSummaryReport(query, req?.user?.companyId);

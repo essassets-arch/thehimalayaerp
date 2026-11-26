@@ -51,13 +51,19 @@ export default function ProductionOperationsDashboard({
   derivedStats,
   initialShiftEntries,
   initialScrapEntries,
-  onCompleteRework
+  onCompleteRework,
+  globalSummary = null
 }) {
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [targetAchievement, setTargetAchievement] = useState(productionTargetAchievement);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (productionTargetAchievement) {
@@ -128,7 +134,10 @@ export default function ProductionOperationsDashboard({
     setRefreshing(true);
     try {
       const [res, targetRes] = await Promise.all([
-        backendFetch(`/production-workflow/dashboard?period=${timeFilter}&shift=${shiftFilter}&machine=${machineFilter}&month=${selectedMonth}`).catch(() => null),
+        backendFetch(`/production-workflow/dashboard?period=${timeFilter}&shift=${shiftFilter}&machine=${machineFilter}&month=${selectedMonth}`).catch((e) => {
+          console.warn('[Dashboard] Telemetry fetch error:', e);
+          return null;
+        }),
         backendFetch(`/api/backend/production-targets/achievement?month=${selectedMonth}&period=${timeFilter}`).catch(() => null)
       ]);
       const data = res?.data || res;
@@ -217,7 +226,8 @@ export default function ProductionOperationsDashboard({
   }, [timeFilter, selectedMonth, dashboardData]);
 
   // Authoritative Data Resolvers
-  const rawKpis = dashboardData?.executiveKpis;
+  const activeData = dashboardData || globalSummary;
+  const rawKpis = activeData?.executiveKpis;
 
   const targetSource = useMemo(() => {
     if (targetAchievement && (targetAchievement.hasTarget || targetAchievement.target > 0 || targetAchievement.quantityTarget > 0)) {
@@ -262,55 +272,65 @@ export default function ProductionOperationsDashboard({
       };
     }
     return rawKpis?.planAchievement || {
-      percentage: dashboardData?.summary?.efficiency || 0,
+      percentage: activeData?.summary?.efficiency || 96.4,
       targetLabel: 'Target: 95%+',
       trend: 'Live Database Rate',
       trendType: 'positive',
-      targetQty: dashboardData?.summary?.plannedUnits || 0,
-      achievedQty: dashboardData?.summary?.producedUnits || 0,
+      targetQty: activeData?.summary?.plannedUnits || 0,
+      achievedQty: activeData?.summary?.producedUnits || 0,
       hasTarget: false
     };
-  }, [targetSource, rawKpis?.planAchievement, dashboardData?.summary]);
+  }, [targetSource, rawKpis?.planAchievement, activeData?.summary]);
+
+  const liveTotalMt = activeData?.productionReconciliation?.headlineTotalProductionMt ?? rawKpis?.totalProduction?.valueMt;
+  const liveProducedUnits = activeData?.summary?.producedUnits ?? rawKpis?.totalProduction?.unitsCount ?? derivedStats?.todayProduction;
+  const totalProductionValue = liveTotalMt !== undefined && liveTotalMt !== null
+    ? liveTotalMt
+    : (liveProducedUnits ? Number((liveProducedUnits * 0.035).toFixed(1)) : 45.8);
 
   const kpis = {
     totalProduction: {
-      valueMt: dashboardData?.productionReconciliation?.headlineTotalProductionMt || rawKpis?.totalProduction?.valueMt || 45.8,
-      unitsCount: dashboardData?.summary?.producedUnits || rawKpis?.totalProduction?.unitsCount || 353,
+      valueMt: totalProductionValue,
+      unitsCount: liveProducedUnits ?? 353,
       unitsLabel: 'Total Units / Sets',
       trend: rawKpis?.totalProduction?.trend || '↑ 4.7%',
       trendType: 'positive'
     },
     planAchievement: {
-      percentage: planAchievementKpi?.percentage || 96.4,
-      targetLabel: 'Target: 95%+',
+      percentage: planAchievementKpi?.percentage ?? (activeData?.summary?.efficiency ?? 96.4),
+      targetLabel: planAchievementKpi?.targetLabel || 'Target: 95%+',
       trend: planAchievementKpi?.trend && planAchievementKpi.trend !== 'Live Database Rate' ? planAchievementKpi.trend : '↑ 0.8%',
-      trendType: 'positive',
+      trendType: planAchievementKpi?.trendType || 'positive',
       hasTarget: planAchievementKpi?.hasTarget || false,
       targetQty: planAchievementKpi?.targetQty || 0,
       achievedQty: planAchievementKpi?.achievedQty || 0,
       period: planAchievementKpi?.period || 'Monthly'
     },
     oee: {
-      percentage: Number(dashboardData?.summary?.efficiency) || rawKpis?.oee?.percentage || 83.5,
+      percentage: activeData?.summary?.efficiency !== undefined && activeData.summary.efficiency !== null
+        ? Number(activeData.summary.efficiency)
+        : (rawKpis?.oee?.percentage ?? 83.5),
       targetLabel: 'Target: 82%+',
       trend: rawKpis?.oee?.trend || '↑ 1.2%',
       trendType: 'positive'
     },
     activeFloorRuns: {
-      activeCount: dashboardData?.summary?.machinesRunning ?? rawKpis?.activeFloorRuns?.activeCount ?? 5,
-      totalAvailable: dashboardData?.summary?.totalMachines ?? 6,
+      activeCount: activeData?.summary?.machinesRunning ?? rawKpis?.activeFloorRuns?.activeCount ?? (Array.isArray(machines) && machines.filter(m => m.status === 'Running' || m.isActive).length > 0 ? machines.filter(m => m.status === 'Running' || m.isActive).length : 5),
+      totalAvailable: activeData?.summary?.totalMachines ?? rawKpis?.activeFloorRuns?.totalAvailable ?? (Array.isArray(machines) && machines.length > 0 ? machines.length : 6),
       subtitle: 'Presses Running',
-      note: '5 of 6'
+      note: `${activeData?.summary?.machinesRunning ?? 5} of ${activeData?.summary?.totalMachines ?? 6}`
     },
     firstPassYield: {
-      percentage: Number(dashboardData?.summary?.firstPassYield) || rawKpis?.firstPassYield?.percentage || 98.8,
+      percentage: activeData?.summary?.firstPassYield !== undefined && activeData.summary.firstPassYield !== null
+        ? Number(activeData.summary.firstPassYield)
+        : (rawKpis?.firstPassYield?.percentage ?? 98.8),
       targetLabel: 'Target: 98.5%+',
       trend: rawKpis?.firstPassYield?.trend || '↑ 0.3%',
       trendType: 'positive'
     },
     dispatchBacklog: {
-      unitsCount: dashboardData?.summary?.readyForDispatchCount || rawKpis?.dispatchBacklog?.unitsCount || 140,
-      unitsLabel: '140 Sets',
+      unitsCount: activeData?.summary?.readyForDispatchCount ?? rawKpis?.dispatchBacklog?.unitsCount ?? (workOrders.filter(w => ['READY_FOR_DISPATCH', 'QC_PASSED', 'Ready for Dispatch'].includes(w.status)).length || 140),
+      unitsLabel: `${activeData?.summary?.readyForDispatchCount ?? rawKpis?.dispatchBacklog?.unitsCount ?? 140} Sets`,
       subtitle: 'In Yard',
       trend: '—',
       trendType: 'neutral'
@@ -326,9 +346,38 @@ export default function ProductionOperationsDashboard({
     { id: 'readyDispatch', stageNumber: '6', stageName: 'Finished Goods Dispatch', woCount: 78, weightMt: '5.3', color: '#16a34a', bgColor: '#f0fdf4', badgeColor: '#10b981' }
   ];
 
-  const pipeline = (Array.isArray(dashboardData?.manufacturingPipeline) && dashboardData.manufacturingPipeline.length > 0)
-    ? dashboardData.manufacturingPipeline
-    : defaultPipeline;
+  const pipeline = useMemo(() => {
+    const rawPipeline = activeData?.manufacturingPipeline;
+    const stageMeta = [
+      { id: 'incoming', defaultName: 'Incoming Orders', color: '#1d4ed8', bgColor: '#eff6ff' },
+      { id: 'indents', defaultName: 'Material Indents & Store Release', color: '#15803d', bgColor: '#f0fdf4' },
+      { id: 'floorRuns', defaultName: 'Hydraulic Press Floor Runs', color: '#ea580c', bgColor: '#fff7ed' },
+      { id: 'qcTesting', defaultName: 'QC Testing & Proof Load', color: '#7e22ce', bgColor: '#faf5ff' },
+      { id: 'reworkScrap', defaultName: 'QC Failed / Rework', color: '#dc2626', bgColor: '#fef2f2' },
+      { id: 'readyDispatch', defaultName: 'Finished Goods Dispatch', color: '#16a34a', bgColor: '#f0fdf4' },
+    ];
+    if (Array.isArray(rawPipeline) && rawPipeline.length > 0) {
+      return rawPipeline.map((st, idx) => {
+        const meta = stageMeta[idx] || stageMeta[0];
+        return {
+          id: st.id || meta.id,
+          stageNumber: String(idx + 1),
+          stageName: st.stageName || meta.defaultName,
+          woCount: Number(st.woCount ?? 0),
+          weightMt: st.weightMt !== undefined && st.weightMt !== null ? String(st.weightMt) : '0.0',
+          color: meta.color,
+          bgColor: meta.bgColor,
+          badgeColor: meta.color,
+        };
+      });
+    }
+    return defaultPipeline;
+  }, [activeData?.manufacturingPipeline]);
+
+  const totalWOsCount = useMemo(() => {
+    const sum = pipeline.reduce((acc, p) => acc + (Number(p.woCount) || 0), 0);
+    return sum > 0 ? sum : (workOrders.length > 0 ? workOrders.length : 755);
+  }, [pipeline, workOrders]);
 
   const defaultPressFleet = [
     { machineId: 'HM001', capacity: '300T', status: 'Running', oee: 92, runtimeHours: '12.5h', idleHours: '1.2h' },
@@ -339,11 +388,29 @@ export default function ProductionOperationsDashboard({
     { machineId: 'HM006', capacity: '500T', status: 'Maintenance', oee: 0, runtimeHours: '0.0h', idleHours: '8.0h' }
   ];
 
-  const pressFleet = (Array.isArray(dashboardData?.hydraulicPressFleet) && dashboardData.hydraulicPressFleet.length > 0)
-    ? dashboardData.hydraulicPressFleet
-    : (Array.isArray(dashboardData?.machineFleet) && dashboardData.machineFleet.length > 0)
-      ? dashboardData.machineFleet
-      : (Array.isArray(machines) && machines.length > 0 ? machines : defaultPressFleet);
+  const pressFleet = useMemo(() => {
+    const rawFleet = activeData?.hydraulicPressFleet || activeData?.machineFleet || (Array.isArray(machines) && machines.length > 0 ? machines : null);
+    if (Array.isArray(rawFleet) && rawFleet.length > 0) {
+      return rawFleet.slice(0, 6).map((m, idx) => {
+        const id = m?.machineId || m?.id || `HM00${idx + 1}`;
+        const rawStatus = m?.status || (m?.isActive === false ? 'Maintenance' : 'Running');
+        const statusClass = String(rawStatus || 'Running').toLowerCase().replace(/\s+/g, '-');
+        const oee = typeof m?.oee === 'number' ? m.oee : (statusClass.includes('run') ? 88 : statusClass.includes('idle') ? 74 : 0);
+        const capacity = m?.capacity || m?.machineName?.match(/\d+T/)?.[0] || (idx >= 4 ? '500T' : idx >= 2 ? '400T' : '300T');
+        const runtimeHours = m?.runtimeHours || (statusClass.includes('run') ? '12.0h' : '0.0h');
+        const idleHours = m?.idleHours || (statusClass.includes('idle') ? '3.0h' : '1.0h');
+        return {
+          machineId: id,
+          capacity,
+          status: rawStatus,
+          oee,
+          runtimeHours,
+          idleHours
+        };
+      });
+    }
+    return defaultPressFleet;
+  }, [activeData?.hydraulicPressFleet, activeData?.machineFleet, machines]);
 
   const defaultTrendData = [
     { date: 'Oct 1', actual: 34, planned: 30 },
@@ -361,11 +428,15 @@ export default function ProductionOperationsDashboard({
     { date: 'Oct 31', actual: 43, planned: 46 }
   ];
 
-  const trendData = (Array.isArray(dashboardData?.productionTrendMonthly) && dashboardData.productionTrendMonthly.length > 0)
-    ? dashboardData.productionTrendMonthly
-    : (Array.isArray(dashboardData?.dailyTrend) && dashboardData.dailyTrend.length > 0)
-      ? dashboardData.dailyTrend
-      : defaultTrendData;
+  const trendData = useMemo(() => {
+    if (Array.isArray(activeData?.productionTrendMonthly) && activeData.productionTrendMonthly.length > 0) {
+      return activeData.productionTrendMonthly;
+    }
+    if (Array.isArray(activeData?.dailyTrend) && activeData.dailyTrend.length > 0) {
+      return activeData.dailyTrend;
+    }
+    return defaultTrendData;
+  }, [activeData?.productionTrendMonthly, activeData?.dailyTrend]);
 
   const defaultShiftSummary = {
     shifts: [
@@ -376,10 +447,34 @@ export default function ProductionOperationsDashboard({
     total: { shift: 'Total', sets: 353, covers: 3630, frames: 3440, totalWeightMt: 45.8 }
   };
 
-  const rawShift = dashboardData?.shiftWiseProductionSummary;
-  const shiftSummary = (rawShift?.shifts && rawShift.shifts.length > 0)
-    ? rawShift
-    : defaultShiftSummary;
+  const rawShift = activeData?.shiftWiseProductionSummary;
+  const shiftSummary = useMemo(() => {
+    if (rawShift?.shifts && Array.isArray(rawShift.shifts) && rawShift.shifts.length > 0) {
+      const parsedShifts = rawShift.shifts.map((s, idx) => ({
+        shift: s.shift || (idx === 0 ? 'Shift A (Morning)' : idx === 1 ? 'Shift B (Evening)' : 'Shift C (Night)'),
+        icon: idx === 0 ? 'sun' : 'moon',
+        sets: Number(s.sets ?? 0),
+        covers: Number(s.covers ?? 0),
+        frames: Number(s.frames ?? 0),
+        totalWeightMt: Number(s.totalWeightMt ?? 0)
+      }));
+      const totalSets = rawShift.total?.sets !== undefined ? Number(rawShift.total.sets) : parsedShifts.reduce((acc, s) => acc + s.sets, 0);
+      const totalCovers = rawShift.total?.covers !== undefined ? Number(rawShift.total.covers) : parsedShifts.reduce((acc, s) => acc + s.covers, 0);
+      const totalFrames = rawShift.total?.frames !== undefined ? Number(rawShift.total.frames) : parsedShifts.reduce((acc, s) => acc + s.frames, 0);
+      const totalWeightMt = rawShift.total?.totalWeightMt !== undefined ? Number(rawShift.total.totalWeightMt) : parsedShifts.reduce((acc, s) => acc + s.totalWeightMt, 0);
+      return {
+        shifts: parsedShifts,
+        total: {
+          shift: 'Total',
+          sets: totalSets,
+          covers: totalCovers,
+          frames: totalFrames,
+          totalWeightMt: Number(totalWeightMt.toFixed(1))
+        }
+      };
+    }
+    return defaultShiftSummary;
+  }, [rawShift]);
 
   const defaultDiagnostics = {
     firstPassYield: { passRatePct: 98.8, reworkPct: 1.2 },
@@ -402,7 +497,60 @@ export default function ProductionOperationsDashboard({
     }
   };
 
-  const wipMt = dashboardData?.productionReconciliation?.floorWorkInProgressMt ?? 0;
+  const rawDiag = activeData?.qualityAndScrapDiagnostics;
+  const diagnostics = useMemo(() => {
+    if (rawDiag) {
+      const fpyPass = Number(rawDiag.firstPassYield?.passRatePct ?? rawDiag.firstPassYield?.passedPct ?? 98.8);
+      const fpyRework = Number(rawDiag.firstPassYield?.reworkPct ?? rawDiag.firstPassYield?.failedPct ?? (100 - fpyPass).toFixed(1));
+      const loadTest = Array.isArray(rawDiag.loadTestDistribution) && rawDiag.loadTestDistribution.length > 0
+        ? rawDiag.loadTestDistribution.map(item => ({
+            rating: item.rating || '40T',
+            percentage: Number(item.percentage ?? 0),
+            color: item.rating === '2.5T' ? '#38bdf8' : item.rating === '12.5T' ? '#c2410c' : item.rating === '25T' ? '#f59e0b' : '#475569'
+          }))
+        : defaultDiagnostics.loadTestDistribution;
+      const pareto = Array.isArray(rawDiag.topDefectPareto) && rawDiag.topDefectPareto.length > 0
+        ? rawDiag.topDefectPareto.map(item => ({
+            category: item.category || 'Defect',
+            percentage: Number(item.percentage ?? 0),
+            color: '#2563eb'
+          }))
+        : defaultDiagnostics.topDefectPareto;
+      const scrap = {
+        scrapWeightKg: Number(rawDiag.scrapFinancialImpact?.scrapWeightKg ?? 240),
+        totalCostInr: Number(rawDiag.scrapFinancialImpact?.totalCostInr ?? 12000),
+        label: 'Raw Material Loss'
+      };
+      return {
+        firstPassYield: { passRatePct: fpyPass, reworkPct: fpyRework },
+        loadTestDistribution: loadTest,
+        topDefectPareto: pareto,
+        scrapFinancialImpact: scrap
+      };
+    }
+    return defaultDiagnostics;
+  }, [rawDiag]);
+
+  const proofLoadSegments = useMemo(() => {
+    const list = diagnostics.loadTestDistribution || [];
+    const circumference = 2 * Math.PI * 38;
+    let accumulated = 0;
+    return list.map((item) => {
+      const strokeLen = (item.percentage / 100) * circumference;
+      const strokeGap = circumference - strokeLen;
+      const offset = -accumulated;
+      accumulated += strokeLen;
+      return {
+        rating: item.rating,
+        percentage: item.percentage,
+        color: item.color,
+        strokeDasharray: `${strokeLen.toFixed(2)} ${strokeGap.toFixed(2)}`,
+        strokeDashoffset: offset.toFixed(2)
+      };
+    });
+  }, [diagnostics.loadTestDistribution]);
+
+  const wipMt = activeData?.productionReconciliation?.floorWorkInProgressMt ?? 0;
   const shiftOutputMt = shiftSummary.total?.totalWeightMt ?? 45.8;
   const totalProductionMt = kpis.totalProduction.valueMt || 45.8;
 
@@ -797,7 +945,7 @@ export default function ProductionOperationsDashboard({
             <h2 className="pod-panel-title">Manufacturing Pipeline</h2>
           </div>
           <span className="pod-pipeline-badge">
-            WO Progress: 755 Total WOs
+            WO Progress: {totalWOsCount} Total WOs
           </span>
         </div>
 
@@ -873,18 +1021,24 @@ export default function ProductionOperationsDashboard({
               </div>
 
               <div style={{ width: '100%', height: 180 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={trendData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                    <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
-                    <YAxis tick={{ fontSize: 9, fill: '#64748b' }} domain={[0, 50]} ticks={[0, 10, 20, 30, 40, 50]} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: 6, fontSize: 11, border: 'none' }}
-                      formatter={(val, name) => [`${val} MT`, name]}
-                    />
-                    <Bar dataKey="actual" fill="#1e3a8a" radius={[2, 2, 0, 0]} name="Actual MT" barSize={8} />
-                    <Bar dataKey="planned" fill="#f97316" radius={[2, 2, 0, 0]} name="Planned MT" barSize={8} />
-                  </ComposedChart>
-                </ResponsiveContainer>
+                {isMounted ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={trendData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                      <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
+                      <YAxis tick={{ fontSize: 9, fill: '#64748b' }} domain={[0, 50]} ticks={[0, 10, 20, 30, 40, 50]} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: 6, fontSize: 11, border: 'none' }}
+                        formatter={(val, name) => [`${val} MT`, name]}
+                      />
+                      <Bar dataKey="actual" fill="#1e3a8a" radius={[2, 2, 0, 0]} name="Actual MT" barSize={8} />
+                      <Bar dataKey="planned" fill="#f97316" radius={[2, 2, 0, 0]} name="Planned MT" barSize={8} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '11px' }}>
+                    Loading production analytics...
+                  </div>
+                )}
               </div>
             </div>
 
@@ -912,18 +1066,18 @@ export default function ProductionOperationsDashboard({
                             {idx === 0 ? '☀️' : '🌙'} {row.shift}
                           </span>
                         </td>
-                        <td>{row.sets.toLocaleString()}</td>
-                        <td>{row.covers.toLocaleString()}</td>
-                        <td>{row.frames.toLocaleString()}</td>
-                        <td>{row.totalWeightMt} MT</td>
+                        <td>{(row.sets ?? 0).toLocaleString()}</td>
+                        <td>{(row.covers ?? 0).toLocaleString()}</td>
+                        <td>{(row.frames ?? 0).toLocaleString()}</td>
+                        <td>{row.totalWeightMt ?? 0} MT</td>
                       </tr>
                     ))}
                     <tr className="total-row">
-                      <td>{shiftSummary.total.shift}</td>
-                      <td>{shiftSummary.total.sets.toLocaleString()}</td>
-                      <td>{shiftSummary.total.covers.toLocaleString()}</td>
-                      <td>{shiftSummary.total.frames.toLocaleString()}</td>
-                      <td>{shiftSummary.total.totalWeightMt} MT</td>
+                      <td>{shiftSummary.total?.shift || 'Total'}</td>
+                      <td>{(shiftSummary.total?.sets ?? 0).toLocaleString()}</td>
+                      <td>{(shiftSummary.total?.covers ?? 0).toLocaleString()}</td>
+                      <td>{(shiftSummary.total?.frames ?? 0).toLocaleString()}</td>
+                      <td>{shiftSummary.total?.totalWeightMt ?? 0} MT</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1057,66 +1211,32 @@ export default function ProductionOperationsDashboard({
           <div className="pod-diag-col">
             <span className="pod-diag-title">Proof Load Rating Distribution</span>
             <div className="pod-proof-load-wrap">
-              {/* Donut Chart with 4 colored segments */}
+              {/* Donut Chart with dynamically computed colored segments */}
               <div className="pod-proof-donut">
                 <svg width="100" height="100" viewBox="0 0 100 100">
-                  {/* Total circumference = 2 * PI * 38 ≈ 238.76 */}
-                  {/* Segment 1: 2.5T (28%) -> cyan #38bdf8 */}
-                  <circle
-                    cx="50" cy="50" r="38"
-                    stroke="#38bdf8" strokeWidth="10" fill="none"
-                    strokeDasharray="66.85 171.91"
-                    strokeDashoffset="0"
-                    transform="rotate(-90 50 50)"
-                  />
-                  {/* Segment 2: 12.5T (32%) -> terracotta #c2410c */}
-                  <circle
-                    cx="50" cy="50" r="38"
-                    stroke="#c2410c" strokeWidth="10" fill="none"
-                    strokeDasharray="76.4 162.36"
-                    strokeDashoffset="-66.85"
-                    transform="rotate(-90 50 50)"
-                  />
-                  {/* Segment 3: 25T (26%) -> amber #f59e0b */}
-                  <circle
-                    cx="50" cy="50" r="38"
-                    stroke="#f59e0b" strokeWidth="10" fill="none"
-                    strokeDasharray="62.08 176.68"
-                    strokeDashoffset="-143.25"
-                    transform="rotate(-90 50 50)"
-                  />
-                  {/* Segment 4: 40T (14%) -> slate blue #475569 */}
-                  <circle
-                    cx="50" cy="50" r="38"
-                    stroke="#475569" strokeWidth="10" fill="none"
-                    strokeDasharray="33.43 205.33"
-                    strokeDashoffset="-205.33"
-                    transform="rotate(-90 50 50)"
-                  />
+                  {proofLoadSegments.map((seg) => (
+                    <circle
+                      key={seg.rating}
+                      cx="50" cy="50" r="38"
+                      stroke={seg.color}
+                      strokeWidth="10"
+                      fill="none"
+                      strokeDasharray={seg.strokeDasharray}
+                      strokeDashoffset={seg.strokeDashoffset}
+                      transform="rotate(-90 50 50)"
+                    />
+                  ))}
                 </svg>
               </div>
               {/* Legend List on Right */}
               <div className="pod-proof-legend">
-                <div className="pod-proof-item">
-                  <span className="pod-proof-color" style={{ background: '#38bdf8' }} />
-                  <span className="pod-proof-label">2.5T</span>
-                  <span className="pod-proof-pct">28%</span>
-                </div>
-                <div className="pod-proof-item">
-                  <span className="pod-proof-color" style={{ background: '#c2410c' }} />
-                  <span className="pod-proof-label">12.5T</span>
-                  <span className="pod-proof-pct">32%</span>
-                </div>
-                <div className="pod-proof-item">
-                  <span className="pod-proof-color" style={{ background: '#f59e0b' }} />
-                  <span className="pod-proof-label">25T</span>
-                  <span className="pod-proof-pct">26%</span>
-                </div>
-                <div className="pod-proof-item">
-                  <span className="pod-proof-color" style={{ background: '#475569' }} />
-                  <span className="pod-proof-label">40T</span>
-                  <span className="pod-proof-pct">14%</span>
-                </div>
+                {proofLoadSegments.map((seg) => (
+                  <div key={seg.rating} className="pod-proof-item">
+                    <span className="pod-proof-color" style={{ background: seg.color }} />
+                    <span className="pod-proof-label">{seg.rating}</span>
+                    <span className="pod-proof-pct">{seg.percentage}%</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

@@ -23,8 +23,24 @@ function getAuthHeaders(extra: BackendFetchInit): Record<string, string> {
   const headers: Record<string, string> = {};
   if (!(extra.body instanceof FormData)) headers['Content-Type'] = 'application/json';
 
-  // Grab the in-memory access token (never persisted to localStorage)
-  const token = useAuthStore.getState().accessToken;
+  // Grab the in-memory access token, or fall back to localStorage/sessionStorage on refresh
+  let token = useAuthStore.getState().accessToken;
+  if (!token && typeof window !== 'undefined') {
+    try {
+      token =
+        window.localStorage.getItem('token') ||
+        window.localStorage.getItem('himalaya_token') ||
+        window.sessionStorage.getItem('token');
+      if (!token) {
+        const rawAuth = window.localStorage.getItem('auth-storage');
+        if (rawAuth) {
+          const parsed = JSON.parse(rawAuth);
+          token = parsed?.state?.accessToken || null;
+        }
+      }
+    } catch {}
+  }
+
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
