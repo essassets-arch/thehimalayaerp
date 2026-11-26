@@ -309,14 +309,14 @@ export default function ProductionOperationsDashboard({
       period: planAchievementKpi?.period || 'Monthly'
     },
     oee: {
-      percentage: rawKpis?.oee?.percentage !== undefined
+      percentage: rawKpis?.oee?.percentage !== undefined && Number(rawKpis.oee.percentage) > 0
         ? Number(rawKpis.oee.percentage)
-        : (activeData?.summary?.efficiency !== undefined && activeData.summary.efficiency !== null
+        : (activeData?.summary?.efficiency !== undefined && Number(activeData.summary.efficiency) > 0
           ? Number(activeData.summary.efficiency)
-          : 0.4),
+          : 75),
       targetLabel: 'Target: 82%+',
       trend: rawKpis?.oee?.trend || '▼ 7.0% vs. target',
-      trendType: (rawKpis?.oee?.percentage ?? 0.4) >= 82 ? 'positive' : 'negative'
+      trendType: (rawKpis?.oee?.percentage ?? 75) >= 82 ? 'positive' : 'negative'
     },
     activeFloorRuns: {
       activeCount: activeData?.summary?.machinesRunning ?? rawKpis?.activeFloorRuns?.activeCount ?? 7,
@@ -335,8 +335,8 @@ export default function ProductionOperationsDashboard({
       trendType: 'positive'
     },
     dispatchBacklog: {
-      unitsCount: rawKpis?.dispatchBacklog?.unitsCount ?? activeData?.summary?.readyForDispatchCount ?? 179,
-      unitsLabel: `${rawKpis?.dispatchBacklog?.unitsCount ?? activeData?.summary?.readyForDispatchCount ?? 179} Sets`,
+      unitsCount: rawKpis?.dispatchBacklog?.unitsCount ?? activeData?.summary?.readyForDispatchCount ?? 1112,
+      unitsLabel: `${(rawKpis?.dispatchBacklog?.unitsCount ?? activeData?.summary?.readyForDispatchCount ?? 1112).toLocaleString('en-IN')} Sets`,
       subtitle: 'In Yard',
       trend: '—',
       trendType: 'neutral'
@@ -344,12 +344,12 @@ export default function ProductionOperationsDashboard({
   };
 
   const defaultPipeline = [
-    { id: 'incoming', stageNumber: '1', stageName: 'Incoming', woCount: 63, weightMt: '0 MT', color: '#1d4ed8', bgColor: '#eff6ff', badgeColor: '#1d4ed8' },
-    { id: 'floorRuns', stageNumber: '2', stageName: 'Floor Runs', woCount: 20, weightMt: '0 MT', color: '#ea580c', bgColor: '#fff7ed', badgeColor: '#ea580c' },
-    { id: 'qcTesting', stageNumber: '3', stageName: 'QC Testing', woCount: 0, weightMt: '0 MT', color: '#7e22ce', bgColor: '#faf5ff', badgeColor: '#7e22ce' },
-    { id: 'reworkScrap', stageNumber: '4', stageName: 'Rework / Scrap', woCount: 0, weightMt: '0 MT', color: '#dc2626', bgColor: '#fef2f2', badgeColor: '#dc2626' },
-    { id: 'readyDispatch', stageNumber: '5', stageName: 'Ready for Dispatch', woCount: 179, weightMt: '0 MT', color: '#16a34a', bgColor: '#f0fdf4', badgeColor: '#16a34a' },
-    { id: 'dispatched', stageNumber: '6', stageName: 'Dispatched', woCount: 0, weightMt: '0 MT', color: '#475569', bgColor: '#f8fafc', badgeColor: '#475569' }
+    { id: 'incoming', stageNumber: '1', stageName: 'Incoming', woCount: 63, weightMt: '0', color: '#1d4ed8', bgColor: '#eff6ff', badgeColor: '#1d4ed8' },
+    { id: 'floorRuns', stageNumber: '2', stageName: 'Floor Runs', woCount: 20, weightMt: '0', color: '#ea580c', bgColor: '#fff7ed', badgeColor: '#ea580c' },
+    { id: 'qcTesting', stageNumber: '3', stageName: 'QC Testing', woCount: 0, weightMt: '0', color: '#7e22ce', bgColor: '#faf5ff', badgeColor: '#7e22ce' },
+    { id: 'reworkScrap', stageNumber: '4', stageName: 'Rework / Scrap', woCount: 0, weightMt: '0', color: '#dc2626', bgColor: '#fef2f2', badgeColor: '#dc2626' },
+    { id: 'readyDispatch', stageNumber: '5', stageName: 'Ready for Dispatch', woCount: 179, weightMt: '0', color: '#16a34a', bgColor: '#f0fdf4', badgeColor: '#16a34a' },
+    { id: 'dispatched', stageNumber: '6', stageName: 'Dispatched', woCount: 0, weightMt: '0', color: '#475569', bgColor: '#f8fafc', badgeColor: '#475569' }
   ];
 
   const pipeline = useMemo(() => {
@@ -366,13 +366,13 @@ export default function ProductionOperationsDashboard({
       return rawPipeline.map((st, idx) => {
         const meta = stageMeta.find(m => m.id === st.id) || stageMeta[idx] || stageMeta[0];
         const rawWeight = st.weightMt !== undefined && st.weightMt !== null ? String(st.weightMt) : '0';
-        const formattedWeight = rawWeight.includes('MT') ? rawWeight : `${rawWeight} MT`;
+        const cleanWeightNum = rawWeight.replace(/\s*MT\s*/gi, '').trim() || '0';
         return {
           id: st.id || meta.id,
           stageNumber: String(idx + 1),
           stageName: st.stageName || meta.defaultName,
           woCount: Number(st.woCount ?? 0),
-          weightMt: formattedWeight,
+          weightMt: cleanWeightNum,
           color: meta.color,
           bgColor: meta.bgColor,
           badgeColor: meta.color,
@@ -421,15 +421,16 @@ export default function ProductionOperationsDashboard({
   }, [activeData?.hydraulicPressFleet, activeData?.machineFleet, machines]);
 
   const defaultTrendData = [
-    { date: '02 Nov', actual: 15, planned: 18 },
-    { date: '05 Nov', actual: 22, planned: 25 },
-    { date: '08 Nov', actual: 28, planned: 30 },
-    { date: '11 Nov', actual: 34, planned: 35 },
-    { date: '14 Nov', actual: 38, planned: 40 },
-    { date: '17 Nov', actual: 42, planned: 42 },
-    { date: '20 Nov', actual: 45, planned: 44 },
-    { date: '23 Nov', actual: 46.5, planned: 45 },
-    { date: '26 Nov', actual: 47.5, planned: 46 },
+    { date: '31 Oct', actual: 10, planned: 12 },
+    { date: '03 Nov', actual: 16, planned: 18 },
+    { date: '06 Nov', actual: 22, planned: 24 },
+    { date: '09 Nov', actual: 28, planned: 30 },
+    { date: '12 Nov', actual: 34, planned: 35 },
+    { date: '15 Nov', actual: 38, planned: 39 },
+    { date: '18 Nov', actual: 41, planned: 42 },
+    { date: '21 Nov', actual: 44, planned: 44 },
+    { date: '24 Nov', actual: 46, planned: 45 },
+    { date: '27 Nov', actual: 47.5, planned: 46 },
     { date: '29 Nov', actual: 47.5, planned: 48 }
   ];
 
@@ -791,6 +792,99 @@ export default function ProductionOperationsDashboard({
         </div>
       )}
 
+      {/* ─── 0. TOP MONTH & FILTER TOOLBAR ─── */}
+      <div className="pod-toolbar-clean">
+        <div className="pod-toolbar-left">
+          <div className="pod-toolbar-badge">
+            <Clock size={15} color="#2563eb" />
+            <span className="pod-toolbar-period-label">
+              Reporting Period: <strong>{reportingPeriodLabel}</strong>
+            </span>
+          </div>
+        </div>
+
+        <div className="pod-toolbar-right">
+          {/* Month Selector */}
+          <div className="pod-toolbar-item">
+            <span className="pod-toolbar-sublabel">Month:</span>
+            <select
+              className="pod-filter-select pod-month-select"
+              value={selectedMonth}
+              onChange={(e) => {
+                setSelectedMonth(e.target.value);
+                setTimeFilter('month');
+              }}
+              title="Select Month for dynamic reporting"
+            >
+              {availableMonths.map((m) => (
+                <option key={m.val} value={m.val}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Period Filter (Day / Week / Month / All) */}
+          <div className="pod-period-bar">
+            {[
+              { id: 'day', label: 'Day' },
+              { id: 'week', label: 'Week' },
+              { id: 'month', label: 'Month' },
+              { id: 'all', label: 'All' }
+            ].map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className={`pod-period-btn ${timeFilter === p.id ? 'active' : ''}`}
+                onClick={() => setTimeFilter(p.id)}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Shift Filter */}
+          <select
+            className="pod-filter-select"
+            value={shiftFilter}
+            onChange={(e) => setShiftFilter(e.target.value)}
+            title="Filter by shift"
+          >
+            <option value="ALL">All Shifts</option>
+            <option value="A">Shift A (Morning)</option>
+            <option value="B">Shift B (Evening)</option>
+            <option value="C">Shift C (Night)</option>
+          </select>
+
+          {/* Machine Filter */}
+          <select
+            className="pod-filter-select"
+            value={machineFilter}
+            onChange={(e) => setMachineFilter(e.target.value)}
+            title="Filter by machine"
+          >
+            <option value="ALL">All Machines</option>
+            {pressFleet.map((m) => (
+              <option key={m.machineId} value={m.machineId}>
+                {m.machineId} ({m.capacity})
+              </option>
+            ))}
+          </select>
+
+          {/* Refresh Action */}
+          <button
+            type="button"
+            className="pod-period-btn pod-refresh-pill"
+            onClick={() => fetchDashboardData(true)}
+            title="Reload live telemetry"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f8fafc', border: '1px solid #cbd5e1' }}
+          >
+            <RefreshCw size={13} className={refreshing ? 'spinning' : ''} />
+            <span>{refreshing ? 'Syncing...' : 'Live Sync'}</span>
+          </button>
+        </div>
+      </div>
+
       {/* ─── 1. KEY PERFORMANCE INDICATORS (KPIs) ─── */}
       <div className="pod-kpi-grid">
         {/* KPI 1: Total Production */}
@@ -990,7 +1084,7 @@ export default function ProductionOperationsDashboard({
                   </div>
                   <div className="pod-chevron-content">
                     <span className="pod-chevron-title">{stage.stageName}</span>
-                    <span className="pod-chevron-metrics">{stage.woCount} WOs • {stage.weightMt} MT</span>
+                    <span className="pod-chevron-metrics">{stage.woCount} WOs • {String(stage.weightMt).replace(/\s*MT\s*/gi, '')} MT</span>
                   </div>
                 </div>
               );
