@@ -569,6 +569,24 @@
   cursor: not-allowed;
 }
 
+.dbp-btn-downloading {
+  opacity: 0.85 !important;
+  cursor: wait !important;
+  pointer-events: none;
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  box-shadow: 0 2px 8px rgba(30, 41, 59, 0.25) !important;
+}
+
+@keyframes dbp-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: dbp-spin 1s linear infinite !important;
+}
+
 .dbp-btn-success {
   background: #059669;
   color: #ffffff;

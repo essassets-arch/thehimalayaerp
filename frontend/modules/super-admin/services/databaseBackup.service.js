@@ -142,7 +142,9 @@ export const databaseBackupService = {
           const text = await res.text().catch(() => '');
           if (text) errorMsg = text;
         }
-        throw new Error(errorMsg);
+        const httpErr = new Error(errorMsg);
+        httpErr.status = res.status;
+        throw httpErr;
       }
 
       const blob = await res.blob();
@@ -155,7 +157,10 @@ export const databaseBackupService = {
       link.remove();
       setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 3000);
     } catch (err) {
-      // If fetch failed due to memory or stream timeout, fallback to native browser direct download
+      if (err?.status && err.status >= 400 && err.status < 500) {
+        throw err;
+      }
+      // If fetch streaming was aborted or failed due to buffer limits, fallback to native browser direct download
       console.warn('[downloadBackup] Fetch streaming failed, falling back to direct browser stream:', err?.message);
       const directLink = document.createElement('a');
       directLink.href = downloadEndpoint;

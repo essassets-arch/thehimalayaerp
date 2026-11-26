@@ -38,6 +38,7 @@ export default function DatabaseBackupsPage() {
   const [activeTab, setActiveTab] = useState('history'); // 'history', 'recipients', 'settings', 'recovery'
   const [loading, setLoading] = useState(true);
   const [runningBackup, setRunningBackup] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
   const [overview, setOverview] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyTotal, setHistoryTotal] = useState(0);
@@ -281,10 +282,34 @@ export default function DatabaseBackupsPage() {
 
   // Download Archive
   const handleDownload = async (record) => {
+    if (!record?.id || downloadingId) return;
+    setDownloadingId(record.id);
+
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'info',
+      title: 'Preparing encrypted archive download...',
+      showConfirmButton: false,
+      timer: 2500,
+    });
+
     try {
       await databaseBackupService.downloadBackup(record.id, record.filename);
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'Archive download started',
+        showConfirmButton: false,
+        timer: 3000,
+      });
     } catch (err) {
       Swal.fire('Download Failed', err?.message || 'Failed to stream backup archive', 'error');
+    } finally {
+      setTimeout(() => {
+        setDownloadingId(null);
+      }, 1200);
     }
   };
 
@@ -653,11 +678,21 @@ export default function DatabaseBackupsPage() {
                           {record.hasFile ? (
                             <button
                               onClick={() => handleDownload(record)}
-                              className="dbp-btn dbp-btn-sm dbp-btn-primary"
-                              title="Download Encrypted Archive"
+                              disabled={downloadingId === record.id}
+                              className={`dbp-btn dbp-btn-sm dbp-btn-primary ${downloadingId === record.id ? 'dbp-btn-downloading' : ''}`}
+                              title={downloadingId === record.id ? 'Downloading archive...' : 'Download Encrypted Archive'}
                             >
-                              <Download size={12} />
-                              <span>Download</span>
+                              {downloadingId === record.id ? (
+                                <>
+                                  <RefreshCw size={12} className="animate-spin" />
+                                  <span>Downloading...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Download size={12} />
+                                  <span>Download</span>
+                                </>
+                              )}
                             </button>
                           ) : (
                             <span style={{ color: '#94a3b8', fontSize: '11px', fontStyle: 'italic', padding: '0 4px' }}>Pruned</span>
@@ -1259,11 +1294,22 @@ node scripts/recover-backup.js himalaya_erp_backup.sql.enc decrypted_backup.dump
               {inspectRecord.hasFile && (
                 <button
                   type="button"
+                  disabled={downloadingId === inspectRecord.id}
                   onClick={() => handleDownload(inspectRecord)}
-                  className="dbp-btn dbp-btn-primary dbp-btn-sm"
+                  className={`dbp-btn dbp-btn-primary dbp-btn-sm ${downloadingId === inspectRecord.id ? 'dbp-btn-downloading' : ''}`}
+                  title={downloadingId === inspectRecord.id ? 'Downloading archive...' : 'Download Encrypted Archive'}
                 >
-                  <Download size={13} />
-                  <span>Download Archive</span>
+                  {downloadingId === inspectRecord.id ? (
+                    <>
+                      <RefreshCw size={13} className="animate-spin" />
+                      <span>Downloading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download size={13} />
+                      <span>Download Archive</span>
+                    </>
+                  )}
                 </button>
               )}
             </div>
