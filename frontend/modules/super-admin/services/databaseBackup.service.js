@@ -122,33 +122,47 @@ export const databaseBackupService = {
       } catch {}
     }
 
-    const res = await fetch(`/api/backend${BASE_URL}/download/${id}`, {
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'same-origin',
-    });
+    const downloadEndpoint = `/api/backend${BASE_URL}/download/${id}`;
 
-    if (!res.ok) {
-      let errorMsg = 'Failed to download backup archive';
-      try {
-        const err = await res.json();
-        errorMsg = err.message || err.error?.message || errorMsg;
-      } catch {
-        const text = await res.text().catch(() => '');
-        if (text) errorMsg = text;
+    // Attempt streaming blob download with fallback to native browser navigation
+    try {
+      const res = await fetch(downloadEndpoint, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'same-origin',
+      });
+
+      if (!res.ok) {
+        let errorMsg = 'Failed to download backup archive';
+        try {
+          const err = await res.json();
+          errorMsg = err.message || err.error?.message || errorMsg;
+        } catch {
+          const text = await res.text().catch(() => '');
+          if (text) errorMsg = text;
+        }
+        throw new Error(errorMsg);
       }
-      throw new Error(errorMsg);
-    }
 
-    const blob = await res.blob();
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = filename || `himalaya_erp_backup_${id}.sql.enc`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 1000);
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename || `himalaya_erp_backup_${id}.sql.enc`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 3000);
+    } catch (err) {
+      // If fetch failed due to memory or stream timeout, fallback to native browser direct download
+      console.warn('[downloadBackup] Fetch streaming failed, falling back to direct browser stream:', err?.message);
+      const directLink = document.createElement('a');
+      directLink.href = downloadEndpoint;
+      directLink.download = filename || `himalaya_erp_backup_${id}.sql.enc`;
+      document.body.appendChild(directLink);
+      directLink.click();
+      directLink.remove();
+    }
   },
 };
