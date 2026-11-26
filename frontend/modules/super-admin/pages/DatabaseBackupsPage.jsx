@@ -1235,6 +1235,64 @@ node scripts/recover-backup.js himalaya_erp_backup.sql.enc decrypted_backup.dump
                 </div>
               </div>
 
+              {inspectRecord.encryptionSalt && (
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 750, color: '#334155', marginBottom: '6px' }}>
+                    Cryptographic Vector Parameters (AES-256-GCM):
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', fontSize: '11px', fontFamily: 'monospace' }}>
+                    <div style={{ background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                      <span style={{ color: '#64748b', display: 'block', fontSize: '10px', textTransform: 'uppercase' }}>Salt:</span>
+                      <span style={{ wordBreak: 'break-all', color: '#0f172a' }}>{inspectRecord.encryptionSalt}</span>
+                    </div>
+                    <div style={{ background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                      <span style={{ color: '#64748b', display: 'block', fontSize: '10px', textTransform: 'uppercase' }}>IV:</span>
+                      <span style={{ wordBreak: 'break-all', color: '#0f172a' }}>{inspectRecord.encryptionIv}</span>
+                    </div>
+                    <div style={{ background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                      <span style={{ color: '#64748b', display: 'block', fontSize: '10px', textTransform: 'uppercase' }}>Auth Tag:</span>
+                      <span style={{ wordBreak: 'break-all', color: '#0f172a' }}>{inspectRecord.encryptionTag}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {inspectRecord.encryptionSalt && (
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 750, color: '#334155', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Decryption Command (CLI):</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copyToClipboard(
+                          `node scripts/recover-backup.js "${inspectRecord.filename}" "${inspectRecord.filename.replace('.enc', '')}" ${inspectRecord.encryptionSalt} ${inspectRecord.encryptionIv} ${inspectRecord.encryptionTag}`,
+                          'Decryption CLI command'
+                        )
+                      }
+                      className="dbp-copy-btn"
+                      style={{ fontSize: '11px', padding: '2px 8px' }}
+                    >
+                      <Copy size={11} /> Copy Command
+                    </button>
+                  </div>
+                  <pre
+                    style={{
+                      margin: 0,
+                      padding: '8px 10px',
+                      background: '#0f172a',
+                      color: '#38bdf8',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      overflowX: 'auto',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    {`node scripts/recover-backup.js "${inspectRecord.filename}" "${inspectRecord.filename.replace('.enc', '')}" ${inspectRecord.encryptionSalt} ${inspectRecord.encryptionIv} ${inspectRecord.encryptionTag}`}
+                  </pre>
+                </div>
+              )}
+
               {inspectRecord.errorMessage && (
                 <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 12px' }}>
                   <div style={{ fontSize: '11px', color: '#b91c1c', fontWeight: 700 }}>Failure Error Log:</div>
