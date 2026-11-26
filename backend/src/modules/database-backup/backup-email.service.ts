@@ -43,7 +43,7 @@ export class BackupEmailService {
       config?.smtpSecure === true ||
       port === 465;
     const user = process.env.BACKUP_SMTP_USER || process.env.SMTP_USER || config?.smtpUser;
-    const pass = process.env.BACKUP_SMTP_PASSWORD || process.env.SMTP_PASSWORD;
+    const pass = process.env.BACKUP_SMTP_PASSWORD || process.env.SMTP_PASSWORD || config?.smtpPasswordEncrypted;
     const fromAddress =
       process.env.BACKUP_SMTP_FROM ||
       process.env.SMTP_FROM ||
@@ -308,7 +308,7 @@ export class BackupEmailService {
     if (!configured || !transporter) {
       return {
         success: false,
-        message: 'SMTP is not configured in server environment variables (BACKUP_SMTP_HOST/USER).',
+        message: 'SMTP is not configured yet. Please configure your SMTP Host, User, and Password in the "Configuration & Automation" tab or in server environment variables.',
       };
     }
 
