@@ -554,8 +554,6 @@ export default function ProductionOperationsDashboard({
   const shiftOutputMt = shiftSummary.total?.totalWeightMt ?? 45.8;
   const totalProductionMt = kpis.totalProduction.valueMt || 45.8;
 
-  const diagnostics = dashboardData?.qualityAndScrapDiagnostics || defaultDiagnostics;
-
   // Live Work Orders Pool (combines backend API items and state items)
   const liveWorkOrdersPool = useMemo(() => {
     if (Array.isArray(dashboardData?.allWorkOrders) && dashboardData.allWorkOrders.length > 0) {
