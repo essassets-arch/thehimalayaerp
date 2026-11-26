@@ -123,6 +123,12 @@ export class SessionSecurityService {
     this.pruneStaleEntries(now);
   }
 
+  clearUserRevocation(userId: string): void {
+    if (!userId) return;
+    this.userRevokedBefore.delete(userId);
+    this.activeUserCache.delete(userId);
+  }
+
   /**
    * Validates active user status + instant session revocation for every JWT request.
    * Uses bounded in-memory caching so normal API load avoids hammering Postgres.

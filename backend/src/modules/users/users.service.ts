@@ -18,10 +18,12 @@ export class UsersService {
 
   async findByEmail(email: string) {
     if (!email) return null;
-    const clean = email.trim().toLowerCase();
+    const raw = String(email).trim();
+    if (!raw) return null;
+    const clean = raw.toLowerCase();
 
     // 1. Candidate lookup list
-    const candidates: string[] = [clean];
+    const candidates: string[] = [clean, raw];
 
     // Canonical alias mappings for common shortcuts & historical aliases
     const ALIAS_MAP: Record<string, string[]> = {
@@ -65,12 +67,19 @@ export class UsersService {
     }
     if (clean.endsWith('@thehimalayaerp.com')) {
       candidates.push(clean.replace('@thehimalayaerp.com', '@himalayaerp.com'));
+      candidates.push(clean.replace('@thehimalayaerp.com', '@thehimalaya.cloud'));
     }
     if (clean.endsWith('@himalaya.cloud')) {
       candidates.push(clean.replace('@himalaya.cloud', '@himalayaerp.com'));
+      candidates.push(clean.replace('@himalaya.cloud', '@thehimalaya.cloud'));
+    }
+    if (clean.endsWith('@himalayaerp.com')) {
+      candidates.push(clean.replace('@himalayaerp.com', '@thehimalaya.cloud'));
     }
     if (!clean.includes('@')) {
       candidates.push(`${clean}@himalayaerp.com`);
+      candidates.push(`${clean}@thehimalaya.cloud`);
+      candidates.push(`${clean}@thehimalayaerp.com`);
       candidates.push(`${clean}@himalayaerp.test`);
     }
 
@@ -79,7 +88,10 @@ export class UsersService {
     for (const cand of uniqueCandidates) {
       const user = await this.prisma.user.findFirst({
         where: {
-          email: { equals: cand, mode: 'insensitive' }
+          OR: [
+            { email: { equals: cand, mode: 'insensitive' } },
+            { publicId: { equals: cand, mode: 'insensitive' } },
+          ],
         },
         include: {
           role: {
@@ -96,13 +108,35 @@ export class UsersService {
       if (user) return user;
     }
 
-    // 2. Fallback: Search linked Employee by employeeCode, workEmail, or personalEmail
+    // 2. Search by username prefix if no '@' was provided (e.g. login with "ramesh" for "ramesh@...")
+    if (!clean.includes('@')) {
+      const userByPrefix = await this.prisma.user.findFirst({
+        where: {
+          email: { startsWith: `${clean}@`, mode: 'insensitive' },
+        },
+        include: {
+          role: {
+            include: {
+              rolePermissions: {
+                include: {
+                  permission: true,
+                },
+              },
+            },
+          },
+        },
+      });
+      if (userByPrefix) return userByPrefix;
+    }
+
+    // 3. Fallback: Search linked Employee by employeeCode, workEmail, personalEmail, or phoneNumber
     const linkedEmployee = await this.prisma.employee.findFirst({
       where: {
         OR: [
           { employeeCode: { equals: clean, mode: 'insensitive' } },
           { workEmail: { equals: clean, mode: 'insensitive' } },
           { personalEmail: { equals: clean, mode: 'insensitive' } },
+          { phoneNumber: { equals: clean, mode: 'insensitive' } },
         ],
       },
       select: { userId: true },
@@ -111,6 +145,25 @@ export class UsersService {
     if (linkedEmployee?.userId) {
       return this.findById(linkedEmployee.userId);
     }
+
+    // 4. Fuzzy fallback in case legacy email contains accidental whitespace
+    const userFuzzy = await this.prisma.user.findFirst({
+      where: {
+        email: { contains: clean, mode: 'insensitive' },
+      },
+      include: {
+        role: {
+          include: {
+            rolePermissions: {
+              include: {
+                permission: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (userFuzzy) return userFuzzy;
 
     return null;
   }
@@ -251,13 +304,37 @@ export class UsersService {
   }
 
   async create(data: any) {
-    const email = data.email || data.login_email;
-    if (!email) {
+    const rawEmail = String(data.email || data.login_email || '').trim();
+    if (!rawEmail) {
       throw new BadRequestException('Email is required.');
     }
+    const email = rawEmail.toLowerCase();
 
-    const existing = await this.prisma.user.findUnique({
-      where: { email },
+    const targetEmployeeId = data.employeeId || data.employee_id;
+    let employeeToLink: any = null;
+    if (targetEmployeeId) {
+      employeeToLink = await this.prisma.employee.findUnique({
+        where: { id: targetEmployeeId },
+      });
+    } else {
+      employeeToLink = await this.prisma.employee.findFirst({
+        where: {
+          OR: [
+            { workEmail: { equals: email, mode: 'insensitive' } },
+            { personalEmail: { equals: email, mode: 'insensitive' } },
+          ],
+        },
+      });
+    }
+
+    const existing = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: { equals: email, mode: 'insensitive' } },
+          ...(employeeToLink?.userId ? [{ id: employeeToLink.userId }] : []),
+          ...(employeeToLink?.employeeCode ? [{ publicId: employeeToLink.employeeCode }] : []),
+        ],
+      },
       include: { role: true },
     });
 
@@ -285,29 +362,25 @@ export class UsersService {
       throw new BadRequestException('No roles defined in database.');
     }
 
-    const targetEmployeeId = data.employeeId || data.employee_id;
-    let employeeToLink: any = null;
-    if (targetEmployeeId) {
-      employeeToLink = await this.prisma.employee.findUnique({
-        where: { id: targetEmployeeId },
-      });
-    } else {
-      employeeToLink = await this.prisma.employee.findFirst({
-        where: { workEmail: email },
-      });
-    }
-
     if (existing) {
       const updateData: any = {
+        email,
         roleId: role.id,
         name: data.name || existing.name,
+        isActive: true,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
       };
       if (data.password) {
         const hashAsync = hash as unknown as (
           data: string,
           saltOrRounds: number,
         ) => Promise<string>;
-        updateData.password = await hashAsync(data.password, 12);
+        updateData.password = await hashAsync(String(data.password).trim(), 12);
+      }
+      if (data.dispatchCategory || data.dispatch_category) {
+        updateData.dispatchCategory =
+          data.dispatchCategory || data.dispatch_category;
       }
 
       // Update existing user role and link to employee
@@ -323,6 +396,8 @@ export class UsersService {
           data: { userId: existing.id, workEmail: email },
         });
       }
+
+      this.sessionSecurity?.clearUserRevocation(existing.id);
 
       const result: any = {
         ...updatedUser,
@@ -364,9 +439,22 @@ export class UsersService {
     ) => Promise<string>;
     const hashedPassword = await hashAsync(passwordToHash, 12);
 
+    // Ensure publicId is unique to prevent collision with existing employeeCodes
+    let userPublicId = employeeToLink?.employeeCode;
+    if (userPublicId) {
+      const publicIdExists = await this.prisma.user.findFirst({
+        where: { publicId: userPublicId },
+      });
+      if (publicIdExists) {
+        userPublicId = `${userPublicId}-${randomUUID().slice(0, 4)}`;
+      }
+    } else {
+      userPublicId = randomUUID();
+    }
+
     const user = await this.prisma.user.create({
       data: {
-        publicId: employeeToLink?.employeeCode || randomUUID(),
+        publicId: userPublicId,
         email,
         password: hashedPassword,
         name,
@@ -374,12 +462,9 @@ export class UsersService {
         companyId,
         dispatchCategory:
           data.dispatchCategory || data.dispatch_category || null,
-        isActive:
-          data.isActive !== undefined
-            ? Boolean(data.isActive)
-            : data.status
-              ? data.status === 'Active' || data.status === 'ACTIVE'
-              : true,
+        isActive: true,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
       },
       include: {
         role: true,
@@ -502,7 +587,7 @@ export class UsersService {
         data: string,
         saltOrRounds: number,
       ) => Promise<string>;
-      hashedPassword = await hashAsync(data.password, 12);
+      hashedPassword = await hashAsync(String(data.password).trim(), 12);
     }
 
     const updateData: any = {};
@@ -511,13 +596,16 @@ export class UsersService {
         data.name || `${data.first_name || ''} ${data.last_name || ''}`.trim();
     }
     if (data.email) {
-      updateData.email = data.email;
+      updateData.email = String(data.email).trim().toLowerCase();
     }
     if (roleId) {
       updateData.roleId = roleId;
     }
     if (hashedPassword) {
       updateData.password = hashedPassword;
+      updateData.isActive = true;
+      updateData.lockedUntil = null;
+      updateData.failedLoginAttempts = 0;
     }
     if (
       data.dispatchCategory !== undefined ||
@@ -530,7 +618,7 @@ export class UsersService {
       updateData.isActive = Boolean(data.isActive);
     } else if (data.status !== undefined) {
       updateData.isActive =
-        data.status === 'Active' || data.status === 'ACTIVE';
+        String(data.status).trim().toUpperCase() === 'ACTIVE';
     }
 
     const updatedUser = await this.prisma.user.update({
@@ -540,6 +628,10 @@ export class UsersService {
         role: true,
       },
     });
+
+    if (hashedPassword || updateData.isActive) {
+      this.sessionSecurity?.clearUserRevocation(id);
+    }
 
     const result = { ...updatedUser };
     delete (result as { password?: string }).password;
@@ -590,10 +682,13 @@ export class UsersService {
       where: { id },
       data: {
         password: hashedPassword,
+        isActive: true,
         failedLoginAttempts: 0,
         lockedUntil: null,
       },
     });
+
+    this.sessionSecurity?.clearUserRevocation(id);
 
     // Revoke all active refresh sessions & live JWTs so old tokens cannot persist after reset
     try {

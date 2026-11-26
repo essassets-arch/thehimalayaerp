@@ -233,11 +233,12 @@ export default function LoginPage() {
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) {
       setError('Please fill in both email and password fields.');
       return;
     }
-    await executeLogin(email, password);
+    await executeLogin(cleanEmail, password);
   };
 
   if (checkingSession) {
@@ -733,19 +734,19 @@ export default function LoginPage() {
             {/* Form */}
             <form onSubmit={handleLoginSubmit} className="login-form">
 
-              {/* Email */}
+              {/* Email / Username / Employee Code */}
               <div className="form-group">
-                <label htmlFor="login-email" className="login-label">Email Address</label>
+                <label htmlFor="login-email" className="login-label">Email, Username, or Employee Code</label>
                 <div className="login-input-wrap">
                   <span className="login-icon" style={{ left: '17px' }}>
                     <Mail size={18} />
                   </span>
                   <input
-                    type="email"
+                    type="text"
                     id="login-email"
                     data-testid="login-email"
                     className="login-input"
-                    placeholder="plant.head@himalayaerp.com"
+                    placeholder="e.g. user@thehimalaya.cloud or username"
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value);
@@ -755,6 +756,9 @@ export default function LoginPage() {
                     }}
                     disabled={loading}
                     autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     required
                     style={{
                       paddingLeft: '54px',

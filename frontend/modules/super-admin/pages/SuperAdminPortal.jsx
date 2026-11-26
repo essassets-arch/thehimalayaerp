@@ -813,9 +813,9 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
       adminService.createUser({
         name: userForm.name || `${first_name} ${last_name}`.trim() || userForm.email,
         company_id: compId,
-        username: userForm.email ? userForm.email.split('@')[0] : 'user' + Date.now(),
-        email: userForm.email,
-        password: userForm.password.trim(),
+        username: userForm.email ? userForm.email.trim().split('@')[0] : 'user' + Date.now(),
+        email: userForm.email ? userForm.email.trim().toLowerCase() : '',
+        password: userForm.password ? userForm.password.trim() : '',
         first_name,
         last_name,
         role: userForm.role,
@@ -1017,9 +1017,9 @@ export default function SuperAdminPortal({ initialView, forceView } = {}) {
       }
       adminService.createUser({
         company_id: currentUser.company_id || 1,
-        username: adminForm.email ? adminForm.email.split('@')[0] : 'admin' + Date.now(),
-        email: adminForm.email,
-        password: adminForm.password.trim(),
+        username: adminForm.email ? adminForm.email.trim().split('@')[0] : 'admin' + Date.now(),
+        email: adminForm.email ? adminForm.email.trim().toLowerCase() : '',
+        password: adminForm.password ? adminForm.password.trim() : '',
         first_name,
         last_name,
         role_name: 'Admin',

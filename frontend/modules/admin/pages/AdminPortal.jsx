@@ -105,17 +105,18 @@ export default function AdminPortal() {
         return Swal.fire('Error', 'Please select a role', 'error');
       }
       
-      const numericRoleId = userForm.role_id ? parseInt(userForm.role_id, 10) : undefined;
-      const defaultBranchId = workspaces?.[0]?.id || user?.branch_id || 1;
-      const numericBranchId = userForm.workspace_id ? parseInt(userForm.workspace_id, 10) : parseInt(defaultBranchId, 10);
+      const rawRoleId = userForm.role_id || userForm.roleId || userForm.role;
+      const defaultBranchId = workspaces?.[0]?.id || user?.branch_id || 'main-branch';
       const payload = {
         ...userForm,
-        roleId: numericRoleId,
-        role_id: numericRoleId,
-        branchId: numericBranchId,
-        workspace_id: numericBranchId,
-        companyId: user?.company_id || 1,
-        company_id: user?.company_id || 1
+        email: userForm.email ? userForm.email.trim().toLowerCase() : '',
+        password: userForm.password ? userForm.password.trim() : undefined,
+        roleId: rawRoleId,
+        role_id: rawRoleId,
+        branchId: userForm.workspace_id || defaultBranchId,
+        workspace_id: userForm.workspace_id || defaultBranchId,
+        companyId: user?.company_id || undefined,
+        company_id: user?.company_id || undefined
       };
 
       if (userModalMode === 'create') {

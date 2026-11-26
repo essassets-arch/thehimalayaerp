@@ -95,9 +95,9 @@ export default function UsersManagementView() {
       const matchedRole = roles.find(r => r.code === formData.roleCode || r.name === formData.roleCode);
       const payload = {
         employeeId: formData.employeeId || undefined,
-        name: formData.name,
-        email: formData.email,
-        password: formData.password.trim(),
+        name: formData.name ? formData.name.trim() : '',
+        email: formData.email ? formData.email.trim().toLowerCase() : '',
+        password: formData.password ? formData.password.trim() : '',
         roleCode: matchedRole?.code || formData.roleCode,
         role: matchedRole?.name || formData.roleCode,
         department: formData.department || 'General'
