@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   Injectable,
   NestInterceptor,
+  StreamableFile,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -35,6 +36,15 @@ export class ResponseInterceptor<T> implements NestInterceptor<
 
     return next.handle().pipe(
       map((data) => {
+        if (
+          data instanceof StreamableFile ||
+          Buffer.isBuffer(data) ||
+          (data && typeof (data as any).getStream === 'function') ||
+          (data && (data as any).pipe)
+        ) {
+          return data as any;
+        }
+
         const safePayload =
           shouldMaskCustomer && data !== undefined && data !== null
             ? redactCustomerIdentity(data, { routePath })

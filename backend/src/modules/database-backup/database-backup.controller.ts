@@ -118,16 +118,17 @@ export class DatabaseBackupController {
   async downloadBackup(
     @Param('id') id: string,
     @CurrentUser() user: any,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<StreamableFile> {
-    const { stream, filename, sizeBytes } = await this.backupService.getDownloadStream(id, user);
+    @Res() res: Response,
+  ) {
+    const { storagePath, filename } = await this.backupService.getDownloadStream(id, user);
 
-    res.set({
-      'Content-Type': 'application/octet-stream',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'Content-Length': String(sizeBytes),
+    res.download(storagePath, filename, (err) => {
+      if (err && !res.headersSent) {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: 'Error transferring backup file',
+        });
+      }
     });
-
-    return new StreamableFile(stream);
   }
 }

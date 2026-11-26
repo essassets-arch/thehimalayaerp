@@ -595,6 +595,7 @@ export class DatabaseBackupService {
 
     return {
       stream,
+      storagePath: resolvedPath,
       filename: record.filename,
       sizeBytes: stat.size,
     };
