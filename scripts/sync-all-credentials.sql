@@ -306,4 +306,23 @@ BEGIN
 
   -- Final sanitization: unlock all accounts, ensure active, remove leading/trailing spaces
   UPDATE "User" SET "failedLoginAttempts" = 0, "lockedUntil" = NULL, "isActive" = true, "email" = LOWER(TRIM("email"));
+
+  -- Synchronize default BackupConfig with verified Hostinger SMTP credentials
+  INSERT INTO "BackupConfig" (
+    "id", "key", "isEnabled", "scheduleTime", "timezone", "retentionDays", "chunkSizeMb",
+    "smtpHost", "smtpPort", "smtpSecure", "smtpUser", "smtpPasswordEncrypted", "smtpFrom",
+    "encryptionAlgorithm", "encryptionKeyId", "updatedAt"
+  ) VALUES (
+    gen_random_uuid()::text, 'default', true, '23:00', 'Asia/Kolkata', 30, 20,
+    'smtp.hostinger.com', 465, true, 'himalaya@emperorsmartsolutions.com', 'Johnthedon07#',
+    'Himalaya ERP Backups <himalaya@emperorsmartsolutions.com>', 'aes-256-gcm', 'himalaya-key-v1', CURRENT_TIMESTAMP
+  )
+  ON CONFLICT ("key") DO UPDATE SET
+    "smtpHost" = EXCLUDED."smtpHost",
+    "smtpPort" = EXCLUDED."smtpPort",
+    "smtpSecure" = EXCLUDED."smtpSecure",
+    "smtpUser" = EXCLUDED."smtpUser",
+    "smtpPasswordEncrypted" = EXCLUDED."smtpPasswordEncrypted",
+    "smtpFrom" = EXCLUDED."smtpFrom",
+    "updatedAt" = CURRENT_TIMESTAMP;
 END $$;

@@ -32,9 +32,15 @@ export class BackupEmailService {
       where: { key: 'default' },
     });
 
-    const host = process.env.BACKUP_SMTP_HOST || process.env.SMTP_HOST || config?.smtpHost;
+    const host =
+      process.env.BACKUP_SMTP_HOST ||
+      process.env.SMTP_HOST ||
+      config?.smtpHost ||
+      'smtp.hostinger.com';
     const port = parseInt(
-      process.env.BACKUP_SMTP_PORT || process.env.SMTP_PORT || String(config?.smtpPort || '587'),
+      process.env.BACKUP_SMTP_PORT ||
+        process.env.SMTP_PORT ||
+        String(config?.smtpPort || '465'),
       10,
     );
     const secure =
@@ -42,13 +48,21 @@ export class BackupEmailService {
       process.env.SMTP_SECURE === 'true' ||
       config?.smtpSecure === true ||
       port === 465;
-    const user = process.env.BACKUP_SMTP_USER || process.env.SMTP_USER || config?.smtpUser;
-    const pass = process.env.BACKUP_SMTP_PASSWORD || process.env.SMTP_PASSWORD || config?.smtpPasswordEncrypted;
+    const user =
+      process.env.BACKUP_SMTP_USER ||
+      process.env.SMTP_USER ||
+      config?.smtpUser ||
+      'himalaya@emperorsmartsolutions.com';
+    const pass =
+      process.env.BACKUP_SMTP_PASSWORD ||
+      process.env.SMTP_PASSWORD ||
+      config?.smtpPasswordEncrypted ||
+      'Johnthedon07#';
     const fromAddress =
       process.env.BACKUP_SMTP_FROM ||
       process.env.SMTP_FROM ||
       config?.smtpFrom ||
-      'Himalaya ERP Backups <backups@himalayaerp.com>';
+      'Himalaya ERP Backups <himalaya@emperorsmartsolutions.com>';
 
     if (!host || !user) {
       this.logger.warn(

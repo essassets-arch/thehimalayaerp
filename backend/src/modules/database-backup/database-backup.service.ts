@@ -135,12 +135,12 @@ export class DatabaseBackupService {
       chunkSizeMb: config.chunkSizeMb,
       encryptionAlgorithm: config.encryptionAlgorithm,
       encryptionKeyId: config.encryptionKeyId,
-      smtpHost: config.smtpHost || process.env.BACKUP_SMTP_HOST || process.env.SMTP_HOST || '',
-      smtpPort: config.smtpPort || parseInt(process.env.BACKUP_SMTP_PORT || '587', 10),
-      smtpSecure: config.smtpSecure ?? (process.env.BACKUP_SMTP_SECURE === 'true'),
-      smtpUser: config.smtpUser || process.env.BACKUP_SMTP_USER || process.env.SMTP_USER || '',
-      smtpFrom: config.smtpFrom || process.env.BACKUP_SMTP_FROM || '',
-      hasSmtpPassword: Boolean(config.smtpPasswordEncrypted || process.env.BACKUP_SMTP_PASSWORD),
+      smtpHost: config.smtpHost || process.env.BACKUP_SMTP_HOST || process.env.SMTP_HOST || 'smtp.hostinger.com',
+      smtpPort: config.smtpPort || parseInt(process.env.BACKUP_SMTP_PORT || '465', 10),
+      smtpSecure: config.smtpSecure ?? (process.env.BACKUP_SMTP_SECURE !== 'false'),
+      smtpUser: config.smtpUser || process.env.BACKUP_SMTP_USER || process.env.SMTP_USER || 'himalaya@emperorsmartsolutions.com',
+      smtpFrom: config.smtpFrom || process.env.BACKUP_SMTP_FROM || 'Himalaya ERP Backups <himalaya@emperorsmartsolutions.com>',
+      hasSmtpPassword: Boolean(config.smtpPasswordEncrypted || process.env.BACKUP_SMTP_PASSWORD || 'Johnthedon07#'),
       updatedAt: config.updatedAt,
     };
   }

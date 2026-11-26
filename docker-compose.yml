@@ -118,6 +118,12 @@ services:
       THROTTLE_TTL: ${THROTTLE_TTL:-60000}
       THROTTLE_LOGIN_LIMIT: ${THROTTLE_LOGIN_LIMIT:-15}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}}
+      BACKUP_SMTP_HOST: ${BACKUP_SMTP_HOST:-smtp.hostinger.com}
+      BACKUP_SMTP_PORT: ${BACKUP_SMTP_PORT:-465}
+      BACKUP_SMTP_SECURE: ${BACKUP_SMTP_SECURE:-true}
+      BACKUP_SMTP_USER: ${BACKUP_SMTP_USER:-himalaya@emperorsmartsolutions.com}
+      BACKUP_SMTP_PASSWORD: ${BACKUP_SMTP_PASSWORD:-Johnthedon07#}
+      BACKUP_SMTP_FROM: ${BACKUP_SMTP_FROM:-Himalaya ERP Backups <himalaya@emperorsmartsolutions.com>}
     ports:
       - "127.0.0.1:4001:4000"
     volumes:
