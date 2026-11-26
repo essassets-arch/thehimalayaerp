@@ -25,9 +25,14 @@ import {
   Copy,
   Info,
   ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  ShieldAlert,
+  Zap,
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { databaseBackupService } from '../services/databaseBackup.service';
+import './DatabaseBackupsPage.css';
 
 export default function DatabaseBackupsPage() {
   const [activeTab, setActiveTab] = useState('history'); // 'history', 'recipients', 'settings', 'recovery'
@@ -41,6 +46,7 @@ export default function DatabaseBackupsPage() {
   const [recipients, setRecipients] = useState([]);
   const [settings, setSettings] = useState(null);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [testingSmtp, setTestingSmtp] = useState(false);
 
   // New recipient modal state
   const [showAddRecipient, setShowAddRecipient] = useState(false);
@@ -109,13 +115,13 @@ export default function DatabaseBackupsPage() {
   // Handle Manual Backup Trigger
   const handleRunBackupNow = async () => {
     const result = await Swal.fire({
-      title: 'Run PostgreSQL Backup Now?',
-      text: 'This will extract a consistent database snapshot, compress, encrypt with AES-256-GCM, verify integrity, and dispatch to all verified email recipients. Live ERP operations will not be interrupted.',
+      title: 'Execute Consistent Database Backup?',
+      text: 'This generates a non-blocking PostgreSQL custom-format snapshot (-Fc), encrypts it with AES-256-GCM, computes SHA-256 checksum, attaches manifest.json, and delivers it to all active email recipients. Live ERP operations continue normally.',
       icon: 'question',
       showCancelButton: true,
-      confirmButtonText: 'Yes, Execute Backup',
+      confirmButtonText: 'Yes, Run Backup Now',
       cancelButtonText: 'Cancel',
-      confirmButtonColor: '#2563eb',
+      confirmButtonColor: '#24345c',
       cancelButtonColor: '#64748b',
     });
 
@@ -125,18 +131,17 @@ export default function DatabaseBackupsPage() {
     try {
       const res = await databaseBackupService.triggerManualBackup();
       await Swal.fire({
-        title: 'Backup Completed & Dispatched!',
+        title: 'Backup Completed & Delivered!',
         html: `
-          <div style="text-align: left; font-size: 14px;">
-            <p><strong>Execution ID:</strong> <code>${res.executionId}</code></p>
-            <p><strong>Archive Size:</strong> ${res.sizeFormatted}</p>
-            <p><strong>Parts Count:</strong> ${res.chunksCount} part(s)</p>
-            <p><strong>SHA-256:</strong> <code style="word-break: break-all;">${res.checksumSha256}</code></p>
-            <p style="color: #16a34a; font-weight: bold; margin-top: 10px;">✅ AES-256-GCM encryption verified & dispatched to email recipients.</p>
+          <div style="text-align: left; font-size: 13.5px; line-height: 1.6; color: #24345c;">
+            <p><strong>Execution ID:</strong> <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">${res.executionId}</code></p>
+            <p><strong>Archive Size:</strong> <b>${res.sizeFormatted}</b> (${res.chunksCount} part(s))</p>
+            <p><strong>SHA-256 Checksum:</strong><br/><code style="word-break: break-all; font-size: 11.5px; background: #f8fafc; padding: 4px; border: 1px solid #e2e8f0; display: block; margin-top: 4px;">${res.checksumSha256}</code></p>
+            <p style="color: #059669; font-weight: bold; margin-top: 10px;">✅ AES-256-GCM authenticated & delivered to configured recipients.</p>
           </div>
         `,
         icon: 'success',
-        confirmButtonColor: '#16a34a',
+        confirmButtonColor: '#10b981',
       });
       loadData();
     } catch (err) {
@@ -169,7 +174,7 @@ export default function DatabaseBackupsPage() {
       setShowAddRecipient(false);
       setNewEmail('');
       setNewName('');
-      Swal.fire('Recipient Added', 'The email recipient has been configured for daily backups.', 'success');
+      Swal.fire('Recipient Configured', 'The email recipient has been enrolled for daily backups.', 'success');
       loadData();
     } catch (err) {
       Swal.fire('Error', err?.message || 'Failed to add recipient', 'error');
@@ -240,12 +245,36 @@ export default function DatabaseBackupsPage() {
     setSavingSettings(true);
     try {
       await databaseBackupService.updateSettings(settingsForm);
-      Swal.fire('Settings Saved', 'Backup schedule and SMTP configuration updated successfully.', 'success');
+      Swal.fire('Configuration Saved', 'Backup schedule and SMTP transport settings have been updated.', 'success');
       loadData();
     } catch (err) {
       Swal.fire('Error', err?.message || 'Failed to save settings', 'error');
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  // Test SMTP connection from settings
+  const handleTestSmtpFromSettings = async () => {
+    const testRecipient = settingsForm.smtpUser || (recipients[0]?.email) || 'super.admin@himalayaerp.com';
+    setTestingSmtp(true);
+    try {
+      Swal.fire({
+        title: 'Testing SMTP Handshake...',
+        text: `Connecting to ${settingsForm.smtpHost || 'configured server'}...`,
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+      const res = await databaseBackupService.sendTestEmail(testRecipient);
+      if (res.success) {
+        Swal.fire('SMTP Verified!', `Successfully connected and sent test message to ${testRecipient}.`, 'success');
+      } else {
+        Swal.fire('SMTP Test Failed', res.message, 'error');
+      }
+    } catch (err) {
+      Swal.fire('SMTP Test Failed', err?.message || 'Connection failed', 'error');
+    } finally {
+      setTestingSmtp(false);
     }
   };
 
@@ -271,203 +300,205 @@ export default function DatabaseBackupsPage() {
     });
   };
 
+  const totalPages = Math.max(1, Math.ceil(historyTotal / 20));
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6 lg:p-8 space-y-6">
-      {/* ─── Header & Primary Controls ─────────────────────────────────── */}
-      <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
-              Enterprise Resilience & High Availability
-            </span>
+    <div className="dbp-container">
+      {/* ─── Header Banner Card ─────────────────────────────────────────── */}
+      <div className="dbp-header-card">
+        <div className="dbp-header-left">
+          <div className="dbp-header-icon">
+            <Database size={28} />
           </div>
-          <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight flex items-center gap-3">
-            <Database className="w-8 h-8 text-blue-400" />
-            Database Backups & Disaster Recovery
-          </h1>
-          <p className="text-slate-400 text-sm mt-1 max-w-2xl">
-            Automated PostgreSQL consistent snapshots with AES-256-GCM encryption, SHA-256 integrity checks, and daily 11:00 PM IST email delivery.
-          </p>
+          <div className="dbp-header-content">
+            <div className="dbp-header-badges">
+              <span className="dbp-badge-pill dbp-badge-live">
+                <span className="dbp-pulse-dot" />
+                Live Automated Protection
+              </span>
+              <span className="dbp-badge-pill dbp-badge-crypto">
+                <Lock size={12} />
+                AES-256-GCM Encrypted
+              </span>
+              <span className="dbp-badge-pill dbp-badge-crypto">
+                <ShieldCheck size={12} />
+                SHA-256 Integrity
+              </span>
+            </div>
+            <h1 className="dbp-header-title">Database Backups & Disaster Recovery</h1>
+            <p className="dbp-header-sub">
+              Automated PostgreSQL consistent snapshots with Scrypt key derivation, AES-256-GCM encryption, multipart attachment chunking, and daily 11:00 PM IST email delivery.
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="dbp-header-actions">
           <button
             onClick={loadData}
             disabled={loading}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition border border-slate-700 flex items-center justify-center"
+            className="dbp-btn dbp-btn-outline"
             title="Refresh Status"
           >
-            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            <span>Refresh</span>
           </button>
 
           <button
             onClick={handleRunBackupNow}
             disabled={runningBackup}
-            className="flex-1 md:flex-initial px-5 py-2.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-900/30 transition flex items-center justify-center gap-2 disabled:opacity-50"
+            className="dbp-btn dbp-btn-success"
           >
-            <Play className={`w-4 h-4 fill-current ${runningBackup ? 'animate-spin' : ''}`} />
-            {runningBackup ? 'Generating Backup...' : 'Run Backup Now'}
+            <Play size={15} className={`fill-current ${runningBackup ? 'animate-spin' : ''}`} />
+            <span>{runningBackup ? 'Generating Backup...' : 'Run Backup Now'}</span>
           </button>
         </div>
       </div>
 
       {/* ─── Overview KPI Metric Cards ─────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="dbp-kpi-grid">
         {/* Card 1: Last Successful Backup */}
-        <div className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-sm">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Latest Recovery Point</span>
-            <ShieldCheck className="w-5 h-5 text-emerald-500" />
+        <div className="dbp-kpi-card kpi-emerald">
+          <div className="dbp-kpi-header">
+            <span className="dbp-kpi-label">Latest Recovery Point</span>
+            <div className="dbp-kpi-icon-wrap">
+              <ShieldCheck size={18} />
+            </div>
           </div>
-          <div className="text-xl font-bold text-slate-900">
+          <div className="dbp-kpi-value">
             {overview?.lastSuccessfulBackup?.sizeFormatted || '—'}
           </div>
-          <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5" />
-            {overview?.lastSuccessfulBackup?.timestamp
-              ? new Date(overview.lastSuccessfulBackup.timestamp).toLocaleString('en-GB', {
-                  timeZone: 'Asia/Kolkata',
-                  day: '2-digit',
-                  month: 'short',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                }) + ' IST'
-              : 'No completed backups yet'}
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded">
-              <Check className="w-3 h-3" /> AES-256 Verified
+          <div className="dbp-kpi-sub">
+            <Clock size={13} />
+            <span className="truncate">
+              {overview?.lastSuccessfulBackup?.timestamp
+                ? new Date(overview.lastSuccessfulBackup.timestamp).toLocaleString('en-GB', {
+                    timeZone: 'Asia/Kolkata',
+                    day: '2-digit',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }) + ' IST'
+                : 'No backups yet'}
             </span>
           </div>
+          <span className="dbp-kpi-chip" style={{ background: '#ecfdf5', color: '#059669' }}>
+            <Check size={12} /> AES-256 Verified
+          </span>
         </div>
 
         {/* Card 2: Next Scheduled Backup */}
-        <div className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-sm">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Next Daily Run</span>
-            <Calendar className="w-5 h-5 text-blue-500" />
+        <div className="dbp-kpi-card kpi-blue">
+          <div className="dbp-kpi-header">
+            <span className="dbp-kpi-label">Daily Schedule</span>
+            <div className="dbp-kpi-icon-wrap">
+              <Calendar size={18} />
+            </div>
           </div>
-          <div className="text-xl font-bold text-slate-900">
+          <div className="dbp-kpi-value">
             {overview?.nextScheduledBackup || '11:00 PM IST'}
           </div>
-          <div className="text-xs text-slate-500 mt-1">
-            Timezone: <span className="font-medium text-slate-700">{overview?.timezone || 'Asia/Kolkata'}</span>
+          <div className="dbp-kpi-sub">
+            <span>Timezone: <b>{overview?.timezone || 'Asia/Kolkata'}</b></span>
           </div>
-          <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-600">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" />
-            Automatic scheduler: <span className="font-semibold text-emerald-700">Active</span>
-          </div>
+          <span className="dbp-kpi-chip" style={{ background: '#eff6ff', color: '#1e40af' }}>
+            <Zap size={12} /> In-Process Cron Active
+          </span>
         </div>
 
         {/* Card 3: Email Delivery Coverage */}
-        <div className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-sm">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Email Recipients</span>
-            <Mail className="w-5 h-5 text-purple-500" />
+        <div className="dbp-kpi-card kpi-purple">
+          <div className="dbp-kpi-header">
+            <span className="dbp-kpi-label">Email Recipients</span>
+            <div className="dbp-kpi-icon-wrap">
+              <Mail size={18} />
+            </div>
           </div>
-          <div className="text-xl font-bold text-slate-900">
+          <div className="dbp-kpi-value">
             {overview?.activeRecipientCount || 0} Active
           </div>
-          <div className="text-xs text-slate-500 mt-1 truncate">
-            {overview?.emailDeliveryStatus || 'No recipients configured'}
+          <div className="dbp-kpi-sub truncate" title={overview?.emailDeliveryStatus}>
+            {overview?.emailDeliveryStatus || 'No recipients enrolled'}
           </div>
-          <div className="mt-2">
-            <span className="text-[11px] bg-purple-50 text-purple-700 font-medium px-2 py-0.5 rounded">
-              Multipart split: 20 MB threshold
-            </span>
-          </div>
+          <span className="dbp-kpi-chip" style={{ background: '#f5f3ff', color: '#7c3aed' }}>
+            {overview?.chunkSizeMb || 20} MB Split Threshold
+          </span>
         </div>
 
         {/* Card 4: Retention & Storage */}
-        <div className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-sm">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Local Archive Retention</span>
-            <Server className="w-5 h-5 text-amber-500" />
+        <div className="dbp-kpi-card kpi-amber">
+          <div className="dbp-kpi-header">
+            <span className="dbp-kpi-label">Archive Retention</span>
+            <div className="dbp-kpi-icon-wrap">
+              <Server size={18} />
+            </div>
           </div>
-          <div className="text-xl font-bold text-slate-900">
+          <div className="dbp-kpi-value">
             {overview?.retentionDays || 30} Days
           </div>
-          <div className="text-xs text-slate-500 mt-1">
-            Total successful: <span className="font-semibold text-slate-700">{overview?.totalSuccessfulBackups || 0}</span>
+          <div className="dbp-kpi-sub">
+            Total historical: <b>{overview?.totalSuccessfulBackups || 0}</b>
           </div>
-          <div className="mt-2 flex items-center gap-1 text-[11px] text-amber-700 font-medium bg-amber-50 px-2 py-0.5 rounded">
-            <ShieldCheck className="w-3 h-3" /> Protected local volume
-          </div>
+          <span className="dbp-kpi-chip" style={{ background: '#fffbeb', color: '#b45309' }}>
+            <Lock size={12} /> Latest Point Protected
+          </span>
         </div>
       </div>
 
-      {/* ─── Navigation Tabs ───────────────────────────────────────────── */}
-      <div className="border-b border-slate-200 flex items-center gap-2 overflow-x-auto">
+      {/* ─── Navigation Tabs Bar ────────────────────────────────────────── */}
+      <div className="dbp-tabs-bar">
         <button
           onClick={() => setActiveTab('history')}
-          className={`py-3 px-4 font-semibold text-sm border-b-2 flex items-center gap-2 whitespace-nowrap transition ${
-            activeTab === 'history'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-          }`}
+          className={`dbp-tab-btn ${activeTab === 'history' ? 'active' : ''}`}
         >
-          <Layers className="w-4 h-4" />
-          Execution History & Downloads
+          <Layers size={16} />
+          <span>Execution History & Downloads</span>
+          <span className="dbp-tab-count">{historyTotal}</span>
         </button>
 
         <button
           onClick={() => setActiveTab('recipients')}
-          className={`py-3 px-4 font-semibold text-sm border-b-2 flex items-center gap-2 whitespace-nowrap transition ${
-            activeTab === 'recipients'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-          }`}
+          className={`dbp-tab-btn ${activeTab === 'recipients' ? 'active' : ''}`}
         >
-          <Mail className="w-4 h-4" />
-          Email Recipients ({recipients.length})
+          <Mail size={16} />
+          <span>Email Recipients</span>
+          <span className="dbp-tab-count">{recipients.length}</span>
         </button>
 
         <button
           onClick={() => setActiveTab('settings')}
-          className={`py-3 px-4 font-semibold text-sm border-b-2 flex items-center gap-2 whitespace-nowrap transition ${
-            activeTab === 'settings'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-          }`}
+          className={`dbp-tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
         >
-          <Clock className="w-4 h-4" />
-          Schedule & SMTP Configuration
+          <Clock size={16} />
+          <span>Schedule & SMTP Transport</span>
         </button>
 
         <button
           onClick={() => setActiveTab('recovery')}
-          className={`py-3 px-4 font-semibold text-sm border-b-2 flex items-center gap-2 whitespace-nowrap transition ${
-            activeTab === 'recovery'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-          }`}
+          className={`dbp-tab-btn ${activeTab === 'recovery' ? 'active' : ''}`}
         >
-          <Key className="w-4 h-4" />
-          Disaster Recovery Procedure
+          <Key size={16} />
+          <span>Disaster Recovery SOP</span>
         </button>
       </div>
 
       {/* ─── TAB 1: Execution & History ─────────────────────────────────── */}
       {activeTab === 'history' && (
-        <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50/50">
-            <div className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+        <div className="dbp-card-panel">
+          <div className="dbp-panel-header">
+            <div className="dbp-panel-title">
               <span>Historical Backups & Telemetry</span>
-              <span className="text-xs bg-slate-200 px-2 py-0.5 rounded-full text-slate-600">
-                {historyTotal} total
-              </span>
+              <span className="dbp-mono-tag">{historyTotal} total</span>
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="dbp-panel-actions">
               <select
                 value={statusFilter}
                 onChange={(e) => {
                   setStatusFilter(e.target.value);
                   setHistoryPage(1);
                 }}
-                className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="dbp-form-select"
+                style={{ width: '160px', padding: '6px 10px', fontSize: '12px' }}
               >
                 <option value="">All Statuses</option>
                 <option value="COMPLETED">Completed</option>
@@ -477,33 +508,35 @@ export default function DatabaseBackupsPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+          <div className="dbp-table-wrapper">
+            <table className="dbp-table">
               <thead>
-                <tr className="bg-slate-100/75 text-slate-600 uppercase font-bold tracking-wider border-b border-slate-200">
-                  <th className="py-3 px-4">Execution ID & Date</th>
-                  <th className="py-3 px-4">Type</th>
-                  <th className="py-3 px-4">Size & Parts</th>
-                  <th className="py-3 px-4">Security & Checksum</th>
-                  <th className="py-3 px-4">Verification</th>
-                  <th className="py-3 px-4">Email Deliveries</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                <tr>
+                  <th>Execution ID & Date</th>
+                  <th>Type</th>
+                  <th>Size & Parts</th>
+                  <th>Security & Checksum</th>
+                  <th>Verification</th>
+                  <th>Email Deliveries</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {history.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-12 text-slate-400">
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '48px 16px', color: '#8893a7' }}>
                       No backup execution records found. Click <strong>Run Backup Now</strong> to generate your first backup.
                     </td>
                   </tr>
                 ) : (
                   history.map((record) => (
-                    <tr key={record.id} className="hover:bg-slate-50/80 transition">
+                    <tr key={record.id}>
                       {/* Execution ID & Date */}
-                      <td className="py-3.5 px-4 font-mono">
-                        <div className="font-semibold text-slate-900">{record.executionId}</div>
-                        <div className="text-[11px] text-slate-500 font-sans">
+                      <td>
+                        <div style={{ fontWeight: 700, color: '#24345c', fontFamily: 'monospace' }}>
+                          {record.executionId}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#5e6b82', marginTop: '2px' }}>
                           {new Date(record.startedAt).toLocaleString('en-GB', {
                             timeZone: 'Asia/Kolkata',
                             day: '2-digit',
@@ -517,98 +550,107 @@ export default function DatabaseBackupsPage() {
                       </td>
 
                       {/* Type */}
-                      <td className="py-3.5 px-4">
+                      <td>
                         <span
-                          className={`inline-block px-2 py-0.5 rounded font-semibold text-[10px] ${
-                            record.executionType === 'SCHEDULED'
-                              ? 'bg-blue-50 text-blue-700'
-                              : record.executionType === 'MANUAL'
-                              ? 'bg-purple-50 text-purple-700'
-                              : 'bg-amber-50 text-amber-700'
-                          }`}
+                          className="dbp-status-badge"
+                          style={{
+                            background:
+                              record.executionType === 'SCHEDULED'
+                                ? '#eff6ff'
+                                : record.executionType === 'MANUAL'
+                                ? '#f5f3ff'
+                                : '#fffbeb',
+                            color:
+                              record.executionType === 'SCHEDULED'
+                                ? '#1d4ed8'
+                                : record.executionType === 'MANUAL'
+                                ? '#6d28d9'
+                                : '#b45309',
+                          }}
                         >
                           {record.executionType}
                         </span>
                       </td>
 
                       {/* Size & Parts */}
-                      <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-800">{record.sizeFormatted}</div>
-                        <div className="text-[11px] text-slate-500">
+                      <td>
+                        <div style={{ fontWeight: 700, color: '#24345c' }}>{record.sizeFormatted}</div>
+                        <div style={{ fontSize: '11px', color: '#5e6b82' }}>
                           {record.chunksCount} part(s) {record.durationMs ? `• ${(record.durationMs / 1000).toFixed(1)}s` : ''}
                         </div>
                       </td>
 
                       {/* Checksum & Algorithm */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-1 font-mono text-[11px] text-slate-700">
-                          <span className="truncate max-w-[140px]" title={record.checksumSha256}>
+                      <td>
+                        <div className="dbp-mono-tag">
+                          <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={record.checksumSha256}>
                             {record.checksumSha256 ? `${record.checksumSha256.substring(0, 14)}...` : '—'}
                           </span>
                           {record.checksumSha256 && (
                             <button
                               onClick={() => copyToClipboard(record.checksumSha256, 'SHA-256 Checksum')}
-                              className="text-slate-400 hover:text-slate-700"
-                              title="Copy SHA-256"
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#64748b' }}
+                              title="Copy SHA-256 Checksum"
                             >
-                              <Copy className="w-3.5 h-3.5" />
+                              <Copy size={12} />
                             </button>
                           )}
                         </div>
-                        <div className="text-[10px] text-emerald-600 font-semibold uppercase mt-0.5">
+                        <div style={{ fontSize: '10.5px', color: '#059669', fontWeight: 700, marginTop: '3px', textTransform: 'uppercase' }}>
                           {record.encryptionAlgorithm}
                         </div>
                       </td>
 
                       {/* Verification */}
-                      <td className="py-3.5 px-4">
+                      <td>
                         {record.status === 'COMPLETED' ? (
-                          <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 font-semibold text-[11px] px-2 py-0.5 rounded">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Verified Pass
+                          <span className="dbp-status-badge dbp-status-completed">
+                            <CheckCircle2 size={12} /> Verified Pass
                           </span>
                         ) : record.status === 'IN_PROGRESS' ? (
-                          <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 font-semibold text-[11px] px-2 py-0.5 rounded">
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" /> In Progress
+                          <span className="dbp-status-badge dbp-status-pending">
+                            <RefreshCw size={12} className="animate-spin" /> In Progress
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 font-semibold text-[11px] px-2 py-0.5 rounded" title={record.errorMessage}>
-                            <AlertTriangle className="w-3.5 h-3.5" /> Failed
+                          <span className="dbp-status-badge dbp-status-failed" title={record.errorMessage}>
+                            <AlertTriangle size={12} /> Failed
                           </span>
                         )}
                       </td>
 
                       {/* Deliveries */}
-                      <td className="py-3.5 px-4">
+                      <td>
                         {record.deliveries && record.deliveries.length > 0 ? (
-                          <div className="space-y-1">
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {record.deliveries.map((del, idx) => (
-                              <div key={idx} className="flex items-center gap-1.5 text-[11px]">
+                              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px' }}>
                                 {del.status === 'SENT' ? (
-                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  <Check size={12} style={{ color: '#10b981' }} />
                                 ) : (
-                                  <X className="w-3 h-3 text-red-600" />
+                                  <X size={12} style={{ color: '#ef4444' }} />
                                 )}
-                                <span className="font-mono text-slate-700">{del.recipientEmail}</span>
+                                <span style={{ fontFamily: 'monospace', color: '#334155' }}>{del.recipientEmail}</span>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-[11px]">None</span>
+                          <span style={{ color: '#94a3b8', fontSize: '11px' }}>None</span>
                         )}
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3.5 px-4 text-right">
+                      <td style={{ textAlign: 'right' }}>
                         {record.hasFile ? (
                           <button
                             onClick={() => handleDownload(record)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg text-xs transition"
+                            className="dbp-btn dbp-btn-sm dbp-btn-outline"
                             title="Download Encrypted Archive"
                           >
-                            <Download className="w-3.5 h-3.5" /> Download
+                            <Download size={13} />
+                            <span>Download</span>
                           </button>
                         ) : (
-                          <span className="text-slate-400 text-[11px] italic">Pruned (Retention)</span>
+                          <span style={{ color: '#94a3b8', fontSize: '11px', fontStyle: 'italic' }}>Pruned</span>
                         )}
                       </td>
                     </tr>
@@ -617,122 +659,131 @@ export default function DatabaseBackupsPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="dbp-pagination">
+              <span className="dbp-page-indicator">
+                Showing page <b>{historyPage}</b> of <b>{totalPages}</b> ({historyTotal} records)
+              </span>
+              <div className="dbp-page-controls">
+                <button
+                  disabled={historyPage <= 1}
+                  onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                  className="dbp-btn dbp-btn-sm dbp-btn-outline"
+                >
+                  <ChevronLeft size={14} /> Previous
+                </button>
+                <button
+                  disabled={historyPage >= totalPages}
+                  onClick={() => setHistoryPage((p) => p + 1)}
+                  className="dbp-btn dbp-btn-sm dbp-btn-outline"
+                >
+                  Next <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* ─── TAB 2: Email Recipients ───────────────────────────────────── */}
       {activeTab === 'recipients' && (
-        <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-6 space-y-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+        <div className="dbp-card-panel">
+          <div className="dbp-panel-header">
             <div>
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Mail className="w-5 h-5 text-blue-600" />
-                Configured Daily Backup Recipients
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <div className="dbp-panel-title">
+                <Mail size={18} style={{ color: '#2563eb' }} />
+                <span>Configured Daily Backup Recipients</span>
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#5e6b82' }}>
                 Each verified recipient receives the encrypted daily PostgreSQL backup attachment at 11:00 PM IST.
               </p>
             </div>
 
             <button
               onClick={() => setShowAddRecipient(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold text-xs transition flex items-center gap-1.5 shadow"
+              className="dbp-btn dbp-btn-primary dbp-btn-sm"
             >
-              <Plus className="w-4 h-4" /> Add Recipient
+              <Plus size={14} /> Add Recipient
             </button>
           </div>
 
-          {/* Add Recipient Inline/Modal */}
+          {/* Add Recipient Form Card */}
           {showAddRecipient && (
-            <form
-              onSubmit={handleAddRecipient}
-              className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4 max-w-lg"
-            >
-              <h3 className="text-sm font-bold text-slate-800">Add New Backup Recipient</h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Email Address *
-                  </label>
+            <div style={{ padding: '20px', background: '#f8fafc', borderBottom: '1px solid #e5ecf5' }}>
+              <form onSubmit={handleAddRecipient} style={{ maxWidth: '520px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ fontWeight: 700, fontSize: '14px', color: '#24345c' }}>Enroll New Email Recipient</div>
+                <div className="dbp-form-group">
+                  <label className="dbp-form-label">Email Address *</label>
                   <input
                     type="email"
                     required
                     value={newEmail}
                     onChange={(e) => setNewEmail(e.target.value)}
-                    placeholder="admin@himalayaerp.com"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="super.admin@himalayaerp.com"
+                    className="dbp-form-input"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Recipient Name / Label (Optional)
-                  </label>
+
+                <div className="dbp-form-group">
+                  <label className="dbp-form-label">Recipient Name / Role (Optional)</label>
                   <input
                     type="text"
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
-                    placeholder="e.g. Chief Systems Officer"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="e.g. Lead Database Administrator"
+                    className="dbp-form-input"
                   />
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2 pt-2">
-                <button
-                  type="submit"
-                  disabled={addingRecipient}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg text-xs transition disabled:opacity-50"
-                >
-                  {addingRecipient ? 'Adding...' : 'Save Recipient'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAddRecipient(false)}
-                  className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs transition"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+                <div style={{ display: 'flex', gap: '10px', paddingTop: '6px' }}>
+                  <button type="submit" disabled={addingRecipient} className="dbp-btn dbp-btn-primary dbp-btn-sm">
+                    {addingRecipient ? 'Adding...' : 'Save Recipient'}
+                  </button>
+                  <button type="button" onClick={() => setShowAddRecipient(false)} className="dbp-btn dbp-btn-outline dbp-btn-sm">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
           )}
 
           {/* Recipients Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+          <div className="dbp-table-wrapper">
+            <table className="dbp-table">
               <thead>
-                <tr className="bg-slate-100 text-slate-600 uppercase font-bold tracking-wider border-b border-slate-200">
-                  <th className="py-3 px-4">Recipient Email</th>
-                  <th className="py-3 px-4">Name / Role</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Last Delivery</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                <tr>
+                  <th>Recipient Email</th>
+                  <th>Name / Role</th>
+                  <th>Status</th>
+                  <th>Last Delivery</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {recipients.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-400">
-                      No recipients registered. Click <strong>Add Recipient</strong> above to register an email.
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '36px 16px', color: '#8893a7' }}>
+                      No recipients registered. Click <strong>Add Recipient</strong> to enroll your first email.
                     </td>
                   </tr>
                 ) : (
                   recipients.map((rec) => (
-                    <tr key={rec.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-3 px-4 font-mono font-medium text-slate-900">{rec.email}</td>
-                      <td className="py-3 px-4 text-slate-600">{rec.name || '—'}</td>
-                      <td className="py-3 px-4">
+                    <tr key={rec.id}>
+                      <td style={{ fontFamily: 'monospace', fontWeight: 600, color: '#24345c' }}>{rec.email}</td>
+                      <td style={{ color: '#5e6b82' }}>{rec.name || '—'}</td>
+                      <td>
                         <button
                           onClick={() => handleToggleRecipient(rec)}
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
-                            rec.isActive
-                              ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                              : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                          }`}
+                          className={`dbp-status-badge ${rec.isActive ? 'dbp-status-completed' : 'dbp-status-pending'}`}
+                          style={{ cursor: 'pointer', border: 'none' }}
+                          title="Click to toggle active status"
                         >
                           {rec.isActive ? 'Active' : 'Disabled'}
                         </button>
                       </td>
-                      <td className="py-3 px-4 text-slate-500">
+                      <td style={{ color: '#5e6b82', fontSize: '11.5px' }}>
                         {rec.lastDeliveredAt
                           ? new Date(rec.lastDeliveredAt).toLocaleString('en-GB', {
                               timeZone: 'Asia/Kolkata',
@@ -743,21 +794,23 @@ export default function DatabaseBackupsPage() {
                             })
                           : 'Never'}
                       </td>
-                      <td className="py-3 px-4 text-right space-x-2">
-                        <button
-                          onClick={() => handleSendTestEmail(rec.email)}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded text-xs transition"
-                          title="Send Verification Test Email"
-                        >
-                          <Send className="w-3 h-3" /> Test
-                        </button>
-                        <button
-                          onClick={() => handleDeleteRecipient(rec)}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 text-red-600 hover:bg-red-100 rounded text-xs transition"
-                          title="Remove Recipient"
-                        >
-                          <Trash2 className="w-3 h-3" /> Remove
-                        </button>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          <button
+                            onClick={() => handleSendTestEmail(rec.email)}
+                            className="dbp-btn dbp-btn-sm dbp-btn-outline"
+                            title="Send Verification Test Email"
+                          >
+                            <Send size={12} /> Test
+                          </button>
+                          <button
+                            onClick={() => handleDeleteRecipient(rec)}
+                            className="dbp-btn dbp-btn-sm dbp-btn-danger"
+                            title="Remove Recipient"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -770,92 +823,79 @@ export default function DatabaseBackupsPage() {
 
       {/* ─── TAB 3: Schedule & Settings ─────────────────────────────────── */}
       {activeTab === 'settings' && (
-        <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-6 max-w-4xl space-y-6">
-          <div className="border-b border-slate-100 pb-4">
-            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-blue-600" />
-              Backup Scheduler & SMTP Delivery Configuration
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Configure daily automatic execution, retention periods, multipart thresholds, and SMTP mailer parameters.
-            </p>
+        <div className="dbp-card-panel" style={{ maxWidth: '900px' }}>
+          <div className="dbp-panel-header">
+            <div>
+              <div className="dbp-panel-title">
+                <Clock size={18} style={{ color: '#2563eb' }} />
+                <span>Backup Scheduler & SMTP Transport Configuration</span>
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#5e6b82' }}>
+                Configure daily automatic execution, retention periods, multipart thresholds, and SMTP mailer parameters.
+              </p>
+            </div>
           </div>
 
-          <form onSubmit={handleSaveSettings} className="space-y-6">
-            {/* Scheduler Controls */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider text-xs border-b border-slate-100 pb-1">
-                Automated Scheduler
-              </h3>
+          <form onSubmit={handleSaveSettings}>
+            <div className="dbp-form-grid">
+              {/* Section 1: Scheduler Controls */}
+              <div className="dbp-form-group col-span-full">
+                <div className="dbp-form-section-title">Automated Scheduler Parameters</div>
+              </div>
 
-              <div className="flex items-center gap-3">
+              <div className="dbp-form-group col-span-full">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 700, color: '#24345c' }}>
+                  <input
+                    type="checkbox"
+                    checked={settingsForm.isEnabled}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, isEnabled: e.target.checked })}
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  <span>Enable Daily Automated PostgreSQL Backup</span>
+                </label>
+              </div>
+
+              <div className="dbp-form-group">
+                <label className="dbp-form-label">Scheduled Time (24h)</label>
                 <input
-                  type="checkbox"
-                  id="isEnabled"
-                  checked={settingsForm.isEnabled}
-                  onChange={(e) => setSettingsForm({ ...settingsForm, isEnabled: e.target.checked })}
-                  className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                  type="time"
+                  value={settingsForm.scheduleTime}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, scheduleTime: e.target.value })}
+                  className="dbp-form-input"
+                  style={{ fontFamily: 'monospace' }}
                 />
-                <label htmlFor="isEnabled" className="text-xs font-semibold text-slate-800 cursor-pointer">
-                  Enable Daily Automated PostgreSQL Backup
-                </label>
+                <span className="dbp-form-hint">Default: 23:00 (11:00 PM IST)</span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Scheduled Execution Time (24h)
-                  </label>
-                  <input
-                    type="time"
-                    value={settingsForm.scheduleTime}
-                    onChange={(e) => setSettingsForm({ ...settingsForm, scheduleTime: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-1 block">Default: 23:00 (11:00 PM)</span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Timezone (Fixed)
-                  </label>
-                  <input
-                    type="text"
-                    disabled
-                    value={settingsForm.timezone}
-                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-slate-500 rounded-lg text-xs"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-1 block">Asia/Kolkata (IST Standard)</span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Retention Window (Days)
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={365}
-                    value={settingsForm.retentionDays}
-                    onChange={(e) =>
-                      setSettingsForm({ ...settingsForm, retentionDays: parseInt(e.target.value, 10) || 30 })
-                    }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-1 block">Archives older than this will be purged</span>
-                </div>
+              <div className="dbp-form-group">
+                <label className="dbp-form-label">Timezone (Fixed)</label>
+                <input
+                  type="text"
+                  disabled
+                  value={settingsForm.timezone}
+                  className="dbp-form-input"
+                  style={{ background: '#f8fafc', color: '#64748b' }}
+                />
+                <span className="dbp-form-hint">Asia/Kolkata (IST Standard)</span>
               </div>
-            </div>
 
-            {/* Attachment Splitting */}
-            <div className="space-y-4 pt-2">
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider text-xs border-b border-slate-100 pb-1">
-                Email Multipart Attachment Splitting
-              </h3>
-              <div className="max-w-xs">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Attachment Split Threshold (MB)
-                </label>
+              <div className="dbp-form-group">
+                <label className="dbp-form-label">Retention Window (Days)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={settingsForm.retentionDays}
+                  onChange={(e) =>
+                    setSettingsForm({ ...settingsForm, retentionDays: parseInt(e.target.value, 10) || 30 })
+                  }
+                  className="dbp-form-input"
+                />
+                <span className="dbp-form-hint">Archives older than this will be pruned (latest is always protected)</span>
+              </div>
+
+              <div className="dbp-form-group">
+                <label className="dbp-form-label">Attachment Split Threshold (MB)</label>
                 <input
                   type="number"
                   min={5}
@@ -864,181 +904,187 @@ export default function DatabaseBackupsPage() {
                   onChange={(e) =>
                     setSettingsForm({ ...settingsForm, chunkSizeMb: parseInt(e.target.value, 10) || 20 })
                   }
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="dbp-form-input"
                 />
-                <span className="text-[10px] text-slate-400 mt-1 block">
-                  Archives exceeding this size are split into numbered parts (.part01, .part02) with a manifest.json.
-                </span>
-              </div>
-            </div>
-
-            {/* SMTP Transport Settings */}
-            <div className="space-y-4 pt-2">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-1">
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider text-xs">
-                  SMTP Mail Transport
-                </h3>
-                <span className="text-[11px] text-slate-500">
-                  {settings?.hasSmtpPassword ? '✅ Password configured' : '⚠️ Password not set'}
-                </span>
+                <span className="dbp-form-hint">Archives exceeding this size are split into numbered parts (.part01, .part02)</span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    SMTP Host
-                  </label>
-                  <input
-                    type="text"
-                    value={settingsForm.smtpHost}
-                    onChange={(e) => setSettingsForm({ ...settingsForm, smtpHost: e.target.value })}
-                    placeholder="e.g. smtp.gmail.com or mail.thehimalaya.cloud"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    SMTP Port
-                  </label>
-                  <input
-                    type="number"
-                    value={settingsForm.smtpPort}
-                    onChange={(e) =>
-                      setSettingsForm({ ...settingsForm, smtpPort: parseInt(e.target.value, 10) || 587 })
-                    }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
-                  />
+              {/* Section 2: SMTP Mail Transport */}
+              <div className="dbp-form-group col-span-full">
+                <div className="dbp-form-section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>SMTP Mail Transport Settings</span>
+                  <span style={{ fontSize: '11px', textTransform: 'none', color: settings?.hasSmtpPassword ? '#059669' : '#d97706' }}>
+                    {settings?.hasSmtpPassword ? '✅ Password configured' : '⚠️ Password not set'}
+                  </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    SMTP Username / Email
-                  </label>
-                  <input
-                    type="text"
-                    value={settingsForm.smtpUser}
-                    onChange={(e) => setSettingsForm({ ...settingsForm, smtpUser: e.target.value })}
-                    placeholder="backups@himalayaerp.com"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    SMTP Password / App Key
-                  </label>
-                  <input
-                    type="password"
-                    value={settingsForm.smtpPassword}
-                    onChange={(e) => setSettingsForm({ ...settingsForm, smtpPassword: e.target.value })}
-                    placeholder={settings?.hasSmtpPassword ? '••••••••••••••••' : 'Enter SMTP password'}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
-                  />
-                </div>
+              <div className="dbp-form-group">
+                <label className="dbp-form-label">SMTP Host</label>
+                <input
+                  type="text"
+                  value={settingsForm.smtpHost}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, smtpHost: e.target.value })}
+                  placeholder="e.g. smtp.gmail.com"
+                  className="dbp-form-input"
+                  style={{ fontFamily: 'monospace' }}
+                />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  From Address (Header)
-                </label>
+              <div className="dbp-form-group">
+                <label className="dbp-form-label">SMTP Port</label>
+                <input
+                  type="number"
+                  value={settingsForm.smtpPort}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, smtpPort: parseInt(e.target.value, 10) || 587 })}
+                  className="dbp-form-input"
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </div>
+
+              <div className="dbp-form-group">
+                <label className="dbp-form-label">SMTP Username / Email</label>
+                <input
+                  type="text"
+                  value={settingsForm.smtpUser}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, smtpUser: e.target.value })}
+                  placeholder="backups@thehimalaya.cloud"
+                  className="dbp-form-input"
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </div>
+
+              <div className="dbp-form-group">
+                <label className="dbp-form-label">SMTP Password / App Key</label>
+                <input
+                  type="password"
+                  value={settingsForm.smtpPassword}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, smtpPassword: e.target.value })}
+                  placeholder={settings?.hasSmtpPassword ? '••••••••••••••••' : 'Enter SMTP password'}
+                  className="dbp-form-input"
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </div>
+
+              <div className="dbp-form-group col-span-full">
+                <label className="dbp-form-label">From Address Header</label>
                 <input
                   type="text"
                   value={settingsForm.smtpFrom}
                   onChange={(e) => setSettingsForm({ ...settingsForm, smtpFrom: e.target.value })}
-                  placeholder="Himalaya ERP Backups &lt;backups@himalayaerp.com&gt;"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  placeholder="Himalaya ERP Backups <backups@thehimalaya.cloud>"
+                  className="dbp-form-input"
                 />
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+            <div style={{ padding: '16px 24px', background: '#f8fafc', borderTop: '1px solid #e5ecf5', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                disabled={testingSmtp}
+                onClick={handleTestSmtpFromSettings}
+                className="dbp-btn dbp-btn-outline"
+              >
+                <Send size={14} />
+                <span>{testingSmtp ? 'Testing...' : 'Test SMTP Handshake'}</span>
+              </button>
+
               <button
                 type="submit"
                 disabled={savingSettings}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg text-xs transition shadow disabled:opacity-50"
+                className="dbp-btn dbp-btn-primary"
               >
-                {savingSettings ? 'Saving Settings...' : 'Save Configuration'}
+                <span>{savingSettings ? 'Saving Settings...' : 'Save Configuration'}</span>
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* ─── TAB 4: Disaster Recovery Guide ─────────────────────────────── */}
+      {/* ─── TAB 4: Disaster Recovery SOP ─────────────────────────────── */}
       {activeTab === 'recovery' && (
-        <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-6 space-y-6 max-w-4xl">
-          <div className="border-b border-slate-100 pb-4">
-            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <Key className="w-5 h-5 text-emerald-600" />
-              Disaster Recovery & Previous-Night Restoration Standard Operating Procedure (SOP)
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Protocol for decrypting, verifying, and restoring the previous night's verified database backup.
-            </p>
+        <div className="dbp-card-panel" style={{ maxWidth: '960px' }}>
+          <div className="dbp-panel-header">
+            <div>
+              <div className="dbp-panel-title">
+                <Key size={18} style={{ color: '#059669' }} />
+                <span>Disaster Recovery & Previous-Night Restoration Standard Operating Procedure (SOP)</span>
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#5e6b82' }}>
+                Protocol for decrypting, verifying, and restoring the previous night's verified database backup.
+              </p>
+            </div>
           </div>
 
-          <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg">
-            <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
-              <AlertTriangle className="w-4 h-4 text-amber-600" /> Production Restoration Safety Directive
-            </h4>
-            <p className="text-xs text-amber-900 mt-1 leading-relaxed">
-              To prevent accidental catastrophic overwrites of live ERP operations, this dashboard <strong>deliberately contains zero direct restore buttons targeting the production database</strong>. Restoration must always be performed in an isolated staging database first, validated by the authorized Database Administrator, and executed via the emergency CLI procedure.
-            </p>
-          </div>
+          <div className="dbp-sop-wrapper">
+            {/* Production Safety Warning Banner */}
+            <div className="dbp-callout dbp-callout-amber">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '13px' }}>
+                <ShieldAlert size={18} style={{ color: '#d97706' }} />
+                <span>STRICT PRODUCTION RESTORATION SAFETY DIRECTIVE</span>
+              </div>
+              <p style={{ margin: '6px 0 0 0', fontSize: '12.5px', lineHeight: 1.5 }}>
+                To safeguard live business operations against accidental catastrophic overwrites, this dashboard <strong>deliberately contains zero direct restore buttons targeting the live production database</strong>. Restoration must always be performed in an isolated staging database first, verified by the Database Administrator, and executed via the emergency CLI procedure.
+              </p>
+            </div>
 
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold text-slate-800">Step-by-Step Restoration Procedure:</h3>
+            {/* Step-by-Step Restoration Procedure */}
+            <div className="dbp-step-card">
+              <div className="dbp-step-header">
+                <div className="dbp-step-number">1</div>
+                <h3 className="dbp-step-title">Retrieve Encrypted Backup Archive & Checksum</h3>
+              </div>
+              <p style={{ fontSize: '12.5px', color: '#5e6b82', margin: 0 }}>
+                Download the verified backup archive from your email inbox or via the <strong>Execution History</strong> tab. Note the SHA-256 checksum and ensure it matches the email notification manifest.
+              </p>
+            </div>
 
-            <ol className="list-decimal list-inside space-y-3 text-xs text-slate-700 leading-relaxed">
-              <li className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <strong>Step 1: Retrieve Encrypted Backup Archive & Checksum</strong>
-                <p className="text-slate-500 mt-1">
-                  Download the latest verified backup archive from your email inbox or via the <strong>Execution History</strong> tab. Note the SHA-256 checksum and ensure it matches the email notification manifest.
-                </p>
-              </li>
+            <div className="dbp-step-card">
+              <div className="dbp-step-header">
+                <div className="dbp-step-number">2</div>
+                <h3 className="dbp-step-title">Reassemble Multipart Parts (if applicable)</h3>
+              </div>
+              <p style={{ fontSize: '12.5px', color: '#5e6b82', margin: 0 }}>
+                If the backup exceeded the split threshold and was delivered as multiple parts, concatenate them:
+              </p>
+              <pre className="dbp-code-block">cat himalaya_erp_backup_*.part* &gt; himalaya_erp_backup.sql.enc</pre>
+            </div>
 
-              <li className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <strong>Step 2: Reassemble Multipart Parts (if applicable)</strong>
-                <p className="text-slate-500 mt-1">
-                  If the backup was split across multiple parts, combine them into the single encrypted archive:
-                </p>
-                <pre className="bg-slate-900 text-emerald-400 p-2 rounded mt-2 font-mono text-[11px] overflow-x-auto">
-cat himalaya_erp_backup_*.part* &gt; himalaya_erp_backup.sql.enc
-                </pre>
-              </li>
-
-              <li className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <strong>Step 3: Decrypt with Atomic Staging & Integrity Authentication</strong>
-                <p className="text-slate-500 mt-1">
-                  The backup is decrypted using the AES-256 secret (<code>BACKUP_ENCRYPTION_KEY</code>). The recovery utility decrypts into an isolated temporary file, validates the 16-byte GCM authentication tag and <code>PGDMP</code> magic header, and only atomically renames to the destination file upon 100% cryptographic success (preventing partial or corrupt plaintext from lingering):
-                </p>
-                <pre className="bg-slate-900 text-emerald-400 p-2 rounded mt-2 font-mono text-[11px] overflow-x-auto">
-# Set your offline vault encryption key and run the atomic recovery script:
-export BACKUP_ENCRYPTION_KEY="your-offline-master-secret-hex-or-passphrase"
+            <div className="dbp-step-card">
+              <div className="dbp-step-header">
+                <div className="dbp-step-number">3</div>
+                <h3 className="dbp-step-title">Decrypt with Atomic Staging & Integrity Authentication</h3>
+              </div>
+              <p style={{ fontSize: '12.5px', color: '#5e6b82', margin: 0 }}>
+                The backup is decrypted using your offline master secret (<code>BACKUP_ENCRYPTION_KEY</code>). The recovery utility streams decrypted plaintext into an isolated temporary file (<code>.tmp.decrypt</code>), verifies the 16-byte AES-GCM authentication tag and <code>PGDMP</code> magic header, and only atomically renames to the destination file upon 100% cryptographic success (preventing partial or corrupt plaintext from lingering):
+              </p>
+              <pre className="dbp-code-block">
+export BACKUP_ENCRYPTION_KEY="your-offline-master-secret"<br/>
 node scripts/recover-backup.js himalaya_erp_backup.sql.enc decrypted_backup.dump
-                </pre>
-              </li>
+              </pre>
+            </div>
 
-              <li className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <strong>Step 4: Validate Archive Table of Contents (TOC)</strong>
-                <p className="text-slate-500 mt-1">
-                  Run <code>pg_restore --list</code> to verify the archive catalog and schema integrity:
-                </p>
-                <pre className="bg-slate-900 text-emerald-400 p-2 rounded mt-2 font-mono text-[11px] overflow-x-auto">
-pg_restore --list decrypted_backup.dump | head -n 30
-                </pre>
-              </li>
+            <div className="dbp-step-card">
+              <div className="dbp-step-header">
+                <div className="dbp-step-number">4</div>
+                <h3 className="dbp-step-title">Validate Archive Table of Contents (TOC)</h3>
+              </div>
+              <p style={{ fontSize: '12.5px', color: '#5e6b82', margin: 0 }}>
+                Run native PostgreSQL <code>pg_restore --list</code> to inspect the catalog and schema integrity:
+              </p>
+              <pre className="dbp-code-block">pg_restore --list decrypted_backup.dump | head -n 30</pre>
+            </div>
 
-              <li className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <strong>Step 5: Restore to Isolated Test Database & Audit</strong>
-                <p className="text-slate-500 mt-1">
-                  Restore into an isolated PostgreSQL database (e.g. <code>himalaya_erp_recovery_test</code>) to verify table row counts and schema integrity before conducting any live switchover.
-                </p>
-              </li>
-            </ol>
+            <div className="dbp-step-card">
+              <div className="dbp-step-header">
+                <div className="dbp-step-number">5</div>
+                <h3 className="dbp-step-title">Restore to Isolated Staging Database & Audit</h3>
+              </div>
+              <p style={{ fontSize: '12.5px', color: '#5e6b82', margin: 0 }}>
+                Execute the audited isolated restoration script to restore into a dedicated staging target (<code>himalaya_erp_isolated_test</code>), verifying table row counts, indexes, and schema constraints:
+              </p>
+              <pre className="dbp-code-block">bash scripts/verify-isolated-restore.sh --confirm-isolated-test decrypted_backup.dump himalaya_erp_isolated_test</pre>
+            </div>
           </div>
         </div>
       )}
