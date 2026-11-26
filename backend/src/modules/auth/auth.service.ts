@@ -496,7 +496,6 @@ export class AuthService {
           id: randomUUID(),
           publicId: 'CO-001',
           name: 'Himalaya Composites & Precast Pvt. Ltd.',
-          code: 'HCPPL',
         },
       });
     }
