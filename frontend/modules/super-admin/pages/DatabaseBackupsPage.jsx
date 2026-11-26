@@ -53,6 +53,7 @@ export default function DatabaseBackupsPage() {
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
   const [addingRecipient, setAddingRecipient] = useState(false);
+  const [inspectRecord, setInspectRecord] = useState(null);
 
   // Settings form state
   const [settingsForm, setSettingsForm] = useState({
@@ -640,18 +641,28 @@ export default function DatabaseBackupsPage() {
 
                       {/* Actions */}
                       <td style={{ textAlign: 'right' }}>
-                        {record.hasFile ? (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                           <button
-                            onClick={() => handleDownload(record)}
+                            onClick={() => setInspectRecord(record)}
                             className="dbp-btn dbp-btn-sm dbp-btn-outline"
-                            title="Download Encrypted Archive"
+                            title="Inspect Backup Manifest & Verification Details"
                           >
-                            <Download size={13} />
-                            <span>Download</span>
+                            <Info size={12} />
+                            <span>Details</span>
                           </button>
-                        ) : (
-                          <span style={{ color: '#94a3b8', fontSize: '11px', fontStyle: 'italic' }}>Pruned</span>
-                        )}
+                          {record.hasFile ? (
+                            <button
+                              onClick={() => handleDownload(record)}
+                              className="dbp-btn dbp-btn-sm dbp-btn-primary"
+                              title="Download Encrypted Archive"
+                            >
+                              <Download size={12} />
+                              <span>Download</span>
+                            </button>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontSize: '11px', fontStyle: 'italic', padding: '0 4px' }}>Pruned</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -708,46 +719,6 @@ export default function DatabaseBackupsPage() {
               <Plus size={14} /> Add Recipient
             </button>
           </div>
-
-          {/* Add Recipient Form Card */}
-          {showAddRecipient && (
-            <div style={{ padding: '20px', background: '#f8fafc', borderBottom: '1px solid #e5ecf5' }}>
-              <form onSubmit={handleAddRecipient} style={{ maxWidth: '520px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div style={{ fontWeight: 700, fontSize: '14px', color: '#24345c' }}>Enroll New Email Recipient</div>
-                <div className="dbp-form-group">
-                  <label className="dbp-form-label">Email Address *</label>
-                  <input
-                    type="email"
-                    required
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    placeholder="super.admin@himalayaerp.com"
-                    className="dbp-form-input"
-                  />
-                </div>
-
-                <div className="dbp-form-group">
-                  <label className="dbp-form-label">Recipient Name / Role (Optional)</label>
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="e.g. Lead Database Administrator"
-                    className="dbp-form-input"
-                  />
-                </div>
-
-                <div style={{ display: 'flex', gap: '10px', paddingTop: '6px' }}>
-                  <button type="submit" disabled={addingRecipient} className="dbp-btn dbp-btn-primary dbp-btn-sm">
-                    {addingRecipient ? 'Adding...' : 'Save Recipient'}
-                  </button>
-                  <button type="button" onClick={() => setShowAddRecipient(false)} className="dbp-btn dbp-btn-outline dbp-btn-sm">
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
 
           {/* Recipients Table */}
           <div className="dbp-table-wrapper">
@@ -1084,6 +1055,217 @@ node scripts/recover-backup.js himalaya_erp_backup.sql.enc decrypted_backup.dump
                 Execute the audited isolated restoration script to restore into a dedicated staging target (<code>himalaya_erp_isolated_test</code>), verifying table row counts, indexes, and schema constraints:
               </p>
               <pre className="dbp-code-block">bash scripts/verify-isolated-restore.sh --confirm-isolated-test decrypted_backup.dump himalaya_erp_isolated_test</pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Modal 1: Enroll Email Recipient ───────────────────────────── */}
+      {showAddRecipient && (
+        <div className="dbp-modal-backdrop" onClick={() => setShowAddRecipient(false)}>
+          <div className="dbp-modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="dbp-modal-header">
+              <div className="dbp-modal-title">
+                <Mail size={18} style={{ color: '#0284c7' }} />
+                <span>Enroll Daily Backup Recipient</span>
+              </div>
+              <button
+                type="button"
+                className="dbp-modal-close"
+                onClick={() => setShowAddRecipient(false)}
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddRecipient}>
+              <div className="dbp-modal-body">
+                <p style={{ margin: 0, fontSize: '12.5px', color: '#64748b', lineHeight: 1.5 }}>
+                  The recipient will receive an encrypted copy of the daily PostgreSQL database backup attachment at 11:00 PM IST.
+                </p>
+
+                <div className="dbp-form-group">
+                  <label className="dbp-form-label">Recipient Email Address *</label>
+                  <input
+                    type="email"
+                    required
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="super.admin@himalayaerp.com"
+                    className="dbp-form-input"
+                  />
+                  <span className="dbp-form-hint">Must be an active, monitored administrator email address.</span>
+                </div>
+
+                <div className="dbp-form-group">
+                  <label className="dbp-form-label">Full Name / Operational Role</label>
+                  <input
+                    type="text"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="e.g. Lead Database Administrator"
+                    className="dbp-form-input"
+                  />
+                </div>
+              </div>
+
+              <div className="dbp-modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setShowAddRecipient(false)}
+                  className="dbp-btn dbp-btn-outline dbp-btn-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addingRecipient}
+                  className="dbp-btn dbp-btn-primary dbp-btn-sm"
+                >
+                  {addingRecipient ? 'Enrolling...' : 'Save Recipient'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Modal 2: Inspect Backup Cryptographic Manifest ────────────── */}
+      {inspectRecord && (
+        <div className="dbp-modal-backdrop" onClick={() => setInspectRecord(null)}>
+          <div className="dbp-modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="dbp-modal-header">
+              <div className="dbp-modal-title">
+                <ShieldCheck size={18} style={{ color: '#10b981' }} />
+                <span>Backup Cryptographic Manifest & Audit</span>
+              </div>
+              <button
+                type="button"
+                className="dbp-modal-close"
+                onClick={() => setInspectRecord(null)}
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="dbp-modal-body">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+                <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Execution ID</div>
+                  <div style={{ fontSize: '12px', fontWeight: 750, color: '#0f172a', fontFamily: 'monospace', marginTop: '2px' }}>
+                    {inspectRecord.executionId}
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Status & Duration</div>
+                  <div style={{ fontSize: '12px', fontWeight: 750, color: '#0f172a', marginTop: '2px' }}>
+                    {inspectRecord.status} {inspectRecord.durationMs ? `(${(inspectRecord.durationMs / 1000).toFixed(1)}s)` : ''}
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Cipher & Key Derivation</div>
+                  <div style={{ fontSize: '12px', fontWeight: 750, color: '#047857', marginTop: '2px' }}>
+                    {inspectRecord.encryptionAlgorithm} (Scrypt KDF)
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Archive Parts</div>
+                  <div style={{ fontSize: '12px', fontWeight: 750, color: '#0f172a', marginTop: '2px' }}>
+                    {inspectRecord.chunksCount} part(s) ({inspectRecord.sizeFormatted})
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 750, color: '#334155', marginBottom: '4px' }}>
+                  SHA-256 Digest:
+                </div>
+                <div className="dbp-mono-tag" style={{ width: '100%', boxSizing: 'border-box', justifyContent: 'space-between' }}>
+                  <span style={{ wordBreak: 'break-all' }}>{inspectRecord.checksumSha256 || '—'}</span>
+                  {inspectRecord.checksumSha256 && (
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(inspectRecord.checksumSha256, 'SHA-256 Checksum')}
+                      className="dbp-copy-btn"
+                      title="Copy Checksum"
+                    >
+                      <Copy size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {inspectRecord.errorMessage && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 12px' }}>
+                  <div style={{ fontSize: '11px', color: '#b91c1c', fontWeight: 700 }}>Failure Error Log:</div>
+                  <div style={{ fontSize: '12px', color: '#991b1b', fontFamily: 'monospace', marginTop: '2px' }}>
+                    {inspectRecord.errorMessage}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 750, color: '#334155', marginBottom: '6px' }}>
+                  Email Delivery Audit ({inspectRecord.deliveries?.length || 0} Recipients):
+                </div>
+                {inspectRecord.deliveries && inspectRecord.deliveries.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {inspectRecord.deliveries.map((del, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 12px',
+                          background: '#f8fafc',
+                          borderRadius: '6px',
+                          border: '1px solid #e2e8f0',
+                          fontSize: '12px',
+                        }}
+                      >
+                        <span style={{ fontFamily: 'monospace', color: '#0f172a' }}>{del.recipientEmail}</span>
+                        <span
+                          className={`dbp-status-badge ${
+                            del.status === 'SENT' ? 'dbp-status-completed' : 'dbp-status-failed'
+                          }`}
+                        >
+                          {del.status === 'SENT' ? 'Delivered' : 'Failed'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>
+                    No delivery records logged for this execution.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="dbp-modal-footer">
+              <button
+                type="button"
+                onClick={() => setInspectRecord(null)}
+                className="dbp-btn dbp-btn-outline dbp-btn-sm"
+              >
+                Close
+              </button>
+              {inspectRecord.hasFile && (
+                <button
+                  type="button"
+                  onClick={() => handleDownload(inspectRecord)}
+                  className="dbp-btn dbp-btn-primary dbp-btn-sm"
+                >
+                  <Download size={13} />
+                  <span>Download Archive</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

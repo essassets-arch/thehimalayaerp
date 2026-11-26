@@ -8,7 +8,7 @@
   width: 100%;
   max-width: 1440px;
   margin: 0 auto;
-  padding: 16px;
+  padding: 16px 16px 64px 16px;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -18,7 +18,7 @@
 
 @media (min-width: 768px) {
   .da-page-container {
-    padding: 20px 24px;
+    padding: 20px 24px 72px 24px;
     gap: 22px;
   }
 }
