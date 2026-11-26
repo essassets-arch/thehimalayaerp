@@ -101,9 +101,16 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     });
     console.log(`[NEXT_API_PROXY_SUCCESS] ${method} ${requestedPath} -> NestJS: ${backendPath} - Status: ${res.status}`);
     return res;
-  } catch (err) {
+  } catch (err: any) {
     console.error(`[NEXT_API_PROXY_ERROR] ${method} ${requestedPath} -> NestJS: ${backendPath}:`, err);
-    throw err;
+    return NextResponse.json(
+      {
+        success: false,
+        message: err?.message || 'Upstream backend service error.',
+        code: 'BACKEND_PROXY_ERROR',
+      },
+      { status: 502 },
+    );
   }
 }
 

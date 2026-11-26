@@ -11,6 +11,7 @@ import {
   Res,
   HttpStatus,
   BadRequestException,
+  StreamableFile,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { DatabaseBackupService } from './database-backup.service';
@@ -117,14 +118,16 @@ export class DatabaseBackupController {
   async downloadBackup(
     @Param('id') id: string,
     @CurrentUser() user: any,
-    @Res() res: Response,
-  ) {
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
     const { stream, filename, sizeBytes } = await this.backupService.getDownloadStream(id, user);
 
-    res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Length', sizeBytes);
+    res.set({
+      'Content-Type': 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': String(sizeBytes),
+    });
 
-    stream.pipe(res);
+    return new StreamableFile(stream);
   }
 }

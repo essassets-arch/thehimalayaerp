@@ -112,6 +112,13 @@ export const databaseBackupService = {
           window.localStorage.getItem('token') ||
           window.localStorage.getItem('himalaya_token') ||
           window.sessionStorage.getItem('token');
+        if (!token) {
+          const rawAuth = window.localStorage.getItem('auth-storage');
+          if (rawAuth) {
+            const parsed = JSON.parse(rawAuth);
+            token = parsed?.state?.accessToken || null;
+          }
+        }
       } catch {}
     }
 
@@ -119,11 +126,19 @@ export const databaseBackupService = {
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
+      credentials: 'same-origin',
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || 'Failed to download backup archive');
+      let errorMsg = 'Failed to download backup archive';
+      try {
+        const err = await res.json();
+        errorMsg = err.message || err.error?.message || errorMsg;
+      } catch {
+        const text = await res.text().catch(() => '');
+        if (text) errorMsg = text;
+      }
+      throw new Error(errorMsg);
     }
 
     const blob = await res.blob();
@@ -134,6 +149,6 @@ export const databaseBackupService = {
     document.body.appendChild(link);
     link.click();
     link.remove();
-    window.URL.revokeObjectURL(downloadUrl);
+    setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 1000);
   },
 };

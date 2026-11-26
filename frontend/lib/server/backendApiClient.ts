@@ -33,7 +33,7 @@ export type ForwardBackendRequestOptions = {
 async function createBridgeResponse(upstream: Response): Promise<Response> {
   const headers = new Headers();
 
-  for (const name of ['content-type', 'content-disposition', 'cache-control', 'location', 'retry-after', 'x-request-id']) {
+  for (const name of ['content-type', 'content-disposition', 'content-length', 'cache-control', 'location', 'retry-after', 'x-request-id']) {
     const value = upstream.headers.get(name);
     if (value) {
       headers.set(name, value);

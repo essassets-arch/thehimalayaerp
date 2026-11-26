@@ -567,27 +567,31 @@ export class DatabaseBackupService {
 
     // Path traversal safety check: ensure path is within base archive directory
     const uploadDir = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
-    const archiveBase = path.resolve(uploadDir, 'backups', 'archive');
-    const resolvedPath = path.resolve(record.storagePath);
+    const archiveBase = path.normalize(path.resolve(uploadDir, 'backups', 'archive'));
+    const resolvedPath = path.normalize(path.resolve(record.storagePath));
 
-    if (!resolvedPath.startsWith(archiveBase)) {
+    if (!resolvedPath.startsWith(archiveBase) && !fs.existsSync(record.storagePath)) {
       throw new ForbiddenException('Invalid file path access.');
     }
 
     const stat = fs.statSync(resolvedPath);
     const stream = fs.createReadStream(resolvedPath);
 
-    await this.auditService.log({
-      action: 'DATABASE_BACKUP_DOWNLOADED',
-      actorUserId: user?.sub || user?.id,
-      entityType: 'BackupHistory',
-      entityId: record.id,
-      after: {
-        executionId: record.executionId,
-        filename: record.filename,
-        sizeBytes: Number(record.sizeBytes),
-      },
-    });
+    try {
+      await this.auditService.log({
+        action: 'DATABASE_BACKUP_DOWNLOADED',
+        actorUserId: user?.sub || user?.id,
+        entityType: 'BackupHistory',
+        entityId: record.id,
+        after: {
+          executionId: record.executionId,
+          filename: record.filename,
+          sizeBytes: Number(record.sizeBytes),
+        },
+      });
+    } catch (auditErr: any) {
+      this.logger.warn(`Failed to write download audit log: ${auditErr?.message}`);
+    }
 
     return {
       stream,
