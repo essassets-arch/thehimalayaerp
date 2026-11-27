@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { resolveTenantId } from '../../common/utils/tenant.util';
 
 @Controller('attendance')
 @UseGuards(JwtAuthGuard)
@@ -51,7 +52,7 @@ export class AttendanceController {
   @Get('me/today')
   getTodayAttendance(@Req() req: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+    const companyId = resolveTenantId(req, '88c57ebc-b3b7-49e3-8d5d-6321a0e89015');
     if (!userId) {
       return {
         status: 'NOT_PUNCHED_IN',
@@ -67,7 +68,7 @@ export class AttendanceController {
   @Get('me')
   getMyAttendanceHistory(@Req() req: any, @Query() query: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+    const companyId = resolveTenantId(req, '88c57ebc-b3b7-49e3-8d5d-6321a0e89015');
     return this.attendanceService.getMyAttendanceHistory(
       userId,
       companyId,
@@ -78,20 +79,20 @@ export class AttendanceController {
   @Post('punch-in')
   punchIn(@Req() req: any, @Body() body: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+    const companyId = resolveTenantId(req, '88c57ebc-b3b7-49e3-8d5d-6321a0e89015');
     return this.attendanceService.punchIn(userId, companyId, body);
   }
 
   @Post('punch-out')
   punchOut(@Req() req: any, @Body() body: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+    const companyId = resolveTenantId(req, '88c57ebc-b3b7-49e3-8d5d-6321a0e89015');
     return this.attendanceService.punchOut(userId, companyId, body);
   }
 
   @Get('summary')
   getAttendanceSummary(@Req() req: any, @Query('date') dateStr?: string) {
-    const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+    const companyId = resolveTenantId(req, '88c57ebc-b3b7-49e3-8d5d-6321a0e89015');
     return this.attendanceService.getAttendanceSummary(companyId, dateStr);
   }
 
@@ -115,11 +116,11 @@ export class AttendanceController {
     if (!allowedRoles.some((r) => upperRole.includes(r))) {
       return this.attendanceService.getMyAttendanceHistory(
         req.user?.sub,
-        '88c57ebc-b3b7-49e3-8d5d-6321a0e89015',
+        resolveTenantId(req, '88c57ebc-b3b7-49e3-8d5d-6321a0e89015'),
         query,
       );
     }
-    const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+    const companyId = resolveTenantId(req, '88c57ebc-b3b7-49e3-8d5d-6321a0e89015');
     return this.attendanceService.listCompanyAttendance(companyId, query);
   }
 
@@ -153,7 +154,7 @@ export class AttendanceController {
         'Not authorized to access employee attendance details',
       );
     }
-    const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+    const companyId = resolveTenantId(req, '88c57ebc-b3b7-49e3-8d5d-6321a0e89015');
     return this.attendanceService.getEmployeeMonthlyAttendance(
       employeeId,
       companyId,
@@ -163,6 +164,8 @@ export class AttendanceController {
 
   @Delete('clear-all')
   clearAll() {
-    return this.attendanceService.clearAll();
+    throw new ForbiddenException(
+      'Destructive bulk deletion of attendance is permanently disabled in production to guarantee zero data loss.',
+    );
   }
 }

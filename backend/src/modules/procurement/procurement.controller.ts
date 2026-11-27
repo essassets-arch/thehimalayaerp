@@ -1,5 +1,6 @@
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import {
   UseGuards,
   Body,
@@ -270,6 +271,8 @@ export class ProcurementController {
     return this.service.createPO(primaryIndentId, d, r.user?.sub);
   }
   @Post('admin/sync-schema')
+  @UseGuards(RolesGuard)
+  @Roles('Super Admin', 'SUPER_ADMIN')
   @RequirePermissions('procurement.purchase_orders.create')
   syncSchema() {
     return this.service.syncSchema();

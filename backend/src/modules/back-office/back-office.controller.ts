@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { BackOfficeService } from './back-office.service';
+import { resolveTenantId } from '../../common/utils/tenant.util';
 import {
   CreateBackOfficeReportDto,
   UpdateBackOfficeReportDto,
@@ -46,8 +47,7 @@ export class BackOfficeController {
   )
   async createReport(@Req() req: any, @Body() dto: CreateBackOfficeReportDto) {
     const userId = req.user?.sub || req.user?.id;
-    const companyId =
-      req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
     return this.backOfficeService.createReport(companyId, userId, dto);
   }
 
@@ -65,16 +65,14 @@ export class BackOfficeController {
     @Query() query: QueryBackOfficeReportDto,
   ) {
     const userId = req.user?.sub || req.user?.id;
-    const companyId =
-      req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
     return this.backOfficeService.getMyReports(companyId, userId, query);
   }
 
   @Get('daily-reports/:id')
   async getReportById(@Req() req: any, @Param('id') id: string) {
     const userId = req.user?.sub || req.user?.id;
-    const companyId =
-      req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
     const role =
       req.user?.role?.name || req.user?.role?.code || req.user?.role || '';
     const isAdmin = ['Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'].includes(
@@ -98,8 +96,7 @@ export class BackOfficeController {
     @Body() dto: UpdateBackOfficeReportDto,
   ) {
     const userId = req.user?.sub || req.user?.id;
-    const companyId =
-      req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
     return this.backOfficeService.updateReport(companyId, userId, id, dto);
   }
 
@@ -114,8 +111,7 @@ export class BackOfficeController {
   )
   async deleteReport(@Req() req: any, @Param('id') id: string) {
     const userId = req.user?.sub || req.user?.id;
-    const companyId =
-      req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
     return this.backOfficeService.deleteReport(companyId, userId, id);
   }
 
@@ -129,8 +125,7 @@ export class BackOfficeController {
     @Req() req: any,
     @Query() query: QueryBackOfficeReportDto,
   ) {
-    const companyId =
-      req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
     return this.backOfficeService.getAllReportsForSuperAdmin(companyId, query);
   }
 
@@ -142,8 +137,7 @@ export class BackOfficeController {
     @Body() dto: AcknowledgeBackOfficeReportDto,
   ) {
     const adminUserId = req.user?.sub || req.user?.id;
-    const companyId =
-      req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
     return this.backOfficeService.acknowledgeReport(
       companyId,
       adminUserId,
@@ -155,8 +149,7 @@ export class BackOfficeController {
   @Get(['admin/staff', 'staff-list', 'staff', 'staffs'])
   @Roles('Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN')
   async getBackOfficeStaffList(@Req() req: any) {
-    const companyId =
-      req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
     return this.backOfficeService.getBackOfficeStaffList(companyId);
   }
 

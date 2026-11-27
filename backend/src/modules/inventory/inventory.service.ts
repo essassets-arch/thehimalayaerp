@@ -2255,29 +2255,10 @@ export class InventoryService {
   }
 
   async clearAllRawMaterials(companyId?: string) {
-    await this.prisma.inventoryTransaction.deleteMany({
-      where: {
-        OR: [
-          { rawMaterialId: { not: null } },
-          { product: { productType: 'RAW_MATERIAL' } },
-        ],
-      },
-    });
-
-    await this.prisma.rawMaterial.deleteMany({});
-
-    await this.prisma.product.updateMany({
-      where: {
-        OR: [
-          { productType: 'RAW_MATERIAL' },
-          { type: 'RAW_MATERIAL' },
-          { category: { contains: 'Raw', mode: 'insensitive' } },
-        ],
-      },
-      data: { isActive: false },
-    });
-
-    return { success: true, message: 'All raw materials and inventory data have been cleared successfully.' };
+    return {
+      success: false,
+      message: 'Bulk deletion of raw materials is permanently disabled in production to guarantee zero data loss.',
+    };
   }
 
   async createRawMaterial(companyId: string, data: any) {

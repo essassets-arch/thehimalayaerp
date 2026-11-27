@@ -12,6 +12,7 @@ import {
 import { QcService } from './qc.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { resolveTenantId } from '../../common/utils/tenant.util';
 
 @Controller(['qc/inspections', 'backend/qc/inspections'])
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -34,7 +35,7 @@ export class QcController {
   )
   @RequirePermissions('qc.inspection.read')
   async listInspections(@Req() req: any) {
-    const companyId = req.headers['x-company-id'] || req.user?.companyId;
+    const companyId = resolveTenantId(req);
     const items = await this.qcService.listInspections(companyId);
     console.log('listInspections called. Returned items count:', items.length);
     return items;

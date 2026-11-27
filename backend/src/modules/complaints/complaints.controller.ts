@@ -64,7 +64,7 @@ export class ComplaintsController {
     @Body() dto: UpdateComplaintStatusDto,
   ) {
     const resolverUserId = req.user?.sub || req.user?.id;
-    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    const companyId = resolveTenantId(req);
     return this.complaintsService.updateComplaintStatus(
       id,
       companyId,

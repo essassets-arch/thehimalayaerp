@@ -1770,6 +1770,9 @@ export class AttendanceService {
   }
 
   async clearAll() {
-    return this.prisma.attendance.deleteMany();
+    return {
+      success: false,
+      message: 'Bulk deletion of attendance is permanently disabled in production to guarantee zero data loss.',
+    };
   }
 }

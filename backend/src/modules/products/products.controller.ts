@@ -12,6 +12,7 @@ import {
   Delete,
   Param,
   Query,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -161,7 +162,9 @@ export class ProductsController {
   )
   @Delete('catalog/clear-all')
   clearAllCatalogProducts(@CurrentUser() user: any) {
-    return this.productsService.clearAllCatalogProducts(user.companyId);
+    throw new ForbiddenException(
+      'Destructive bulk deletion of catalog products is permanently disabled in production to guarantee zero data loss.',
+    );
   }
 
   @RequirePermissions(
@@ -172,7 +175,9 @@ export class ProductsController {
   )
   @Delete('raw-materials/clear-all')
   clearAllRawMaterials(@CurrentUser() user: any) {
-    return this.productsService.clearAllRawMaterials(user.companyId);
+    throw new ForbiddenException(
+      'Destructive bulk deletion of raw materials is permanently disabled in production to guarantee zero data loss.',
+    );
   }
 
   @RequirePermissions(

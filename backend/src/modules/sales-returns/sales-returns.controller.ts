@@ -12,6 +12,7 @@ import {
 import { SalesReturnsService } from './sales-returns.service';
 import { RequestSalesReturnDto } from './dto/request-sales-return.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { resolveTenantId } from '../../common/utils/tenant.util';
 
 @Controller('sales-returns')
 @UseGuards(JwtAuthGuard)
@@ -28,7 +29,7 @@ export class SalesReturnsController {
   @RequirePermissions('sales.salesreturns.read', 'logistics.dispatches.read')
   @Get()
   findAll(@Req() req: any) {
-    const companyId = req.headers['x-company-id'] || req.user?.companyId;
+    const companyId = resolveTenantId(req);
     return this.returnsService.findAll(companyId);
   }
 

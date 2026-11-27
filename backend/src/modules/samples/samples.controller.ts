@@ -19,6 +19,7 @@ import { UpdateSampleDto } from './dto/update-sample.dto';
 import { SampleStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { resolveTenantId } from '../../common/utils/tenant.util';
 
 function formatAddress(addr: any): string {
   if (!addr) return '';
@@ -77,10 +78,7 @@ export class SamplesController {
   constructor(private readonly samplesService: SamplesService) {}
 
   private extractAuthData(req: any, headers: any) {
-    const companyId =
-      req.user?.companyId ||
-      headers['x-company-id'] ||
-      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
     const userId =
       req.user?.sub || req.user?.id || 'a6605e65-beca-40f2-a19f-8e451e270867';
     const role = req.user?.role || 'admin';

@@ -1057,87 +1057,16 @@ export class ProductsService {
   }
 
   async clearAllCatalogProducts(companyId?: string) {
-    // 1. Delete stock histories and inventory transactions for catalog products
-    await this.prisma.stockHistory.deleteMany({
-      where: {
-        product: {
-          productType: { notIn: ['RAW_MATERIAL', 'HARDWARE'] },
-        },
-      },
-    });
-
-    await this.prisma.inventoryTransaction.deleteMany({
-      where: {
-        product: {
-          productType: { notIn: ['RAW_MATERIAL', 'HARDWARE'] },
-        },
-      },
-    });
-
-    // 2. Clear FinishedGoods stock entries for catalog products
-    await this.prisma.finishedGoods.deleteMany({
-      where: {
-        product: {
-          productType: { notIn: ['RAW_MATERIAL', 'HARDWARE'] },
-        },
-      },
-    });
-
-    // 3. Delete unreferenced catalog products
-    const referencedProductIds = await this.prisma.$queryRaw<{ productId: string }[]>`
-      SELECT DISTINCT "productId" FROM "SalesOrderItem" WHERE "productId" IS NOT NULL
-      UNION
-      SELECT DISTINCT "productId" FROM "QuotationItem" WHERE "productId" IS NOT NULL
-      UNION
-      SELECT DISTINCT "productId" FROM "PurchaseOrderItem" WHERE "productId" IS NOT NULL
-      UNION
-      SELECT DISTINCT "productId" FROM "PurchaseIndentItem" WHERE "productId" IS NOT NULL
-      UNION
-      SELECT DISTINCT "productId" FROM "GoodsReceiptNoteItem" WHERE "productId" IS NOT NULL
-      UNION
-      SELECT DISTINCT "productId" FROM "MaterialRequestItem" WHERE "productId" IS NOT NULL
-    `;
-
-    const refIds = referencedProductIds.map((r) => r.productId);
-
-    await this.prisma.product.deleteMany({
-      where: {
-        productType: { notIn: ['RAW_MATERIAL', 'HARDWARE'] },
-        id: { notIn: refIds },
-      },
-    });
-
-    // 4. Deactivate any remaining referenced catalog products so they are hidden from plant-head/products
-    await this.prisma.product.updateMany({
-      where: {
-        productType: { notIn: ['RAW_MATERIAL', 'HARDWARE'] },
-      },
-      data: { isActive: false },
-    });
-
-    return { success: true, message: 'All catalog products cleared.' };
+    return {
+      success: false,
+      message: 'Bulk deletion of catalog products is permanently disabled in production to guarantee zero data loss.',
+    };
   }
 
   async clearAllRawMaterials(companyId?: string) {
-    await this.prisma.inventoryTransaction.deleteMany({
-      where: {
-        OR: [
-          { rawMaterialId: { not: null } },
-          { product: { productType: 'RAW_MATERIAL' } },
-        ],
-      },
-    });
-    await this.prisma.rawMaterial.deleteMany({});
-    await this.prisma.product.updateMany({
-      where: {
-        OR: [
-          { productType: 'RAW_MATERIAL' },
-          { type: 'RAW_MATERIAL' },
-          { category: { contains: 'Raw', mode: 'insensitive' } },
-        ],
-      },
-      data: { isActive: false },
-    });
-    return { success: true, message: 'All raw materials and inventory data cleared.' };
+    return {
+      success: false,
+      message: 'Bulk deletion of raw materials is permanently disabled in production to guarantee zero data loss.',
+    };
   }
 }

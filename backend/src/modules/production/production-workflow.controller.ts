@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { ProductionWorkflowService } from './production-workflow.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { resolveTenantId } from '../../common/utils/tenant.util';
 import { QcPassDto } from './dto/qc-pass.dto';
 
 @Controller()
@@ -201,7 +202,7 @@ export class ProductionWorkflowController {
     @Query('status') status?: string,
   ) {
     try {
-      const companyId = req.headers['x-company-id'] || req.user?.companyId;
+      const companyId = resolveTenantId(req, 'COMP-000001');
       const userId = req.user?.sub || req.user?.id;
       const role = req.user?.role;
       const hasPagination = page !== undefined && page !== '';
@@ -250,7 +251,7 @@ export class ProductionWorkflowController {
   async getAllStockLogs(@Req() req: any, @Query() query: any) {
     try {
       const companyId =
-        req.headers['x-company-id'] || req.user?.companyId || 'COMP-000001';
+        resolveTenantId(req, 'COMP-000001');
       const data = await this.workflowService.getStockLogs(companyId, query);
       return { success: true, ...data };
     } catch (err: any) {
@@ -277,7 +278,7 @@ export class ProductionWorkflowController {
     @Query('search') search?: string,
   ) {
     try {
-      const companyId = req.headers['x-company-id'] || req.user?.companyId;
+      const companyId = resolveTenantId(req, 'COMP-000001');
       const userId = req.user?.sub || req.user?.id;
       const role = req.user?.role;
       if (scope === 'all-stock') {
@@ -389,7 +390,7 @@ export class ProductionWorkflowController {
     @Req() req: any,
   ) {
     const companyId =
-      req.headers['x-company-id'] || req.user?.companyId || 'COMP-000001';
+      resolveTenantId(req, 'COMP-000001');
     const data = await this.workflowService.getFinishedGoodsHistory(
       companyId,
       productId,

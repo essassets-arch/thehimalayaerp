@@ -22,6 +22,7 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { Public } from '../../common/decorators/public.decorator';
 import { CreateDispatchDto } from './dto/create-dispatch.dto';
 import { ConfirmDeliveryDto } from './dto/confirm-delivery.dto';
+import { resolveTenantId } from '../../common/utils/tenant.util';
 
 @Controller('logistics/dispatches')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -30,10 +31,7 @@ export class DispatchController {
 
   private extractAuthData(req: any, headers: Record<string, string>) {
     const userId = req.user?.sub || 'a6605e65-beca-40f2-a19f-8e451e270867';
-    const companyId =
-      req.user?.companyId ||
-      headers['x-company-id'] ||
-      '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+    const companyId = resolveTenantId(req, '88c57ebc-b3b7-49e3-8d5d-6321a0e89015');
     return { userId, companyId };
   }
 

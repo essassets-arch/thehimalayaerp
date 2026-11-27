@@ -12,6 +12,7 @@ import {
 import { ReplacementsService } from './replacements.service';
 import { RequestReplacementDto } from './dto/request-replacement.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { resolveTenantId } from '../../common/utils/tenant.util';
 
 @Controller('replacements')
 @UseGuards(JwtAuthGuard)
@@ -31,7 +32,7 @@ export class ReplacementsController {
   @RequirePermissions('admin.replacements.read')
   @Get()
   findAll(@Req() req: any) {
-    const companyId = req.headers['x-company-id'] || req.user?.companyId;
+    const companyId = resolveTenantId(req);
     return this.replacementsService.findAll(companyId);
   }
 

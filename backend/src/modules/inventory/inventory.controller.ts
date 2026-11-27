@@ -12,6 +12,7 @@ import {
   Param,
   Body,
   Query,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
@@ -202,7 +203,9 @@ export class InventoryController {
   )
   @Delete('raw-materials/clear-all')
   clearAllRawMaterials(@CurrentUser() user: any) {
-    return this.inventoryService.clearAllRawMaterials(user.companyId);
+    throw new ForbiddenException(
+      'Destructive bulk deletion of raw materials is permanently disabled in production to guarantee zero data loss.',
+    );
   }
 
   @RequirePermissions(

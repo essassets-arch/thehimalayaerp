@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { resolveTenantId } from '../../common/utils/tenant.util';
 
 import {
   getFollowUpSalesScope,
@@ -65,10 +66,7 @@ export class SalesRemindersController {
     @Query('module') moduleParam?: string,
   ) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId =
-      req.headers['x-company-id'] ||
-      req.user?.companyId ||
-      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
     const scope = getFollowUpSalesScope(userId, req.user?.role);
 
     const isFinance = moduleParam === 'Finance';
@@ -381,10 +379,7 @@ export class SalesRemindersController {
     @Query('module') moduleParam?: string,
   ) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId =
-      req.headers['x-company-id'] ||
-      req.user?.companyId ||
-      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
     const scope = getFollowUpSalesScope(userId, req.user?.role);
 
     const isFinance = moduleParam === 'Finance';
@@ -496,10 +491,7 @@ export class SalesRemindersController {
   async create(@Req() req: any, @Body() dto: any) {
     const userId =
       req.user?.sub || req.user?.id || req.user?.userId || 'SYSTEM';
-    const companyId =
-      req.headers['x-company-id'] ||
-      req.user?.companyId ||
-      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
     const userRole = req.user?.role;
 
     const { sourceType, sourceId, title, description, reminderAt } = dto;
@@ -641,10 +633,7 @@ export class SalesRemindersController {
   @RequirePermissions('sales.leads.update')
   async update(@Param('id') id: string, @Req() req: any, @Body() dto: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId =
-      req.headers['x-company-id'] ||
-      req.user?.companyId ||
-      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
     const userRole = req.user?.role;
 
     let existing = await this.prisma.followUp.findUnique({ where: { id } });
@@ -725,10 +714,7 @@ export class SalesRemindersController {
   @RequirePermissions('sales.leads.update')
   async complete(@Param('id') id: string, @Req() req: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId =
-      req.headers['x-company-id'] ||
-      req.user?.companyId ||
-      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
 
     const result = await this.prisma.$transaction(async (tx) => {
       let existing = await tx.followUp.findUnique({ where: { id } });
@@ -790,10 +776,7 @@ export class SalesRemindersController {
   @RequirePermissions('sales.leads.update')
   async dismiss(@Param('id') id: string, @Req() req: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId =
-      req.headers['x-company-id'] ||
-      req.user?.companyId ||
-      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
 
     const result = await this.prisma.$transaction(async (tx) => {
       let existing = await tx.followUp.findUnique({ where: { id } });
@@ -855,10 +838,7 @@ export class SalesRemindersController {
   @RequirePermissions('sales.leads.update')
   async cancel(@Param('id') id: string, @Req() req: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId =
-      req.headers['x-company-id'] ||
-      req.user?.companyId ||
-      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId = resolveTenantId(req, 'd039cfa4-e78b-4138-adfc-1b0f14cffa91');
 
     const result = await this.prisma.$transaction(async (tx) => {
       let existing = await tx.followUp.findUnique({ where: { id } });

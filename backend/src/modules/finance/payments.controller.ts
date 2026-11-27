@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { resolveTenantId } from '../../common/utils/tenant.util';
 
 @Controller('finance/payments')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -62,7 +63,7 @@ export class PaymentsController {
   @Post('run-daily-followup')
   @RequirePermissions('finance.payment.update')
   async runDailyFollowup(@Req() req: any) {
-    const companyId = req.headers['x-company-id'] || req.user?.companyId;
+    const companyId = resolveTenantId(req);
     return this.paymentsService.runDailyFollowUpScan(companyId);
   }
 

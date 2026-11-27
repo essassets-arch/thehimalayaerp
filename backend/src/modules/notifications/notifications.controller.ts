@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { NotificationsService } from './notifications.service';
+import { resolveTenantId } from '../../common/utils/tenant.util';
 
 @Controller('notifications')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -40,7 +41,7 @@ export class NotificationsController {
     @Query('offset') offsetStr?: string,
   ) {
     const userId = this.getUserId(req);
-    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    const companyId = resolveTenantId(req);
     const limit = limitStr ? parseInt(limitStr, 10) : 20;
     const offset = offsetStr ? parseInt(offsetStr, 10) : 0;
     return this.notificationsService.getNotifications(
@@ -57,7 +58,7 @@ export class NotificationsController {
   @Get('unread-count')
   async getUnreadCount(@Req() req: any) {
     const userId = this.getUserId(req);
-    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    const companyId = resolveTenantId(req);
     const unreadCount = await this.notificationsService.getUnreadCount(
       userId,
       companyId,
@@ -71,7 +72,7 @@ export class NotificationsController {
   @Get('unread')
   async getUnreadLegacy(@Req() req: any) {
     const userId = this.getUserId(req);
-    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    const companyId = resolveTenantId(req);
     const result = await this.notificationsService.getNotifications(
       userId,
       companyId,
@@ -87,7 +88,7 @@ export class NotificationsController {
   @Patch(':id/read')
   async markAsRead(@Param('id') id: string, @Req() req: any) {
     const userId = this.getUserId(req);
-    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    const companyId = resolveTenantId(req);
     await this.notificationsService.markAsRead(id, userId, companyId);
     return { success: true };
   }
@@ -98,7 +99,7 @@ export class NotificationsController {
   @Patch('read-all')
   async markAllAsRead(@Req() req: any) {
     const userId = this.getUserId(req);
-    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    const companyId = resolveTenantId(req);
     await this.notificationsService.markAllAsRead(userId, companyId);
     return { success: true };
   }
@@ -115,7 +116,7 @@ export class NotificationsController {
       throw new BadRequestException('FCM token is required');
     }
     const userId = this.getUserId(req);
-    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    const companyId = resolveTenantId(req);
     const deviceToken = await this.notificationsService.registerDeviceToken(
       userId,
       companyId,
@@ -135,7 +136,7 @@ export class NotificationsController {
       throw new BadRequestException('FCM token is required');
     }
     const userId = this.getUserId(req);
-    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    const companyId = resolveTenantId(req);
     await this.notificationsService.removeDeviceToken(
       userId,
       companyId,
@@ -150,7 +151,7 @@ export class NotificationsController {
   @RequirePermissions('admin.notifications.create')
   @Post('broadcast')
   async broadcast(@Body() body: any, @Req() req: any) {
-    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    const companyId = resolveTenantId(req);
     const userId = this.getUserId(req);
     const userRole = String(req.user?.role || '').toUpperCase();
     const userName = req.user?.name || req.user?.email;
@@ -171,7 +172,7 @@ export class NotificationsController {
     @Query('sender') sender?: string,
     @Query('module') moduleParam?: string,
   ) {
-    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    const companyId = resolveTenantId(req);
     const userRole = req.user?.role;
     return this.notificationsService.getBroadcastHistory(
       companyId,
@@ -185,7 +186,7 @@ export class NotificationsController {
   @Get('push-status')
   async getPushStatus(@Req() req: any) {
     const userId = this.getUserId(req);
-    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    const companyId = resolveTenantId(req);
     return this.notificationsService.getPushStatus(userId, companyId);
   }
 
@@ -195,7 +196,7 @@ export class NotificationsController {
   @Post('test-push')
   async testPush(@Req() req: any) {
     const userId = this.getUserId(req);
-    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    const companyId = resolveTenantId(req);
     return this.notificationsService.sendTestPushToUser(userId, companyId);
   }
 }

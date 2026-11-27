@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { LeadsService } from './leads.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { resolveTenantId } from '../../common/utils/tenant.util';
 
 @Controller(['crm/leads', 'sales/leads', 'leads'])
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -30,8 +31,7 @@ export class LeadsController {
     @Query('limit') limit?: string,
     @Query('pageSize') pageSize?: string,
   ) {
-    const resolvedCompanyId =
-      req.user?.companyId || req.headers['x-company-id'];
+    const resolvedCompanyId = resolveTenantId(req);
     return this.leadsService.listLeads(
       resolvedCompanyId,
       search,
@@ -46,8 +46,7 @@ export class LeadsController {
   @Get(':id')
   // @RequirePermissions('sales.leads.read')
   async getLead(@Param('id') id: string, @Req() req: any) {
-    const resolvedCompanyId =
-      req.user?.companyId || req.headers['x-company-id'];
+    const resolvedCompanyId = resolveTenantId(req);
     return this.leadsService.getLead(
       id,
       resolvedCompanyId,
@@ -63,7 +62,7 @@ export class LeadsController {
     return this.leadsService.createLead(
       dto,
       req.user?.id || req.user?.sub,
-      req.user?.companyId || req.headers['x-company-id'],
+      resolveTenantId(req),
       req.user?.role,
     );
   }
@@ -76,7 +75,7 @@ export class LeadsController {
       id,
       dto,
       req.user?.sub || req.user?.id,
-      req.user?.companyId || req.headers['x-company-id'],
+      resolveTenantId(req),
       req.user?.role,
     );
   }
@@ -207,7 +206,7 @@ export class LeadsController {
     return this.leadsService.restoreLead(
       id,
       req.user?.sub || 'SYSTEM',
-      req.headers['x-company-id'] || req.user?.companyId,
+      resolveTenantId(req),
       req.user?.role,
     );
   }
@@ -226,7 +225,7 @@ export class LeadsController {
       id,
       reason,
       req.user?.sub || req.user?.id,
-      req.user?.companyId || req.headers['x-company-id'],
+      resolveTenantId(req),
       req.user?.role,
     );
   }
