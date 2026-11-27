@@ -19,6 +19,17 @@ const poppins = { variable: '--font-main', className: '' };
 export const metadata: Metadata = {
   title: 'Himalaya ERP V2',
   description: 'Enterprise Resource Planning Platform',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon.png', type: 'image/png' },
+      { url: '/favicon.png', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-icon.png', type: 'image/png' },
+    ],
+    shortcut: ['/favicon.ico'],
+  },
 }
 
 export default function RootLayout({
