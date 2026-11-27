@@ -10,16 +10,36 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { MachineService } from './machine.service';
 import { CreateMachineDto } from './dto/create-machine.dto';
 import { UpdateMachineDto } from './dto/update-machine.dto';
 
+const MACHINE_ADMIN_ROLES = [
+  'Plant Head',
+  'PLANT_HEAD',
+  'Super Admin',
+  'SUPER_ADMIN',
+  'Production Manager',
+  'PRODUCTION_MANAGER',
+  'PRODUCTION_PLANNER',
+];
+
+const MACHINE_DELETE_ROLES = [
+  'Plant Head',
+  'PLANT_HEAD',
+  'Super Admin',
+  'SUPER_ADMIN',
+];
+
 @Controller('machines')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class MachineController {
   constructor(private readonly machineService: MachineService) {}
 
   @Post()
+  @Roles(...MACHINE_ADMIN_ROLES)
   async create(@Body() createMachineDto: CreateMachineDto) {
     return this.machineService.create(createMachineDto);
   }
@@ -41,6 +61,7 @@ export class MachineController {
   }
 
   @Put(':id')
+  @Roles(...MACHINE_ADMIN_ROLES)
   async update(
     @Param('id') id: string,
     @Body() updateMachineDto: UpdateMachineDto,
@@ -49,6 +70,7 @@ export class MachineController {
   }
 
   @Delete(':id')
+  @Roles(...MACHINE_DELETE_ROLES)
   async remove(@Param('id') id: string) {
     return this.machineService.remove(parseInt(id, 10));
   }

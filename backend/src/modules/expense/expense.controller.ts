@@ -28,6 +28,7 @@ import {
 } from './dto/expense.dto';
 import { FilesService } from '../files/files.service';
 import { createReadStream } from 'fs';
+import { resolveTenantId } from '../../common/utils/tenant.util';
 
 @Controller('expenses')
 @UseGuards(JwtAuthGuard)
@@ -40,9 +41,7 @@ export class ExpenseController {
   @Post()
   createExpense(@Body() dto: CreateExpenseDto, @Req() req: any) {
     const userId = req.user?.sub || req.user?.id;
-    const companyId =
-      req.headers['x-company-id'] ||
-      req.user?.companyId;
+    const companyId = resolveTenantId(req);
     return this.expenseService.createExpense(dto, userId, companyId);
   }
 
@@ -69,8 +68,7 @@ export class ExpenseController {
     }
 
     const userId = req.user?.sub || req.user?.id;
-    const companyId =
-      req.headers['x-company-id'] || req.user?.companyId;
+    const companyId = resolveTenantId(req);
 
     const result = await this.filesService.saveUploadedFile(
       file,
@@ -90,16 +88,14 @@ export class ExpenseController {
   @Get()
   getExpensesRoot(@Req() req: any) {
     const userId = req.user?.sub || req.user?.id;
-    const companyId =
-      req.headers['x-company-id'] || req.user?.companyId;
+    const companyId = resolveTenantId(req);
     return this.expenseService.getMyExpenses(userId, companyId);
   }
 
   @Get('my')
   getMyExpenses(@Req() req: any) {
     const userId = req.user?.sub || req.user?.id;
-    const companyId =
-      req.headers['x-company-id'] || req.user?.companyId;
+    const companyId = resolveTenantId(req);
     return this.expenseService.getMyExpenses(userId, companyId);
   }
 
@@ -125,8 +121,7 @@ export class ExpenseController {
   )
   getPendingExpenses(@Query('stage') stage: string, @Req() req: any) {
     const userId = req.user?.sub || req.user?.id;
-    const companyId =
-      req.headers['x-company-id'] || req.user?.companyId;
+    const companyId = resolveTenantId(req);
     return this.expenseService.getPendingExpenses(userId, companyId, stage);
   }
 
@@ -152,8 +147,7 @@ export class ExpenseController {
   )
   getAllExpenses(@Query() query: ExpenseQueryDto, @Req() req: any) {
     const userId = req.user?.sub || req.user?.id;
-    const companyId =
-      req.headers['x-company-id'] || req.user?.companyId;
+    const companyId = resolveTenantId(req);
     return this.expenseService.getAllExpenses(companyId, userId, query);
   }
 
@@ -169,7 +163,7 @@ export class ExpenseController {
     @Res() res: any,
   ) {
     const userId = req.user?.sub || req.user?.id;
-    const companyId = req.headers['x-company-id'] || req.user?.companyId;
+    const companyId = resolveTenantId(req);
 
     const result = await this.expenseService.getExpenseReceiptStream(
       id,
@@ -228,8 +222,7 @@ export class ExpenseController {
     @Req() req: any,
   ) {
     const userId = req.user?.sub || req.user?.id;
-    const companyId =
-      req.headers['x-company-id'] || req.user?.companyId;
+    const companyId = resolveTenantId(req);
     return this.expenseService.approveExpense(id, dto, userId, companyId);
   }
 
@@ -259,8 +252,7 @@ export class ExpenseController {
     @Req() req: any,
   ) {
     const userId = req.user?.sub || req.user?.id;
-    const companyId =
-      req.headers['x-company-id'] || req.user?.companyId;
+    const companyId = resolveTenantId(req);
     return this.expenseService.rejectExpense(id, dto, userId, companyId);
   }
 }

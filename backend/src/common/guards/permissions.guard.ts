@@ -2483,7 +2483,6 @@ export class PermissionsGuard implements CanActivate {
         'sales.leads.read',
         'admin.read',
         'super-admin.read',
-        'user.read',
       ],
       'hr.departments.read': [
         'hr.departments.read',
@@ -2492,7 +2491,6 @@ export class PermissionsGuard implements CanActivate {
         'planthead.read',
         'plant-head.read',
         'hr.read',
-        'user.read',
         'admin.read',
         'super-admin.read',
       ],
@@ -2503,7 +2501,6 @@ export class PermissionsGuard implements CanActivate {
         'planthead.read',
         'plant-head.read',
         'hr.read',
-        'user.read',
         'admin.read',
         'super-admin.read',
       ],
@@ -2525,7 +2522,6 @@ export class PermissionsGuard implements CanActivate {
         'planthead.read',
         'plant-head.read',
         'hr.read',
-        'user.read',
         'admin.read',
         'super-admin.read',
       ],
@@ -2632,7 +2628,6 @@ export class PermissionsGuard implements CanActivate {
         'plant-head.read',
         'admin.read',
         'super-admin.read',
-        'user.read',
       ],
       'admin.productionreports.read': [
         'production.reports.read',
@@ -2645,7 +2640,6 @@ export class PermissionsGuard implements CanActivate {
         'plant-head.read',
         'admin.read',
         'super-admin.read',
-        'user.read',
       ],
     };
 

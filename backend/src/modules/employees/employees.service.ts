@@ -84,12 +84,22 @@ export class EmployeesService {
     return 'EMPLOYEE';
   }
 
+  private getCandidateKeys(): Buffer[] {
+    const keys: Buffer[] = [];
+    const dedicated = this.config.get<string>('EMPLOYEE_DATA_ENCRYPTION_KEY');
+    if (dedicated) {
+      keys.push(createHash('sha256').update(dedicated).digest());
+    }
+    const jwtSecret = this.config.get<string>('jwt.accessSecret');
+    if (jwtSecret) {
+      keys.push(createHash('sha256').update(jwtSecret).digest());
+    }
+    keys.push(createHash('sha256').update('development-only-employee-key').digest());
+    return keys;
+  }
+
   private key() {
-    const source =
-      this.config.get<string>('EMPLOYEE_DATA_ENCRYPTION_KEY') ||
-      this.config.get<string>('jwt.accessSecret') ||
-      'development-only-employee-key';
-    return createHash('sha256').update(source).digest();
+    return this.getCandidateKeys()[0];
   }
 
   private encrypt(value: string) {
@@ -111,13 +121,20 @@ export class EmployeesService {
         const iv = Buffer.from(ivB64, 'base64');
         const tag = Buffer.from(tagB64, 'base64');
         const data = Buffer.from(dataB64, 'base64');
-        const decipher = createDecipheriv('aes-256-gcm', this.key(), iv);
-        decipher.setAuthTag(tag);
-        const decrypted = Buffer.concat([
-          decipher.update(data),
-          decipher.final(),
-        ]);
-        return decrypted.toString('utf8');
+
+        for (const candidateKey of this.getCandidateKeys()) {
+          try {
+            const decipher = createDecipheriv('aes-256-gcm', candidateKey, iv);
+            decipher.setAuthTag(tag);
+            const decrypted = Buffer.concat([
+              decipher.update(data),
+              decipher.final(),
+            ]);
+            return decrypted.toString('utf8');
+          } catch {
+            // Try next candidate key
+          }
+        }
       }
       return encrypted;
     } catch {

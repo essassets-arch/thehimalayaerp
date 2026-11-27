@@ -12,6 +12,8 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { DispatchDailyReportService } from './dispatch-daily-report.service';
 import {
@@ -20,8 +22,22 @@ import {
   QueryDispatchDailyReportDto,
 } from './dto/dispatch-daily-report.dto';
 
+const DISPATCH_ROLES = [
+  'Dispatch Executive',
+  'DISPATCH_EXECUTIVE',
+  'DISPATCH_1',
+  'DISPATCH_2',
+  'Plant Head',
+  'PLANT_HEAD',
+  'Super Admin',
+  'SUPER_ADMIN',
+  'Admin',
+  'ADMIN',
+];
+
 @Controller('dispatch/daily-reports')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+@Roles(...DISPATCH_ROLES)
 export class Dispatch1DailyReportController {
   constructor(private readonly service: DispatchDailyReportService) {}
 
@@ -109,7 +125,8 @@ export class Dispatch1DailyReportController {
 }
 
 @Controller('dispatch-2/daily-reports')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+@Roles(...DISPATCH_ROLES)
 export class Dispatch2DailyReportController {
   constructor(private readonly service: DispatchDailyReportService) {}
 

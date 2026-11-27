@@ -78,7 +78,12 @@ export class SalesController {
     @Query() query: ListSalesOrdersQueryDto,
     @Req() req: any,
   ): Promise<SalesOrderListResponseDto> {
-    return this.salesService.listOrders(query, req.user?.sub, req.user?.role);
+    return this.salesService.listOrders(
+      query,
+      req.user?.sub,
+      req.user?.role,
+      req.user?.companyId,
+    );
   }
 
   @Get('delivered/pending-payment')

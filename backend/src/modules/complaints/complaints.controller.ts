@@ -12,6 +12,7 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { ComplaintsService } from './complaints.service';
+import { resolveTenantId } from '../../common/utils/tenant.util';
 import {
   CreateComplaintDto,
   UpdateComplaintStatusDto,
@@ -30,7 +31,7 @@ export class ComplaintsController {
   @Post('complaints')
   async createComplaint(@Req() req: any, @Body() dto: CreateComplaintDto) {
     const userId = req.user?.sub || req.user?.id;
-    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    const companyId = resolveTenantId(req);
     return this.complaintsService.createComplaint(userId, companyId, dto);
   }
 
@@ -40,7 +41,7 @@ export class ComplaintsController {
   @Get('complaints/my')
   async getMyComplaints(@Req() req: any) {
     const userId = req.user?.sub || req.user?.id;
-    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    const companyId = resolveTenantId(req);
     return this.complaintsService.getMyComplaints(userId, companyId);
   }
 
@@ -49,7 +50,7 @@ export class ComplaintsController {
    */
   @Get('hr/complaints')
   async getHrComplaints(@Req() req: any, @Query() query: ComplaintQueryDto) {
-    const companyId = req.user?.companyId || req.headers['x-company-id'];
+    const companyId = resolveTenantId(req);
     return this.complaintsService.getHrComplaints(companyId, query);
   }
 

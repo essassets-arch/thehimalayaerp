@@ -718,6 +718,10 @@ export class PayrollService {
 
   // 7. Super Admin Approve Record
   async approve(id: string, user: any) {
+    const normRole = (user?.role?.code || user?.role || '').toUpperCase();
+    if (!normRole.includes('SUPER_ADMIN') && !normRole.includes('SUPERADMIN') && !normRole.includes('ADMIN')) {
+      throw new ForbiddenException('Only Super Admin can approve payroll records.');
+    }
     const record = await this.get(id, user);
     this.validateTransition(record.status, 'SUPER_ADMIN_APPROVED');
 

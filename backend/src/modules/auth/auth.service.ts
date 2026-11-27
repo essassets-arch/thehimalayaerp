@@ -19,37 +19,6 @@ const hashAsync = hash as unknown as (
   saltOrRounds: number,
 ) => Promise<string>;
 
-const OFFICIAL_CREDENTIALS: Record<
-  string,
-  { password: string; name: string; roleCode: string; dispatchCategory?: string }
-> = {
-  'super.admin@himalayaerp.com': { password: 'SuperAdmin&67*', name: 'Super Admin', roleCode: 'SUPER_ADMIN' },
-  'hr@himalayaerp.com': { password: 'HRManager*46#', name: 'HR Manager', roleCode: 'HR' },
-  'abbas.b@himalayaerp.com': { password: 'Abbas@94$', name: 'Abbas B', roleCode: 'BACK_OFFICE' },
-  'backoffice@himalayaerp.com': { password: 'BackOffice*44*', name: 'Back Office (shared)', roleCode: 'BACK_OFFICE' },
-  'supersales1@himalayaerp.com': { password: 'SuperSales1&9#', name: 'SuperSales 1', roleCode: 'SUPER_SALES' },
-  'supersales2@himalayaerp.com': { password: 'SuperSales2*6*', name: 'SuperSales 2', roleCode: 'SUPER_SALES' },
-  'sales1@himalayaerp.com': { password: 'Sales1@2!', name: 'Sales 1', roleCode: 'SALES_EXECUTIVE' },
-  'sales2@himalayaerp.com': { password: 'Sales2&7&', name: 'Sales 2', roleCode: 'SALES_EXECUTIVE' },
-  'sales3@himalayaerp.com': { password: 'Sales3#2*', name: 'Sales 3', roleCode: 'SALES_EXECUTIVE' },
-  'sales4@himalayaerp.com': { password: 'Sales4*4#', name: 'Sales 4', roleCode: 'SALES_EXECUTIVE' },
-  'sales5@himalayaerp.com': { password: 'Sales5#4*', name: 'Sales 5', roleCode: 'SALES_EXECUTIVE' },
-  'sales6@himalayaerp.com': { password: 'Sales6&6*', name: 'Sales 6', roleCode: 'SALES_EXECUTIVE' },
-  'sales7@himalayaerp.com': { password: 'Sales7!9@', name: 'Sales 7', roleCode: 'SALES_EXECUTIVE' },
-  'sales11@himalayaerp.com': { password: 'Sales11#$', name: 'Sales 11', roleCode: 'SALES_EXECUTIVE' },
-  'sales12@himalayaerp.com': { password: 'Jyoti*97@', name: 'Jyoti (Sales 12)', roleCode: 'SALES_EXECUTIVE' },
-  'sales13@himalayaerp.com': { password: 'Sales13!$', name: 'Sales 13', roleCode: 'SALES_EXECUTIVE' },
-  'sales14@himalayaerp.com': { password: 'Sales14!&', name: 'Sales 14', roleCode: 'SALES_EXECUTIVE' },
-  'sahad.m@himalayaerp.com': { password: 'SahadM&35!', name: 'Sahad M', roleCode: 'FINANCE_MANAGER' },
-  'trushna.g@himalayaerp.com': { password: 'Trushna$62#', name: 'Trushna G', roleCode: 'FINANCE_EXECUTIVE' },
-  'ravikant.t@himalayaerp.com': { password: 'Ravikant*36$', name: 'Ravikant T', roleCode: 'DISPATCH_EXECUTIVE', dispatchCategory: 'Category 1' },
-  'sahad.dispatch@himalayaerp.com': { password: 'SahadDisp!85#', name: 'Sahad Dispatch', roleCode: 'DISPATCH_2', dispatchCategory: 'Category 2' },
-  'sana.r@himalayaerp.com': { password: 'Sana*52*', name: 'Sana R', roleCode: 'PLANT_HEAD' },
-  'moksha.n@himalayaerp.com': { password: 'Moksha!96&', name: 'Moksha N', roleCode: 'PRODUCTION_PLANNER' },
-  'hussain.t@himalayaerp.com': { password: 'Hussain$38!', name: 'Hussain T', roleCode: 'PRODUCTION_PLANNER' },
-  'makhdum@himalayaerp.com': { password: 'Makhdum$85$', name: 'Makhdum', roleCode: 'STORE_MANAGER' },
-};
-
 export interface SafeUser {
   id: string;
   email: string;
@@ -119,33 +88,29 @@ export class AuthService {
     ipAddress?: string,
     userAgent?: string,
   ): Promise<AuthLoginResponse> {
-    let user = await this.usersService.findByEmail(loginDto.email);
+    const cleanInputEmail = String(loginDto.email || '').trim().toLowerCase();
+    let user = await this.usersService.findByEmail(cleanInputEmail);
+    if (!user && loginDto.email && loginDto.email !== cleanInputEmail) {
+      user = await this.usersService.findByEmail(loginDto.email);
+    }
     const rawPassword = String(loginDto.password || '');
     const cleanPassword = rawPassword.trim();
-    const cleanInputEmail = String(loginDto.email || '').trim().toLowerCase();
-
-    // Check if input or resolved user matches any of the 25 official credentials
-    const matchedOfficialEmail = Object.keys(OFFICIAL_CREDENTIALS).find(
-      (emailKey) =>
-        emailKey === cleanInputEmail ||
-        (user && user.email.toLowerCase().trim() === emailKey) ||
-        cleanInputEmail === emailKey.split('@')[0] ||
-        (cleanInputEmail.endsWith('@thehimalaya.cloud') &&
-          cleanInputEmail.replace('@thehimalaya.cloud', '@himalayaerp.com') === emailKey) ||
-        (cleanInputEmail.endsWith('@thehimalayaerp.com') &&
-          cleanInputEmail.replace('@thehimalayaerp.com', '@himalayaerp.com') === emailKey),
-    );
-    const officialCred = matchedOfficialEmail ? OFFICIAL_CREDENTIALS[matchedOfficialEmail] : null;
-
-    // If user record doesn't exist yet in database, auto-provision cleanly without data loss
-    if (!user && officialCred && cleanPassword === officialCred.password) {
-      user = await this.autoProvisionOfficialUser(matchedOfficialEmail!, officialCred);
-    }
 
     if (!user) {
       throw new UnauthorizedException({
         code: 'INVALID_CREDENTIALS',
         message: 'Invalid email or password.',
+      });
+    }
+
+    // Check account lockout
+    if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
+      const remainingSeconds = Math.ceil(
+        (new Date(user.lockedUntil).getTime() - Date.now()) / 1000,
+      );
+      throw new UnauthorizedException({
+        code: 'ACCOUNT_LOCKED',
+        message: `Account is temporarily locked. Please try again in ${formatWaitDuration(remainingSeconds)}.`,
       });
     }
 
@@ -159,19 +124,30 @@ export class AuthService {
       isMatch = await compareAsync(cleanPassword, user.password).catch(() => false);
     }
 
-    // Direct synchronization for all 25 official accounts
-    if (!isMatch && officialCred && cleanPassword === officialCred.password) {
-      const rounds = this.configService.get<number>('bcryptRounds') || 12;
-      const newHash = await hashAsync(officialCred.password, rounds);
+    if (!isMatch) {
+      // Record failed login attempt and lock if threshold exceeded
+      const failedAttempts = (user.failedLoginAttempts || 0) + 1;
+      const willLock = failedAttempts >= MAX_FAILED_LOGIN_ATTEMPTS;
+      const lockedUntil = willLock
+        ? new Date(Date.now() + ACCOUNT_LOCKOUT_DURATION_MS)
+        : null;
+
       await this.prisma.user.update({
         where: { id: user.id },
-        data: { password: newHash, failedLoginAttempts: 0, lockedUntil: null, isActive: true },
+        data: {
+          failedLoginAttempts: failedAttempts,
+          lockedUntil,
+        },
       });
-      user.password = newHash;
-      isMatch = true;
-    }
 
-    if (!isMatch) {
+      if (willLock) {
+        throw new UnauthorizedException({
+          code: 'ACCOUNT_LOCKED',
+          message:
+            'Too many failed login attempts. Your account has been temporarily locked for 5 minutes.',
+        });
+      }
+
       throw new UnauthorizedException({
         code: 'INVALID_CREDENTIALS',
         message: 'Invalid email or password.',
@@ -483,81 +459,5 @@ export class AuthService {
     });
 
     return { elevationToken, expiresAt };
-  }
-
-  private async autoProvisionOfficialUser(
-    email: string,
-    cred: { password: string; name: string; roleCode: string; dispatchCategory?: string },
-  ) {
-    let company = await this.prisma.company.findFirst();
-    if (!company) {
-      company = await this.prisma.company.create({
-        data: {
-          id: randomUUID(),
-          publicId: 'CO-001',
-          name: 'Himalaya Composites & Precast Pvt. Ltd.',
-        },
-      });
-    }
-
-    let role = await this.prisma.role.findFirst({
-      where: {
-        OR: [{ code: cred.roleCode }, { name: cred.roleCode }],
-      },
-    });
-
-    if (!role) {
-      role =
-        (await this.prisma.role.findFirst({ where: { name: { contains: 'Sales' } } })) ||
-        (await this.prisma.role.findFirst());
-    }
-
-    if (!role) {
-      role = await this.prisma.role.create({
-        data: {
-          id: randomUUID(),
-          publicId: `ROLE-${cred.roleCode}`,
-          code: cred.roleCode,
-          name: cred.name,
-        },
-      });
-    }
-
-    const rounds = this.configService.get<number>('bcryptRounds') || 12;
-    const hashedPassword = await hashAsync(cred.password, rounds);
-
-    return this.prisma.user.upsert({
-      where: { email },
-      create: {
-        id: randomUUID(),
-        publicId: `EMP-${randomUUID().slice(0, 6)}`,
-        email,
-        password: hashedPassword,
-        name: cred.name,
-        roleId: role.id,
-        companyId: company.id,
-        dispatchCategory: cred.dispatchCategory || null,
-        isActive: true,
-        failedLoginAttempts: 0,
-        lockedUntil: null,
-      },
-      update: {
-        password: hashedPassword,
-        isActive: true,
-        failedLoginAttempts: 0,
-        lockedUntil: null,
-      },
-      include: {
-        role: {
-          include: {
-            rolePermissions: {
-              include: {
-                permission: true,
-              },
-            },
-          },
-        },
-      },
-    });
   }
 }

@@ -3,6 +3,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { UseGuards, Controller, Get, Query, Req, Res } from '@nestjs/common';
 import { StoreReportsService } from './store-reports.service';
+import { resolveTenantId } from '../../common/utils/tenant.util';
 import type { Response } from 'express';
 
 @Controller('store-reports')
@@ -13,7 +14,7 @@ export class StoreReportsController {
   @RequirePermissions('admin.storereports.read')
   @Get('dashboard')
   getDashboard(@Query() q: any, @Req() req: any) {
-    const companyId = req.headers['x-company-id'] || req.user?.companyId;
+    const companyId = resolveTenantId(req);
     return this.storeReportsService.getDashboard(
       companyId,
       q.month,

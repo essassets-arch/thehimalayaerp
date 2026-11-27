@@ -13,10 +13,35 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { PayrollService } from './payroll.service';
 
+const HR_AND_ADMIN_ROLES = [
+  'Super Admin',
+  'Admin',
+  'SUPER_ADMIN',
+  'ADMIN',
+  'HR',
+  'HR_MANAGER',
+  'HR_EXECUTIVE',
+];
+
+const FINANCE_AND_ADMIN_ROLES = [
+  'Super Admin',
+  'Admin',
+  'SUPER_ADMIN',
+  'ADMIN',
+  'Finance',
+  'FINANCE',
+  'FINANCE_MANAGER',
+  'FINANCE_EXECUTIVE',
+];
+
+const SUPER_ADMIN_ONLY = ['Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN'];
+
 @Controller()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class PayrollController {
   constructor(private readonly service: PayrollService) {}
 
@@ -25,16 +50,19 @@ export class PayrollController {
   // ==========================================
 
   @Post(['hr/payroll/generate', 'hr/payroll/generate-bulk'])
+  @Roles(...HR_AND_ADMIN_ROLES)
   generate(@Body() body: any, @Req() req: any) {
     return this.service.generate(body, req.user);
   }
 
   @Get(['hr/payroll', 'payroll'])
+  @Roles(...HR_AND_ADMIN_ROLES, ...FINANCE_AND_ADMIN_ROLES)
   listHrPayroll(@Query() query: any, @Req() req: any) {
     return this.service.list(query, req.user);
   }
 
   @Get(['hr/payroll/status', 'payroll/status'])
+  @Roles(...HR_AND_ADMIN_ROLES, ...FINANCE_AND_ADMIN_ROLES)
   listHrPayrollStatus(@Query() query: any, @Req() req: any) {
     return this.service.list(query, req.user);
   }
@@ -46,21 +74,25 @@ export class PayrollController {
     'hr/payroll/paid',
     'payroll/history',
   ])
+  @Roles(...FINANCE_AND_ADMIN_ROLES)
   listFinancePaidHistory(@Query() query: any, @Req() req: any) {
     return this.service.list(query, req.user, ['PAID']);
   }
 
   @Get(['finance/payroll/pending', 'hr/payroll/finance/pending'])
+  @Roles(...FINANCE_AND_ADMIN_ROLES)
   listFinancePending(@Query() query: any, @Req() req: any) {
     return this.service.list(query, req.user, ['PENDING_FINANCE']);
   }
 
   @Get(['finance/payroll/processing', 'hr/payroll/finance/processing'])
+  @Roles(...FINANCE_AND_ADMIN_ROLES)
   listFinanceProcessing(@Query() query: any, @Req() req: any) {
     return this.service.list(query, req.user, ['PROCESSING']);
   }
 
   @Get(['super-admin/payroll/pending', 'hr/payroll/approvals/pending'])
+  @Roles(...SUPER_ADMIN_ONLY)
   listSuperAdminPending(@Query() query: any, @Req() req: any) {
     return this.service.list(query, req.user, [
       'PENDING_SUPER_ADMIN_APPROVAL',
@@ -69,6 +101,7 @@ export class PayrollController {
   }
 
   @Get('hr/payroll/submissions/summary')
+  @Roles(...HR_AND_ADMIN_ROLES, ...SUPER_ADMIN_ONLY)
   getSubmissionSummary(@Query() query: any, @Req() req: any) {
     return this.service.getSubmissionSummary(query, req.user);
   }
@@ -116,11 +149,13 @@ export class PayrollController {
   }
 
   @Post('hr/payroll/:id/verify')
+  @Roles(...HR_AND_ADMIN_ROLES)
   verifyRecord(@Param('id') id: string, @Req() req: any) {
     return this.service.verify(id, req.user);
   }
 
   @Post('hr/payroll/:id/edit-returned')
+  @Roles(...HR_AND_ADMIN_ROLES)
   editReturnedRecord(@Param('id') id: string, @Req() req: any) {
     return this.service.editReturned(id, req.user);
   }
@@ -130,6 +165,7 @@ export class PayrollController {
     'hr/payroll/:id/submit',
     'hr/payroll/submit-bulk',
   ])
+  @Roles(...HR_AND_ADMIN_ROLES)
   sendToSuperAdmin(
     @Param('id') idParam: string,
     @Body() body: any,
@@ -143,11 +179,13 @@ export class PayrollController {
   }
 
   @Post(['super-admin/payroll/:id/approve', 'hr/payroll/:id/approve'])
+  @Roles(...SUPER_ADMIN_ONLY)
   approveRecord(@Param('id') id: string, @Req() req: any) {
     return this.service.approve(id, req.user);
   }
 
   @Post(['super-admin/payroll/:id/hold', 'hr/payroll/:id/hold'])
+  @Roles(...SUPER_ADMIN_ONLY)
   holdRecord(@Param('id') id: string, @Body() body: any, @Req() req: any) {
     return this.service.hold(id, body, req.user);
   }
@@ -157,6 +195,7 @@ export class PayrollController {
     'hr/payroll/:id/return',
     'hr/payroll/:id/return-for-correction',
   ])
+  @Roles(...SUPER_ADMIN_ONLY, ...FINANCE_AND_ADMIN_ROLES)
   returnRecordToHr(
     @Param('id') id: string,
     @Body() body: any,
@@ -166,11 +205,13 @@ export class PayrollController {
   }
 
   @Post(['super-admin/payroll/:id/reject', 'hr/payroll/:id/reject'])
+  @Roles(...SUPER_ADMIN_ONLY)
   rejectRecord(@Param('id') id: string, @Body() body: any, @Req() req: any) {
     return this.service.reject(id, body, req.user);
   }
 
   @Post(['super-admin/payroll/send-to-finance', 'hr/payroll/send-to-finance'])
+  @Roles(...SUPER_ADMIN_ONLY)
   sendToFinance(@Body() body: any, @Req() req: any) {
     const ids = body?.ids || body?.records?.map((r: any) => r?.id || r) || [];
     return this.service.sendToFinance(ids, req.user);
@@ -181,6 +222,7 @@ export class PayrollController {
     'hr/payroll/:id/start-processing',
     'hr/payroll/start-processing-bulk',
   ])
+  @Roles(...FINANCE_AND_ADMIN_ROLES)
   startProcessing(
     @Param('id') idParam: string,
     @Body() body: any,
@@ -194,6 +236,7 @@ export class PayrollController {
   }
 
   @Post(['finance/payroll/:id/mark-paid', 'hr/payroll/:id/mark-paid'])
+  @Roles(...FINANCE_AND_ADMIN_ROLES)
   markPaid(@Param('id') id: string, @Body() body: any, @Req() req: any) {
     return this.service.markPaid(id, body, req.user);
   }

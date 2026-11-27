@@ -68,8 +68,19 @@ async function bootstrap() {
   app.use(express.urlencoded({ limit: '2mb', extended: true }));
   app.use(
     helmet({
-      crossOriginResourcePolicy: { policy: 'cross-origin' },
-      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'same-site' },
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+          connectSrc: ["'self'", 'https:'],
+          fontSrc: ["'self'", 'https:', 'data:'],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'self'"],
+        },
+      },
       hsts: { maxAge: 31536000, includeSubDomains: true },
     }),
   );
@@ -103,11 +114,11 @@ async function bootstrap() {
 
   const staticOptions = {
     setHeaders: (res: any) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      const allowedOrigin = process.env.FRONTEND_URL || 'https://thehimalaya.cloud';
+      res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
       res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', '*');
-      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-      res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+      res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
       res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
     },
   };

@@ -80,6 +80,9 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     authorization?.replace(/^Bearer\s+/i, '') ||
     cookieToken;
 
+  const clientRole = decodeURIComponent(request.cookies.get('role')?.value || '').toUpperCase();
+  const isSuperAdminRole = clientRole.includes('SUPER_ADMIN') || clientRole.includes('SUPERADMIN') || clientRole === 'ADMIN';
+
   console.log(`[NEXT_API_PROXY] ${method} ${requestedPath} -> NestJS: ${backendPath}`);
 
   try {
@@ -93,7 +96,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
       requestId: request.headers.get('x-request-id') || undefined,
       headers: {
         ...(request.headers.get('cookie') ? { cookie: request.headers.get('cookie')! } : {}),
-        ...(request.headers.get('x-company-id') ? { 'x-company-id': request.headers.get('x-company-id')! } : {}),
+        ...(isSuperAdminRole && request.headers.get('x-company-id') ? { 'x-company-id': request.headers.get('x-company-id')! } : {}),
         ...(request.headers.get('x-forwarded-for') ? { 'x-forwarded-for': request.headers.get('x-forwarded-for')! } : {}),
         ...(request.headers.get('x-real-ip') ? { 'x-real-ip': request.headers.get('x-real-ip')! } : {}),
         ...(request.headers.get('user-agent') ? { 'user-agent': request.headers.get('user-agent')!, 'x-client-user-agent': request.headers.get('user-agent')! } : {}),

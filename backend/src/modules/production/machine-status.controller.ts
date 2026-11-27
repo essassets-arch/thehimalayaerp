@@ -8,11 +8,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { MachineStatusService } from './machine-status.service';
 import { SaveMachineStatusDto } from './dto/save-machine-status.dto';
 
 @Controller('machine-status')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class MachineStatusController {
   constructor(private readonly machineStatusService: MachineStatusService) {}
 
@@ -24,6 +26,15 @@ export class MachineStatusController {
   }
 
   @Post()
+  @Roles(
+    'Plant Head',
+    'PLANT_HEAD',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Production Manager',
+    'PRODUCTION_MANAGER',
+    'PRODUCTION_PLANNER',
+  )
   async saveDailyStatus(
     @Body() saveMachineStatusDto: SaveMachineStatusDto,
     @Req() req: any,

@@ -133,6 +133,7 @@ export class SalesService {
     query: ListSalesOrdersQueryDto,
     userId?: string,
     role?: string,
+    companyId?: string,
   ): Promise<SalesOrderListResponseDto> {
     const page = Math.max(1, Number(query.page || 1));
     const pageSize = Math.min(
@@ -144,8 +145,11 @@ export class SalesService {
     const skip = (page - 1) * pageSize;
     const take = pageSize;
     const scope = getOrderSalesScope(userId, role);
+    const tenantFilter: Prisma.SalesOrderWhereInput = companyId
+      ? { customer: { companyId } }
+      : {};
     const where: Prisma.SalesOrderWhereInput = {
-      AND: [scope],
+      AND: [scope, tenantFilter],
       ...(isIncludeDeleted ? {} : { deletedAt: null }),
     };
 
