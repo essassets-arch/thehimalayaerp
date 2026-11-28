@@ -98,16 +98,24 @@ export function resolveProductRouting(
   const isTradingFamilyOrKeyword =
     category.includes('COVERBLOCK') ||
     category.includes('COVER BLOCK') ||
+    category.includes('COVER-BLOCK') ||
     category.includes('FRC COVER') ||
     category.includes('FRC COVERS') ||
+    category.includes('FRC') ||
     category.includes('RCC PIPE') ||
+    category.includes('HUME PIPE') ||
+    category.includes('PIPE') ||
     category.includes('TRADING') ||
     category.includes('MOULDED') ||
     combined.includes('MOULDED') ||
     combined.includes('COVERBLOCK') ||
     combined.includes('COVER BLOCK') ||
+    combined.includes('COVER-BLOCK') ||
+    combined.includes('HUME PIPE') ||
     combined.includes('RCC PIPE') ||
-    /\b(WCB|PCB|HTCB|DTCB|MCB|BTCB|FRCCP|FRCT|FRCSQRC|FRCRFRC|FRCSFSC|FRCROFROC|FRCGT|FRCTSOC|FRCTPEC)\b/.test(combined);
+    combined.includes('TRADING') ||
+    combined.includes('FRC') ||
+    /\b(CB|WCB|PCB|HTCB|DTCB|MCB|BTCB|FRC|FRCCP|FRCT|FRCSQRC|FRCRFRC|FRCSFSC|FRCROFROC|FRCGT|FRCTSOC|FRCTPEC|NP2|NP3|NP4)\b/.test(combined);
 
   if (isTradingFamilyOrKeyword) {
     return { dispatchCategory: 'D2', productType: 'TRADING', isTrading: true };

@@ -34,8 +34,21 @@ function normalizeDispatchCategory(cat?: string | null): 'D1' | 'D2' | null {
 const tradingProductFilter = {
   OR: [
     { isTrading: true },
-    { dispatchCategory: { in: ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2', 'CAT 2', 'CAT_2', '2'] } },
-    { productType: 'TRADING' },
+    { dispatchCategory: { in: ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2', 'CAT 2', 'CAT_2', '2', 'cat 2'] } },
+    { productType: { in: ['TRADING', 'trading'] } },
+    { category: { in: ['COVERBLOCK', 'COVER BLOCK', 'FRC COVER', 'FRC COVERS', 'RCC PIPE', 'TRADING', 'MOULDED'] } },
+    { category: { contains: 'COVERBLOCK', mode: 'insensitive' as const } },
+    { category: { contains: 'FRC', mode: 'insensitive' as const } },
+    { category: { contains: 'TRADING', mode: 'insensitive' as const } },
+    { category: { contains: 'PIPE', mode: 'insensitive' as const } },
+    { category: { contains: 'MOULDED', mode: 'insensitive' as const } },
+    { name: { contains: 'COVERBLOCK', mode: 'insensitive' as const } },
+    { name: { contains: 'COVER BLOCK', mode: 'insensitive' as const } },
+    { name: { contains: 'FRC', mode: 'insensitive' as const } },
+    { name: { contains: 'MOULDED', mode: 'insensitive' as const } },
+    { name: { contains: 'PIPE', mode: 'insensitive' as const } },
+    { sku: { contains: 'CB', mode: 'insensitive' as const } },
+    { sku: { contains: 'FRC', mode: 'insensitive' as const } },
   ],
 };
 
@@ -2325,9 +2338,22 @@ export class DispatchService {
     },
   ) {
     // 1. Resolve & NORMALIZE category filter for the Dispatch user (fixes "Category 1" !== "D1" bug)
+    const rawRole =
+      typeof role === 'object' && role !== null
+        ? (role as any).code || (role as any).name || ''
+        : role;
+    const normalizedRole = String(rawRole || '')
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+    const isSuperAdmin =
+      normalizedRole === 'SUPER_ADMIN' ||
+      normalizedRole === 'SUPERADMIN' ||
+      normalizedRole.includes('SUPER_ADMIN') ||
+      normalizedRole.includes('SUPERADMIN') ||
+      normalizedRole === 'ADMIN';
+
     let userCategory: 'D1' | 'D2' | null = normalizeDispatchCategory(category);
     if (!userCategory) {
-      const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
       if (normalizedRole === 'DISPATCH_1') {
         userCategory = 'D1';
       } else if (normalizedRole === 'DISPATCH_2') {
@@ -2372,43 +2398,7 @@ export class DispatchService {
       soWhereStatus = { in: ['READY_FOR_DISPATCH', 'COMPLETED'] };
     } else if (isD2User) {
       soWhereStatus = { notIn: ['CANCELLED', 'LOST', 'DRAFT'] };
-      soWhereExtra = {
-        items: {
-          some: {
-            OR: [
-              { product: { isTrading: true } },
-              { product: { productType: 'TRADING' } },
-              { product: { dispatchCategory: { in: ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'Category 2', 'CAT 2', 'CAT_2', '2', 'cat 2'] } } },
-              { product: { category: { in: ['COVERBLOCK', 'COVER BLOCK', 'FRC COVER', 'FRC COVERS', 'RCC PIPE', 'TRADING', 'MOULDED'] } } },
-              { product: { category: { contains: 'COVERBLOCK', mode: 'insensitive' } } },
-              { product: { category: { contains: 'FRC', mode: 'insensitive' } } },
-              { product: { category: { contains: 'TRADING', mode: 'insensitive' } } },
-              { product: { category: { contains: 'PIPE', mode: 'insensitive' } } },
-              { product: { category: { contains: 'MOULDED', mode: 'insensitive' } } },
-              { product: { name: { contains: 'COVERBLOCK', mode: 'insensitive' } } },
-              { product: { name: { contains: 'COVER BLOCK', mode: 'insensitive' } } },
-              { product: { name: { contains: 'FRC', mode: 'insensitive' } } },
-              { product: { name: { contains: 'MOULDED', mode: 'insensitive' } } },
-              { product: { sku: { contains: 'CB', mode: 'insensitive' } } },
-              { product: { sku: { contains: 'FRC', mode: 'insensitive' } } },
-              { productNameSnapshot: { contains: 'COVERBLOCK', mode: 'insensitive' } },
-              { productNameSnapshot: { contains: 'COVER BLOCK', mode: 'insensitive' } },
-              { productNameSnapshot: { contains: 'FRC', mode: 'insensitive' } },
-              { productNameSnapshot: { contains: 'TRADING', mode: 'insensitive' } },
-              { productNameSnapshot: { contains: 'MOULDED', mode: 'insensitive' } },
-              { productCodeSnapshot: { contains: 'CB', mode: 'insensitive' } },
-              { productCodeSnapshot: { contains: 'FRC', mode: 'insensitive' } },
-              { productCodeSnapshot: { contains: 'RCC', mode: 'insensitive' } },
-              { productCodeSnapshot: { contains: 'BTCB', mode: 'insensitive' } },
-              { productCodeSnapshot: { contains: 'WCB', mode: 'insensitive' } },
-              { productCodeSnapshot: { contains: 'PCB', mode: 'insensitive' } },
-              { productCodeSnapshot: { contains: 'HTCB', mode: 'insensitive' } },
-              { productCodeSnapshot: { contains: 'DTCB', mode: 'insensitive' } },
-              { productCodeSnapshot: { contains: 'MCB', mode: 'insensitive' } },
-            ],
-          },
-        },
-      };
+      soWhereExtra = {};
     }
 
     const workOrderTenantScope = this.getWorkOrderTenantScope(companyId);
@@ -2616,7 +2606,7 @@ export class DispatchService {
             where: {
               status: soWhereStatus,
               deletedAt: null,
-              ...(companyId ? { customer: { companyId } } : {}),
+              ...(companyId && !isSuperAdmin ? { customer: { companyId } } : {}),
               ...soWhereExtra,
             },
             select: {

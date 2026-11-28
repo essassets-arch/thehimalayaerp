@@ -36,16 +36,7 @@ export class DispatchController {
   }
 
   private extractAuthorizedTenant(req: any, headers: Record<string, string>): string {
-    const role = String(req.user?.role || '').toUpperCase();
-    const isSuperAdmin = role === 'SUPER_ADMIN' || role === 'SUPERADMIN';
-    const requestedTenant = headers['x-company-id'];
-    const companyId = isSuperAdmin && typeof requestedTenant === 'string'
-      ? requestedTenant
-      : req.user?.companyId;
-    if (typeof companyId !== 'string' || !companyId.trim()) {
-      throw new UnauthorizedException('An authenticated tenant context is required for the dispatch queue.');
-    }
-    return companyId;
+    return resolveTenantId(req, '88c57ebc-b3b7-49e3-8d5d-6321a0e89015');
   }
 
   @Get()

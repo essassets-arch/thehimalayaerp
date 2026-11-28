@@ -155,4 +155,56 @@ describe('DispatchService queue tenant isolation', () => {
     expect(result.data).toHaveLength(1);
     expect(result.pagination).toEqual({ page: 2, limit: 25, total: 451, totalPages: 19 });
   });
+
+  it('returns trading products sales orders in Dispatch 2 queue for confirmed or active orders', async () => {
+    const tradingSalesOrder = {
+      id: 'so-trading-1',
+      orderNumber: 'SO-TRADING-2026-001',
+      status: 'CONFIRMED',
+      orderDate: new Date('2026-11-20T10:00:00Z'),
+      createdAt: new Date('2026-11-20T10:00:00Z'),
+      requestedDeliveryDate: new Date('2026-11-25T10:00:00Z'),
+      freightAmount: 0,
+      customer: { companyName: 'Trading Client Ltd', phone: '9876543210' },
+      salesExecutive: { id: 'sales-1', name: 'Sales Exec', email: 'sales1@himalayaerp.com' },
+      items: [
+        {
+          id: 'soi-trading-1',
+          productId: 'prod-trading-1',
+          orderedQuantity: 50,
+          unit: 'PCS',
+          productCodeSnapshot: 'WCB-40MM',
+          productNameSnapshot: 'Wire Cover Block 40MM',
+          product: {
+            id: 'prod-trading-1',
+            name: 'Wire Cover Block 40MM',
+            sku: 'WCB-40MM',
+            category: 'COVERBLOCK',
+            isTrading: true,
+            dispatchCategory: 'D2',
+            unit: 'PCS',
+          },
+          workOrders: [],
+        },
+      ],
+      productionPlans: [],
+    };
+
+    const service = new DispatchService({
+      salesOrderAllocation: { findMany: jest.fn().mockResolvedValue([]) },
+      workOrder: { findMany: jest.fn().mockResolvedValue([]) },
+      finishedGoods: { findMany: jest.fn().mockResolvedValue([]) },
+      salesOrder: { findMany: jest.fn().mockResolvedValue([tradingSalesOrder]) },
+      dispatchItem: { groupBy: jest.fn().mockResolvedValue([]) },
+    } as any, {} as any, {} as any, {} as any);
+
+    const queue: any = await service.getDispatchQueue('u-sahad', 'DISPATCH_2', 'tenant-a', 'D2');
+    expect(Array.isArray(queue)).toBe(true);
+    expect(queue).toHaveLength(1);
+    expect(queue[0].salesOrderId).toBe('so-trading-1');
+    expect(queue[0].items[0].productName).toBe('Wire Cover Block 40MM');
+    expect(queue[0].items[0].dispatchCategory).toBe('D2');
+    expect(queue[0].items[0].isTrading).toBe(true);
+    expect(queue[0].items[0].remainingQuantity).toBe(50);
+  });
 });

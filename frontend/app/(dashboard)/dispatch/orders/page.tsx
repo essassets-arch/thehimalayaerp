@@ -123,6 +123,7 @@ export interface UnifiedPendingDispatchItem {
   id: string;
   itemType: "WORK_ORDER" | "TRADING_SALES_ORDER";
   orderNumber: string;
+  orderDate?: string;
   customerName: string;
   salesPersonName?: string;
   projectName?: string;
@@ -1138,7 +1139,7 @@ export default function DispatchOrdersPage() {
         );
 
         // Strict Workflow Guard: If manufacturing order is in production or plant approval, NEVER show in dispatch
-        if (!isTrading && !isDispatch2 && currentCategory !== "D2") {
+        if (!isTrading && !isDispatch2) {
           if ([
             "SENT_TO_PLANT", "SENT_TO_PLANT_HEAD", "PLANT_PENDING",
             "PLANT_APPROVED", "PLANT_HEAD_ACCEPTED", "PRODUCTION_PLANNED",
@@ -1685,7 +1686,7 @@ export default function DispatchOrdersPage() {
 
       let matchCategory = false;
       if (currentCategory === "D2") {
-        matchCategory = productCat === "D2" || productCat === "DISPATCH 2" || productCat === "DISPATCH_2" || productCat === "CATEGORY 2" || productCat === "CAT 2";
+        matchCategory = isDispatch2 || productCat === "D2" || productCat === "DISPATCH 2" || productCat === "DISPATCH_2" || productCat === "CATEGORY 2" || productCat === "CAT 2" || isTradingProduct(item, productsMap);
       } else {
         matchCategory = productCat === "D1" || productCat === "DISPATCH 1" || productCat === "DISPATCH_1" || productCat === "CATEGORY 1" || productCat === "CAT 1";
       }
