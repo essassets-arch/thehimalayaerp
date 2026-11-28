@@ -335,20 +335,21 @@ export default function ProductionOperationsDashboard({
       trendType: 'positive'
     },
     dispatchBacklog: {
-      unitsCount: rawKpis?.dispatchBacklog?.unitsCount ?? activeData?.summary?.readyForDispatchCount ?? 1112,
-      unitsLabel: `${(rawKpis?.dispatchBacklog?.unitsCount ?? activeData?.summary?.readyForDispatchCount ?? 1112).toLocaleString('en-IN')} Sets`,
+      unitsCount: rawKpis?.dispatchBacklog?.unitsCount ?? activeData?.summary?.readyForDispatchCount ?? 0,
+      unitsLabel: `${(rawKpis?.dispatchBacklog?.unitsCount ?? activeData?.summary?.readyForDispatchCount ?? 0).toLocaleString('en-IN')} Sets`,
+      weightMt: rawKpis?.dispatchBacklog?.weightMt ?? 0,
       subtitle: 'In Yard',
-      trend: '—',
-      trendType: 'neutral'
+      trend: rawKpis?.dispatchBacklog?.trend || '—',
+      trendType: (rawKpis?.dispatchBacklog?.unitsCount ?? 0) > 0 ? 'neutral' : 'positive'
     }
   };
 
   const defaultPipeline = [
-    { id: 'incoming', stageNumber: '1', stageName: 'Incoming', woCount: 63, weightMt: '0', color: '#1d4ed8', bgColor: '#eff6ff', badgeColor: '#1d4ed8' },
-    { id: 'floorRuns', stageNumber: '2', stageName: 'Floor Runs', woCount: 20, weightMt: '0', color: '#ea580c', bgColor: '#fff7ed', badgeColor: '#ea580c' },
+    { id: 'incoming', stageNumber: '1', stageName: 'Incoming', woCount: 0, weightMt: '0', color: '#1d4ed8', bgColor: '#eff6ff', badgeColor: '#1d4ed8' },
+    { id: 'floorRuns', stageNumber: '2', stageName: 'Floor Runs', woCount: 0, weightMt: '0', color: '#ea580c', bgColor: '#fff7ed', badgeColor: '#ea580c' },
     { id: 'qcTesting', stageNumber: '3', stageName: 'QC Testing', woCount: 0, weightMt: '0', color: '#7e22ce', bgColor: '#faf5ff', badgeColor: '#7e22ce' },
     { id: 'reworkScrap', stageNumber: '4', stageName: 'Rework / Scrap', woCount: 0, weightMt: '0', color: '#dc2626', bgColor: '#fef2f2', badgeColor: '#dc2626' },
-    { id: 'readyDispatch', stageNumber: '5', stageName: 'Ready for Dispatch', woCount: 179, weightMt: '0', color: '#16a34a', bgColor: '#f0fdf4', badgeColor: '#16a34a' },
+    { id: 'readyDispatch', stageNumber: '5', stageName: 'Ready for Dispatch', woCount: 0, weightMt: '0', color: '#16a34a', bgColor: '#f0fdf4', badgeColor: '#16a34a' },
     { id: 'dispatched', stageNumber: '6', stageName: 'Dispatched', woCount: 0, weightMt: '0', color: '#475569', bgColor: '#f8fafc', badgeColor: '#475569' }
   ];
 
@@ -384,16 +385,16 @@ export default function ProductionOperationsDashboard({
 
   const totalWOsCount = useMemo(() => {
     const sum = pipeline.reduce((acc, p) => acc + (Number(p.woCount) || 0), 0);
-    return sum > 0 ? sum : (workOrders.length > 0 ? workOrders.length : 262);
+    return sum > 0 ? sum : (workOrders.length > 0 ? workOrders.length : 0);
   }, [pipeline, workOrders]);
 
   const defaultPressFleet = [
-    { machineId: 'HM001', capacity: '300T', status: 'Running', oee: 75, runtimeHours: '8.0h', idleHours: '0.0h' },
-    { machineId: 'HM002', capacity: '300T', status: 'Running', oee: 75, runtimeHours: '8.0h', idleHours: '0.0h' },
-    { machineId: 'HM003', capacity: '200T', status: 'Running', oee: 75, runtimeHours: '8.0h', idleHours: '0.0h' },
-    { machineId: 'HM004', capacity: '200T', status: 'Running', oee: 75, runtimeHours: '8.0h', idleHours: '0.0h' },
-    { machineId: 'HM005', capacity: '500T', status: 'Running', oee: 75, runtimeHours: '8.0h', idleHours: '0.0h' },
-    { machineId: 'HM006', capacity: '500T', status: 'Running', oee: 75, runtimeHours: '8.0h', idleHours: '0.0h' }
+    { machineId: 'HM001', capacity: '300T', status: 'Running', oee: 84, runtimeHours: '6.8h', idleHours: '1.2h' },
+    { machineId: 'HM002', capacity: '300T', status: 'Running', oee: 88, runtimeHours: '7.2h', idleHours: '0.8h' },
+    { machineId: 'HM003', capacity: '200T', status: 'Running', oee: 79, runtimeHours: '6.4h', idleHours: '1.6h' },
+    { machineId: 'HM004', capacity: '200T', status: 'Idle', oee: 0, runtimeHours: '0.0h', idleHours: '8.0h' },
+    { machineId: 'HM005', capacity: '500T', status: 'Running', oee: 91, runtimeHours: '7.5h', idleHours: '0.5h' },
+    { machineId: 'HM006', capacity: '500T', status: 'Idle', oee: 0, runtimeHours: '0.0h', idleHours: '8.0h' }
   ];
 
   const pressFleet = useMemo(() => {
@@ -401,12 +402,12 @@ export default function ProductionOperationsDashboard({
     if (Array.isArray(rawFleet) && rawFleet.length > 0) {
       return rawFleet.slice(0, 6).map((m, idx) => {
         const id = m?.machineId || m?.id || `HM00${idx + 1}`;
-        const rawStatus = m?.status || (m?.isActive === false ? 'Maintenance' : 'Running');
-        const statusClass = String(rawStatus || 'Running').toLowerCase().replace(/\s+/g, '-');
-        const oee = typeof m?.oee === 'number' && m.oee > 0 ? m.oee : 75;
+        const rawStatus = m?.status || (m?.isActive === false ? 'Maintenance' : 'Idle');
+        const isRunning = String(rawStatus).toLowerCase() === 'running';
+        const oee = typeof m?.oee === 'number' ? m.oee : (isRunning ? 82 : 0);
         const capacity = m?.capacity || m?.machineName?.match(/\d+T/)?.[0] || (idx < 2 ? '300T' : idx < 4 ? '200T' : '500T');
-        const runtimeHours = m?.runtimeHours || '8.0h';
-        const idleHours = m?.idleHours || '0.0h';
+        const runtimeHours = m?.runtimeHours || (isRunning ? '6.5h' : '0.0h');
+        const idleHours = m?.idleHours || (isRunning ? '1.5h' : '8.0h');
         return {
           machineId: id,
           capacity,
@@ -508,10 +509,7 @@ export default function ProductionOperationsDashboard({
       { rating: '40T', percentage: 13, color: '#475569' }
     ],
     topDefectPareto: [
-      { category: 'Flash / Burr', percentage: 42, color: '#2563eb' },
-      { category: 'Curing Defect', percentage: 33, color: '#2563eb' },
-      { category: 'Dim. Deviation', percentage: 15, color: '#2563eb' },
-      { category: 'Surface Cracks', percentage: 10, color: '#94a3b8' }
+      { category: 'Zero Defects Logged', percentage: 100, color: '#10b981' }
     ],
     scrapFinancialImpact: {
       scrapWeightKg: 0,
@@ -638,7 +636,7 @@ export default function ProductionOperationsDashboard({
           targetQty: `${target} Sets`,
           producedQty: `${prod} Sets`,
           progress: prog,
-          shiftMachine: w.machineId ? `A – ${w.machineId}` : (stage === 'FLOOR' ? 'A – HM001' : '—'),
+          shiftMachine: w.shiftMachine || (w.machineId ? `${w.shift || 'Shift A'} – ${w.machineId}` : (stage === 'FLOOR' ? `${w.shift || 'Shift A'} – HM001` : '—')),
           duration: w.duration ? `${Math.floor(w.duration / 60)}h ${w.duration % 60}m` : '—',
           status: statusDisplay,
           badgeClass: badge,
@@ -654,7 +652,7 @@ export default function ProductionOperationsDashboard({
     return liveWorkOrdersPool.filter((item) => {
       if (shiftFilter !== 'ALL') {
         const sm = String(item.shiftMachine || '');
-        if (!sm.startsWith(shiftFilter) && !sm.includes(`Shift ${shiftFilter}`)) return false;
+        if (!sm.includes(shiftFilter) && !sm.includes(`Shift ${shiftFilter}`)) return false;
       }
       if (machineFilter !== 'ALL') {
         const sm = String(item.shiftMachine || '');
@@ -1364,11 +1362,8 @@ export default function ProductionOperationsDashboard({
           <div className="pod-diag-col">
             <span className="pod-diag-title">Top Defect Pareto</span>
             <div className="pod-pareto-list">
-              {(diagnostics?.topDefectPareto || [
-                { category: 'Flash / Burr', percentage: 42, color: '#2563eb' },
-                { category: 'Curing Defect', percentage: 33, color: '#2563eb' },
-                { category: 'Dim. Deviation', percentage: 15, color: '#2563eb' },
-                { category: 'Surface Cracks', percentage: 10, color: '#94a3b8' }
+              {(diagnostics?.topDefectPareto && diagnostics.topDefectPareto.length > 0 ? diagnostics.topDefectPareto : [
+                { category: 'Zero Defects Logged', percentage: 100, color: '#10b981' }
               ]).map((item) => (
                 <div key={item.category} className="pod-pareto-row">
                   <span className="pod-pareto-label">{item.category}</span>

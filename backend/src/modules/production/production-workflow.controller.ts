@@ -110,7 +110,16 @@ export class ProductionWorkflowController {
     'superadmin.read',
     'super_admin',
   )
-  async getDashboard(@Query() query: any, @Req() req: any) {
+  async getDashboard(
+    @Query() query: any,
+    @Req() req: any,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    });
     return this.workflowService.getGlobalSummaryReport(query, req?.user?.companyId);
   }
 
@@ -132,7 +141,16 @@ export class ProductionWorkflowController {
     'superadmin.read',
     'super_admin',
   )
-  async getDashboardWorkflowAlias(@Query() query: any, @Req() req: any) {
+  async getDashboardWorkflowAlias(
+    @Query() query: any,
+    @Req() req: any,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    });
     return this.workflowService.getGlobalSummaryReport(query, req?.user?.companyId);
   }
 
@@ -154,7 +172,16 @@ export class ProductionWorkflowController {
     'superadmin.read',
     'super_admin',
   )
-  async getReportsSummary(@Query() query: any, @Req() req: any) {
+  async getReportsSummary(
+    @Query() query: any,
+    @Req() req: any,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    });
     return this.workflowService.getGlobalSummaryReport(query, req?.user?.companyId);
   }
 
