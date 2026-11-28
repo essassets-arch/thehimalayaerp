@@ -1388,7 +1388,17 @@ export class ProductionWorkflowService {
       this.prisma.workOrder.findMany({
         where: whereWorkOrder,
         include: {
-          salesOrderItem: { include: { product: true } },
+          salesOrderItem: {
+            include: {
+              product: true,
+              salesOrder: {
+                include: {
+                  customer: true,
+                  items: { include: { product: true } },
+                },
+              },
+            },
+          },
           productionPlan: {
             include: {
               salesOrder: {
@@ -1664,6 +1674,91 @@ export class ProductionWorkflowService {
 
     const dispatchModuleCount = (completedDispatches || []).length;
     const doneCount = Math.max(rawDoneJobs.length, dispatchModuleCount);
+
+    // Authoritative Sales Order identification and grouping
+    const getWorkOrderSalesOrder = (w: any) => {
+      const so = w.productionPlan?.salesOrder || w.salesOrderItem?.salesOrder || (w.salesOrder ? w.salesOrder : null);
+      const orderNo = so?.orderNumber || w.orderNo || w.orderNumber || (w.productionPlanId ? `PLAN-${String(w.productionPlanId).slice(0, 8)}` : null) || w.workOrderNumber || '—';
+      const customerName = so?.customer?.companyName || so?.customer?.name || w.customer || 'Valued Client';
+      const soId = so?.id || w.salesOrderItem?.salesOrderId || w.productionPlan?.salesOrderId || orderNo;
+      return { soId, orderNo, customerName, so };
+    };
+
+    const groupBySalesOrder = (items: any[], stageName: string) => {
+      const soMap = new Map<string, any>();
+      for (const item of items) {
+        const { soId, orderNo, customerName, so } = getWorkOrderSalesOrder(item);
+        const key = orderNo !== '—' ? orderNo : soId;
+        const prod = item.salesOrderItem?.product || item.productObj || item.productionPlan?.salesOrder?.items?.[0]?.product;
+        const uWeight = resolveWorkOrderUnitWeight(item, prod);
+        const qty = toNumber(item.quantity) || 1;
+        const itemWeightKg = qty * uWeight;
+
+        if (!soMap.has(key)) {
+          soMap.set(key, {
+            id: key,
+            salesOrderId: soId,
+            orderNumber: orderNo,
+            orderNo: orderNo,
+            customer: customerName,
+            customerName: customerName,
+            stage: stageName,
+            status: item.status || stageName,
+            totalSets: 0,
+            quantity: 0,
+            weightKg: 0,
+            weightMt: 0,
+            workOrdersCount: 0,
+            workOrderNumbers: [] as string[],
+            products: new Set<string>(),
+            targetDate: item.targetDate || (so?.requestedDeliveryDate ? new Date(so.requestedDeliveryDate).toISOString().slice(0, 10) : '—'),
+            createdAt: item.createdAt || (so?.createdAt ? new Date(so.createdAt).toISOString().slice(0, 10) : '—'),
+          });
+        }
+
+        const agg = soMap.get(key);
+        agg.totalSets += qty;
+        agg.quantity += qty;
+        agg.weightKg += itemWeightKg;
+        agg.workOrdersCount += 1;
+        if (item.workOrderNo || item.workOrderNumber) {
+          agg.workOrderNumbers.push(item.workOrderNo || item.workOrderNumber);
+        }
+        const prodName = prod?.name || item.product || item.productName || 'FRP Product';
+        if (prodName) agg.products.add(prodName);
+      }
+
+      return Array.from(soMap.values()).map((so: any) => ({
+        ...so,
+        weightMt: Number((so.weightKg / 1000).toFixed(1)),
+        product: Array.from(so.products as Set<string>).join(', ') || 'FRP Composite Products',
+        workOrderList: so.workOrderNumbers.join(', '),
+      }));
+    };
+
+    const incomingSalesOrders = groupBySalesOrder(allIncoming, 'INCOMING');
+    const floorSalesOrders = groupBySalesOrder(rawFloorRuns, 'FLOOR');
+    const qcSalesOrders = groupBySalesOrder(rawQcQueue, 'QC_PENDING');
+    const reworkSalesOrders = groupBySalesOrder(rawQcFailed, 'QC_FAILED');
+    const readyDispatchSalesOrders = groupBySalesOrder(rawReadyForDispatch, 'READY_FOR_DISPATCH');
+    const dispatchedSalesOrders = groupBySalesOrder(rawDoneJobs, 'DISPATCHED');
+
+    const incomingSoCount = incomingSalesOrders.length;
+    const floorSoCount = floorSalesOrders.length;
+    const qcPendingSoCount = qcSalesOrders.length;
+    const qcFailedSoCount = reworkSalesOrders.length;
+    const readyDispatchSoCount = readyDispatchSalesOrders.length;
+    const dispatchedSoCount = Math.max(dispatchedSalesOrders.length, (completedDispatches || []).length);
+    const totalSalesOrdersCount = incomingSoCount + floorSoCount + qcPendingSoCount + qcFailedSoCount + readyDispatchSoCount + dispatchedSoCount;
+
+    const allPipelineSalesOrders = [
+      ...floorSalesOrders,
+      ...qcSalesOrders,
+      ...reworkSalesOrders,
+      ...readyDispatchSalesOrders,
+      ...incomingSalesOrders,
+      ...dispatchedSalesOrders,
+    ];
 
     // Authoritative counts computed on accurate datasets
     const incomingOrdersCount = allIncoming.length;
@@ -2520,14 +2615,68 @@ export class ProductionWorkflowService {
       scrapFinancialImpact,
     };
 
-    // 5. Authoritative Pipeline dynamically computed from live database work orders
+    // 5. Authoritative Pipeline dynamically computed from live database (both Sales Orders and Work Orders)
     const manufacturingPipeline = [
-      { id: 'incoming', stageNumber: '01', stageName: 'Incoming', woCount: incomingOrdersCount, weightMt: liveIncomingMt, color: '#334155' },
-      { id: 'floorRuns', stageNumber: '02', stageName: 'Floor Runs', woCount: inProgress, weightMt: liveFloorRunsMt, color: '#1d68ed' },
-      { id: 'qcTesting', stageNumber: '03', stageName: 'QC Testing', woCount: qcPending, weightMt: liveQcTestingMt, color: '#f59e0b' },
-      { id: 'reworkScrap', stageNumber: '04', stageName: 'Rework / Scrap', woCount: qcFailed, weightMt: liveReworkMt, color: '#ef4444' },
-      { id: 'readyDispatch', stageNumber: '05', stageName: 'Ready for Dispatch', woCount: readyForDispatchCount, weightMt: liveReadyDispatchMt, color: '#10b981' },
-      { id: 'dispatched', stageNumber: '06', stageName: 'Dispatched', woCount: doneCount, weightMt: liveDispatchedMt, color: '#475569' },
+      {
+        id: 'incoming',
+        stageNumber: '01',
+        stageName: 'Incoming',
+        orderCount: incomingSoCount,
+        soCount: incomingSoCount,
+        woCount: incomingOrdersCount,
+        weightMt: liveIncomingMt,
+        color: '#334155',
+      },
+      {
+        id: 'floorRuns',
+        stageNumber: '02',
+        stageName: 'Floor Runs',
+        orderCount: floorSoCount,
+        soCount: floorSoCount,
+        woCount: inProgress,
+        weightMt: liveFloorRunsMt,
+        color: '#1d68ed',
+      },
+      {
+        id: 'qcTesting',
+        stageNumber: '03',
+        stageName: 'QC Testing',
+        orderCount: qcPendingSoCount,
+        soCount: qcPendingSoCount,
+        woCount: qcPending,
+        weightMt: liveQcTestingMt,
+        color: '#f59e0b',
+      },
+      {
+        id: 'reworkScrap',
+        stageNumber: '04',
+        stageName: 'Rework / Scrap',
+        orderCount: qcFailedSoCount,
+        soCount: qcFailedSoCount,
+        woCount: qcFailed,
+        weightMt: liveReworkMt,
+        color: '#ef4444',
+      },
+      {
+        id: 'readyDispatch',
+        stageNumber: '05',
+        stageName: 'Ready for Dispatch',
+        orderCount: readyDispatchSoCount,
+        soCount: readyDispatchSoCount,
+        woCount: readyForDispatchCount,
+        weightMt: liveReadyDispatchMt,
+        color: '#10b981',
+      },
+      {
+        id: 'dispatched',
+        stageNumber: '06',
+        stageName: 'Dispatched',
+        orderCount: dispatchedSoCount,
+        soCount: dispatchedSoCount,
+        woCount: doneCount,
+        weightMt: liveDispatchedMt,
+        color: '#475569',
+      },
     ];
 
     // 6. Executive KPIs dynamically derived from live database
@@ -2834,6 +2983,8 @@ export class ProductionWorkflowService {
       id: mp.id,
       stageNumber: mp.stageNumber,
       stageName: mp.stageName,
+      orderCount: mp.orderCount,
+      soCount: mp.soCount,
       woCount: mp.woCount,
       weightMt: mp.weightMt,
       color: mp.color,
@@ -2895,6 +3046,15 @@ export class ProductionWorkflowService {
         dispatchedCount: doneCount,
         totalOrders,
         totalWorkOrders: totalOrders,
+        totalSalesOrders: totalSalesOrdersCount,
+        totalSalesOrdersCount,
+        salesOrdersCount: totalSalesOrdersCount,
+        incomingSalesOrdersCount: incomingSoCount,
+        floorSalesOrdersCount: floorSoCount,
+        qcPendingSalesOrdersCount: qcPendingSoCount,
+        qcFailedSalesOrdersCount: qcFailedSoCount,
+        readyDispatchSalesOrdersCount: readyDispatchSoCount,
+        dispatchedSalesOrdersCount: dispatchedSoCount,
         completed,
         completedWorkOrders: completed,
         inProgress,
@@ -2970,6 +3130,9 @@ export class ProductionWorkflowService {
       reportingPeriod: reportingPeriodLabel,
       reportingPeriodLabel,
       manufacturingPipeline,
+      totalSalesOrders: totalSalesOrdersCount,
+      totalOrdersCount: totalSalesOrdersCount,
+      pipelineSalesOrders: allPipelineSalesOrders,
       productionTrendMonthly,
       allWorkOrders: referenceActiveWorkOrders,
       shiftWiseProductionSummary: {
@@ -3250,7 +3413,17 @@ export class ProductionWorkflowService {
       let workOrder = await tx.workOrder.findUnique({
         where: { id: workOrderId },
         include: {
-          salesOrderItem: { include: { product: true } },
+          salesOrderItem: {
+            include: {
+              product: true,
+              salesOrder: {
+                include: {
+                  customer: true,
+                  items: { include: { product: true } },
+                },
+              },
+            },
+          },
           productionPlan: {
             include: {
               salesOrder: {
@@ -3272,7 +3445,17 @@ export class ProductionWorkflowService {
             ],
           },
           include: {
-            salesOrderItem: { include: { product: true } },
+            salesOrderItem: {
+            include: {
+              product: true,
+              salesOrder: {
+                include: {
+                  customer: true,
+                  items: { include: { product: true } },
+                },
+              },
+            },
+          },
             productionPlan: {
               include: {
                 salesOrder: {

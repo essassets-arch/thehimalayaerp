@@ -79,6 +79,7 @@ export default function ProductionOperationsDashboard({
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [searchQuery, setSearchQuery] = useState('');
   const [activeStageFilter, setActiveStageFilter] = useState('ALL'); // 'ALL' | 'FLOOR' | 'QC_PENDING' ...
+  const [pipelineMetricMode, setPipelineMetricMode] = useState('SO'); // 'SO' (Sales Orders) | 'WO' (Work Orders)
   const [showAllLiveOrders, setShowAllLiveOrders] = useState(false);
 
   // Action Modals
@@ -346,12 +347,12 @@ export default function ProductionOperationsDashboard({
   };
 
   const defaultPipeline = [
-    { id: 'incoming', stageNumber: '1', stageName: 'Incoming', woCount: 0, weightMt: '0', color: '#1d4ed8', bgColor: '#eff6ff', badgeColor: '#1d4ed8' },
-    { id: 'floorRuns', stageNumber: '2', stageName: 'Floor Runs', woCount: 0, weightMt: '0', color: '#ea580c', bgColor: '#fff7ed', badgeColor: '#ea580c' },
-    { id: 'qcTesting', stageNumber: '3', stageName: 'QC Testing', woCount: 0, weightMt: '0', color: '#7e22ce', bgColor: '#faf5ff', badgeColor: '#7e22ce' },
-    { id: 'reworkScrap', stageNumber: '4', stageName: 'Rework / Scrap', woCount: 0, weightMt: '0', color: '#dc2626', bgColor: '#fef2f2', badgeColor: '#dc2626' },
-    { id: 'readyDispatch', stageNumber: '5', stageName: 'Ready for Dispatch', woCount: 0, weightMt: '0', color: '#16a34a', bgColor: '#f0fdf4', badgeColor: '#16a34a' },
-    { id: 'dispatched', stageNumber: '6', stageName: 'Dispatched', woCount: 0, weightMt: '0', color: '#475569', bgColor: '#f8fafc', badgeColor: '#475569' }
+    { id: 'incoming', stageNumber: '1', stageName: 'Incoming', orderCount: 0, soCount: 0, woCount: 0, weightMt: '0', color: '#1d4ed8', bgColor: '#eff6ff', badgeColor: '#1d4ed8' },
+    { id: 'floorRuns', stageNumber: '2', stageName: 'Floor Runs', orderCount: 0, soCount: 0, woCount: 0, weightMt: '0', color: '#ea580c', bgColor: '#fff7ed', badgeColor: '#ea580c' },
+    { id: 'qcTesting', stageNumber: '3', stageName: 'QC Testing', orderCount: 0, soCount: 0, woCount: 0, weightMt: '0', color: '#7e22ce', bgColor: '#faf5ff', badgeColor: '#7e22ce' },
+    { id: 'reworkScrap', stageNumber: '4', stageName: 'Rework / Scrap', orderCount: 0, soCount: 0, woCount: 0, weightMt: '0', color: '#dc2626', bgColor: '#fef2f2', badgeColor: '#dc2626' },
+    { id: 'readyDispatch', stageNumber: '5', stageName: 'Ready for Dispatch', orderCount: 0, soCount: 0, woCount: 0, weightMt: '0', color: '#16a34a', bgColor: '#f0fdf4', badgeColor: '#16a34a' },
+    { id: 'dispatched', stageNumber: '6', stageName: 'Dispatched', orderCount: 0, soCount: 0, woCount: 0, weightMt: '0', color: '#475569', bgColor: '#f8fafc', badgeColor: '#475569' }
   ];
 
   const pipeline = useMemo(() => {
@@ -369,10 +370,13 @@ export default function ProductionOperationsDashboard({
         const meta = stageMeta.find(m => m.id === st.id) || stageMeta[idx] || stageMeta[0];
         const rawWeight = st.weightMt !== undefined && st.weightMt !== null ? String(st.weightMt) : '0';
         const cleanWeightNum = rawWeight.replace(/\s*MT\s*/gi, '').trim() || '0';
+        const ordCount = Number(st.orderCount ?? st.soCount ?? (st.woCount ? Math.max(1, Math.round(st.woCount / 3)) : 0));
         return {
           id: st.id || meta.id,
           stageNumber: String(idx + 1),
           stageName: st.stageName || meta.defaultName,
+          orderCount: ordCount,
+          soCount: ordCount,
           woCount: Number(st.woCount ?? 0),
           weightMt: Number(cleanWeightNum || 0).toFixed(1),
           color: meta.color,
@@ -388,6 +392,13 @@ export default function ProductionOperationsDashboard({
     const sum = pipeline.reduce((acc, p) => acc + (Number(p.woCount) || 0), 0);
     return sum > 0 ? sum : (workOrders.length > 0 ? workOrders.length : 0);
   }, [pipeline, workOrders]);
+
+  const totalOrdersCount = useMemo(() => {
+    if (activeData?.summary?.totalSalesOrders) return Number(activeData.summary.totalSalesOrders);
+    if (activeData?.totalSalesOrders) return Number(activeData.totalSalesOrders);
+    const sum = pipeline.reduce((acc, p) => acc + (Number(p.orderCount || p.soCount) || 0), 0);
+    return sum > 0 ? sum : (workOrders.length > 0 ? Math.max(1, Math.round(workOrders.length / 3)) : 0);
+  }, [pipeline, activeData, workOrders]);
 
   const defaultPressFleet = [
     { machineId: 'HM001', capacity: '300T', status: 'Running', oee: 84, runtimeHours: '6.8h', idleHours: '1.2h' },
@@ -707,6 +718,64 @@ export default function ProductionOperationsDashboard({
       return true;
     });
   }, [liveWorkOrdersPool, activeStageFilter, searchQuery, shiftFilter, machineFilter]);
+
+  // Grouped Sales Orders by Pipeline Stage (derived from backend or liveWorkOrdersPool)
+  const allPipelineSalesOrders = useMemo(() => {
+    if (Array.isArray(activeData?.pipelineSalesOrders) && activeData.pipelineSalesOrders.length > 0) {
+      return activeData.pipelineSalesOrders;
+    }
+    const soMap = new Map();
+    for (const w of liveWorkOrdersPool) {
+      const orderNo = w.orderNo && w.orderNo !== '—' ? w.orderNo : (w.salesOrderCustomer?.split(' – ')?.[0] || w.workOrderNo || w.id);
+      const cust = w.customer || 'Valued Client';
+      const stage = w.stage || 'INCOMING';
+      const key = `${orderNo}_${stage}`;
+      const qty = Number(w.actualQuantity || (typeof w.targetQty === 'string' ? w.targetQty.replace(/\D+/g, '') : w.targetQty) || w.plannedQuantity || 1);
+      const wtKg = Number(w.weightKg || 0);
+
+      if (!soMap.has(key)) {
+        soMap.set(key, {
+          id: key,
+          orderNo,
+          orderNumber: orderNo,
+          customer: cust,
+          customerName: cust,
+          stage,
+          quantity: 0,
+          totalSets: 0,
+          weightKg: 0,
+          weightMt: 0,
+          product: w.product || 'FRP Product',
+          targetDate: w.targetDate || '—',
+          workOrders: [],
+        });
+      }
+      const agg = soMap.get(key);
+      agg.quantity += qty;
+      agg.totalSets += qty;
+      agg.weightKg += wtKg;
+      if (w.workOrderNo) agg.workOrders.push(w.workOrderNo);
+    }
+    return Array.from(soMap.values()).map(o => ({
+      ...o,
+      weightMt: Number((o.weightKg / 1000).toFixed(1)),
+      workOrderList: o.workOrders.slice(0, 3).join(', ') + (o.workOrders.length > 3 ? ` +${o.workOrders.length - 3}` : ''),
+    }));
+  }, [activeData?.pipelineSalesOrders, liveWorkOrdersPool]);
+
+  const filteredStageOrders = useMemo(() => {
+    if (activeStageFilter === 'ALL') return allPipelineSalesOrders;
+    const stageMap = {
+      incoming: 'INCOMING',
+      floorRuns: 'FLOOR',
+      qcTesting: 'QC_PENDING',
+      reworkScrap: 'QC_FAILED',
+      readyDispatch: 'READY_FOR_DISPATCH',
+      dispatched: 'DISPATCHED',
+    };
+    const targetStage = stageMap[activeStageFilter] || activeStageFilter;
+    return allPipelineSalesOrders.filter(o => o.stage === targetStage || (targetStage === 'DISPATCHED' && o.stage === 'DONE'));
+  }, [allPipelineSalesOrders, activeStageFilter]);
 
   // Operational Action Handlers
   const handleLogShift = async (e) => {
@@ -1094,14 +1163,57 @@ export default function ProductionOperationsDashboard({
 
       {/* ─── 2. MANUFACTURING PIPELINE (FULL WIDTH) ─── */}
       <div className="pod-panel pod-pipeline-panel">
-        <div className="pod-panel-header">
+        <div className="pod-panel-header" style={{ flexWrap: 'wrap', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Share2 size={18} color="#2563eb" />
             <h2 className="pod-panel-title">Manufacturing Pipeline</h2>
           </div>
-          <span className="pod-pipeline-badge">
-            WO Progress: {totalWOsCount} Total WOs
-          </span>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* View Mode Toggle: Sales Orders (SO) vs Work Orders (WO) */}
+            <div style={{ display: 'inline-flex', background: '#f1f5f9', padding: '3px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+              <button
+                type="button"
+                onClick={() => setPipelineMetricMode('SO')}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  borderRadius: '4px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: pipelineMetricMode === 'SO' ? '#2563eb' : 'transparent',
+                  color: pipelineMetricMode === 'SO' ? '#ffffff' : '#64748b',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                Sales Orders (SO)
+              </button>
+              <button
+                type="button"
+                onClick={() => setPipelineMetricMode('WO')}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  borderRadius: '4px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: pipelineMetricMode === 'WO' ? '#2563eb' : 'transparent',
+                  color: pipelineMetricMode === 'WO' ? '#ffffff' : '#64748b',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                Work Orders (WO)
+              </button>
+            </div>
+
+            <span className="pod-pipeline-badge">
+              {pipelineMetricMode === 'SO'
+                ? `Orders Progress: ${totalOrdersCount} Total Orders`
+                : `WO Progress: ${totalWOsCount} Total WOs`}
+            </span>
+          </div>
         </div>
 
         {/* 6 Connected Chevron Process Pipeline */}
@@ -1109,25 +1221,86 @@ export default function ProductionOperationsDashboard({
           <div className="pod-pipeline-chevrons">
             {pipeline.map((stage) => {
               const isSelected = activeStageFilter === stage.id;
+              const countVal = pipelineMetricMode === 'SO' ? (stage.orderCount || stage.soCount || 0) : (stage.woCount || 0);
+              const countUnit = pipelineMetricMode === 'SO' ? 'Orders' : 'WOs';
               return (
                 <div
                   key={stage.id}
                   className={`pod-chevron-block ${stage.id} ${isSelected ? 'active' : ''}`}
                   onClick={() => setActiveStageFilter(isSelected ? 'ALL' : stage.id)}
-                  style={{ backgroundColor: stage.bgColor || '#f8fafc' }}
+                  style={{ backgroundColor: stage.bgColor || '#f8fafc', cursor: 'pointer' }}
+                  title={`Click to view ${stage.stageName} Sales Orders`}
                 >
                   <div className="pod-chevron-badge" style={{ backgroundColor: stage.badgeColor || stage.color || '#2563eb' }}>
                     {stage.stageNumber}
                   </div>
                   <div className="pod-chevron-content">
                     <span className="pod-chevron-title">{stage.stageName}</span>
-                    <span className="pod-chevron-metrics">{stage.woCount} WOs • {Number(String(stage.weightMt).replace(/\s*MT\s*/gi, '') || 0).toFixed(1)} MT</span>
+                    <span className="pod-chevron-metrics">{countVal} {countUnit} • {Number(String(stage.weightMt).replace(/\s*MT\s*/gi, '') || 0).toFixed(1)} MT</span>
                   </div>
                 </div>
               );
             })}
           </div>
         </div>
+
+        {/* Active Stage Sales Orders Details Drawer */}
+        {activeStageFilter !== 'ALL' && (
+          <div className="pod-stage-drawer" style={{ marginTop: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                  Stage: {pipeline.find(s => s.id === activeStageFilter)?.stageName || activeStageFilter}
+                </span>
+                <span style={{ fontSize: '11px', background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                  {filteredStageOrders.length} Sales Orders • {filteredStageOrders.reduce((sum, o) => sum + (Number(o.weightMt) || 0), 0).toFixed(1)} MT
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveStageFilter('ALL')}
+                style={{ fontSize: '11px', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Clear Stage Filter ✕
+              </button>
+            </div>
+
+            {filteredStageOrders.length > 0 ? (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="pod-shift-table" style={{ width: '100%', fontSize: '12px' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left' }}>Sales Order #</th>
+                      <th style={{ textAlign: 'left' }}>Customer</th>
+                      <th style={{ textAlign: 'left' }}>Product / Specification</th>
+                      <th style={{ textAlign: 'right' }}>Sets</th>
+                      <th style={{ textAlign: 'right' }}>Weight (MT)</th>
+                      <th style={{ textAlign: 'left' }}>Linked Work Orders</th>
+                      <th style={{ textAlign: 'center' }}>Target Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStageOrders.slice(0, 50).map((so, idx) => (
+                      <tr key={so.id || idx}>
+                        <td style={{ fontWeight: 600, color: '#2563eb' }}>{so.orderNo || so.orderNumber}</td>
+                        <td style={{ color: '#0f172a' }}>{so.customer || so.customerName}</td>
+                        <td style={{ color: '#475569' }}>{so.product}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{(so.totalSets || so.quantity || 0).toLocaleString()} Sets</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, color: '#059669' }}>{Number(so.weightMt || 0).toFixed(1)} MT</td>
+                        <td style={{ fontSize: '11px', color: '#64748b' }}>{so.workOrderList || '—'}</td>
+                        <td style={{ textAlign: 'center', color: '#64748b' }}>{so.targetDate || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+                No sales orders currently in this pipeline stage.
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ─── 3. ROW 3: ANALYTICS & FLEET (SIDE BY SIDE) ─── */}
