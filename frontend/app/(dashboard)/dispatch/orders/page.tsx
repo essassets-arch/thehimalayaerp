@@ -1195,7 +1195,7 @@ export default function DispatchOrdersPage() {
             workOrderNumber: qItem.workOrderNumber || qOrder.workOrderNumber,
             productionPlanNumber: qItem.productionPlanNumber || qOrder.productionPlanNumber,
             productId: qItem.productId,
-            dispatchCategory: (isTradingProduct(qItem, productsMap) ? "D2" : null) ||
+            dispatchCategory: (isDispatch2 || currentCategory === "D2" || isTradingProduct(qItem, productsMap) ? "D2" : null) ||
               qItem.dispatchCategory ||
               qItem.dispatch_category ||
               qItem.product?.dispatchCategory ||
