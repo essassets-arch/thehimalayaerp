@@ -134,6 +134,12 @@ export default function ProductionOperationsDashboard({
   const fetchDashboardData = async (showLoadingState = true) => {
     if (showLoadingState) setLoading(true);
     setRefreshing(true);
+
+    const safetyTimer = setTimeout(() => {
+      setRefreshing(false);
+      setLoading(false);
+    }, 8000);
+
     try {
       const [res, targetRes] = await Promise.all([
         backendFetch(`/production-workflow/dashboard?period=${timeFilter}&shift=${shiftFilter}&machine=${machineFilter}&month=${selectedMonth}&date=${selectedDate}`, { cacheTtlMs: 0 }).catch((e) => {
@@ -143,7 +149,7 @@ export default function ProductionOperationsDashboard({
         backendFetch(`/api/backend/production-targets/achievement?month=${selectedMonth}&period=${timeFilter}`, { cacheTtlMs: 0 }).catch(() => null)
       ]);
       const data = res?.data || res;
-      if (data && typeof data === 'object') {
+      if (data && typeof data === 'object' && !Array.isArray(data) && Object.keys(data).length > 0) {
         setDashboardData(data);
       }
       const tData = targetRes?.data || targetRes;
@@ -153,6 +159,7 @@ export default function ProductionOperationsDashboard({
     } catch (err) {
       console.warn('Backend fetch failed, using authoritative reference baseline:', err);
     } finally {
+      clearTimeout(safetyTimer);
       setLoading(false);
       setRefreshing(false);
     }
@@ -202,20 +209,22 @@ export default function ProductionOperationsDashboard({
     if (dashboardData?.reportingPeriod) return dashboardData.reportingPeriod;
     const now = new Date();
     if (timeFilter === 'day') {
-      const d = String(now.getDate()).padStart(2, '0');
-      const m = monthShorts[now.getMonth()];
-      const y = now.getFullYear();
-      return `${d} ${m} ${y}`;
+      const dt = selectedDate ? new Date(selectedDate + 'T00:00:00') : now;
+      const d = String(dt.getDate()).padStart(2, '0');
+      const m = monthShorts[dt.getMonth()];
+      const y = dt.getFullYear();
+      const isToday = dt.toDateString() === now.toDateString();
+      return `${d} ${m} ${y}${isToday ? ' (Today)' : ''}`;
     }
     if (timeFilter === 'week') {
-      const past = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const past = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
       const d1 = String(past.getDate()).padStart(2, '0');
       const m1 = monthShorts[past.getMonth()];
       const y1 = past.getFullYear();
       const d2 = String(now.getDate()).padStart(2, '0');
       const m2 = monthShorts[now.getMonth()];
       const y2 = now.getFullYear();
-      return `${d1} ${m1} ${y1} – ${d2} ${m2} ${y2}`;
+      return `${d1} ${m1} ${y1} – ${d2} ${m2} ${y2} (Past 7 Days)`;
     }
     if (timeFilter === 'all') {
       return 'All Recorded Operations';
@@ -223,9 +232,9 @@ export default function ProductionOperationsDashboard({
     const curMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const [y, m] = (selectedMonth || curMonthStr).split('-').map(Number);
     const lastDay = new Date(y, m, 0).getDate();
-    const mShort = monthShorts[(m || 1) - 1] || 'Oct';
+    const mShort = monthShorts[(m || 1) - 1] || 'Nov';
     return `01 ${mShort} ${y} – ${lastDay} ${mShort} ${y}`;
-  }, [timeFilter, selectedMonth, dashboardData]);
+  }, [timeFilter, selectedMonth, selectedDate, dashboardData]);
 
   // Authoritative Data Resolvers
   const activeData = dashboardData || globalSummary;
@@ -434,34 +443,25 @@ export default function ProductionOperationsDashboard({
   }, [activeData?.hydraulicPressFleet, activeData?.machineFleet, machines]);
 
   const trendData = useMemo(() => {
-    const rawMonthly = activeData?.productionTrendMonthly;
-    if (Array.isArray(rawMonthly) && rawMonthly.length > 0) {
-      if (rawMonthly.length > 15 && timeFilter === 'month') {
-        const sampled = [];
-        const step = Math.ceil(rawMonthly.length / 10);
-        for (let i = 0; i < rawMonthly.length; i += step) {
-          sampled.push(rawMonthly[i]);
-        }
-        if (sampled[sampled.length - 1] !== rawMonthly[rawMonthly.length - 1]) {
-          sampled.push(rawMonthly[rawMonthly.length - 1]);
-        }
-        return sampled;
-      }
-      return rawMonthly;
-    }
-    if (Array.isArray(activeData?.dailyTrend) && activeData.dailyTrend.length > 0) {
-      return activeData.dailyTrend;
-    }
-
-    // Dynamic zero baseline when no data is recorded yet for the active filter
+    // 1. Day view: Show the 3 manufacturing shifts of the day
     if (timeFilter === 'day') {
+      const dt = activeData?.dailyTrend || activeData?.charts?.dailyTrend;
+      if (Array.isArray(dt) && dt.length > 0 && dt.some((p) => String(p?.date || '').includes('Shift'))) {
+        return dt;
+      }
       return [
         { date: 'Shift A (Morning)', actual: 0, planned: 1.5 },
         { date: 'Shift B (Evening)', actual: 0, planned: 1.5 },
         { date: 'Shift C (Night)', actual: 0, planned: 1.0 }
       ];
     }
+
+    // 2. Week view: Show the 7 days of the week
     if (timeFilter === 'week') {
+      const dt = activeData?.dailyTrend || activeData?.charts?.dailyTrend;
+      if (Array.isArray(dt) && dt.length > 0 && !dt.some((p) => String(p?.date || '').includes('Shift'))) {
+        return dt;
+      }
       const now = new Date();
       return Array.from({ length: 7 }).map((_, i) => {
         const d = new Date(now.getTime() - (6 - i) * 86400000);
@@ -472,12 +472,41 @@ export default function ProductionOperationsDashboard({
         };
       });
     }
+
+    // 3. Month view: Sample or show the month's days
+    if (timeFilter === 'month') {
+      const rawMonthly = activeData?.productionTrendMonthly;
+      if (Array.isArray(rawMonthly) && rawMonthly.length > 0) {
+        if (rawMonthly.length > 15) {
+          const sampled = [];
+          const step = Math.ceil(rawMonthly.length / 10);
+          for (let i = 0; i < rawMonthly.length; i += step) {
+            sampled.push(rawMonthly[i]);
+          }
+          if (sampled[sampled.length - 1] !== rawMonthly[rawMonthly.length - 1]) {
+            sampled.push(rawMonthly[rawMonthly.length - 1]);
+          }
+          return sampled;
+        }
+        return rawMonthly;
+      }
+      if (Array.isArray(activeData?.dailyTrend) && activeData.dailyTrend.length > 0) {
+        return activeData.dailyTrend;
+      }
+    }
+
+    // 4. All view: Show all recorded trend points
+    const rawAll = activeData?.productionTrendMonthly || activeData?.dailyTrend;
+    if (Array.isArray(rawAll) && rawAll.length > 0) {
+      return rawAll;
+    }
+
     return [
       { date: 'Shift A (Morning)', actual: 0, planned: 1.5 },
       { date: 'Shift B (Evening)', actual: 0, planned: 1.5 },
       { date: 'Shift C (Night)', actual: 0, planned: 1.0 }
     ];
-  }, [activeData?.productionTrendMonthly, activeData?.dailyTrend, timeFilter]);
+  }, [activeData?.productionTrendMonthly, activeData?.dailyTrend, activeData?.charts?.dailyTrend, timeFilter]);
 
   const maxTrendVal = useMemo(() => {
     if (!Array.isArray(trendData) || trendData.length === 0) return 10;
@@ -897,7 +926,7 @@ export default function ProductionOperationsDashboard({
         </div>
 
         <div className="pod-toolbar-right">
-          {/* Date Selector for Day, Month Selector for Month/All/Week */}
+          {/* Date Selector for Day, Month Selector for Month */}
           {timeFilter === 'day' ? (
             <div className="pod-toolbar-item">
               <span className="pod-toolbar-sublabel">Date:</span>
@@ -905,11 +934,15 @@ export default function ProductionOperationsDashboard({
                 type="date"
                 className="pod-filter-select"
                 value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedDate(e.target.value);
+                  }
+                }}
                 title="Select date for daily reporting"
               />
             </div>
-          ) : (
+          ) : timeFilter === 'month' ? (
             <div className="pod-toolbar-item">
               <span className="pod-toolbar-sublabel">Month:</span>
               <select
@@ -917,7 +950,6 @@ export default function ProductionOperationsDashboard({
                 value={selectedMonth}
                 onChange={(e) => {
                   setSelectedMonth(e.target.value);
-                  setTimeFilter('month');
                 }}
                 title="Select Month for dynamic reporting"
               >
@@ -928,7 +960,7 @@ export default function ProductionOperationsDashboard({
                 ))}
               </select>
             </div>
-          )}
+          ) : null}
 
           {/* Period Filter (Day / Week / Month / All) */}
           <div className="pod-period-bar">

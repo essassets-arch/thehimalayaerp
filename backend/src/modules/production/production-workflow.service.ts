@@ -1668,7 +1668,7 @@ export class ProductionWorkflowService {
     const rawDoneJobs = isAllTime
       ? allDoneJobs
       : allDoneJobs.filter((w: any) => {
-          const dt = w.dispatchedAt || w.sentToDispatchAt || w.completedAt || w.updatedAt;
+          const dt = w.dispatchedAt || w.sentToDispatchAt || w.completedAt;
           return dt && new Date(dt) >= start && new Date(dt) <= end;
         });
 
@@ -1774,7 +1774,7 @@ export class ProductionWorkflowService {
     const periodWOs = isAllTime
       ? allWorkOrders
       : allWorkOrders.filter((w: any) => {
-          const dt = w.completedAt || w.qcTimestamp || w.sentToDispatchAt || w.dispatchedAt || w.updatedAt;
+          const dt = w.completedAt || w.qcTimestamp || w.sentToDispatchAt || w.dispatchedAt;
           return dt && new Date(dt) >= start && new Date(dt) <= end;
         });
 
@@ -1943,7 +1943,10 @@ export class ProductionWorkflowService {
 
     // Populate trend with completed / produced work orders if not covered by shift entries
     allWorkOrders.forEach((w) => {
-      const dateVal = w.completedAt || w.startedAt || w.createdAt;
+      const isDone = ['COMPLETED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED'].includes(String(w.status).toUpperCase()) ||
+        ['READY_FOR_DISPATCH', 'DISPATCHED'].includes(String(w.productionStatus).toUpperCase());
+      if (!isDone) return;
+      const dateVal = w.completedAt || w.qcTimestamp || w.sentToDispatchAt || w.dispatchedAt;
       if (dateVal && dateVal >= start && dateVal <= end) {
         let key = '';
         if (isDayView) {
@@ -2277,7 +2280,7 @@ export class ProductionWorkflowService {
         unitWeightKg: weightEval.weightKg,
         totalWeightKg: weightEval.hasConfiguredWeight ? Number((qty * weightEval.weightKg).toFixed(2)) : 0,
         weightCalculationRule: weightEval.rule,
-        dispatchedAt: (w.sentToDispatchAt || w.dispatchedAt || w.completedAt || w.updatedAt) ? new Date(w.sentToDispatchAt || w.dispatchedAt || w.completedAt || w.updatedAt).toISOString() : new Date().toISOString(),
+        dispatchedAt: (w.sentToDispatchAt || w.dispatchedAt || w.completedAt) ? new Date((w.sentToDispatchAt || w.dispatchedAt || w.completedAt) as any).toISOString() : new Date().toISOString(),
         status: w.productionStatus === 'DISPATCHED' || w.status === 'DISPATCHED' ? 'DISPATCHED' : 'COMPLETED',
       };
     });
