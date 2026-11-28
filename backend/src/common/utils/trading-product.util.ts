@@ -154,6 +154,9 @@ export function isTradingProduct(product?: any, item?: any): boolean {
 
   // 1. Direct boolean flags
   if (product?.isTrading === true || item?.isTrading === true) return true;
+  if (normalizeDispatchCategory(product?.dispatchCategory || product?.dispatch_category) === 'D2') return true;
+  if (normalizeDispatchCategory(item?.dispatchCategory || item?.dispatch_category) === 'D2') return true;
+  if (String(product?.productType).toUpperCase() === 'TRADING' || String(item?.productType).toUpperCase() === 'TRADING') return true;
 
   // 1b. Check if entity is an order / container with items
   const containerItems =
@@ -168,9 +171,19 @@ export function isTradingProduct(product?: any, item?: any): boolean {
     return containerItems.some((it) => isTradingProduct(it.product || it, it));
   }
 
-  // 2. Canonical resolver
-  const target = product || item;
-  return resolveProductRouting(target).isTrading;
+  // 2. Canonical resolver on both product and item
+  if (product && resolveProductRouting(product).isTrading) return true;
+  if (item && resolveProductRouting(item).isTrading) return true;
+
+  // 3. Merged representation
+  const merged = {
+    ...(item || {}),
+    ...(product || {}),
+    name: product?.name || item?.productName || item?.name || item?.productNameSnapshot || item?.customProductName || '',
+    sku: product?.sku || item?.sku || item?.productCode || item?.productCodeSnapshot || '',
+    category: product?.category || item?.category || '',
+  };
+  return resolveProductRouting(merged).isTrading;
 }
 
 export function isPureTradingOrder(order: any): boolean {

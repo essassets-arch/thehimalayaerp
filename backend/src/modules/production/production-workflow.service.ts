@@ -1215,11 +1215,24 @@ export class ProductionWorkflowService {
       let yr = istYear;
       let mo = istMonth;
       let dt = istDate;
-      if (query?.date && /^\d{4}-\d{2}-\d{2}$/.test(String(query.date))) {
-        const [parsedYr, parsedMo, parsedDt] = String(query.date).split('-').map(Number);
-        yr = parsedYr;
-        mo = parsedMo - 1;
-        dt = parsedDt;
+      if (query?.date) {
+        const rawDate = String(query.date).trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(rawDate)) {
+          const [parsedYr, parsedMo, parsedDt] = rawDate.slice(0, 10).split('-').map(Number);
+          yr = parsedYr;
+          mo = parsedMo - 1;
+          dt = parsedDt;
+        } else if (/^\d{2}-\d{2}-\d{4}/.test(rawDate)) {
+          const [parsedDt, parsedMo, parsedYr] = rawDate.slice(0, 10).split('-').map(Number);
+          yr = parsedYr;
+          mo = parsedMo - 1;
+          dt = parsedDt;
+        } else if (/^\d{2}\/\d{2}\/\d{4}/.test(rawDate)) {
+          const [parsedDt, parsedMo, parsedYr] = rawDate.slice(0, 10).split('/').map(Number);
+          yr = parsedYr;
+          mo = parsedMo - 1;
+          dt = parsedDt;
+        }
       }
       start = makeIstDate(yr, mo, dt, 0, 0, 0, 0);
       end = makeIstDate(yr, mo, dt, 23, 59, 59, 999);
@@ -1227,19 +1240,33 @@ export class ProductionWorkflowService {
       const isToday = yr === istYear && mo === istMonth && dt === istDate;
       reportingPeriodLabel = `${String(dt).padStart(2, '0')} ${monthShorts[mo]} ${yr}${isToday ? ' (Today)' : ''}`;
     } else if (period === 'week' || period === 'this week') {
-      const weekStartIst = new Date(nowIst.getTime() - 6 * 86400000);
+      let refDate = nowIst;
+      if (query?.date) {
+        const rawDate = String(query.date).trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(rawDate)) {
+          const [y, m, d] = rawDate.slice(0, 10).split('-').map(Number);
+          refDate = makeIstDate(y, m - 1, d, 23, 59, 59, 999);
+        } else if (/^\d{2}-\d{2}-\d{4}/.test(rawDate)) {
+          const [d, m, y] = rawDate.slice(0, 10).split('-').map(Number);
+          refDate = makeIstDate(y, m - 1, d, 23, 59, 59, 999);
+        }
+      }
+      const weekStartIst = new Date(refDate.getTime() - 6 * 86400000);
       start = makeIstDate(weekStartIst.getUTCFullYear(), weekStartIst.getUTCMonth(), weekStartIst.getUTCDate(), 0, 0, 0, 0);
-      end = makeIstDate(istYear, istMonth, istDate, 23, 59, 59, 999);
+      end = makeIstDate(refDate.getUTCFullYear(), refDate.getUTCMonth(), refDate.getUTCDate(), 23, 59, 59, 999);
       granularity = 'day';
-      reportingPeriodLabel = `${String(weekStartIst.getUTCDate()).padStart(2, '0')} ${monthShorts[weekStartIst.getUTCMonth()]} ${weekStartIst.getUTCFullYear()} – ${String(istDate).padStart(2, '0')} ${monthShorts[istMonth]} ${istYear} (Past 7 Days)`;
+      reportingPeriodLabel = `${String(weekStartIst.getUTCDate()).padStart(2, '0')} ${monthShorts[weekStartIst.getUTCMonth()]} ${weekStartIst.getUTCFullYear()} – ${String(refDate.getUTCDate()).padStart(2, '0')} ${monthShorts[refDate.getUTCMonth()]} ${refDate.getUTCFullYear()} (Past 7 Days)`;
     } else {
       // Month
       let yr = istYear;
       let mo = istMonth;
-      if (query?.month && /^\d{4}-\d{2}$/.test(query.month)) {
-        const [parsedYr, parsedMo] = query.month.split('-').map(Number);
-        yr = parsedYr;
-        mo = parsedMo - 1;
+      if (query?.month) {
+        const rawMonth = String(query.month).trim();
+        if (/^\d{4}-\d{2}/.test(rawMonth)) {
+          const [parsedYr, parsedMo] = rawMonth.slice(0, 7).split('-').map(Number);
+          yr = parsedYr;
+          mo = parsedMo - 1;
+        }
       }
       start = makeIstDate(yr, mo, 1, 0, 0, 0, 0);
       const lastDate = new Date(Date.UTC(yr, mo + 1, 0)).getUTCDate();
@@ -1276,9 +1303,6 @@ export class ProductionWorkflowService {
                   'CREATED',
                   'READY',
                   'MATERIAL_PENDING',
-                  'COMPLETED',
-                  'DISPATCHED',
-                  'CLOSED',
                 ],
               },
             },

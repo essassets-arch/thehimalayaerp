@@ -138,14 +138,17 @@ export default function ProductionOperationsDashboard({
     const safetyTimer = setTimeout(() => {
       setRefreshing(false);
       setLoading(false);
-    }, 3500);
+    }, 4500);
 
     try {
+      const queryStr = `period=${timeFilter}&shift=${shiftFilter}&machine=${machineFilter}&month=${selectedMonth}&date=${selectedDate}`;
       const [res, targetRes] = await Promise.all([
-        backendFetch(`/production-workflow/dashboard?period=${timeFilter}&shift=${shiftFilter}&machine=${machineFilter}&month=${selectedMonth}&date=${selectedDate}`, { cacheTtlMs: 0 }).catch((e) => {
-          console.warn('[Dashboard] Telemetry fetch error:', e);
-          return null;
-        }),
+        backendFetch(`/production-workflow/dashboard?${queryStr}`, { cacheTtlMs: 0 })
+          .catch(() => backendFetch(`/production/reports/summary?${queryStr}`, { cacheTtlMs: 0 }))
+          .catch((e) => {
+            console.warn('[Dashboard] Telemetry fetch error:', e);
+            return null;
+          }),
         backendFetch(`/api/backend/production-targets/achievement?month=${selectedMonth}&period=${timeFilter}`, { cacheTtlMs: 0 }).catch(() => null)
       ]);
       const data = res?.data || res;
@@ -241,14 +244,14 @@ export default function ProductionOperationsDashboard({
   const rawKpis = activeData?.executiveKpis;
 
   const targetSource = useMemo(() => {
-    if (targetAchievement && (targetAchievement.hasTarget || targetAchievement.target > 0 || targetAchievement.quantityTarget > 0)) {
-      return targetAchievement;
-    }
     if (rawKpis?.planAchievement && (rawKpis.planAchievement.hasTarget || rawKpis.planAchievement.targetQty > 0)) {
       return rawKpis.planAchievement;
     }
+    if (targetAchievement && (targetAchievement.hasTarget || targetAchievement.target > 0 || targetAchievement.quantityTarget > 0)) {
+      return targetAchievement;
+    }
     return null;
-  }, [targetAchievement, rawKpis?.planAchievement]);
+  }, [rawKpis?.planAchievement, targetAchievement]);
 
   const planAchievementKpi = useMemo(() => {
     if (targetSource) {
@@ -422,18 +425,22 @@ export default function ProductionOperationsDashboard({
     return defaultShiftSummary;
   }, [rawShift]);
 
-  const completedOutputMt = activeData?.productionReconciliation?.shiftProductionFinishedMt ?? rawKpis?.totalProduction?.finishedOutputMt ?? 57.6;
+  const completedOutputMt = activeData?.productionReconciliation?.shiftProductionFinishedMt ?? rawKpis?.totalProduction?.finishedOutputMt ?? (timeFilter === 'day' ? 0 : 57.6);
   const floorWipMt = activeData?.productionReconciliation?.floorWorkInProgressMt ?? rawKpis?.totalProduction?.wipMt ?? 104.9;
   const liveTotalMt = activeData?.productionReconciliation?.headlineTotalProductionMt ?? rawKpis?.totalProduction?.valueMt;
   const headlineTotalMt = liveTotalMt !== undefined && liveTotalMt !== null
     ? liveTotalMt
     : Number((Number(completedOutputMt) + Number(floorWipMt)).toFixed(1));
 
-  const liveProducedUnits = activeData?.summary?.producedUnits ?? rawKpis?.totalProduction?.unitsCount ?? derivedStats?.todayProduction ?? 433;
-  const finishedSets = shiftSummary?.total?.sets ?? liveProducedUnits;
+  const liveProducedUnits = activeData?.summary?.producedUnits ?? rawKpis?.totalProduction?.unitsCount ?? (timeFilter === 'day' ? (shiftSummary?.total?.sets ?? 0) : 433);
+  const finishedSets = shiftSummary?.total?.sets !== undefined ? shiftSummary.total.sets : liveProducedUnits;
 
-  const activePressCount = pressFleet.filter(m => String(m.status).toLowerCase() === 'running').length;
-  const totalPressCount = pressFleet.length || 6;
+  const activePressCount = activeData?.executiveKpis?.activeFloorRuns?.activeCount !== undefined
+    ? activeData.executiveKpis.activeFloorRuns.activeCount
+    : pressFleet.filter(m => String(m.status).toLowerCase() === 'running').length;
+  const totalPressCount = activeData?.executiveKpis?.activeFloorRuns?.totalAvailable !== undefined
+    ? activeData.executiveKpis.activeFloorRuns.totalAvailable
+    : (pressFleet.length || 6);
 
   const readyDispatchStage = pipeline.find(p => p.id === 'readyDispatch');
   const readyDispatchOrdersCount = readyDispatchStage?.orderCount ?? readyDispatchStage?.soCount ?? 15;
@@ -937,7 +944,7 @@ export default function ProductionOperationsDashboard({
         </div>
 
         <div className="pod-toolbar-right">
-          {/* Date Selector for Day, Month Selector for Month */}
+          {/* Date Selector for Day/Week, Month Selector for Month */}
           {timeFilter === 'day' ? (
             <div className="pod-toolbar-item">
               <span className="pod-toolbar-sublabel">Date:</span>
@@ -951,6 +958,21 @@ export default function ProductionOperationsDashboard({
                   }
                 }}
                 title="Select date for daily reporting"
+              />
+            </div>
+          ) : timeFilter === 'week' ? (
+            <div className="pod-toolbar-item">
+              <span className="pod-toolbar-sublabel">Week Ending:</span>
+              <input
+                type="date"
+                className="pod-filter-select"
+                value={selectedDate}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedDate(e.target.value);
+                  }
+                }}
+                title="Select reference date for 7-day period"
               />
             </div>
           ) : timeFilter === 'month' ? (

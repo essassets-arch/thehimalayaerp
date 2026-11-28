@@ -562,6 +562,13 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
   const qcPassed = filteredOrders.filter(o => {
     const st = String(o.status || o.workflowStatus || '').toUpperCase();
     const prodSt = String(o.productionStatus || '').toUpperCase();
+    const isTrading = isTradingProduct(o) || o.dispatchCategory === 'D2' || (o.items && o.items.some(it => isTradingProduct(it) || it.dispatchCategory === 'D2'));
+    
+    if (isTrading || currentCategory === 'D2') {
+      if (['CANCELLED', 'LOST', 'DRAFT'].includes(st)) return false;
+      return !Boolean(o.dispatchedAt) && getRemainingQty(o) > 0;
+    }
+
     if (
       st === 'IN_PRODUCTION' ||
       prodSt === 'IN_PRODUCTION' ||
@@ -588,6 +595,13 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     const list = rawList.filter(d => {
       const st = String(d.status || d.orderStatus || '').toUpperCase();
       const prodSt = String(d.productionStatus || '').toUpperCase();
+      const isTrading = isTradingProduct(d) || d.dispatchCategory === 'D2' || (d.items && d.items.some(it => isTradingProduct(it) || it.dispatchCategory === 'D2'));
+
+      if (isTrading || currentCategory === 'D2') {
+        if (['CANCELLED', 'LOST', 'DRAFT'].includes(st)) return false;
+        return true;
+      }
+
       if (
         st === 'IN_PRODUCTION' ||
         prodSt === 'IN_PRODUCTION' ||

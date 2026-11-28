@@ -694,18 +694,18 @@ function formatAddress(salesOrder?: any, customer?: any, workOrder?: any, fallba
   return "—";
 }
 
-function isTradingProduct(item: any, productsMap: Map<string, any>): boolean {
+function isTradingProduct(item: any, productsMap?: Map<string, any>): boolean {
   if (!item) return false;
   const pType = String(item.productType || item.product_type || item.product?.productType || item.product?.product_type || "").toUpperCase();
-  if (pType === "TRADING") return true;
-  if (pType === "MANUFACTURING") return false;
-  if (item.isTrading === true || item.product?.isTrading === true) return true;
+  if (pType === "TRADING" || item.isTrading === true || item.product?.isTrading === true) return true;
   
-  const cat = String(item.category || item.product_family || item.product?.category || item.product?.product_family || "").toLowerCase();
-  if (cat.includes("trading") || cat.includes("rcc pipe") || cat.includes("frc cover") || cat.includes("coverblock") || cat.includes("others")) return true;
-  if (cat.includes("frp covers") || cat.includes("frp gratings") || cat.includes("manufacturing")) return false;
+  const dCat = String(item.dispatchCategory || item.dispatch_category || item.product?.dispatchCategory || item.product?.dispatch_category || "").toUpperCase();
+  if (dCat === "D2" || dCat === "DISPATCH 2" || dCat === "DISPATCH_2" || dCat.includes("CAT 2") || dCat.includes("CATEGORY 2") || dCat === "2") return true;
 
-  const name = String(item.productNameSnapshot || item.productName || item.product_name || item.name || item.product?.name || "").toUpperCase();
+  const cat = String(item.category || item.product_family || item.product?.category || item.product?.product_family || "").toLowerCase();
+  if (cat.includes("trading") || cat.includes("rcc pipe") || cat.includes("frc cover") || cat.includes("coverblock") || cat.includes("cover block") || cat.includes("moulded") || cat.includes("others")) return true;
+
+  const name = String(item.productNameSnapshot || item.productName || item.product_name || item.name || item.product?.name || item.customProductName || "").toUpperCase();
   if (
     name.startsWith("FRCCP") ||
     name.startsWith("FRCT") ||
@@ -721,7 +721,8 @@ function isTradingProduct(item: any, productsMap: Map<string, any>): boolean {
     name.includes("FRC COVER") ||
     name.includes("RCC PIPE") ||
     name.includes("COVERBLOCK") ||
-    name.includes("COVER BLOCK")
+    name.includes("COVER BLOCK") ||
+    name.includes("MOULDED")
   ) return true;
 
   const sku = String(item.sku || item.productSku || item.product_sku || item.productCode || item.productCodeSnapshot || item.product?.sku || "").toUpperCase();
@@ -741,19 +742,14 @@ function isTradingProduct(item: any, productsMap: Map<string, any>): boolean {
     sku.includes("COVER BLOCK")
   ) return true;
 
-  const dCat = String(item.dispatchCategory || item.dispatch_category || item.product?.dispatchCategory || item.product?.dispatch_category || "").toUpperCase();
-  if (dCat === "D2" || dCat === "DISPATCH 2" || dCat === "DISPATCH_2" || dCat.includes("CAT 2") || dCat.includes("CATEGORY 2")) return true;
-
-  if (item.productId && productsMap.has(item.productId)) {
+  if (item.productId && productsMap && productsMap.has(item.productId)) {
     const p = productsMap.get(item.productId);
     const pType2 = String(p.productType || p.product_type || "").toUpperCase();
     if (pType2 === "TRADING" || p.isTrading === true) return true;
-    if (pType2 === "MANUFACTURING") return false;
     const dCat2 = String(p.dispatchCategory || p.dispatch_category || "").toUpperCase();
     if (dCat2 === "D2" || dCat2.includes("2")) return true;
     const cat2 = String(p.product_family || p.category || "").toLowerCase();
-    if (cat2.includes("trading") || cat2.includes("rcc pipe") || cat2.includes("frc cover") || cat2.includes("coverblock") || cat2.includes("others")) return true;
-    if (cat2.includes("frp covers") || cat2.includes("frp gratings") || cat2.includes("manufacturing")) return false;
+    if (cat2.includes("trading") || cat2.includes("rcc pipe") || cat2.includes("frc cover") || cat2.includes("coverblock") || cat2.includes("cover block") || cat2.includes("moulded") || cat2.includes("others")) return true;
     const pName = String(p.name || "").toUpperCase();
     if (
       pName.startsWith("FRCCP") ||
@@ -763,6 +759,20 @@ function isTradingProduct(item: any, productsMap: Map<string, any>): boolean {
       pName.startsWith("RCC") ||
       pName.startsWith("BTCB") ||
       pName.startsWith("WCB") ||
+      pName.startsWith("PCB") ||
+      pName.startsWith("HTCB") ||
+      pName.startsWith("DTCB") ||
+      pName.startsWith("MCB") ||
+      pName.includes("COVERBLOCK") ||
+      pName.includes("COVER BLOCK") ||
+      pName.includes("FRC COVER") ||
+      pName.includes("RCC PIPE") ||
+      pName.includes("MOULDED")
+    ) return true;
+  }
+
+  if (pType === "MANUFACTURING" && (dCat === "D1" || !dCat)) return false;
+  if (cat.includes("frp covers") || cat.includes("frp gratings") || cat.includes("manufacturing")) return false;
       pName.startsWith("PCB") ||
       pName.startsWith("HTCB") ||
       pName.startsWith("DTCB") ||
@@ -1130,12 +1140,14 @@ export default function DispatchOrdersPage() {
         const soStatus = String(matchedSo?.status || qOrder.status || "").toUpperCase();
         const prodStatus = String(matchedSo?.productionStatus || qOrder.productionStatus || "").toUpperCase();
 
-        const isTrading = (qOrder.items && Array.isArray(qOrder.items) && qOrder.items.length > 0)
-          ? qOrder.items.every((it: any) => isTradingProduct(it, productsMap))
-          : isTradingProduct(qOrder, productsMap);
+        const isTrading = isDispatch2 || currentCategory === "D2" || (
+          (qOrder.items && Array.isArray(qOrder.items) && qOrder.items.length > 0)
+            ? qOrder.items.some((it: any) => isTradingProduct(it, productsMap) || it.isTrading || it.dispatchCategory === "D2")
+            : isTradingProduct(qOrder, productsMap)
+        );
 
         // Strict Workflow Guard: If manufacturing order is in production or plant approval, NEVER show in dispatch
-        if (!isTrading) {
+        if (!isTrading && !isDispatch2 && currentCategory !== "D2") {
           if ([
             "SENT_TO_PLANT", "SENT_TO_PLANT_HEAD", "PLANT_PENDING",
             "PLANT_APPROVED", "PLANT_HEAD_ACCEPTED", "PRODUCTION_PLANNED",
