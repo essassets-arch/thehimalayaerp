@@ -374,7 +374,7 @@ export default function ProductionOperationsDashboard({
           stageNumber: String(idx + 1),
           stageName: st.stageName || meta.defaultName,
           woCount: Number(st.woCount ?? 0),
-          weightMt: cleanWeightNum,
+          weightMt: Number(cleanWeightNum || 0).toFixed(1),
           color: meta.color,
           bgColor: meta.bgColor,
           badgeColor: meta.color,
@@ -690,7 +690,7 @@ export default function ProductionOperationsDashboard({
         if (activeStageFilter === 'qcTesting' && item.stage !== 'QC_PENDING') return false;
         if (activeStageFilter === 'reworkScrap' && item.stage !== 'QC_FAILED') return false;
         if (activeStageFilter === 'readyDispatch' && item.stage !== 'READY_FOR_DISPATCH') return false;
-        if (activeStageFilter === 'dispatched' && item.stage !== 'DISPATCHED') return false;
+        if (activeStageFilter === 'dispatched' && item.stage !== 'DISPATCHED' && item.stage !== 'DONE') return false;
       }
       if (searchQuery.trim()) {
         return matchesSmartSearch(
@@ -1121,7 +1121,7 @@ export default function ProductionOperationsDashboard({
                   </div>
                   <div className="pod-chevron-content">
                     <span className="pod-chevron-title">{stage.stageName}</span>
-                    <span className="pod-chevron-metrics">{stage.woCount} WOs • {String(stage.weightMt).replace(/\s*MT\s*/gi, '')} MT</span>
+                    <span className="pod-chevron-metrics">{stage.woCount} WOs • {Number(String(stage.weightMt).replace(/\s*MT\s*/gi, '') || 0).toFixed(1)} MT</span>
                   </div>
                 </div>
               );

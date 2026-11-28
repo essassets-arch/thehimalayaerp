@@ -126,10 +126,28 @@ export function resolveWorkOrderUnitWeight(wo: any, prod?: any): number {
     wo?.FinishedGoods?.product ||
     wo?.productObj;
 
+  const prodName =
+    targetProd?.name ||
+    wo?.salesOrderItem?.productNameSnapshot ||
+    wo?.product ||
+    wo?.productName ||
+    '';
+  const prodCap = targetProd?.capacity || wo?.loadRating || '';
+  const prodSize = targetProd?.size || wo?.size || '';
+  const prodType = targetProd?.type || '';
+
   // 1. Authoritative Product Master Weight
   if (targetProd) {
     const evalWeight = evaluateProductMasterWeight(targetProd);
     if (evalWeight.hasConfiguredWeight && evalWeight.weightKg > 0) {
+      const hasBothComponents = Number(targetProd.coverUnitWeight) > 0 && Number(targetProd.frameUnitWeight) > 0;
+      if (hasBothComponents || targetProd.isSet === false) {
+        return evalWeight.weightKg;
+      }
+      const nominal = getNominalUnitWeight(prodName, prodType, prodCap, prodSize);
+      if (nominal > evalWeight.weightKg) {
+        return nominal;
+      }
       return evalWeight.weightKg;
     }
     const directWeight = Number(targetProd.weight || targetProd.unitWeight || 0);
@@ -153,23 +171,13 @@ export function resolveWorkOrderUnitWeight(wo: any, prod?: any): number {
   }
 
   // 3. Nominal unit weight derived from product name, capacity, and size
-  const prodName =
-    targetProd?.name ||
-    wo?.salesOrderItem?.productNameSnapshot ||
-    wo?.product ||
-    wo?.productName ||
-    '';
-  const prodCap = targetProd?.capacity || wo?.loadRating || '';
-  const prodSize = targetProd?.size || wo?.size || '';
-  const prodType = targetProd?.type || '';
-
   const nominal = getNominalUnitWeight(prodName, prodType, prodCap, prodSize);
   if (nominal > 0) {
     return nominal;
   }
 
-  // 4. Default generic unit weight for FRP Composite Products
-  return 25.0;
+  // 4. Default generic unit weight for complete FRP Cover & Frame Set
+  return 60.0;
 }
 
 @Injectable()
@@ -1254,8 +1262,26 @@ export class ProductionWorkflowService {
             { createdAt: { gte: start, lte: end } },
             { completedAt: { gte: start, lte: end } },
             { startedAt: { gte: start, lte: end } },
+            { dispatchedAt: { gte: start, lte: end } },
+            { sentToDispatchAt: { gte: start, lte: end } },
             { updatedAt: { gte: start, lte: end } },
-            { status: { in: ['STARTED', 'PARTIALLY_COMPLETED', 'QC_PENDING', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'CREATED', 'READY', 'MATERIAL_PENDING'] } },
+            {
+              status: {
+                in: [
+                  'STARTED',
+                  'PARTIALLY_COMPLETED',
+                  'QC_PENDING',
+                  'QC_APPROVED',
+                  'READY_FOR_DISPATCH',
+                  'CREATED',
+                  'READY',
+                  'MATERIAL_PENDING',
+                  'COMPLETED',
+                  'DISPATCHED',
+                  'CLOSED',
+                ],
+              },
+            },
           ],
         };
 
@@ -1357,6 +1383,7 @@ export class ProductionWorkflowService {
       qcInspections,
       pendingPlans,
       dailyProductionReports,
+      completedDispatches,
     ] = await Promise.all([
       this.prisma.workOrder.findMany({
         where: whereWorkOrder,
@@ -1425,24 +1452,36 @@ export class ProductionWorkflowService {
         },
         orderBy: { reportDate: 'asc' },
       }),
+      this.prisma.dispatch.findMany({
+        where: isAllTime
+          ? { NOT: { status: 'DISPATCH_DRAFT' } }
+          : {
+              OR: [
+                { dispatchedAt: { gte: start, lte: end } },
+                { createdAt: { gte: start, lte: end } },
+              ],
+              NOT: { status: 'DISPATCH_DRAFT' },
+            },
+        include: { items: true },
+      }),
     ]);
 
     // Unambiguous, authoritative work order classification
-    const classifyWorkOrder = (w: any): 'INCOMING' | 'FLOOR' | 'QC_PENDING' | 'QC_FAILED' | 'READY_FOR_DISPATCH' | 'DONE' | 'CANCELLED' => {
-      const status = String(w.status || '').toUpperCase();
-      const prodStatus = String(w.productionStatus || '').toUpperCase();
-      const qcRes = String(w.qcResult || '').toUpperCase();
+    const classifyWorkOrder = (w: any): 'INCOMING' | 'FLOOR' | 'QC_PENDING' | 'QC_FAILED' | 'READY_FOR_DISPATCH' | 'DISPATCHED' | 'DONE' | 'CANCELLED' => {
+      const status = String(w.status || '').toUpperCase().trim();
+      const prodStatus = String(w.productionStatus || '').toUpperCase().trim();
+      const qcRes = String(w.qcResult || '').toUpperCase().trim();
 
       if (status === 'CANCELLED') return 'CANCELLED';
 
-      // 1. Stage 6: Done / Dispatched
+      // 1. Stage 6: Dispatched / Done
       if (
         prodStatus === 'DISPATCHED' ||
         status === 'DISPATCHED' ||
         status === 'CLOSED' ||
         Boolean(w.dispatchedAt)
       ) {
-        return 'DONE';
+        return 'DISPATCHED';
       }
 
       // 2. Stage 5: Ready for Dispatch (passed QC and staged for dispatch)
@@ -1450,38 +1489,42 @@ export class ProductionWorkflowService {
         status === 'READY_FOR_DISPATCH' ||
         prodStatus === 'READY_FOR_DISPATCH' ||
         status === 'QC_APPROVED' ||
-        (status === 'COMPLETED' && qcRes === 'PASS')
+        status === 'QC_PASSED' ||
+        (status === 'COMPLETED' && (qcRes === 'PASS' || qcRes === 'PASSED')) ||
+        Boolean(w.sentToDispatchAt && !w.dispatchedAt)
       ) {
         return 'READY_FOR_DISPATCH';
       }
 
-      // 3. Stage 4: QC Failed / Rework
+      // 3. Stage 4: QC Failed / Rework / Scrap
       if (
         status === 'QC_FAILED' ||
         prodStatus === 'QC_FAILED' ||
         status === 'REWORK' ||
         prodStatus === 'REWORK_IN_PROGRESS' ||
-        qcRes === 'FAIL'
+        status === 'SCRAP' ||
+        qcRes === 'FAIL' ||
+        qcRes === 'FAILED' ||
+        qcRes === 'REWORK'
       ) {
         return 'QC_FAILED';
       }
 
-      // 4. Stage 3: QC Inspection Queue
+      // 4. Stage 3: QC Inspection Queue / Testing
       if (
         status === 'QC_PENDING' ||
         prodStatus === 'QC_PENDING' ||
         status === 'UNDER_INSPECTION' ||
-        status === 'TESTING'
+        status === 'TESTING' ||
+        status === 'INSPECTION' ||
+        status === 'QC_INSPECTION' ||
+        prodStatus === 'UNDER_INSPECTION' ||
+        (status === 'COMPLETED' && (!qcRes || qcRes === 'PENDING'))
       ) {
         return 'QC_PENDING';
       }
 
-      // 5. Stage 1: Incoming Orders (Ready, Created, Planned not yet started on floor)
-      if (['READY', 'CREATED', 'DRAFT', 'PLANNED'].includes(status)) {
-        return 'INCOMING';
-      }
-
-      // 6. Stage 2: Floor Runs (Actively in production)
+      // 5. Stage 2: Floor Runs (Actively in production / Moulding)
       if (
         status === 'STARTED' ||
         status === 'IN_PROGRESS' ||
@@ -1493,6 +1536,7 @@ export class ProductionWorkflowService {
         return 'FLOOR';
       }
 
+      // 6. Stage 1: Incoming Orders (Ready, Created, Planned not yet started on floor)
       return 'INCOMING';
     };
 
@@ -1502,7 +1546,10 @@ export class ProductionWorkflowService {
     const rawQcQueue = allWorkOrders.filter((w) => classifyWorkOrder(w) === 'QC_PENDING');
     const rawQcFailed = allWorkOrders.filter((w) => classifyWorkOrder(w) === 'QC_FAILED');
     const rawReadyForDispatch = allWorkOrders.filter((w) => classifyWorkOrder(w) === 'READY_FOR_DISPATCH');
-    const allDoneJobs = allWorkOrders.filter((w) => classifyWorkOrder(w) === 'DONE');
+    const allDoneJobs = allWorkOrders.filter((w) => {
+      const cls = classifyWorkOrder(w);
+      return cls === 'DISPATCHED' || cls === 'DONE';
+    });
 
     // Build incoming list combining raw incoming WOs + pending plans without floor WOs
     const rawIncomingPlanIds = new Set(
@@ -1615,15 +1662,17 @@ export class ProductionWorkflowService {
           return dt && new Date(dt) >= start && new Date(dt) <= end;
         });
 
+    const dispatchModuleCount = (completedDispatches || []).length;
+    const doneCount = Math.max(rawDoneJobs.length, dispatchModuleCount);
+
     // Authoritative counts computed on accurate datasets
     const incomingOrdersCount = allIncoming.length;
     const inProgress = rawFloorRuns.length;
     const qcPending = rawQcQueue.length;
     const qcFailed = rawQcFailed.length;
     const readyForDispatchCount = rawReadyForDispatch.length;
-    const doneCount = rawDoneJobs.length;
     const completed = readyForDispatchCount + doneCount;
-    const totalOrders = allWorkOrders.length + incomingFromPlans.length;
+    const totalOrders = incomingOrdersCount + inProgress + qcPending + qcFailed + readyForDispatchCount + doneCount;
     const pending = incomingOrdersCount;
 
     // Output units produced in the period
@@ -2188,13 +2237,20 @@ export class ProductionWorkflowService {
       }, 0) / 1000).toFixed(1)
     );
 
-    const liveDispatchedMt = Number(
+    const dispatchModuleMt = (completedDispatches || []).reduce((sum: number, d: any) => {
+      const wt = Number(d.totalWeight || 0);
+      return sum + (wt > 1000 ? wt / 1000 : wt);
+    }, 0);
+
+    const woDoneMt = Number(
       (rawDoneJobs.reduce((sum, w: any) => {
         const prod = w.salesOrderItem?.product || w.productionPlan?.salesOrder?.items?.[0]?.product;
         const uWeight = resolveWorkOrderUnitWeight(w, prod);
         return sum + (toNumber(w.quantity) || 1) * uWeight;
       }, 0) / 1000).toFixed(1)
     );
+
+    const liveDispatchedMt = Number(Math.max(woDoneMt, dispatchModuleMt).toFixed(1));
 
     // --- AUTHORITATIVE DYNAMIC AGGREGATIONS FROM POSTGRESQL ---
 
@@ -2659,7 +2715,8 @@ export class ProductionWorkflowService {
       const producedQty = toNumber((w as any).producedQuantity) || toNumber((w as any).producedQty) || shiftProduced || (['COMPLETED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED'].includes(w.status) ? target : 0);
       const progress = target > 0 ? Math.min(100, Math.round((producedQty / target) * 100)) : 0;
       const stClass = classifyWorkOrder(w);
-      const statusLabel = stClass === 'FLOOR' ? 'Floor Run' : stClass === 'QC_PENDING' ? 'QC Testing' : stClass === 'QC_FAILED' ? 'Rework' : stClass === 'READY_FOR_DISPATCH' ? 'Ready for Dispatch' : stClass === 'DONE' ? 'Dispatched' : 'Pending';
+      const stageNorm = (stClass === 'DONE' ? 'DISPATCHED' : stClass);
+      const statusLabel = stClass === 'FLOOR' ? 'Floor Run' : stClass === 'QC_PENDING' ? 'QC Testing' : stClass === 'QC_FAILED' ? 'Rework' : stClass === 'READY_FOR_DISPATCH' ? 'Ready for Dispatch' : (stClass === 'DISPATCHED' || stClass === 'DONE') ? 'Dispatched' : 'Pending';
 
       const cleanProductName = (prod?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover')
         .replace(/\s*\(\d+T\)/i, '')
@@ -2715,8 +2772,8 @@ export class ProductionWorkflowService {
         status: statusLabel,
         rawStatus: w.status,
         rawProductionStatus: w.productionStatus,
-        stage: stClass,
-        badgeClass: stClass === 'FLOOR' ? 'floor-run' : stClass === 'QC_PENDING' ? 'qc-testing' : stClass === 'QC_FAILED' ? 'rework' : stClass === 'READY_FOR_DISPATCH' ? 'ready-dispatch' : stClass === 'DONE' ? 'dispatched' : 'pending',
+        stage: stageNorm,
+        badgeClass: stClass === 'FLOOR' ? 'floor-run' : stClass === 'QC_PENDING' ? 'qc-testing' : stClass === 'QC_FAILED' ? 'rework' : stClass === 'READY_FOR_DISPATCH' ? 'ready-dispatch' : (stClass === 'DISPATCHED' || stClass === 'DONE') ? 'dispatched' : 'pending',
         updatedAt: w.updatedAt ? new Date(w.updatedAt).toISOString() : (w.createdAt ? new Date(w.createdAt).toISOString() : null),
       };
     });
@@ -2727,6 +2784,7 @@ export class ProductionWorkflowService {
       QC_FAILED: 3,
       READY_FOR_DISPATCH: 4,
       INCOMING: 5,
+      DISPATCHED: 6,
       DONE: 6,
     };
     const referenceActiveWorkOrders = [...mappedDbWorkOrders].sort((a, b) => {

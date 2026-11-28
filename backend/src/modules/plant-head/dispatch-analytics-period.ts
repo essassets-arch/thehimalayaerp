@@ -59,14 +59,14 @@ export function standardizeProduct(raw?: string, name?: string): string {
 export function standardizeCapacity(raw?: string, name?: string): string {
   const c = `${raw || ''} ${name || ''}`.toUpperCase();
   if (!c.trim()) return 'Standard Duty';
-  if (c.includes('D400') || c.includes('D-400') || c.includes('40T')) return 'D400';
-  if (c.includes('C250') || c.includes('C-250') || c.includes('25T')) return 'C250';
-  if (c.includes('B125') || c.includes('B-125') || c.includes('12.5T')) return 'B125';
+  if (c.includes('D400') || c.includes('D-400') || c.includes('40T') || c.includes('40 TON') || c.includes('40TON') || c.includes('40 MT') || c.includes('400 KN') || c.includes('400KN') || c.includes('EHD') || c.includes('EXTRA HEAVY DUTY')) return 'D400';
+  if (c.includes('C250') || c.includes('C-250') || c.includes('25T') || c.includes('25 TON') || c.includes('25TON') || c.includes('25 MT') || c.includes('250 KN') || c.includes('250KN') || c.includes('HD') || c.includes('HEAVY DUTY')) return 'C250';
+  if (c.includes('B125') || c.includes('B-125') || c.includes('12.5T') || c.includes('12.5 TON') || c.includes('12.5TON') || c.includes('12.5 MT') || c.includes('125 KN') || c.includes('125KN') || c.includes('MD') || c.includes('MEDIUM DUTY')) return 'B125';
   if (c.includes('ELD') || c.includes('EXTRA LIGHT')) return 'ELD';
-  if (c.includes('3T') || c.includes('3 TON')) return '3T';
-  if (c.includes('E600') || c.includes('E-600') || c.includes('60T')) return 'E600';
-  if (c.includes('F900') || c.includes('F-900') || c.includes('90T')) return 'F900';
-  if (c.includes('LD') || c.includes('LIGHT DUTY') || c.includes('2.5T')) return 'LD';
+  if (c.includes('3T') || c.includes('3 TON') || c.includes('3TON')) return '3T';
+  if (c.includes('E600') || c.includes('E-600') || c.includes('60T') || c.includes('60 TON') || c.includes('600 KN')) return 'E600';
+  if (c.includes('F900') || c.includes('F-900') || c.includes('90T') || c.includes('90 TON') || c.includes('900 KN')) return 'F900';
+  if (/\bLD\b/i.test(c) || c.includes('LIGHT DUTY') || c.includes('2.5T') || c.includes('2.5 TON') || c.includes('2.5TON') || c.includes('25 KN') || c.includes('25KN')) return 'LD';
   if (c.includes('GRATING')) return 'Standard Duty';
   if (c.includes('WCB') || c.includes('PCB') || c.includes('COVER BLOCK')) return 'Civil Accessory';
   return 'Standard Duty';
@@ -127,52 +127,61 @@ export function standardizeColour(raw?: string, name?: string): string {
 }
 
 export function getNominalUnitWeight(rawName: string, prod?: string, cap?: string, size?: string): number {
-  const p = prod || standardizeProduct('', rawName);
-  const c = cap || standardizeCapacity('', rawName);
-  const sz = size || standardizeSize('', rawName);
-  const s = (rawName || '').toUpperCase();
+  const p = standardizeProduct(prod, rawName);
+  const c = standardizeCapacity(cap, rawName);
+  const sz = standardizeSize(size, rawName);
+  const s = `${rawName || ''} ${prod || ''} ${cap || ''} ${size || ''}`.toUpperCase();
 
   // Cover blocks
-  if (p === 'COVER BLOCK') {
+  if (p === 'COVER BLOCK' || s.includes('COVER BLOCK')) {
     if (s.includes('50MM')) return 0.13;
     if (s.includes('40MM')) return 0.08;
     return 0.14;
   }
 
   // Grating
-  if (p === 'FRP MOULDED GRATING') {
+  if (p === 'FRP MOULDED GRATING' || s.includes('GRATING')) {
     if (s.includes('38MM')) return 12.0;
     if (s.includes('30MM')) return 9.5;
     if (s.includes('25MM')) return 7.5;
     return 8.0;
   }
 
+  const isD400 = c === 'D400' || c.includes('40') || s.includes('40T') || s.includes('40 TON') || s.includes('40TON') || s.includes('D400') || s.includes('EHD');
+  const isC250 = c === 'C250' || c.includes('25') || s.includes('25T') || s.includes('25 TON') || s.includes('25TON') || s.includes('C250') || s.includes('HD');
+  const isB125 = c === 'B125' || c.includes('12.5') || s.includes('12.5T') || s.includes('12.5 TON') || s.includes('12.5TON') || s.includes('B125') || s.includes('MD');
+
   // Double manhole covers (DMHC)
-  if (p === 'D MHC') {
-    if (sz.includes('1800 × 1800')) return c === 'D400' ? 450 : 250;
-    if (sz.includes('1500 × 1500')) return c === 'D400' ? 350 : 135;
-    if (sz.includes('1200 × 1200')) return c === 'D400' ? 260 : 180;
-    if (sz.includes('900 × 900')) return c === 'D400' ? 170 : 90;
-    if (sz.includes('750 × 750')) return c === 'D400' ? 120 : 60;
-    if (sz.includes('600 × 600')) return c === 'D400' ? 85 : 45;
-    return c === 'D400' ? 150 : 80;
+  if (p === 'D MHC' || s.includes('D MHC') || s.includes('DOUBLE')) {
+    if (sz.includes('1800 × 1800')) return isD400 ? 450 : 250;
+    if (sz.includes('1500 × 1500')) return isD400 ? 350 : 135;
+    if (sz.includes('1200 × 1200')) return isD400 ? 260 : 180;
+    if (sz.includes('900 × 900')) return isD400 ? 170 : 90;
+    if (sz.includes('750 × 750')) return isD400 ? 120 : 60;
+    if (sz.includes('600 × 600')) return isD400 ? 85 : 45;
+    return isD400 ? 150 : 80;
   }
 
   // Manhole covers (MHC), Water Gully (WGC), Recessed (RCS), ONGC
   if (sz.includes('1800 × 1800')) return 260;
   if (sz.includes('1500 × 1500')) return 140;
-  if (sz.includes('1200 × 1200')) return c === 'D400' ? 240 : 110;
-  if (sz.includes('1000 × 1000')) return c === 'D400' ? 180 : 85;
-  if (sz.includes('900 × 900')) return c === 'D400' ? 160 : (c === 'C250' ? 90 : 65);
-  if (sz.includes('600 × 900') || sz.includes('18" × 24"')) return c === 'D400' ? 130 : 60;
-  if (sz.includes('750 × 750') || sz.includes('30" × 30"')) return c === 'D400' ? 110 : (c === 'C250' ? 60 : 35);
-  if (sz.includes('28" × 28"')) return 22;
-  if (sz.includes('600 × 600') || sz.includes('24" × 24"')) return c === 'D400' ? 86 : (c === 'C250' ? 45 : (c === 'B125' ? 35 : 22));
-  if (sz.includes('21" × 21"')) return 12;
-  if (sz.includes('450 × 450') || sz.includes('18" × 18"')) return c === 'D400' ? 40 : 12;
-  if (sz.includes('300 × 300') || sz.includes('12" × 12"')) return 6;
-  if (sz.includes('10" × 10"')) return 3;
+  if (sz.includes('1200 × 1200')) return isD400 ? 240 : 110;
+  if (sz.includes('1000 × 1000')) return isD400 ? 180 : 85;
+  if (sz.includes('900 × 900')) return isD400 ? 160 : (isC250 ? 90 : 65);
+  if (sz.includes('600 × 900') || sz.includes('18" × 24"')) return isD400 ? 130 : 60;
+  if (sz.includes('750 × 750') || sz.includes('30" × 30"')) return isD400 ? 110 : (isC250 ? 60 : 35);
+  if (sz.includes('28" × 28"')) return 28;
+  if (sz.includes('600 × 600') || sz.includes('24" × 24"')) return isD400 ? 86 : (isC250 ? 56 : (isB125 ? 40 : 28));
+  if (sz.includes('21" × 21"')) return 16;
+  if (sz.includes('450 × 450') || sz.includes('18" × 18"')) return isD400 ? 40 : 18;
+  if (sz.includes('300 × 300') || sz.includes('12" × 12"')) return 8;
+  if (sz.includes('10" × 10"')) return 4;
 
-  return 20; // Default generic unit weight
+  // Capacity based fallback when dimensions are implicit
+  if (isD400) return 86;
+  if (isC250) return 56;
+  if (isB125) return 40;
+
+  return 60; // Standard nominal weight for complete FRP Cover & Frame Set
 }
 
