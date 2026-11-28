@@ -151,6 +151,9 @@ export class DispatchService {
       lower === 'client consignee' ||
       lower === 'customer designated delivery site' ||
       lower === 'customer delivery site' ||
+      lower === 'trading customer' ||
+      lower.startsWith('trading customer') ||
+      lower === 'trading client' ||
       lower === 'customer' ||
       lower === 'consignee' ||
       lower === 'client' ||
@@ -181,59 +184,65 @@ export class DispatchService {
     return true;
   }
 
-  private enrichDispatchCustomer(d: any) {
-    if (!d) return d;
-    const so = d.salesOrder;
-    const lead = so?.quotation?.lead || so?.sourceQuotation?.lead;
-    const cust = so?.customer;
+  public resolveSalesOrderCustomerName(so: any): string {
+    if (!so) return 'Client Order';
+    const lead = so.quotation?.lead || so.sourceQuotation?.lead;
+    const cust = so.customer;
 
     const candidates = [
       cust?.companyName,
       cust?.name,
+      cust?.partyName,
       lead?.companyName,
       lead?.groupName,
       lead?.projectName,
       lead?.gstName,
       lead?.name,
-      so?.customerName,
-      d.customerName,
+      so.customerName,
+      so.customerNameSnapshot,
       cust?.contactPerson,
       lead?.contactPerson,
     ];
 
-    let resolvedCustomerName = '';
     for (const c of candidates) {
       if (this.isRealCustomerName(c)) {
-        resolvedCustomerName = String(c).trim();
-        break;
+        return String(c).trim();
       }
     }
 
-    if (!resolvedCustomerName) {
-      const addrs = [so?.shippingAddress, so?.billingAddress, cust?.shippingAddress, cust?.billingAddress];
-      for (const a of addrs) {
-        if (a && typeof a === 'object') {
-          const cand = (a as any).companyName || (a as any).customerName || (a as any).name;
-          if (this.isRealCustomerName(cand)) {
-            resolvedCustomerName = String(cand).trim();
-            break;
-          }
-        } else if (a && typeof a === 'string' && a.startsWith('{')) {
-          try {
-            const p = JSON.parse(a);
-            const cand = p.companyName || p.customerName || p.name;
-            if (this.isRealCustomerName(cand)) {
-              resolvedCustomerName = String(cand).trim();
-              break;
-            }
-          } catch {}
+    const addrs = [so.shippingAddress, so.billingAddress, cust?.shippingAddress, cust?.billingAddress];
+    for (const a of addrs) {
+      if (a && typeof a === 'object') {
+        const cand = (a as any).companyName || (a as any).customerName || (a as any).name || (a as any).contactPerson;
+        if (this.isRealCustomerName(cand)) {
+          return String(cand).trim();
         }
+      } else if (a && typeof a === 'string' && a.startsWith('{')) {
+        try {
+          const p = JSON.parse(a);
+          const cand = p.companyName || p.customerName || p.name || p.contactPerson;
+          if (this.isRealCustomerName(cand)) {
+            return String(cand).trim();
+          }
+        } catch {}
       }
     }
 
-    if (!resolvedCustomerName) {
-      resolvedCustomerName = so?.orderNumber ? `Client Order (${so.orderNumber.trim()})` : 'Client Order';
+    if (so.orderNumber) {
+      return `Client Order (${String(so.orderNumber).trim()})`;
     }
+
+    return 'Client Order';
+  }
+
+  private enrichDispatchCustomer(d: any) {
+    if (!d) return d;
+    const so = d.salesOrder;
+    const cust = so?.customer;
+
+    let resolvedCustomerName = d.customerName && this.isRealCustomerName(d.customerName)
+      ? String(d.customerName).trim()
+      : this.resolveSalesOrderCustomerName(so);
 
     const cleanDeliveryAddress = this.formatAddressValue(d.deliveryAddress) || d.deliveryAddress;
 
@@ -2621,6 +2630,36 @@ export class DispatchService {
               billingAddress: true,
               customer: { select: leanCustomerSelect },
               salesExecutive: { select: { id: true, name: true, email: true } },
+              sourceQuotation: {
+                select: {
+                  id: true,
+                  quotationNumber: true,
+                  lead: {
+                    select: {
+                      companyName: true,
+                      groupName: true,
+                      projectName: true,
+                      gstName: true,
+                      contactPerson: true,
+                    },
+                  },
+                },
+              },
+              quotation: {
+                select: {
+                  id: true,
+                  quotationNumber: true,
+                  lead: {
+                    select: {
+                      companyName: true,
+                      groupName: true,
+                      projectName: true,
+                      gstName: true,
+                      contactPerson: true,
+                    },
+                  },
+                },
+              },
               items: {
                 select: {
                   id: true,
@@ -2685,6 +2724,7 @@ export class DispatchService {
 
       const key = alloc.salesOrderId;
       if (!ordersMap.has(key)) {
+        const resolvedCustName = this.resolveSalesOrderCustomerName(alloc.salesOrder);
         ordersMap.set(key, {
           id: alloc.id,
           orderId: alloc.salesOrder.orderNumber,
@@ -2694,7 +2734,10 @@ export class DispatchService {
           requestedDeliveryDate: alloc.salesOrder.requestedDeliveryDate || null,
           freightAmount: Number(alloc.salesOrder.freightAmount || 0),
           batchId: product?.sku || 'FG-STOCK',
-          customerName: alloc.salesOrder.customer?.companyName || 'Customer',
+          customerName: resolvedCustName,
+          customer: alloc.salesOrder.customer
+            ? { ...alloc.salesOrder.customer, companyName: resolvedCustName }
+            : { companyName: resolvedCustName },
           salesperson: alloc.salesOrder.salesExecutive?.name || 'Sales Executive',
           salesExecutive: alloc.salesOrder.salesExecutive,
           deliveryAddress: formatOrderAddress(
@@ -2761,6 +2804,7 @@ export class DispatchService {
 
       const key = salesOrder?.id || wo.id;
       if (!ordersMap.has(key)) {
+        const resolvedCustName = this.resolveSalesOrderCustomerName(salesOrder);
         ordersMap.set(key, {
           id: `wo-${wo.id}`,
           orderId: salesOrder?.orderNumber || wo.workOrderNumber,
@@ -2773,7 +2817,10 @@ export class DispatchService {
           workOrderNumber: wo.workOrderNumber,
           productionPlanNumber: wo.productionPlan?.planNumber || null,
           batchId: product?.sku || wo.workOrderNumber || 'FG-PROD',
-          customerName: customer?.companyName || (customer as any)?.name || 'Production Dispatch',
+          customerName: resolvedCustName,
+          customer: customer
+            ? { ...customer, companyName: resolvedCustName }
+            : { companyName: resolvedCustName },
           salesperson: salesOrder?.salesExecutive?.name || 'Sales Executive',
           salesExecutive: salesOrder?.salesExecutive,
           deliveryAddress: formatOrderAddress(salesOrder, customer, 'Factory Staging Area'),
@@ -2830,6 +2877,7 @@ export class DispatchService {
 
       const key = salesOrder?.id || fg.id;
       if (!ordersMap.has(key)) {
+        const resolvedCustName = this.resolveSalesOrderCustomerName(salesOrder);
         ordersMap.set(key, {
           id: `fg-${fg.id}`,
           orderId: salesOrder?.orderNumber || wo?.workOrderNumber || 'FG-DISPATCH',
@@ -2842,7 +2890,10 @@ export class DispatchService {
           workOrderNumber: wo?.workOrderNumber || (fg as any).jobNo || null,
           productionPlanNumber: wo?.productionPlan?.planNumber || null,
           batchId: product?.sku || wo?.workOrderNumber || 'FG-STOCK',
-          customerName: customer?.companyName || (customer as any)?.name || 'Factory Finished Goods',
+          customerName: resolvedCustName,
+          customer: customer
+            ? { ...customer, companyName: resolvedCustName }
+            : { companyName: resolvedCustName },
           salesperson: salesOrder?.salesExecutive?.name || 'Sales Executive',
           salesExecutive: salesOrder?.salesExecutive,
           deliveryAddress: formatOrderAddress(salesOrder, customer, 'Factory Staging Area'),
@@ -2959,6 +3010,7 @@ export class DispatchService {
 
         const key = so.id;
         if (!ordersMap.has(key)) {
+          const resolvedCustName = this.resolveSalesOrderCustomerName(so);
           ordersMap.set(key, {
             id: `so-${so.id}`,
             orderId: so.orderNumber,
@@ -2968,7 +3020,10 @@ export class DispatchService {
             requestedDeliveryDate: so.requestedDeliveryDate || null,
             freightAmount: Number(so.freightAmount || 0),
             batchId: product?.sku || 'SO-STOCK',
-            customerName: customer?.companyName || customer?.name || 'Trading Customer',
+            customerName: resolvedCustName,
+            customer: so.customer
+              ? { ...so.customer, companyName: resolvedCustName }
+              : { companyName: resolvedCustName },
             salesperson: so.salesExecutive?.name || 'Sales Executive',
             salesExecutive: so.salesExecutive,
             deliveryAddress: formatOrderAddress(so, customer, 'Customer Delivery Site'),

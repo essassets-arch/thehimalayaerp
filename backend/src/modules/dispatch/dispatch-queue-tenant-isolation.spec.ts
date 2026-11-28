@@ -202,9 +202,62 @@ describe('DispatchService queue tenant isolation', () => {
     expect(Array.isArray(queue)).toBe(true);
     expect(queue).toHaveLength(1);
     expect(queue[0].salesOrderId).toBe('so-trading-1');
+    expect(queue[0].customerName).toBe('Trading Client Ltd');
+    expect(queue[0].customer.companyName).toBe('Trading Client Ltd');
     expect(queue[0].items[0].productName).toBe('Wire Cover Block 40MM');
     expect(queue[0].items[0].dispatchCategory).toBe('D2');
     expect(queue[0].items[0].isTrading).toBe(true);
     expect(queue[0].items[0].remainingQuantity).toBe(50);
+  });
+
+  it('resolves actual customer name from lead/quotation or address JSON and never defaults to "Trading Customer"', async () => {
+    const tradingSalesOrderWithLead = {
+      id: 'so-trading-2',
+      orderNumber: 'SO-TRADING-2026-002',
+      status: 'CONFIRMED',
+      orderDate: new Date('2026-11-20T10:00:00Z'),
+      createdAt: new Date('2026-11-20T10:00:00Z'),
+      customer: null,
+      sourceQuotation: {
+        lead: {
+          companyName: 'Apex Builders & Infra',
+        },
+      },
+      items: [
+        {
+          id: 'soi-trading-2',
+          productId: 'prod-trading-2',
+          orderedQuantity: 100,
+          unit: 'PCS',
+          productCodeSnapshot: 'FRC-600',
+          productNameSnapshot: 'FRC Chamber Cover 600',
+          product: {
+            id: 'prod-trading-2',
+            name: 'FRC Chamber Cover 600',
+            sku: 'FRC-600',
+            category: 'FRC COVER',
+            isTrading: true,
+            dispatchCategory: 'D2',
+            unit: 'PCS',
+          },
+          workOrders: [],
+        },
+      ],
+      productionPlans: [],
+    };
+
+    const service = new DispatchService({
+      salesOrderAllocation: { findMany: jest.fn().mockResolvedValue([]) },
+      workOrder: { findMany: jest.fn().mockResolvedValue([]) },
+      finishedGoods: { findMany: jest.fn().mockResolvedValue([]) },
+      salesOrder: { findMany: jest.fn().mockResolvedValue([tradingSalesOrderWithLead]) },
+      dispatchItem: { groupBy: jest.fn().mockResolvedValue([]) },
+    } as any, {} as any, {} as any, {} as any);
+
+    const queue: any = await service.getDispatchQueue('u-sahad', 'DISPATCH_2', 'tenant-a', 'D2');
+    expect(queue).toHaveLength(1);
+    expect(queue[0].customerName).toBe('Apex Builders & Infra');
+    expect(queue[0].customer.companyName).toBe('Apex Builders & Infra');
+    expect(queue[0].customerName).not.toBe('Trading Customer');
   });
 });

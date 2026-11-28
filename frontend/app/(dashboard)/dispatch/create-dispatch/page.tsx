@@ -252,6 +252,12 @@ function isValidCustomerName(name?: any): boolean {
     lower === "unknown customer" ||
     lower === "none" ||
     lower === "finished product" ||
+    lower === "trading customer" ||
+    lower.startsWith("trading customer") ||
+    lower === "trading client" ||
+    lower === "customer" ||
+    lower === "client order" ||
+    lower.startsWith("client order (") ||
     trimmed === "—" ||
     trimmed === "-" ||
     trimmed === "--"

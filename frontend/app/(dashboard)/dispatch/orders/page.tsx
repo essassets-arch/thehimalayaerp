@@ -183,6 +183,10 @@ function isValidCustomerName(name?: any): boolean {
     lower === "unknown customer" ||
     lower === "none" ||
     lower === "finished product" ||
+    lower === "trading customer" ||
+    lower.startsWith("trading customer") ||
+    lower === "trading client" ||
+    lower === "customer" ||
     lower === "client order" ||
     lower.startsWith("client order (") ||
     lower === "test company customer" ||
@@ -1509,6 +1513,10 @@ export default function DispatchOrdersPage() {
             u.startsWith("CLIENT ORDER (") ||
             u === "TEST COMPANY CUSTOMER" ||
             u === "UNKNOWN CUSTOMER" ||
+            u === "TRADING CUSTOMER" ||
+            u.startsWith("TRADING CUSTOMER") ||
+            u === "TRADING CLIENT" ||
+            u === "CUSTOMER" ||
             u === "FINISHED PRODUCT"
           );
         };
@@ -1773,6 +1781,10 @@ export default function DispatchOrdersPage() {
             u.startsWith("CLIENT ORDER (") ||
             u === "TEST COMPANY CUSTOMER" ||
             u === "UNKNOWN CUSTOMER" ||
+            u === "TRADING CUSTOMER" ||
+            u.startsWith("TRADING CUSTOMER") ||
+            u === "TRADING CLIENT" ||
+            u === "CUSTOMER" ||
             u === "FINISHED PRODUCT"
           );
         };
