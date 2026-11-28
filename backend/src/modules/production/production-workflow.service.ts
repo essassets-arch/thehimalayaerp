@@ -1204,16 +1204,26 @@ export class ProductionWorkflowService {
       granularity = (end.getTime() - start.getTime()) > 31 * 86400000 ? 'month' : 'day';
       reportingPeriodLabel = `${String(fd || 1).padStart(2, '0')} ${monthShorts[(fm || 1) - 1]} ${fy} – ${String(td || 1).padStart(2, '0')} ${monthShorts[(tm || 1) - 1]} ${ty}`;
     } else if (period === 'day' || period === 'today') {
-      start = makeIstDate(istYear, istMonth, istDate, 0, 0, 0, 0);
-      end = makeIstDate(istYear, istMonth, istDate, 23, 59, 59, 999);
+      let yr = istYear;
+      let mo = istMonth;
+      let dt = istDate;
+      if (query?.date && /^\d{4}-\d{2}-\d{2}$/.test(String(query.date))) {
+        const [parsedYr, parsedMo, parsedDt] = String(query.date).split('-').map(Number);
+        yr = parsedYr;
+        mo = parsedMo - 1;
+        dt = parsedDt;
+      }
+      start = makeIstDate(yr, mo, dt, 0, 0, 0, 0);
+      end = makeIstDate(yr, mo, dt, 23, 59, 59, 999);
       granularity = 'day';
-      reportingPeriodLabel = `${String(istDate).padStart(2, '0')} ${monthShorts[istMonth]} ${istYear}`;
+      const isToday = yr === istYear && mo === istMonth && dt === istDate;
+      reportingPeriodLabel = `${String(dt).padStart(2, '0')} ${monthShorts[mo]} ${yr}${isToday ? ' (Today)' : ''}`;
     } else if (period === 'week' || period === 'this week') {
       const weekStartIst = new Date(nowIst.getTime() - 6 * 86400000);
       start = makeIstDate(weekStartIst.getUTCFullYear(), weekStartIst.getUTCMonth(), weekStartIst.getUTCDate(), 0, 0, 0, 0);
       end = makeIstDate(istYear, istMonth, istDate, 23, 59, 59, 999);
       granularity = 'day';
-      reportingPeriodLabel = `${String(weekStartIst.getUTCDate()).padStart(2, '0')} ${monthShorts[weekStartIst.getUTCMonth()]} ${weekStartIst.getUTCFullYear()} – ${String(istDate).padStart(2, '0')} ${monthShorts[istMonth]} ${istYear}`;
+      reportingPeriodLabel = `${String(weekStartIst.getUTCDate()).padStart(2, '0')} ${monthShorts[weekStartIst.getUTCMonth()]} ${weekStartIst.getUTCFullYear()} – ${String(istDate).padStart(2, '0')} ${monthShorts[istMonth]} ${istYear} (Past 7 Days)`;
     } else {
       // Month
       let yr = istYear;
@@ -1699,17 +1709,26 @@ export class ProductionWorkflowService {
       1,
       Math.round((end.getTime() - start.getTime()) / 86400000),
     );
-    const dailyTargetPace = Math.max(
-      1,
-      Math.round(targetUnits / Math.min(daysDiff, 30)),
-    );
+    const isDayView = period === 'day' || period === 'today' || daysDiff <= 1;
+    const isWeekView = period === 'week' || period === 'this week';
+
+    // Nominal average weight per product unit in KG (defaults to 80 KG for FRP sets)
+    const nominalAvgWeightKg = 80;
+    const totalTargetMt = Number(((targetUnits * nominalAvgWeightKg) / 1000).toFixed(1));
+    const dailyTargetMt = Math.max(0.5, Number((totalTargetMt / Math.min(daysDiff, 30)).toFixed(1)));
+    const shiftTargetMt = Number((dailyTargetMt / 3).toFixed(1));
 
     const trendMap = new Map<
       string,
-      { date: string; target: number; produced: number; good: number }
+      { date: string; target: number; produced: number; actualMt: number; good: number }
     >();
 
-    if (daysDiff <= 31) {
+    if (isDayView) {
+      // For Day view: X-axis represents the 3 manufacturing shifts of the day
+      trendMap.set('Shift A (Morning)', { date: 'Shift A (Morning)', target: shiftTargetMt, produced: 0, actualMt: 0, good: 0 });
+      trendMap.set('Shift B (Evening)', { date: 'Shift B (Evening)', target: shiftTargetMt, produced: 0, actualMt: 0, good: 0 });
+      trendMap.set('Shift C (Night)', { date: 'Shift C (Night)', target: shiftTargetMt, produced: 0, actualMt: 0, good: 0 });
+    } else if (daysDiff <= 31) {
       const cursor = new Date(start);
       while (cursor <= end) {
         const key = cursor.toLocaleDateString('en-GB', {
@@ -1718,8 +1737,9 @@ export class ProductionWorkflowService {
         });
         trendMap.set(key, {
           date: key,
-          target: dailyTargetPace,
+          target: dailyTargetMt,
           produced: 0,
+          actualMt: 0,
           good: 0,
         });
         cursor.setDate(cursor.getDate() + 1);
@@ -1733,45 +1753,101 @@ export class ProductionWorkflowService {
         });
         trendMap.set(key, {
           date: key,
-          target: Math.round(targetUnits / 6),
+          target: Math.round(totalTargetMt / 6) || 10,
           produced: 0,
+          actualMt: 0,
           good: 0,
         });
         cursor.setMonth(cursor.getMonth() + 1);
       }
     }
 
-    // Populate trend with completed / produced work orders
+    // Populate trend with logged shift entries
+    shiftEntries.forEach((se: any) => {
+      let key = '';
+      if (isDayView) {
+        const sh = String(se.shift || '').toUpperCase();
+        if (sh.includes('B') || sh.includes('EVENING')) key = 'Shift B (Evening)';
+        else if (sh.includes('C') || sh.includes('NIGHT')) key = 'Shift C (Night)';
+        else key = 'Shift A (Morning)';
+      } else if (daysDiff <= 31) {
+        key = new Date(se.date).toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+        });
+      } else {
+        key = new Date(se.date).toLocaleDateString('en-GB', {
+          month: 'short',
+          year: 'numeric',
+        });
+      }
+
+      const point = trendMap.get(key);
+      if (point) {
+        const q = toNumber(se.producedQty) || 0;
+        const matchedWo = (allWorkOrders as any[]).find((w: any) => w.id === se.workOrderId) || (se as any).workOrder;
+        const prod = matchedWo?.salesOrderItem?.product;
+        const unitWeightKg = prod ? evaluateProductMasterWeight(prod).weightKg : nominalAvgWeightKg;
+        const mt = se.totalWeightKg && Number(se.totalWeightKg) > 0
+          ? Number(se.totalWeightKg) / 1000
+          : (q * unitWeightKg) / 1000;
+        point.produced += q;
+        point.actualMt += mt;
+        point.good += q;
+      }
+    });
+
+    // Populate trend with completed / produced work orders if not covered by shift entries
     allWorkOrders.forEach((w) => {
       const dateVal = w.completedAt || w.startedAt || w.createdAt;
       if (dateVal && dateVal >= start && dateVal <= end) {
-        const key =
-          daysDiff <= 31
-            ? new Date(dateVal).toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: 'short',
-              })
-            : new Date(dateVal).toLocaleDateString('en-GB', {
-                month: 'short',
-                year: 'numeric',
-              });
+        let key = '';
+        if (isDayView) {
+          const d = new Date(dateVal);
+          const istHr = (d.getUTCHours() + 5.5) % 24;
+          if (istHr >= 14 && istHr < 22) key = 'Shift B (Evening)';
+          else if (istHr >= 22 || istHr < 6) key = 'Shift C (Night)';
+          else key = 'Shift A (Morning)';
+        } else if (daysDiff <= 31) {
+          key = new Date(dateVal).toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+          });
+        } else {
+          key = new Date(dateVal).toLocaleDateString('en-GB', {
+            month: 'short',
+            year: 'numeric',
+          });
+        }
+
         const point = trendMap.get(key);
         if (point) {
           const q = toNumber(w.quantity) || 1;
-          point.produced += q;
-          point.good +=
-            w.productionStatus === 'QC_FAILED' ? 0 : q;
+          const prod = w.salesOrderItem?.product || w.productionPlan?.salesOrder?.items?.[0]?.product;
+          const unitWeightKg = resolveWorkOrderUnitWeight(w, prod);
+          const mt = (q * unitWeightKg) / 1000;
+          if (shiftEntries.length === 0) {
+            point.produced += q;
+            point.actualMt += mt;
+            point.good += w.productionStatus === 'QC_FAILED' ? 0 : q;
+          }
         }
       }
     });
 
-    const dailyTrend = Array.from(trendMap.values()).map((t) => ({
-      ...t,
-      Target: t.target,
-      Actual: t.produced,
-      Good: t.good,
-      achievement: t.target ? percentage(t.produced, t.target) : 100,
-    }));
+    const dailyTrend = Array.from(trendMap.values()).map((t) => {
+      const actualMt = Number((t.actualMt || 0).toFixed(1));
+      const targetMt = Number((t.target || 0).toFixed(1));
+      return {
+        date: t.date,
+        target: targetMt,
+        actual: actualMt,
+        Target: targetMt,
+        Actual: actualMt,
+        Good: t.good,
+        achievement: targetMt > 0 ? percentage(actualMt, targetMt) : 100,
+      };
+    });
 
     // Authoritative Shift Performance (Shift A Morning, Shift B Evening, Shift C Night)
     const isMorning = (s: string) => /morning|shift\s*a/i.test(s || '');
@@ -2409,15 +2485,40 @@ export class ProductionWorkflowService {
     const backlogUnits = rawReadyForDispatch.reduce((sum, w) => sum + (toNumber(w.quantity) || 1), 0);
     const backlogWeightMt = liveReadyDispatchMt;
 
+    let periodTargetUnits = plannedUnits > 0 ? plannedUnits : (goodUnits > 0 ? goodUnits : 100);
+    let periodTargetLabel = `Target: 95%+ • ${periodTargetUnits.toLocaleString('en-IN')} Sets`;
+    let periodAchievedUnits = goodUnits;
+
+    if (period === 'day' || period === 'today') {
+      periodTargetUnits = Math.max(10, Math.round(periodTargetUnits / 30));
+      periodTargetLabel = `Target: 95%+ • ${periodTargetUnits.toLocaleString('en-IN')} Sets (Daily)`;
+      periodAchievedUnits = shiftSummaryTotal.sets > 0 ? shiftSummaryTotal.sets : (producedFromWOsInPeriod || 0);
+    } else if (period === 'week' || period === 'this week') {
+      periodTargetUnits = Math.max(50, Math.round((periodTargetUnits * 7) / 30));
+      periodTargetLabel = `Target: 95%+ • ${periodTargetUnits.toLocaleString('en-IN')} Sets (Weekly)`;
+      periodAchievedUnits = shiftSummaryTotal.sets > 0 ? shiftSummaryTotal.sets : (producedFromWOsInPeriod || 0);
+    } else if (isAllTime) {
+      periodTargetLabel = `Target: 95%+ • ${periodTargetUnits.toLocaleString('en-IN')} Sets (All-Time)`;
+      periodAchievedUnits = shiftSummaryTotal.sets > 0 ? shiftSummaryTotal.sets : (totalUnitsCount || 0);
+    } else {
+      periodTargetLabel = `Target: 95%+ • ${periodTargetUnits.toLocaleString('en-IN')} Sets (Monthly)`;
+      periodAchievedUnits = shiftSummaryTotal.sets > 0 ? shiftSummaryTotal.sets : (producedFromWOsInPeriod || goodUnits || 0);
+    }
+
+    const scaledAchievementPct = periodTargetUnits > 0
+      ? percentage(periodAchievedUnits, periodTargetUnits)
+      : 100;
+    const planDiff = Number((scaledAchievementPct - 95.0).toFixed(1));
+
     let dynamicPlanAchievement = {
-      percentage: achievementPct,
-      targetLabel: `Target: 95%+ • ${plannedUnits.toLocaleString('en-IN')} Sets`,
-      trend: `${achievementPct >= 95 ? '▲' : '▼'} ${(Math.abs(achievementPct - 95)).toFixed(1)}% vs. plan`,
-      trendType: achievementPct >= 95 ? 'positive' : 'negative',
-      targetQty: plannedUnits,
-      achievedQty: goodUnits,
+      percentage: scaledAchievementPct,
+      targetLabel: periodTargetLabel,
+      trend: planDiff >= 0 ? `▲ ${planDiff}% vs. plan` : `▼ ${Math.abs(planDiff)}% vs. plan`,
+      trendType: planDiff >= 0 ? 'positive' : 'negative',
+      targetQty: periodTargetUnits,
+      achievedQty: periodAchievedUnits,
       hasTarget: true,
-      period: 'Monthly',
+      period: period === 'day' ? 'Daily' : period === 'week' ? 'Weekly' : isAllTime ? 'All-Time' : 'Monthly',
     };
 
     try {
@@ -2427,57 +2528,73 @@ export class ProductionWorkflowService {
       });
 
       if (activeTarget && activeTarget.quantityTarget > 0) {
-        const completedWOs = await this.prisma.workOrder.findMany({
-          where: {
-            status: {
-              in: [
-                'COMPLETED',
-                'QC_APPROVED',
-                'READY_FOR_DISPATCH',
-                'DISPATCHED',
-                'CLOSED',
-              ],
-            },
-            OR: [
-              {
-                completedAt: {
-                  gte: activeTarget.startDate,
-                  lte: activeTarget.endDate,
-                },
-              },
-              {
-                AND: [
-                  { completedAt: null },
-                  {
-                    updatedAt: {
-                      gte: activeTarget.startDate,
-                      lte: activeTarget.endDate,
-                    },
-                  },
+        let baseTarget = activeTarget.quantityTarget;
+        let baseAchieved = goodUnits;
+
+        if (period === 'day' || period === 'today') {
+          baseTarget = Math.max(10, Math.round(activeTarget.quantityTarget / 30));
+          baseAchieved = shiftSummaryTotal.sets > 0 ? shiftSummaryTotal.sets : (producedFromWOsInPeriod || 0);
+        } else if (period === 'week' || period === 'this week') {
+          baseTarget = Math.max(50, Math.round((activeTarget.quantityTarget * 7) / 30));
+          baseAchieved = shiftSummaryTotal.sets > 0 ? shiftSummaryTotal.sets : (producedFromWOsInPeriod || 0);
+        } else if (isAllTime) {
+          baseTarget = activeTarget.quantityTarget;
+          baseAchieved = totalUnitsCount;
+        } else {
+          // Monthly
+          const completedWOs = await this.prisma.workOrder.findMany({
+            where: {
+              status: {
+                in: [
+                  'COMPLETED',
+                  'QC_APPROVED',
+                  'READY_FOR_DISPATCH',
+                  'DISPATCHED',
+                  'CLOSED',
                 ],
               },
-            ],
-          },
-          select: { quantity: true },
-        });
+              OR: [
+                {
+                  completedAt: {
+                    gte: activeTarget.startDate,
+                    lte: activeTarget.endDate,
+                  },
+                },
+                {
+                  AND: [
+                    { completedAt: null },
+                    {
+                      updatedAt: {
+                        gte: activeTarget.startDate,
+                        lte: activeTarget.endDate,
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+            select: { quantity: true },
+          });
 
-        const achievedUnits = completedWOs.reduce(
-          (sum, wo) => sum + Number(wo.quantity || 0),
-          0,
-        );
-        const targetUnits = activeTarget.quantityTarget;
-        const pct = Number(((achievedUnits / targetUnits) * 100).toFixed(1));
+          baseAchieved = completedWOs.reduce(
+            (sum, wo) => sum + Number(wo.quantity || 0),
+            0,
+          );
+        }
+
+        const pct = Number(((baseAchieved / baseTarget) * 100).toFixed(1));
         const diff = Number((pct - 95.0).toFixed(1));
+        const periodSuffix = period === 'day' ? ' (Daily)' : period === 'week' ? ' (Weekly)' : isAllTime ? ' (All-Time)' : ' (Monthly)';
 
         dynamicPlanAchievement = {
           percentage: pct,
-          targetLabel: `Target: 95%+ • ${targetUnits.toLocaleString('en-IN')} Sets`,
+          targetLabel: `Target: 95%+ • ${baseTarget.toLocaleString('en-IN')} Sets${periodSuffix}`,
           trend: diff >= 0 ? `▲ ${diff}% vs. plan` : `▼ ${Math.abs(diff)}% vs. plan`,
           trendType: diff >= 0 ? 'positive' : 'negative',
-          targetQty: targetUnits,
-          achievedQty: achievedUnits,
+          targetQty: baseTarget,
+          achievedQty: baseAchieved,
           hasTarget: true,
-          period: activeTarget.targetPeriod,
+          period: period === 'day' ? 'Daily' : period === 'week' ? 'Weekly' : isAllTime ? 'All-Time' : activeTarget.targetPeriod,
         };
       }
     } catch {}

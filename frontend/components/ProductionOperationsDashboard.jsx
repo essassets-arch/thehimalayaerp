@@ -76,6 +76,7 @@ export default function ProductionOperationsDashboard({
   const [shiftFilter, setShiftFilter] = useState('ALL'); // 'ALL' | 'A' | 'B' | 'C'
   const [machineFilter, setMachineFilter] = useState('ALL');
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [searchQuery, setSearchQuery] = useState('');
   const [activeStageFilter, setActiveStageFilter] = useState('ALL'); // 'ALL' | 'FLOOR' | 'QC_PENDING' ...
   const [showAllLiveOrders, setShowAllLiveOrders] = useState(false);
@@ -134,11 +135,11 @@ export default function ProductionOperationsDashboard({
     setRefreshing(true);
     try {
       const [res, targetRes] = await Promise.all([
-        backendFetch(`/production-workflow/dashboard?period=${timeFilter}&shift=${shiftFilter}&machine=${machineFilter}&month=${selectedMonth}`).catch((e) => {
+        backendFetch(`/production-workflow/dashboard?period=${timeFilter}&shift=${shiftFilter}&machine=${machineFilter}&month=${selectedMonth}&date=${selectedDate}`, { cacheTtlMs: 0 }).catch((e) => {
           console.warn('[Dashboard] Telemetry fetch error:', e);
           return null;
         }),
-        backendFetch(`/api/backend/production-targets/achievement?month=${selectedMonth}&period=${timeFilter}`).catch(() => null)
+        backendFetch(`/api/backend/production-targets/achievement?month=${selectedMonth}&period=${timeFilter}`, { cacheTtlMs: 0 }).catch(() => null)
       ]);
       const data = res?.data || res;
       if (data && typeof data === 'object') {
@@ -158,7 +159,7 @@ export default function ProductionOperationsDashboard({
 
   useEffect(() => {
     fetchDashboardData(true);
-  }, [timeFilter, shiftFilter, machineFilter, selectedMonth]);
+  }, [timeFilter, shiftFilter, machineFilter, selectedMonth, selectedDate]);
 
 
   // Month name helper
@@ -421,20 +422,6 @@ export default function ProductionOperationsDashboard({
     return defaultPressFleet;
   }, [activeData?.hydraulicPressFleet, activeData?.machineFleet, machines]);
 
-  const defaultTrendData = [
-    { date: '31 Oct', actual: 10, planned: 12 },
-    { date: '03 Nov', actual: 16, planned: 18 },
-    { date: '06 Nov', actual: 22, planned: 24 },
-    { date: '09 Nov', actual: 28, planned: 30 },
-    { date: '12 Nov', actual: 34, planned: 35 },
-    { date: '15 Nov', actual: 38, planned: 39 },
-    { date: '18 Nov', actual: 41, planned: 42 },
-    { date: '21 Nov', actual: 44, planned: 44 },
-    { date: '24 Nov', actual: 46, planned: 45 },
-    { date: '27 Nov', actual: 47.5, planned: 46 },
-    { date: '29 Nov', actual: 47.5, planned: 48 }
-  ];
-
   const trendData = useMemo(() => {
     const rawMonthly = activeData?.productionTrendMonthly;
     if (Array.isArray(rawMonthly) && rawMonthly.length > 0) {
@@ -454,14 +441,53 @@ export default function ProductionOperationsDashboard({
     if (Array.isArray(activeData?.dailyTrend) && activeData.dailyTrend.length > 0) {
       return activeData.dailyTrend;
     }
-    return defaultTrendData;
+
+    // Dynamic zero baseline when no data is recorded yet for the active filter
+    if (timeFilter === 'day') {
+      return [
+        { date: 'Shift A (Morning)', actual: 0, planned: 1.5 },
+        { date: 'Shift B (Evening)', actual: 0, planned: 1.5 },
+        { date: 'Shift C (Night)', actual: 0, planned: 1.0 }
+      ];
+    }
+    if (timeFilter === 'week') {
+      const now = new Date();
+      return Array.from({ length: 7 }).map((_, i) => {
+        const d = new Date(now.getTime() - (6 - i) * 86400000);
+        return {
+          date: d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+          actual: 0,
+          planned: 2.0
+        };
+      });
+    }
+    return [
+      { date: 'Shift A (Morning)', actual: 0, planned: 1.5 },
+      { date: 'Shift B (Evening)', actual: 0, planned: 1.5 },
+      { date: 'Shift C (Night)', actual: 0, planned: 1.0 }
+    ];
   }, [activeData?.productionTrendMonthly, activeData?.dailyTrend, timeFilter]);
+
+  const maxTrendVal = useMemo(() => {
+    if (!Array.isArray(trendData) || trendData.length === 0) return 10;
+    const maxVal = Math.max(
+      ...trendData.map((d) =>
+        Math.max(
+          Number(d.actual || d.produced || 0),
+          Number(d.planned || d.target || 0),
+        ),
+      ),
+    );
+    return Math.max(5, Math.ceil(maxVal * 1.25));
+  }, [trendData]);
 
   const defaultShiftSummary = {
     shifts: [
-      { shift: 'Morning', icon: 'sun', sets: 357, covers: 1654, frames: 430, totalWeightMt: 47.5 },
+      { shift: 'Morning', icon: 'sun', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
+      { shift: 'Evening', icon: 'sun', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
+      { shift: 'Night', icon: 'moon', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 }
     ],
-    total: { shift: 'Total', sets: 357, covers: 1654, frames: 430, totalWeightMt: 47.5 }
+    total: { shift: 'Total', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 }
   };
 
   const rawShift = activeData?.shiftWiseProductionSummary;
@@ -802,25 +828,38 @@ export default function ProductionOperationsDashboard({
         </div>
 
         <div className="pod-toolbar-right">
-          {/* Month Selector */}
-          <div className="pod-toolbar-item">
-            <span className="pod-toolbar-sublabel">Month:</span>
-            <select
-              className="pod-filter-select pod-month-select"
-              value={selectedMonth}
-              onChange={(e) => {
-                setSelectedMonth(e.target.value);
-                setTimeFilter('month');
-              }}
-              title="Select Month for dynamic reporting"
-            >
-              {availableMonths.map((m) => (
-                <option key={m.val} value={m.val}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Date Selector for Day, Month Selector for Month/All/Week */}
+          {timeFilter === 'day' ? (
+            <div className="pod-toolbar-item">
+              <span className="pod-toolbar-sublabel">Date:</span>
+              <input
+                type="date"
+                className="pod-filter-select"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                title="Select date for daily reporting"
+              />
+            </div>
+          ) : (
+            <div className="pod-toolbar-item">
+              <span className="pod-toolbar-sublabel">Month:</span>
+              <select
+                className="pod-filter-select pod-month-select"
+                value={selectedMonth}
+                onChange={(e) => {
+                  setSelectedMonth(e.target.value);
+                  setTimeFilter('month');
+                }}
+                title="Select Month for dynamic reporting"
+              >
+                {availableMonths.map((m) => (
+                  <option key={m.val} value={m.val}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Period Filter (Day / Week / Month / All) */}
           <div className="pod-period-bar">
@@ -1142,7 +1181,13 @@ export default function ProductionOperationsDashboard({
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={trendData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
                       <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
-                      <YAxis tick={{ fontSize: 9, fill: '#64748b' }} domain={[0, 50]} ticks={[0, 10, 20, 30, 40, 50]} axisLine={false} tickLine={false} />
+                      <YAxis
+                        tick={{ fontSize: 9, fill: '#64748b' }}
+                        domain={[0, maxTrendVal]}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(val) => `${val}`}
+                      />
                       <Tooltip
                         contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: 6, fontSize: 11, border: 'none' }}
                         formatter={(val, name) => [`${val} MT`, name]}
