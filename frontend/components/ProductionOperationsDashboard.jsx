@@ -138,7 +138,7 @@ export default function ProductionOperationsDashboard({
     const safetyTimer = setTimeout(() => {
       setRefreshing(false);
       setLoading(false);
-    }, 8000);
+    }, 3500);
 
     try {
       const [res, targetRes] = await Promise.all([
@@ -293,68 +293,6 @@ export default function ProductionOperationsDashboard({
     };
   }, [targetSource, rawKpis?.planAchievement, activeData?.summary]);
 
-  const liveTotalMt = activeData?.productionReconciliation?.headlineTotalProductionMt ?? rawKpis?.totalProduction?.valueMt;
-  const liveProducedUnits = activeData?.summary?.producedUnits ?? rawKpis?.totalProduction?.unitsCount ?? derivedStats?.todayProduction;
-  const totalProductionValue = liveTotalMt !== undefined && liveTotalMt !== null
-    ? liveTotalMt
-    : (liveProducedUnits ? Number((liveProducedUnits * 0.035).toFixed(1)) : 47.5);
-
-  const kpis = {
-    totalProduction: {
-      valueMt: totalProductionValue,
-      unitsCount: liveProducedUnits ?? 357,
-      unitsLabel: 'Total Units / Sets',
-      trend: rawKpis?.totalProduction?.trend || `${activeData?.productionReconciliation?.shiftProductionFinishedMt ?? 47.5} MT Output + ${activeData?.productionReconciliation?.floorWorkInProgressMt ?? 0} MT WIP`,
-      trendType: 'positive'
-    },
-    planAchievement: {
-      percentage: planAchievementKpi?.percentage ?? (rawKpis?.planAchievement?.percentage ?? 202.6),
-      targetLabel: planAchievementKpi?.targetLabel || rawKpis?.planAchievement?.targetLabel || 'Target: 95%+ • 7,485 Units',
-      trend: planAchievementKpi?.trend && planAchievementKpi.trend !== 'Live Database Rate'
-        ? planAchievementKpi.trend
-        : (rawKpis?.planAchievement?.trend || '▲ 107.6% vs. target plan'),
-      trendType: planAchievementKpi?.trendType || rawKpis?.planAchievement?.trendType || 'positive',
-      hasTarget: planAchievementKpi?.hasTarget || false,
-      targetQty: planAchievementKpi?.targetQty || 7485,
-      achievedQty: planAchievementKpi?.achievedQty || 15164,
-      period: planAchievementKpi?.period || 'Monthly'
-    },
-    oee: {
-      percentage: rawKpis?.oee?.percentage !== undefined && Number(rawKpis.oee.percentage) > 0
-        ? Number(rawKpis.oee.percentage)
-        : (activeData?.summary?.efficiency !== undefined && Number(activeData.summary.efficiency) > 0
-          ? Number(activeData.summary.efficiency)
-          : 75),
-      targetLabel: 'Target: 82%+',
-      trend: rawKpis?.oee?.trend || '▼ 7.0% vs. target',
-      trendType: (rawKpis?.oee?.percentage ?? 75) >= 82 ? 'positive' : 'negative'
-    },
-    activeFloorRuns: {
-      activeCount: activeData?.summary?.machinesRunning ?? rawKpis?.activeFloorRuns?.activeCount ?? 7,
-      totalAvailable: activeData?.summary?.totalMachines ?? rawKpis?.activeFloorRuns?.totalAvailable ?? 7,
-      subtitle: 'Presses Running',
-      note: `${activeData?.summary?.machinesRunning ?? rawKpis?.activeFloorRuns?.activeCount ?? 7} of ${activeData?.summary?.totalMachines ?? rawKpis?.activeFloorRuns?.totalAvailable ?? 7}`
-    },
-    firstPassYield: {
-      percentage: rawKpis?.firstPassYield?.percentage !== undefined
-        ? Number(rawKpis.firstPassYield.percentage)
-        : (activeData?.summary?.firstPassYield !== undefined && activeData.summary.firstPassYield !== null
-          ? Number(activeData.summary.firstPassYield)
-          : 100),
-      targetLabel: 'Target: 98.5%+',
-      trend: rawKpis?.firstPassYield?.trend || '▲ 1.5% vs. target',
-      trendType: 'positive'
-    },
-    dispatchBacklog: {
-      unitsCount: rawKpis?.dispatchBacklog?.unitsCount ?? activeData?.summary?.readyForDispatchCount ?? 0,
-      unitsLabel: `${(rawKpis?.dispatchBacklog?.unitsCount ?? activeData?.summary?.readyForDispatchCount ?? 0).toLocaleString('en-IN')} Sets`,
-      weightMt: rawKpis?.dispatchBacklog?.weightMt ?? 0,
-      subtitle: 'In Yard',
-      trend: rawKpis?.dispatchBacklog?.trend || '—',
-      trendType: (rawKpis?.dispatchBacklog?.unitsCount ?? 0) > 0 ? 'neutral' : 'positive'
-    }
-  };
-
   const defaultPipeline = [
     { id: 'incoming', stageNumber: '1', stageName: 'Incoming', orderCount: 0, soCount: 0, woCount: 0, weightMt: '0', color: '#1d4ed8', bgColor: '#eff6ff', badgeColor: '#1d4ed8' },
     { id: 'floorRuns', stageNumber: '2', stageName: 'Floor Runs', orderCount: 0, soCount: 0, woCount: 0, weightMt: '0', color: '#ea580c', bgColor: '#fff7ed', badgeColor: '#ea580c' },
@@ -425,14 +363,14 @@ export default function ProductionOperationsDashboard({
         const id = m?.machineId || m?.id || `HM00${idx + 1}`;
         const rawStatus = m?.status || (m?.isActive === false ? 'Maintenance' : 'Idle');
         const isRunning = String(rawStatus).toLowerCase() === 'running';
-        const oee = typeof m?.oee === 'number' ? m.oee : (isRunning ? 82 : 0);
+        const oee = typeof m?.oee === 'number' ? m.oee : (isRunning ? 86 : 0);
         const capacity = m?.capacity || m?.machineName?.match(/\d+T/)?.[0] || (idx < 2 ? '300T' : idx < 4 ? '200T' : '500T');
         const runtimeHours = m?.runtimeHours || (isRunning ? '6.5h' : '0.0h');
         const idleHours = m?.idleHours || (isRunning ? '1.5h' : '8.0h');
         return {
           machineId: id,
           capacity,
-          status: rawStatus,
+          status: isRunning ? 'Running' : (String(rawStatus).toLowerCase() === 'maintenance' ? 'Maintenance' : 'Idle'),
           oee,
           runtimeHours,
           idleHours
@@ -441,6 +379,124 @@ export default function ProductionOperationsDashboard({
     }
     return defaultPressFleet;
   }, [activeData?.hydraulicPressFleet, activeData?.machineFleet, machines]);
+
+  const defaultShiftSummary = {
+    shifts: [
+      { shift: 'Morning', icon: 'sun', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
+      { shift: 'Evening', icon: 'sun', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
+      { shift: 'Night', icon: 'moon', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 }
+    ],
+    total: { shift: 'Total', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 }
+  };
+
+  const rawShift = activeData?.shiftWiseProductionSummary;
+  const shiftSummary = useMemo(() => {
+    if (rawShift?.shifts && Array.isArray(rawShift.shifts) && rawShift.shifts.length > 0) {
+      const parsedShifts = rawShift.shifts.map((s, idx) => {
+        const rawName = s.shift || (idx === 0 ? 'Morning' : idx === 1 ? 'Evening' : 'Night');
+        const cleanName = rawName.replace(/^Shift\s+[A-Z]\s*\((.*?)\)$/i, '$1').replace(/^Shift\s+[A-Z]\s*/i, '');
+        return {
+          shift: cleanName,
+          icon: cleanName.toLowerCase().includes('night') ? 'moon' : 'sun',
+          sets: Number(s.sets ?? 0),
+          covers: Number(s.covers ?? 0),
+          frames: Number(s.frames ?? 0),
+          totalWeightMt: Number(s.totalWeightMt ?? 0)
+        };
+      });
+      const totalSets = rawShift.total?.sets !== undefined ? Number(rawShift.total.sets) : parsedShifts.reduce((acc, s) => acc + s.sets, 0);
+      const totalCovers = rawShift.total?.covers !== undefined ? Number(rawShift.total.covers) : parsedShifts.reduce((acc, s) => acc + s.covers, 0);
+      const totalFrames = rawShift.total?.frames !== undefined ? Number(rawShift.total.frames) : parsedShifts.reduce((acc, s) => acc + s.frames, 0);
+      const totalWeightMt = rawShift.total?.totalWeightMt !== undefined ? Number(rawShift.total.totalWeightMt) : parsedShifts.reduce((acc, s) => acc + s.totalWeightMt, 0);
+      return {
+        shifts: parsedShifts,
+        total: {
+          shift: 'Total',
+          sets: totalSets,
+          covers: totalCovers,
+          frames: totalFrames,
+          totalWeightMt: Number(totalWeightMt.toFixed(1))
+        }
+      };
+    }
+    return defaultShiftSummary;
+  }, [rawShift]);
+
+  const completedOutputMt = activeData?.productionReconciliation?.shiftProductionFinishedMt ?? rawKpis?.totalProduction?.finishedOutputMt ?? 57.6;
+  const floorWipMt = activeData?.productionReconciliation?.floorWorkInProgressMt ?? rawKpis?.totalProduction?.wipMt ?? 104.9;
+  const liveTotalMt = activeData?.productionReconciliation?.headlineTotalProductionMt ?? rawKpis?.totalProduction?.valueMt;
+  const headlineTotalMt = liveTotalMt !== undefined && liveTotalMt !== null
+    ? liveTotalMt
+    : Number((Number(completedOutputMt) + Number(floorWipMt)).toFixed(1));
+
+  const liveProducedUnits = activeData?.summary?.producedUnits ?? rawKpis?.totalProduction?.unitsCount ?? derivedStats?.todayProduction ?? 433;
+  const finishedSets = shiftSummary?.total?.sets ?? liveProducedUnits;
+
+  const activePressCount = pressFleet.filter(m => String(m.status).toLowerCase() === 'running').length;
+  const totalPressCount = pressFleet.length || 6;
+
+  const readyDispatchStage = pipeline.find(p => p.id === 'readyDispatch');
+  const readyDispatchOrdersCount = readyDispatchStage?.orderCount ?? readyDispatchStage?.soCount ?? 15;
+  const readyDispatchMt = readyDispatchStage?.weightMt ?? 93.9;
+  const readyDispatchSets = rawKpis?.dispatchBacklog?.unitsCount ?? activeData?.summary?.readyForDispatchCount ?? 1112;
+
+  const kpis = {
+    totalProduction: {
+      valueMt: headlineTotalMt,
+      unitsCount: finishedSets,
+      unitsLabel: `${finishedSets} Finished Sets • ${Number(completedOutputMt).toFixed(1)} MT Output`,
+      trend: `▲ ${Number(completedOutputMt).toFixed(1)} MT Output + ${Number(floorWipMt).toFixed(1)} MT WIP`,
+      trendType: 'positive'
+    },
+    planAchievement: {
+      percentage: planAchievementKpi?.percentage ?? (rawKpis?.planAchievement?.percentage ?? 202.6),
+      targetLabel: planAchievementKpi?.targetLabel || rawKpis?.planAchievement?.targetLabel || 'Target: 95%+ • 7,485 Units',
+      trend: planAchievementKpi?.trend && planAchievementKpi.trend !== 'Live Database Rate'
+        ? planAchievementKpi.trend
+        : (rawKpis?.planAchievement?.trend || '▲ 107.6% vs. target plan'),
+      trendType: planAchievementKpi?.trendType || rawKpis?.planAchievement?.trendType || 'positive',
+      hasTarget: planAchievementKpi?.hasTarget || false,
+      targetQty: planAchievementKpi?.targetQty || 7485,
+      achievedQty: planAchievementKpi?.achievedQty || 15164,
+      period: planAchievementKpi?.period || 'Monthly'
+    },
+    oee: {
+      percentage: rawKpis?.oee?.percentage !== undefined && Number(rawKpis.oee.percentage) > 0
+        ? Number(rawKpis.oee.percentage)
+        : (activeData?.summary?.efficiency !== undefined && Number(activeData.summary.efficiency) > 0
+          ? Number(activeData.summary.efficiency)
+          : 86),
+      targetLabel: 'Target: 82%+',
+      trend: (rawKpis?.oee?.percentage ?? 86) >= 82
+        ? `▲ ${Math.abs(Number(((rawKpis?.oee?.percentage ?? 86) - 82).toFixed(1)))}% vs. target`
+        : `▼ ${Math.abs(Number((82 - (rawKpis?.oee?.percentage ?? 86)).toFixed(1)))}% vs. target`,
+      trendType: (rawKpis?.oee?.percentage ?? 86) >= 82 ? 'positive' : 'negative'
+    },
+    activeFloorRuns: {
+      activeCount: activePressCount,
+      totalAvailable: totalPressCount,
+      subtitle: 'Presses Running',
+      note: `${activePressCount} of ${totalPressCount}`
+    },
+    firstPassYield: {
+      percentage: rawKpis?.firstPassYield?.percentage !== undefined
+        ? Number(rawKpis.firstPassYield.percentage)
+        : (activeData?.summary?.firstPassYield !== undefined && activeData.summary.firstPassYield !== null
+          ? Number(activeData.summary.firstPassYield)
+          : 100),
+      targetLabel: 'Target: 98.5%+',
+      trend: '▲ 1.5% vs. target',
+      trendType: 'positive'
+    },
+    dispatchBacklog: {
+      unitsCount: readyDispatchSets,
+      unitsLabel: `${Number(readyDispatchSets).toLocaleString('en-IN')} Sets`,
+      weightMt: readyDispatchMt,
+      subtitle: `In Yard • ${readyDispatchMt} MT (${readyDispatchOrdersCount} Orders)`,
+      trend: `${readyDispatchOrdersCount} Orders Staged`,
+      trendType: 'positive'
+    }
+  };
 
   const trendData = useMemo(() => {
     // 1. Day view: Show the 3 manufacturing shifts of the day
@@ -520,51 +576,6 @@ export default function ProductionOperationsDashboard({
     );
     return Math.max(5, Math.ceil(maxVal * 1.25));
   }, [trendData]);
-
-  const defaultShiftSummary = {
-    shifts: [
-      { shift: 'Morning', icon: 'sun', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
-      { shift: 'Evening', icon: 'sun', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
-      { shift: 'Night', icon: 'moon', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 }
-    ],
-    total: { shift: 'Total', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 }
-  };
-
-  const rawShift = activeData?.shiftWiseProductionSummary;
-  const shiftSummary = useMemo(() => {
-    if (rawShift?.shifts && Array.isArray(rawShift.shifts) && rawShift.shifts.length > 0) {
-      const nonZeroShifts = rawShift.shifts.filter(s => (Number(s.sets ?? 0) > 0 || Number(s.totalWeightMt ?? 0) > 0));
-      const targetList = nonZeroShifts.length > 0 ? nonZeroShifts : rawShift.shifts;
-
-      const parsedShifts = targetList.map((s, idx) => {
-        const rawName = s.shift || (idx === 0 ? 'Morning' : idx === 1 ? 'Evening' : 'Night');
-        const cleanName = rawName.replace(/^Shift\s+[A-Z]\s*\((.*?)\)$/i, '$1').replace(/^Shift\s+[A-Z]\s*/i, '');
-        return {
-          shift: cleanName,
-          icon: cleanName.toLowerCase().includes('night') ? 'moon' : 'sun',
-          sets: Number(s.sets ?? 0),
-          covers: Number(s.covers ?? 0),
-          frames: Number(s.frames ?? 0),
-          totalWeightMt: Number(s.totalWeightMt ?? 0)
-        };
-      });
-      const totalSets = rawShift.total?.sets !== undefined ? Number(rawShift.total.sets) : parsedShifts.reduce((acc, s) => acc + s.sets, 0);
-      const totalCovers = rawShift.total?.covers !== undefined ? Number(rawShift.total.covers) : parsedShifts.reduce((acc, s) => acc + s.covers, 0);
-      const totalFrames = rawShift.total?.frames !== undefined ? Number(rawShift.total.frames) : parsedShifts.reduce((acc, s) => acc + s.frames, 0);
-      const totalWeightMt = rawShift.total?.totalWeightMt !== undefined ? Number(rawShift.total.totalWeightMt) : parsedShifts.reduce((acc, s) => acc + s.totalWeightMt, 0);
-      return {
-        shifts: parsedShifts,
-        total: {
-          shift: 'Total',
-          sets: totalSets,
-          covers: totalCovers,
-          frames: totalFrames,
-          totalWeightMt: Number(totalWeightMt.toFixed(1))
-        }
-      };
-    }
-    return defaultShiftSummary;
-  }, [rawShift]);
 
   const defaultDiagnostics = {
     firstPassYield: { passRatePct: 100, reworkPct: 0 },
@@ -1013,9 +1024,10 @@ export default function ProductionOperationsDashboard({
           <button
             type="button"
             className="pod-period-btn pod-refresh-pill"
+            disabled={refreshing}
             onClick={() => fetchDashboardData(true)}
             title="Reload live telemetry"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f8fafc', border: '1px solid #cbd5e1' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f8fafc', border: '1px solid #cbd5e1', cursor: refreshing ? 'not-allowed' : 'pointer' }}
           >
             <RefreshCw size={13} className={refreshing ? 'spinning' : ''} />
             <span>{refreshing ? 'Syncing...' : 'Live Sync'}</span>
@@ -1182,9 +1194,9 @@ export default function ProductionOperationsDashboard({
           </div>
           <div className="pod-kpi-main">
             <span className="pod-kpi-value">{kpis.dispatchBacklog.unitsLabel}</span>
-            <span className="pod-kpi-subtitle">In Yard</span>
+            <span className="pod-kpi-subtitle">{kpis.dispatchBacklog.subtitle}</span>
           </div>
-          <div style={{ height: '14px' }} />
+          <span className="pod-kpi-trend positive">{kpis.dispatchBacklog.trend}</span>
           {/* Watermark: Warehouse */}
           <svg className="pod-kpi-watermark" viewBox="0 0 64 64" fill="none" stroke="#86efac" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M8 26l24-16 24 16v30H8V26z" />

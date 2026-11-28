@@ -1848,6 +1848,152 @@ export class ProductionWorkflowService {
     const targetUnits = Math.round(plannedUnits > 0 ? plannedUnits : (goodUnits > 0 ? goodUnits : 100));
     const achievementPct = targetUnits > 0 ? percentage(goodUnits, targetUnits) : 100;
 
+    // 1. Shift-wise Production Summary (Computed early for trend chart reconciliation)
+    let shiftSummaryShifts: any[] = [];
+    let shiftSummaryTotal: any = { shift: 'Total', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 };
+
+    if (dailyProductionReports && dailyProductionReports.length > 0) {
+      const shiftMap = new Map<string, { shift: string; sets: number; covers: number; frames: number; totalWeightKg: number }>();
+      for (const d of dailyProductionReports) {
+        const shName = d.shift || 'Shift A (Morning)';
+        const cur = shiftMap.get(shName) || { shift: shName, sets: 0, covers: 0, frames: 0, totalWeightKg: 0 };
+        cur.sets += toNumber(d.totalSets);
+        cur.covers += toNumber(d.totalCovers);
+        cur.frames += toNumber(d.totalFrames);
+        cur.totalWeightKg += toNumber(d.totalWeight);
+        shiftMap.set(shName, cur);
+      }
+      shiftSummaryShifts = Array.from(shiftMap.values()).map(s => ({
+        shift: s.shift,
+        sets: s.sets,
+        covers: s.covers,
+        frames: s.frames,
+        totalWeightMt: Number((s.totalWeightKg / 1000).toFixed(1))
+      }));
+      shiftSummaryTotal = {
+        shift: 'Total',
+        sets: shiftSummaryShifts.reduce((acc, s) => acc + s.sets, 0),
+        covers: shiftSummaryShifts.reduce((acc, s) => acc + s.covers, 0),
+        frames: shiftSummaryShifts.reduce((acc, s) => acc + s.frames, 0),
+        totalWeightMt: Number(shiftSummaryShifts.reduce((acc, s) => acc + s.totalWeightMt, 0).toFixed(1))
+      };
+    } else if (shiftEntries && shiftEntries.length > 0) {
+      const shiftMap = new Map<string, { shift: string; sets: number; covers: number; frames: number; totalWeightKg: number }>();
+      ['Shift A (Morning)', 'Shift B (Evening)', 'Shift C (Night)'].forEach(name => {
+        shiftMap.set(name, { shift: name, sets: 0, covers: 0, frames: 0, totalWeightKg: 0 });
+      });
+
+      for (const se of shiftEntries) {
+        let shName = se.shift || 'Shift A (Morning)';
+        if (!shName.includes('(')) {
+          const sUpper = shName.toUpperCase();
+          if (sUpper.includes('EVENING') || sUpper.includes('B')) shName = 'Shift B (Evening)';
+          else if (sUpper.includes('NIGHT') || sUpper.includes('C')) shName = 'Shift C (Night)';
+          else shName = 'Shift A (Morning)';
+        }
+        const cur = shiftMap.get(shName) || { shift: shName, sets: 0, covers: 0, frames: 0, totalWeightKg: 0 };
+        const setsQty = toNumber(se.producedQty);
+        cur.sets += setsQty;
+
+        // Authoritative Product Master composition & weight
+        const matchedWo = (allWorkOrders as any[]).find((w: any) => w.id === se.workOrderId) || (se as any).workOrder;
+        const prod = matchedWo?.salesOrderItem?.product;
+        const coversPerSet = prod?.coversPerSet != null && Number(prod.coversPerSet) > 0 ? Number(prod.coversPerSet) : 1;
+        const framesPerSet = prod?.framesPerSet != null && Number(prod.framesPerSet) > 0 ? Number(prod.framesPerSet) : 1;
+        const weightKg = prod ? evaluateProductMasterWeight(prod).weightKg : 0;
+
+        cur.covers += setsQty * coversPerSet;
+        cur.frames += setsQty * framesPerSet;
+        cur.totalWeightKg += setsQty * weightKg;
+        shiftMap.set(shName, cur);
+      }
+      shiftSummaryShifts = Array.from(shiftMap.values()).map(s => ({
+        shift: s.shift,
+        sets: s.sets,
+        covers: s.covers,
+        frames: s.frames,
+        totalWeightMt: Number((s.totalWeightKg / 1000).toFixed(1))
+      }));
+      shiftSummaryTotal = {
+        shift: 'Total',
+        sets: shiftSummaryShifts.reduce((acc, s) => acc + s.sets, 0),
+        covers: shiftSummaryShifts.reduce((acc, s) => acc + s.covers, 0),
+        frames: shiftSummaryShifts.reduce((acc, s) => acc + s.frames, 0),
+        totalWeightMt: Number(shiftSummaryShifts.reduce((acc, s) => acc + s.totalWeightMt, 0).toFixed(1))
+      };
+    }
+
+    // If shift entries/DPRs were not logged for this period, compute authoritative completed output from completed work orders
+    if ((!shiftSummaryTotal?.sets || shiftSummaryTotal.sets === 0) && periodWOs.length > 0) {
+      let totalSets = 0;
+      let totalCovers = 0;
+      let totalFrames = 0;
+      let totalWeightKg = 0;
+
+      const shiftBuckets: Record<string, { sets: number; covers: number; frames: number; weightKg: number }> = {
+        'Shift A (Morning)': { sets: 0, covers: 0, frames: 0, weightKg: 0 },
+        'Shift B (Evening)': { sets: 0, covers: 0, frames: 0, weightKg: 0 },
+        'Shift C (Night)': { sets: 0, covers: 0, frames: 0, weightKg: 0 },
+      };
+
+      periodWOs.forEach((w: any) => {
+        if (
+          ['COMPLETED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED'].includes(String(w.status).toUpperCase()) ||
+          ['READY_FOR_DISPATCH', 'DISPATCHED'].includes(String(w.productionStatus).toUpperCase())
+        ) {
+          const setsQty = toNumber(w.quantity) || 0;
+          const prod = w.salesOrderItem?.product;
+          const coversPerSet = prod?.coversPerSet != null && Number(prod.coversPerSet) > 0 ? Number(prod.coversPerSet) : 1;
+          const framesPerSet = prod?.framesPerSet != null && Number(prod.framesPerSet) > 0 ? Number(prod.framesPerSet) : 1;
+          const weightKg = prod ? evaluateProductMasterWeight(prod).weightKg : 0;
+
+          const cQty = setsQty * coversPerSet;
+          const fQty = setsQty * framesPerSet;
+          const wKg = setsQty * weightKg;
+
+          totalSets += setsQty;
+          totalCovers += cQty;
+          totalFrames += fQty;
+          totalWeightKg += wKg;
+
+          const dVal = w.completedAt || w.qcTimestamp || w.sentToDispatchAt || w.dispatchedAt || w.createdAt;
+          const d = dVal ? new Date(dVal) : new Date();
+          const istHr = (d.getUTCHours() + 5.5) % 24;
+          let targetKey = 'Shift A (Morning)';
+          if (istHr >= 14 && istHr < 22) targetKey = 'Shift B (Evening)';
+          else if (istHr >= 22 || istHr < 6) targetKey = 'Shift C (Night)';
+
+          shiftBuckets[targetKey].sets += setsQty;
+          shiftBuckets[targetKey].covers += cQty;
+          shiftBuckets[targetKey].frames += fQty;
+          shiftBuckets[targetKey].weightKg += wKg;
+        }
+      });
+
+      if (totalSets > 0) {
+        shiftSummaryTotal = {
+          shift: 'Total',
+          sets: totalSets,
+          covers: totalCovers,
+          frames: totalFrames,
+          totalWeightMt: Number((totalWeightKg / 1000).toFixed(1))
+        };
+        shiftSummaryShifts = [
+          { shift: 'Shift A (Morning)', sets: shiftBuckets['Shift A (Morning)'].sets, covers: shiftBuckets['Shift A (Morning)'].covers, frames: shiftBuckets['Shift A (Morning)'].frames, totalWeightMt: Number((shiftBuckets['Shift A (Morning)'].weightKg / 1000).toFixed(1)) },
+          { shift: 'Shift B (Evening)', sets: shiftBuckets['Shift B (Evening)'].sets, covers: shiftBuckets['Shift B (Evening)'].covers, frames: shiftBuckets['Shift B (Evening)'].frames, totalWeightMt: Number((shiftBuckets['Shift B (Evening)'].weightKg / 1000).toFixed(1)) },
+          { shift: 'Shift C (Night)', sets: shiftBuckets['Shift C (Night)'].sets, covers: shiftBuckets['Shift C (Night)'].covers, frames: shiftBuckets['Shift C (Night)'].frames, totalWeightMt: Number((shiftBuckets['Shift C (Night)'].weightKg / 1000).toFixed(1)) }
+        ];
+      }
+    }
+
+    if (shiftSummaryShifts.length === 0) {
+      shiftSummaryShifts = [
+        { shift: 'Shift A (Morning)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
+        { shift: 'Shift B (Evening)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
+        { shift: 'Shift C (Night)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 }
+      ];
+    }
+
     // Build Authentic Multi-Day Trend
     const daysDiff = Math.max(
       1,
@@ -1868,10 +2014,14 @@ export class ProductionWorkflowService {
     >();
 
     if (isDayView) {
-      // For Day view: X-axis represents the 3 manufacturing shifts of the day
-      trendMap.set('Shift A (Morning)', { date: 'Shift A (Morning)', target: shiftTargetMt, produced: 0, actualMt: 0, good: 0 });
-      trendMap.set('Shift B (Evening)', { date: 'Shift B (Evening)', target: shiftTargetMt, produced: 0, actualMt: 0, good: 0 });
-      trendMap.set('Shift C (Night)', { date: 'Shift C (Night)', target: shiftTargetMt, produced: 0, actualMt: 0, good: 0 });
+      // For Day view: X-axis represents the 3 manufacturing shifts of the day (harmonized with shiftSummaryShifts)
+      const morningEntry = shiftSummaryShifts.find(s => s.shift.includes('Morning'));
+      const eveningEntry = shiftSummaryShifts.find(s => s.shift.includes('Evening'));
+      const nightEntry = shiftSummaryShifts.find(s => s.shift.includes('Night'));
+
+      trendMap.set('Shift A (Morning)', { date: 'Shift A (Morning)', target: shiftTargetMt, produced: Number(morningEntry?.sets || 0), actualMt: Number(morningEntry?.totalWeightMt || 0), good: Number(morningEntry?.sets || 0) });
+      trendMap.set('Shift B (Evening)', { date: 'Shift B (Evening)', target: shiftTargetMt, produced: Number(eveningEntry?.sets || 0), actualMt: Number(eveningEntry?.totalWeightMt || 0), good: Number(eveningEntry?.sets || 0) });
+      trendMap.set('Shift C (Night)', { date: 'Shift C (Night)', target: shiftTargetMt, produced: Number(nightEntry?.sets || 0), actualMt: Number(nightEntry?.totalWeightMt || 0), good: Number(nightEntry?.sets || 0) });
     } else if (daysDiff <= 31) {
       const cursor = new Date(start);
       while (cursor <= end) {
@@ -1906,62 +2056,17 @@ export class ProductionWorkflowService {
       }
     }
 
-    // Populate trend with logged shift entries
-    shiftEntries.forEach((se: any) => {
-      let key = '';
-      if (isDayView) {
-        const sh = String(se.shift || '').toUpperCase();
-        if (sh.includes('B') || sh.includes('EVENING')) key = 'Shift B (Evening)';
-        else if (sh.includes('C') || sh.includes('NIGHT')) key = 'Shift C (Night)';
-        else key = 'Shift A (Morning)';
-      } else if (daysDiff <= 31) {
-        key = new Date(se.date).toLocaleDateString('en-GB', {
-          day: '2-digit',
-          month: 'short',
-        });
-      } else {
-        key = new Date(se.date).toLocaleDateString('en-GB', {
-          month: 'short',
-          year: 'numeric',
-        });
-      }
-
-      const point = trendMap.get(key);
-      if (point) {
-        const q = toNumber(se.producedQty) || 0;
-        const matchedWo = (allWorkOrders as any[]).find((w: any) => w.id === se.workOrderId) || (se as any).workOrder;
-        const prod = matchedWo?.salesOrderItem?.product;
-        const unitWeightKg = prod ? evaluateProductMasterWeight(prod).weightKg : nominalAvgWeightKg;
-        const mt = se.totalWeightKg && Number(se.totalWeightKg) > 0
-          ? Number(se.totalWeightKg) / 1000
-          : (q * unitWeightKg) / 1000;
-        point.produced += q;
-        point.actualMt += mt;
-        point.good += q;
-      }
-    });
-
-    // Populate trend with completed / produced work orders if not covered by shift entries
-    allWorkOrders.forEach((w) => {
-      const isDone = ['COMPLETED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED'].includes(String(w.status).toUpperCase()) ||
-        ['READY_FOR_DISPATCH', 'DISPATCHED'].includes(String(w.productionStatus).toUpperCase());
-      if (!isDone) return;
-      const dateVal = w.completedAt || w.qcTimestamp || w.sentToDispatchAt || w.dispatchedAt;
-      if (dateVal && dateVal >= start && dateVal <= end) {
+    // Populate trend for multi-day views (Day view is already harmonized from shiftSummaryShifts)
+    if (!isDayView) {
+      shiftEntries.forEach((se: any) => {
         let key = '';
-        if (isDayView) {
-          const d = new Date(dateVal);
-          const istHr = (d.getUTCHours() + 5.5) % 24;
-          if (istHr >= 14 && istHr < 22) key = 'Shift B (Evening)';
-          else if (istHr >= 22 || istHr < 6) key = 'Shift C (Night)';
-          else key = 'Shift A (Morning)';
-        } else if (daysDiff <= 31) {
-          key = new Date(dateVal).toLocaleDateString('en-GB', {
+        if (daysDiff <= 31) {
+          key = new Date(se.date).toLocaleDateString('en-GB', {
             day: '2-digit',
             month: 'short',
           });
         } else {
-          key = new Date(dateVal).toLocaleDateString('en-GB', {
+          key = new Date(se.date).toLocaleDateString('en-GB', {
             month: 'short',
             year: 'numeric',
           });
@@ -1969,18 +2074,54 @@ export class ProductionWorkflowService {
 
         const point = trendMap.get(key);
         if (point) {
-          const q = toNumber(w.quantity) || 1;
-          const prod = w.salesOrderItem?.product || w.productionPlan?.salesOrder?.items?.[0]?.product;
-          const unitWeightKg = resolveWorkOrderUnitWeight(w, prod);
-          const mt = (q * unitWeightKg) / 1000;
-          if (shiftEntries.length === 0) {
-            point.produced += q;
-            point.actualMt += mt;
-            point.good += w.productionStatus === 'QC_FAILED' ? 0 : q;
+          const q = toNumber(se.producedQty) || 0;
+          const matchedWo = (allWorkOrders as any[]).find((w: any) => w.id === se.workOrderId) || (se as any).workOrder;
+          const prod = matchedWo?.salesOrderItem?.product;
+          const unitWeightKg = prod ? evaluateProductMasterWeight(prod).weightKg : nominalAvgWeightKg;
+          const mt = se.totalWeightKg && Number(se.totalWeightKg) > 0
+            ? Number(se.totalWeightKg) / 1000
+            : (q * unitWeightKg) / 1000;
+          point.produced += q;
+          point.actualMt += mt;
+          point.good += q;
+        }
+      });
+
+      // Populate trend with completed / produced work orders if not covered by shift entries
+      allWorkOrders.forEach((w) => {
+        const isDone = ['COMPLETED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED'].includes(String(w.status).toUpperCase()) ||
+          ['READY_FOR_DISPATCH', 'DISPATCHED'].includes(String(w.productionStatus).toUpperCase());
+        if (!isDone) return;
+        const dateVal = w.completedAt || w.qcTimestamp || w.sentToDispatchAt || w.dispatchedAt;
+        if (dateVal && dateVal >= start && dateVal <= end) {
+          let key = '';
+          if (daysDiff <= 31) {
+            key = new Date(dateVal).toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+            });
+          } else {
+            key = new Date(dateVal).toLocaleDateString('en-GB', {
+              month: 'short',
+              year: 'numeric',
+            });
+          }
+
+          const point = trendMap.get(key);
+          if (point) {
+            const q = toNumber(w.quantity) || 1;
+            const prod = w.salesOrderItem?.product || w.productionPlan?.salesOrder?.items?.[0]?.product;
+            const unitWeightKg = resolveWorkOrderUnitWeight(w, prod);
+            const mt = (q * unitWeightKg) / 1000;
+            if (shiftEntries.length === 0) {
+              point.produced += q;
+              point.actualMt += mt;
+              point.good += w.productionStatus === 'QC_FAILED' ? 0 : q;
+            }
           }
         }
-      }
-    });
+      });
+    }
 
     const dailyTrend = Array.from(trendMap.values()).map((t) => {
       const actualMt = Number((t.actualMt || 0).toFixed(1));
@@ -1989,6 +2130,7 @@ export class ProductionWorkflowService {
         date: t.date,
         target: targetMt,
         actual: actualMt,
+        planned: targetMt,
         Target: targetMt,
         Actual: actualMt,
         Good: t.good,
@@ -2352,119 +2494,8 @@ export class ProductionWorkflowService {
 
     // --- AUTHORITATIVE DYNAMIC AGGREGATIONS FROM POSTGRESQL ---
 
-    // 1. Shift-wise Production Summary
-    let shiftSummaryShifts: any[] = [];
-    let shiftSummaryTotal: any = { shift: 'Total', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 };
-
-    if (dailyProductionReports && dailyProductionReports.length > 0) {
-      const shiftMap = new Map<string, { shift: string; sets: number; covers: number; frames: number; totalWeightKg: number }>();
-      for (const d of dailyProductionReports) {
-        const shName = d.shift || 'Shift A (Morning)';
-        const cur = shiftMap.get(shName) || { shift: shName, sets: 0, covers: 0, frames: 0, totalWeightKg: 0 };
-        cur.sets += toNumber(d.totalSets);
-        cur.covers += toNumber(d.totalCovers);
-        cur.frames += toNumber(d.totalFrames);
-        cur.totalWeightKg += toNumber(d.totalWeight);
-        shiftMap.set(shName, cur);
-      }
-      shiftSummaryShifts = Array.from(shiftMap.values()).map(s => ({
-        shift: s.shift,
-        sets: s.sets,
-        covers: s.covers,
-        frames: s.frames,
-        totalWeightMt: Number((s.totalWeightKg / 1000).toFixed(1))
-      }));
-      shiftSummaryTotal = {
-        shift: 'Total',
-        sets: shiftSummaryShifts.reduce((acc, s) => acc + s.sets, 0),
-        covers: shiftSummaryShifts.reduce((acc, s) => acc + s.covers, 0),
-        frames: shiftSummaryShifts.reduce((acc, s) => acc + s.frames, 0),
-        totalWeightMt: Number(shiftSummaryShifts.reduce((acc, s) => acc + s.totalWeightMt, 0).toFixed(1))
-      };
-    } else if (shiftEntries && shiftEntries.length > 0) {
-      const shiftMap = new Map<string, { shift: string; sets: number; covers: number; frames: number; totalWeightKg: number }>();
-      for (const se of shiftEntries) {
-        const shName = se.shift || 'Shift A (Morning)';
-        const cur = shiftMap.get(shName) || { shift: shName, sets: 0, covers: 0, frames: 0, totalWeightKg: 0 };
-        const setsQty = toNumber(se.producedQty);
-        cur.sets += setsQty;
-
-        // Authoritative Product Master composition & weight
-        const matchedWo = (allWorkOrders as any[]).find((w: any) => w.id === se.workOrderId) || (se as any).workOrder;
-        const prod = matchedWo?.salesOrderItem?.product;
-        const coversPerSet = prod?.coversPerSet != null && Number(prod.coversPerSet) > 0 ? Number(prod.coversPerSet) : 1;
-        const framesPerSet = prod?.framesPerSet != null && Number(prod.framesPerSet) > 0 ? Number(prod.framesPerSet) : 1;
-        const weightKg = prod ? evaluateProductMasterWeight(prod).weightKg : 0;
-
-        cur.covers += setsQty * coversPerSet;
-        cur.frames += setsQty * framesPerSet;
-        cur.totalWeightKg += setsQty * weightKg;
-        shiftMap.set(shName, cur);
-      }
-      shiftSummaryShifts = Array.from(shiftMap.values()).map(s => ({
-        shift: s.shift,
-        sets: s.sets,
-        covers: s.covers,
-        frames: s.frames,
-        totalWeightMt: Number((s.totalWeightKg / 1000).toFixed(1))
-      }));
-      shiftSummaryTotal = {
-        shift: 'Total',
-        sets: shiftSummaryShifts.reduce((acc, s) => acc + s.sets, 0),
-        covers: shiftSummaryShifts.reduce((acc, s) => acc + s.covers, 0),
-        frames: shiftSummaryShifts.reduce((acc, s) => acc + s.frames, 0),
-        totalWeightMt: Number(shiftSummaryShifts.reduce((acc, s) => acc + s.totalWeightMt, 0).toFixed(1))
-      };
-    }
-
-    // If shift entries/DPRs were not logged for this period, compute authoritative completed output from completed work orders
-    if ((!shiftSummaryTotal?.sets || shiftSummaryTotal.sets === 0) && periodWOs.length > 0) {
-      let totalSets = 0;
-      let totalCovers = 0;
-      let totalFrames = 0;
-      let totalWeightKg = 0;
-
-      periodWOs.forEach((w: any) => {
-        if (
-          ['COMPLETED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED'].includes(String(w.status).toUpperCase()) ||
-          ['READY_FOR_DISPATCH', 'DISPATCHED'].includes(String(w.productionStatus).toUpperCase())
-        ) {
-          const setsQty = toNumber(w.quantity) || 0;
-          const prod = w.salesOrderItem?.product;
-          const coversPerSet = prod?.coversPerSet != null && Number(prod.coversPerSet) > 0 ? Number(prod.coversPerSet) : 1;
-          const framesPerSet = prod?.framesPerSet != null && Number(prod.framesPerSet) > 0 ? Number(prod.framesPerSet) : 1;
-          const weightKg = prod ? evaluateProductMasterWeight(prod).weightKg : 0;
-
-          totalSets += setsQty;
-          totalCovers += setsQty * coversPerSet;
-          totalFrames += setsQty * framesPerSet;
-          totalWeightKg += setsQty * weightKg;
-        }
-      });
-
-      if (totalSets > 0) {
-        shiftSummaryTotal = {
-          shift: 'Total',
-          sets: totalSets,
-          covers: totalCovers,
-          frames: totalFrames,
-          totalWeightMt: Number((totalWeightKg / 1000).toFixed(1))
-        };
-        shiftSummaryShifts = [
-          { shift: 'Shift A (Morning)', sets: totalSets, covers: totalCovers, frames: totalFrames, totalWeightMt: Number((totalWeightKg / 1000).toFixed(1)) },
-          { shift: 'Shift B (Evening)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
-          { shift: 'Shift C (Night)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 }
-        ];
-      }
-    }
-
-    if (shiftSummaryShifts.length === 0) {
-      shiftSummaryShifts = [
-        { shift: 'Shift A (Morning)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
-        { shift: 'Shift B (Evening)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 },
-        { shift: 'Shift C (Night)', sets: 0, covers: 0, frames: 0, totalWeightMt: 0 }
-      ];
-    }
+    // 1. Shift-wise Production Summary (Computed early above for chart harmony)
+    // shiftSummaryShifts and shiftSummaryTotal are ready.
 
     // 2. Reconciliation & Headline Tonnage dynamically computed from database records
     const completedOutputMt = Number((shiftSummaryTotal.totalWeightMt || 0).toFixed(1));
