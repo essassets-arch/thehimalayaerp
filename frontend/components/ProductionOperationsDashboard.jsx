@@ -149,7 +149,7 @@ export default function ProductionOperationsDashboard({
             console.warn('[Dashboard] Telemetry fetch error:', e);
             return null;
           }),
-        backendFetch(`/api/backend/production-targets/achievement?month=${selectedMonth}&period=${timeFilter}`, { cacheTtlMs: 0 }).catch(() => null)
+        backendFetch(`/production-targets/achievement?month=${selectedMonth}&period=${timeFilter}`, { cacheTtlMs: 0 }).catch(() => null)
       ]);
       const data = res?.data || res;
       if (data && typeof data === 'object' && !Array.isArray(data) && Object.keys(data).length > 0) {
@@ -426,7 +426,7 @@ export default function ProductionOperationsDashboard({
   }, [rawShift]);
 
   const completedOutputMt = activeData?.productionReconciliation?.shiftProductionFinishedMt ?? rawKpis?.totalProduction?.finishedOutputMt ?? (timeFilter === 'day' ? 0 : 57.6);
-  const floorWipMt = activeData?.productionReconciliation?.floorWorkInProgressMt ?? rawKpis?.totalProduction?.wipMt ?? 104.9;
+  const floorWipMt = activeData?.productionReconciliation?.floorWorkInProgressMt ?? rawKpis?.totalProduction?.wipMt ?? (timeFilter === 'day' ? 0 : 104.9);
   const liveTotalMt = activeData?.productionReconciliation?.headlineTotalProductionMt ?? rawKpis?.totalProduction?.valueMt;
   const headlineTotalMt = liveTotalMt !== undefined && liveTotalMt !== null
     ? liveTotalMt

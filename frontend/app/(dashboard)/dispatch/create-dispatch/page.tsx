@@ -543,19 +543,6 @@ function isTradingProduct(item: any, productsMap?: Map<string, any>): boolean {
       pName.includes("RCC PIPE") ||
       pName.includes("MOULDED")
     ) return true;
-  }
-
-  if (pType === "MANUFACTURING" && (dCat === "D1" || !dCat)) return false;
-  if (cat.includes("frp covers") || cat.includes("frp gratings") || cat.includes("manufacturing")) return false;
-      pName.startsWith("PCB") ||
-      pName.startsWith("HTCB") ||
-      pName.startsWith("DTCB") ||
-      pName.startsWith("MCB") ||
-      pName.includes("FRC COVER") ||
-      pName.includes("RCC PIPE") ||
-      pName.includes("COVERBLOCK") ||
-      pName.includes("COVER BLOCK")
-    ) return true;
     const pSku = String(p.sku || "").toUpperCase();
     if (
       pSku.startsWith("FRCCP") ||
@@ -573,6 +560,10 @@ function isTradingProduct(item: any, productsMap?: Map<string, any>): boolean {
       pSku.includes("COVER BLOCK")
     ) return true;
   }
+
+  if (pType === "MANUFACTURING" && (dCat === "D1" || !dCat)) return false;
+  if (cat.includes("frp covers") || cat.includes("frp gratings") || cat.includes("manufacturing")) return false;
+
   return false;
 }
 
